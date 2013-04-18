@@ -1,0 +1,4 @@
+include *.py
+global-include *.txt *.rst
+prune build
+exclude MANIFEST.in .bzrignore
