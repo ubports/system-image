@@ -40,3 +40,20 @@ class TestNodes(unittest.TestCase):
         daily = channels.channels['daily']
         self.assertEqual(daily.name, 'daily')
         self.assertEqual(sorted(daily.indexes), ['nexus4', 'nexus7'])
+
+    def test_indexes(self):
+        # Test that the expected top level index data gets parsed correctly.
+        json_data = resource_string(
+            'resolver.tests.data', 'channels_01.json').decode('utf-8')
+        channels = Channels(json_data)
+        stable = channels.channels['stable']
+        nexus7 = stable.indexes['nexus7']
+        self.assertEqual(nexus7.name, 'nexus7')
+        self.assertEqual(nexus7.path, '/stable/nexus7/index.json')
+        daily = channels.channels['daily']
+        nexus7 = daily.indexes['nexus7']
+        self.assertEqual(nexus7.name, 'nexus7')
+        self.assertEqual(nexus7.path, '/daily/nexus7/index.json')
+        nexus4 = daily.indexes['nexus4']
+        self.assertEqual(nexus4.name, 'nexus4')
+        self.assertEqual(nexus4.path, '/daily/nexus4/index.json')
