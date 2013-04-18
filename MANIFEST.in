@@ -1,4 +1,4 @@
 include *.py
-global-include *.txt *.rst
+global-include *.txt *.rst *.json
 prune build
 exclude MANIFEST.in .bzrignore

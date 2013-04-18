@@ -1,0 +1,9 @@
+{
+    "daily": {
+        "nexus7": "/daily/nexus7/index.json",
+        "nexus4": "/daily/nexus4/index.json"
+    },
+    "stable": {
+        "nexus7": "/stable/nexus7/index.json"
+    }
+}
