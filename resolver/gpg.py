@@ -51,7 +51,10 @@ class Context:
                 home = self.home
             # Create the context, using the $GNUPGHOME.
             old_gnupghome = os.environ.get('GNUPGHOME')
-            if old_gnupghome is not None:
+            if old_gnupghome is None:
+                self._withstack.callback(
+                    partial(os.environ.__delitem__, 'GNUPGHOME'))
+            else:
                 self._withstack.callback(
                     partial(os.environ.__setitem__,
                             'GNUPGHOME', old_gnupghome))
