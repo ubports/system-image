@@ -17,6 +17,7 @@
 
 import unittest
 
+from datetime import datetime, timezone
 from pkg_resources import resource_string
 from resolver.node import Channels
 
@@ -57,3 +58,19 @@ class TestNodes(unittest.TestCase):
         nexus4 = daily.indexes['nexus4']
         self.assertEqual(nexus4.name, 'nexus4')
         self.assertEqual(nexus4.path, '/daily/nexus4/index.json')
+
+    def test_timestamp(self):
+        # Make sure that an index filled out with a separately downloaded
+        # index.json will have a proper UTC aware timestamp.
+        json_data = resource_string(
+            'resolver.tests.data', 'channels_01.json').decode('utf-8')
+        channels = Channels(json_data)
+        nexus7 = channels.channels['stable'].indexes['nexus7']
+        # This isn't available until we've filled it in with additional JSON
+        # data.
+        self.assertIsNone(nexus7.generated_at)
+        json_data = resource_string(
+            'resolver.tests.data', 'stable_nexus7_index.json').decode('utf-8')
+        nexus7.extend(json_data)
+        self.assertEqual(nexus7.generated_at,
+                         datetime(2013, 4, 11, 15, 1, 46, tzinfo=timezone.utc))
