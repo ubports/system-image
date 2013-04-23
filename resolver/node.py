@@ -34,7 +34,7 @@ class Index:
     def __init__(self, name, path):
         self.name = name
         self.path = path
-        self.bundles = {}
+        self.bundles = []
         self.images = []
         self.generated_at = None
 
@@ -49,9 +49,7 @@ class Index:
         assert 'UTC' in timestamp_str.split(), 'timestamps must be UTC'
         generated_at = datetime.strptime(timestamp_str, FMT)
         self.generated_at = generated_at.replace(tzinfo=timezone.utc)
-        # Fill out the bundles.
-        ## for bundle_name, bundle_data in mapping['bundles'].items():
-        ##     pass
+        # TBD: Fill out the bundles and images.
 
 
 class Channel:
