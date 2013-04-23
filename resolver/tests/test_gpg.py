@@ -23,8 +23,8 @@ __all__ = [
 import gpgme
 import unittest
 
-from resolver.gpg import Context
 from pkg_resources import resource_filename
+from resolver.gpg import Context
 
 
 class TestSignature(unittest.TestCase):
