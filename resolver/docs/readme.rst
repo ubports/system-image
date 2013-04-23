@@ -143,6 +143,89 @@ The device with the above configuration file will upgrade to the stable Nexus
 7 image.
 
 
+Indexes
+-------
+
+The channel/device index file is where all the available images for that
+combination is described.  Only the images defined in this file are available
+for download for this device in this channel.
+
+The index file has three sections: *bundles*, *global*, and *images*.  The
+*global* section currently contains just a UTC date string marking when the
+index file was generated, and the client updater doesn't really care about
+this value.
+
+The *images* section is a sequence describing every image file that is
+available for download.  There are two types of images, *full* and *delta*.  A
+full image is exactly as you'd expect, it contains the entire root filesystem
+(for the Ubuntu side) or Android image needed to bring the device up to the
+stated version.  Full image items contain the following keys:
+
+ * checksum - The SHA1 hash of the zip file
+ * content - Either *android* or *ubuntu-rootfs* describing whether the image
+   is for the Ubuntu or Android side
+ * path - The URL to the zip file, relative to the server root
+ * size - The size of the zip file in bytes
+ * type - Whether the image is a *full* update or *delta* from some previous
+   image
+ * version - A version string, which is **not** guaranteed to be a number, but
+   generally will be in the YYYYMMXX format
+
+In addition, *delta* images also have this key:
+
+ * base - A version string in YYYYMMXX format naming the version from which
+   this delta was generated
+
+The *bundles* section is a sequence of all supported image combinations for
+both the Ubuntu and Android sides.  Each bundle item contains the following
+keys:
+
+ * images - This should have both an *android* and an *ubuntu-rootfs* key, the
+   values of which are version numbers for the supported bundle of images
+ * version - A version string, guaranteed to be in the format YYYYMMXX where
+   XX starts at 00 and is sortable.
+
+
+Updating
+--------
+
+These then are the steps to determine whether the device needs to be updated:
+
+ * Figure out what bundle version the device is currently at
+ * Download and verify the ``index.json`` file for the channel/device
+ * Scan the *bundles* section, sorting each bundle entry by the version string
+ * The highest version tells you the latest image version that is available
+   for this channel/device
+ * If the device's current version is this bundle version, you're done
+ * If the device's current version is higher than this bundle version,
+   something weird is happening
+ * If the device's current version is lower, then some updating needs to be
+   done
+
+If the device needs to be updated, then you have to figure out what it can be
+updated from.  In the best case scenario, the device should be at most one
+full and one delta away from the latest.  Here are the steps to determine what
+needs to be downloaded and applied.  This assumes that there's plenty of disk
+space so multiple deltas are not necessary.
+
+ * For each of *android* and *ubuntu-rootfs*, find all the deltas which
+   matches the version number in the bundle.  There may be more than one,
+   e.g. delta from the last monthly to this version, and delta from the last
+   delta to this version.
+ * Chase all the bases until you reach a YYYYMM00 version, which names the
+   last monthly that the latest delta is based off of
+ * Now you should have up to two chains of possible updates, running through
+   the individual deltas, or from the latest delta to the latest monthly
+ * Decide which chain you want :)
+
+The decision of which chain to use is based on several criteria.  It could be
+that we'll optimize for fewest downloads, in which case we'll take the
+shortest chain.  Maybe we'll optimize for total download size, in which case
+we'll add up all the image sizes and choose the chain with the smallest total
+size.  There maybe be other criteria applied to the possible update chains to
+consider, such as if there's not enough space for either chain to be
+downloaded entirely.
+
 
 .. _`full specification`: https://wiki.ubuntu.com/ImageBasedUpgrades/Mobile
 .. _`more detail`: https://wiki.ubuntu.com/ImageBasedUpgrades/Mobile#Full_vs._partial_updates
