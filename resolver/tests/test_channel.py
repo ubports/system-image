@@ -28,13 +28,13 @@ from resolver.channel import Channels
 
 class TestChannels(unittest.TestCase):
     def setUp(self):
-        # Test that parsing a simple top level channels.json file produces the
-        # expected set of channels.
         json_data = resource_string(
             'resolver.tests.data', 'channels_01.json').decode('utf-8')
         self.channels = Channels.from_json(json_data)
 
     def test_channels(self):
+        # Test that parsing a simple top level channels.json file produces the
+        # expected set of channels.
         self.assertEqual(
             self.channels.daily.nexus7, '/daily/nexus7/index.json')
         self.assertEqual(

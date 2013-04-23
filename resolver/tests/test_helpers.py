@@ -13,17 +13,26 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Various and sundry helpers."""
+"""Test helpers."""
 
 
-import keyword
+__all__ = [
+    'TestBag',
+    ]
 
 
-class Bag:
-    def __init__(self, **kws):
-        for key, value in kws.items():
-            # Replace problematic characters, e.g. ubuntu-rootfs
-            key = key.replace('-', '_')
-            if keyword.iskeyword(key):
-                key += '_'
-            self.__dict__[key] = value
+import unittest
+
+from resolver.helpers import Bag
+
+
+class TestBag(unittest.TestCase):
+    def test_hyphens(self):
+        # Hyphens get converted to underscores.
+        bag = Bag(**{'foo-bar': 'yes'})
+        self.assertEqual(bag.foo_bar, 'yes')
+
+    def test_keywords(self):
+        # Python keywords get an underscore appended.
+        bag = Bag(**{'global': 'yes'})
+        self.assertEqual(bag.global_, 'yes')
