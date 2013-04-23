@@ -19,7 +19,7 @@ import unittest
 
 from datetime import datetime, timezone
 from pkg_resources import resource_string
-from resolver.node import Channels
+from resolver.channel import Channels
 
 
 class TestNodes(unittest.TestCase):
