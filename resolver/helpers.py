@@ -13,23 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Nodes in the JSON resource tree."""
-
-__all__ = [
-    'Channels',
-    ]
+"""Various and sundry helpers."""
 
 
-import json
-
-from resolver.helpers import Bag
-
-
-class Channels(Bag):
-    @classmethod
-    def from_json(cls, data):
-        mapping = json.loads(data)
-        channels = {}
-        for channel_name, index_data in mapping.items():
-            channels[channel_name] = Bag(**index_data)
-        return cls(**channels)
+class Bag:
+    def __init__(self, **kws):
+        for key, value in kws.items():
+            self.__dict__[key] = value

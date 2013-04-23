@@ -15,62 +15,35 @@
 
 """Test the node classes."""
 
+__all__ = [
+    'TestChannels',
+    ]
+
+
 import unittest
 
-from datetime import datetime, timezone
 from pkg_resources import resource_string
 from resolver.channel import Channels
 
 
-class TestNodes(unittest.TestCase):
-    def test_channels(self):
+class TestChannels(unittest.TestCase):
+    def setUp(self):
         # Test that parsing a simple top level channels.json file produces the
-        # expected set of channel objects.
+        # expected set of channels.
         json_data = resource_string(
             'resolver.tests.data', 'channels_01.json').decode('utf-8')
-        channels = Channels(json_data)
-        self.assertEqual(len(channels.channels), 2)
-        self.assertEqual(sorted(channels.channels),
-                         sorted(channel.name
-                                for channel in channels.channels.values()))
-        # The stable channel has a single index.
-        stable = channels.channels['stable']
-        self.assertEqual(stable.name, 'stable')
-        self.assertEqual(list(stable.indexes), ['nexus7'])
-        # The daily channel has two indexes.
-        daily = channels.channels['daily']
-        self.assertEqual(daily.name, 'daily')
-        self.assertEqual(sorted(daily.indexes), ['nexus4', 'nexus7'])
+        self.channels = Channels.from_json(json_data)
 
-    def test_indexes(self):
-        # Test that the expected top level index data gets parsed correctly.
-        json_data = resource_string(
-            'resolver.tests.data', 'channels_01.json').decode('utf-8')
-        channels = Channels(json_data)
-        stable = channels.channels['stable']
-        nexus7 = stable.indexes['nexus7']
-        self.assertEqual(nexus7.name, 'nexus7')
-        self.assertEqual(nexus7.path, '/stable/nexus7/index.json')
-        daily = channels.channels['daily']
-        nexus7 = daily.indexes['nexus7']
-        self.assertEqual(nexus7.name, 'nexus7')
-        self.assertEqual(nexus7.path, '/daily/nexus7/index.json')
-        nexus4 = daily.indexes['nexus4']
-        self.assertEqual(nexus4.name, 'nexus4')
-        self.assertEqual(nexus4.path, '/daily/nexus4/index.json')
+    def test_channels(self):
+        self.assertEqual(
+            self.channels.daily.nexus7, '/daily/nexus7/index.json')
+        self.assertEqual(
+            self.channels.daily.nexus4, '/daily/nexus4/index.json')
+        self.assertEqual(
+            self.channels.stable.nexus7, '/stable/nexus7/index.json')
 
-    def test_timestamp(self):
-        # Make sure that an index filled out with a separately downloaded
-        # index.json will have a proper UTC aware timestamp.
-        json_data = resource_string(
-            'resolver.tests.data', 'channels_01.json').decode('utf-8')
-        channels = Channels(json_data)
-        nexus7 = channels.channels['stable'].indexes['nexus7']
-        # This isn't available until we've filled it in with additional JSON
-        # data.
-        self.assertIsNone(nexus7.generated_at)
-        json_data = resource_string(
-            'resolver.tests.data', 'stable_nexus7_index.json').decode('utf-8')
-        nexus7.extend(json_data)
-        self.assertEqual(nexus7.generated_at,
-                         datetime(2013, 4, 11, 15, 1, 46, tzinfo=timezone.utc))
+    def test_getattr_failure(self):
+        # Test the getattr syntax on an unknown channel or device combination.
+        self.assertRaises(AttributeError, getattr, self.channels, 'bleeding')
+        self.assertRaises(AttributeError,
+                          getattr, self.channels.stable, 'nexus3')

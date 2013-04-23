@@ -29,12 +29,7 @@ import re
 # roll our own.
 from configparser import ConfigParser
 from datetime import timedelta
-
-
-class _Bag:
-    def __init__(self, **kws):
-        for key, value in kws.items():
-            self.__dict__[key] = value
+from resolver.helpers import Bag
 
 
 # This is stolen directly out of lazr.config.  We can do that since we own
@@ -49,6 +44,7 @@ def _sortkey(item):
         s=4,    # seconds
         )
     return order.get(item[-1])
+
 
 def as_timedelta(value):
     """Convert a value string to the equivalent timedeta."""
@@ -85,10 +81,10 @@ class Configuration:
     def __init__(self, path):
         parser = ConfigParser()
         parser.read(path)
-        self.service = _Bag(base=parser['service']['base'])
-        self.cache = _Bag(directory=parser['cache']['directory'],
-                          lifetime=as_timedelta(parser['cache']['lifetime']),
-                          )
-        self.upgrade = _Bag(channel=parser['upgrade']['channel'],
-                            device=parser['upgrade']['device'],
-                            )
+        self.service = Bag(base=parser['service']['base'])
+        self.cache = Bag(directory=parser['cache']['directory'],
+                         lifetime=as_timedelta(parser['cache']['lifetime']),
+                         )
+        self.upgrade = Bag(channel=parser['upgrade']['channel'],
+                           device=parser['upgrade']['device'],
+                           )
