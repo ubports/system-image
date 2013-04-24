@@ -24,15 +24,12 @@ import unittest
 
 from datetime import datetime, timezone
 from operator import attrgetter
-from pkg_resources import resource_string
-from resolver.index import Index
+from resolver.tests.helpers import get_index
 
 
 class TestIndex(unittest.TestCase):
     def setUp(self):
-        json_data = resource_string(
-            'resolver.tests.data', 'stable_nexus7_index.json').decode('utf-8')
-        self.index = Index.from_json(json_data)
+        self.index = get_index('stable_nexus7_index_01.json')
 
     def test_index_bundles(self):
         self.assertEqual(len(self.index.bundles), 1)

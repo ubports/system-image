@@ -22,15 +22,12 @@ __all__ = [
 
 import unittest
 
-from pkg_resources import resource_string
-from resolver.channel import Channels
+from resolver.tests.helpers import get_channels
 
 
 class TestChannels(unittest.TestCase):
     def setUp(self):
-        json_data = resource_string(
-            'resolver.tests.data', 'channels_01.json').decode('utf-8')
-        self.channels = Channels.from_json(json_data)
+        self.channels = get_channels('channels_01.json')
 
     def test_channels(self):
         # Test that parsing a simple top level channels.json file produces the

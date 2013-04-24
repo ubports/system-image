@@ -94,7 +94,9 @@ available channel.  The files are:
 
  * ``phablet.pubkey.asc`` - This is the public key used to sign various other
    files in the hierarchy.  In order to prevent man-in-the-middle attacks, the
-   system must download this key over https.
+   system must download this key over https.  Eventually, this key will be
+   installed in the initial device flash and not typically downloaded over the
+   internet.
  * ``channels.json`` - This file contains a listing of all the available
    channels.  It's contents are detailed below.
  * ``channels.json.asc`` - The detached signature of the ``channels.json``
@@ -186,21 +188,21 @@ keys:
    XX starts at 00 and is sortable.
 
 
-Updating
---------
+Updates
+-------
 
 These then are the steps to determine whether the device needs to be updated:
 
- * Figure out what bundle version the device is currently at
- * Download and verify the ``index.json`` file for the channel/device
- * Scan the *bundles* section, sorting each bundle entry by the version string
- * The highest version tells you the latest image version that is available
-   for this channel/device
- * If the device's current version is this bundle version, you're done
- * If the device's current version is higher than this bundle version,
-   something weird is happening
- * If the device's current version is lower, then some updating needs to be
-   done
+ * Download the ``index.json`` file for the channel/device and verify it
+ * Sort the available *bundles* by version, taking the highest value as the
+   latest bundle.  The bundle versions are ignored after this.
+ * Inspect the latest bundle to get the image versions for *ubuntu-rootfs* and
+   *android*.
+ * If the device's current *android* version matches the latest bundle's
+   *android* version, there's nothing to do on the Android side
+ * If the device's current *ubuntu-rootfs* version matches the latest bundle's
+   *ubuntu-rootfs* version, there's nothing to do on the Ubuntu side
+ * If either side's current image version is lower, the device needs updating
 
 If the device needs to be updated, then you have to figure out what it can be
 updated from.  In the best case scenario, the device should be at most one
@@ -209,9 +211,9 @@ needs to be downloaded and applied.  This assumes that there's plenty of disk
 space so multiple deltas are not necessary.
 
  * For each of *android* and *ubuntu-rootfs*, find all the deltas which
-   matches the version number in the bundle.  There may be more than one,
-   e.g. delta from the last monthly to this version, and delta from the last
-   delta to this version.
+   matches the version number in the latest bundle.  There may be more than
+   one, e.g. delta from the last monthly to this version, and delta from the
+   last delta to this version.
  * Chase all the bases until you reach a YYYYMM00 version, which names the
    last monthly that the latest delta is based off of
  * Now you should have up to two chains of possible updates, running through
