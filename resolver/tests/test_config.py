@@ -20,6 +20,7 @@ __all__ = [
     ]
 
 
+import os
 import unittest
 
 from datetime import timedelta
@@ -28,12 +29,22 @@ from resolver.config import Configuration
 
 
 class TestConfiguration(unittest.TestCase):
+    def test_defaults(self):
+        config = Configuration()
+        self.assertEqual(config.service.base, 'https://phablet.stgraber.org')
+        self.assertEqual(config.cache.directory,
+                         os.path.expanduser('~/.cache/phablet'))
+        self.assertEqual(config.cache.lifetime, timedelta(seconds=1))
+        self.assertEqual(config.upgrade.channel, 'stable')
+        self.assertEqual(config.upgrade.device, 'nexus7')
+
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
         # values are correct.
         ini_file = resource_filename('resolver.tests.data', 'config_01.ini')
-        config = Configuration(ini_file)
-        self.assertEqual(config.service.base, 'https://phablet.stgraber.org')
+        config = Configuration()
+        config.load(ini_file)
+        self.assertEqual(config.service.base, 'https://phablet.example.com')
         self.assertEqual(config.cache.directory, '/var/cache/resolver')
         self.assertEqual(config.cache.lifetime, timedelta(days=14))
         self.assertEqual(config.upgrade.channel, 'stable')

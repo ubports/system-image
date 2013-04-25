@@ -21,20 +21,27 @@ __all__ = [
 import argparse
 
 from pkg_resources import resource_string as resource_bytes
+from resolver.config import Configuration
 
 
 __version__ = resource_bytes('resolver', 'version.txt').decode('utf-8').strip()
+config = None
 
 
 def main():
+    global config
     parser = argparse.ArgumentParser(
         prog='resolver',
         description='Resolver for Ubuntu phablet updates')
     parser.add_argument('--version',
                         action='version',
                         version='resolver {}'.format(__version__))
+    parser.add_argument('-C', '--config', default=None)
 
-    parser.parse_args()
+    args = parser.parse_args()
+    config = Configuration()
+    if args.config is not None:
+        config.load(args.config)
 
 
 if __name__ == '__main__':

@@ -20,6 +20,7 @@ __all__ = [
     ]
 
 
+import os
 import re
 
 # BAW 2013-04-23: If we need something more sophisticated, lazr.config is the
@@ -29,6 +30,7 @@ import re
 # roll our own.
 from configparser import ConfigParser
 from datetime import timedelta
+from pkg_resources import resource_filename
 from resolver.helpers import Bag
 
 
@@ -78,13 +80,19 @@ def as_timedelta(value):
 
 
 class Configuration:
-    def __init__(self, path):
+    def __init__(self):
+        # Defaults.
+        defaults_ini = resource_filename('resolver.data', 'defaults.ini')
+        self.load(defaults_ini)
+
+    def load(self, path):
         parser = ConfigParser()
         parser.read(path)
         self.service = Bag(base=parser['service']['base'])
-        self.cache = Bag(directory=parser['cache']['directory'],
-                         lifetime=as_timedelta(parser['cache']['lifetime']),
-                         )
+        self.cache = Bag(
+            directory=os.path.expanduser(parser['cache']['directory']),
+            lifetime=as_timedelta(parser['cache']['lifetime']),
+            )
         self.upgrade = Bag(channel=parser['upgrade']['channel'],
                            device=parser['upgrade']['device'],
                            )
