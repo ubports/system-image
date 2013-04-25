@@ -172,9 +172,6 @@ class TestCandidates(unittest.TestCase):
         # Ubuntu paths to upgrade:
         # -> 20130300 -> 20130301
         # -> 20130301
-        # Android paths to upgrade:
-        # -> 20130300 -> 20130301
-        # -> 20130301
         self.assertEqual(len(ubuntu), 2)
         sorted_paths = sorted(ubuntu, key=len)
         full = sorted_paths[0]
@@ -197,3 +194,49 @@ class TestCandidates(unittest.TestCase):
         self.assertEqual(delta.checksum,
                          'ca124997894fa5be76f42a9404f6375d3aca1664')
         self.assertEqual(delta.base, '20130300')
+        # Android paths to upgrade:
+        # -> 20130300 -> 20130301
+        # -> 20130301
+        self.assertEqual(len(android), 2)
+        sorted_paths = sorted(android, key=len)
+        full = sorted_paths[0]
+        self.assertEqual(len(full), 1)
+        monthly = full[0]
+        self.assertEqual(monthly.version, '20130301')
+        self.assertEqual(monthly.type, 'full')
+        self.assertEqual(monthly.checksum,
+                         'ea37ba30664cde4ab245e337c12d16f8ad892278')
+        staged = sorted_paths[1]
+        self.assertEqual(len(staged), 2)
+        monthly = staged[0]
+        self.assertEqual(monthly.version, '20130300')
+        self.assertEqual(monthly.type, 'full')
+        self.assertEqual(monthly.checksum,
+                         'd513dc5e4ed887d8c56e138386f68c8e33f93002')
+        delta = staged[1]
+        self.assertEqual(delta.version, '20130301')
+        self.assertEqual(delta.type, 'delta')
+        self.assertEqual(delta.checksum,
+                         'da39a3ee5e6b4b0d3255bfef95601890afd80709')
+        self.assertEqual(delta.base, '20130300')
+
+    def test_ignore_android(self):
+        # Passing None ignores those candidates.
+        index = get_index('stable_nexus7_index_02.json')
+        ubuntu, android = get_candidates(index, '20130200')
+        self.assertEqual(len(ubuntu), 2)
+        self.assertEqual(len(android), 0)
+
+    def test_ignore_ubuntu(self):
+        # Passing None ignores those candidates.
+        index = get_index('stable_nexus7_index_02.json')
+        ubuntu, android = get_candidates(index, android_version='20130200')
+        self.assertEqual(len(ubuntu), 0)
+        self.assertEqual(len(android), 2)
+
+    def test_ignore_both(self):
+        # Passing None ignores those candidates.
+        index = get_index('stable_nexus7_index_02.json')
+        ubuntu, android = get_candidates(index)
+        self.assertEqual(len(ubuntu), 0)
+        self.assertEqual(len(android), 0)

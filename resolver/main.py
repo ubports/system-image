@@ -37,6 +37,12 @@ def main():
                         action='version',
                         version='resolver {}'.format(__version__))
     parser.add_argument('-C', '--config', default=None)
+    parser.add_argument('-a', '--android-version',
+                        default=None,
+                        help='Current Android version')
+    parser.add_argument('-u', '--ubuntu-version',
+                        default=None,
+                        help='Current Ubuntu version')
 
     args = parser.parse_args()
     config = Configuration()

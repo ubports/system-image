@@ -61,7 +61,7 @@ def _scan(images, content, current_version, target_version):
     return candidates
 
 
-def get_candidates(index, ubuntu_version, android_version):
+def get_candidates(index, ubuntu_version=None, android_version=None):
     """Calculate all the candidate upgrade paths.
 
     This function returns a 2-tuple where the first element describes the list
@@ -92,10 +92,16 @@ def get_candidates(index, ubuntu_version, android_version):
         # BAW 2013-04-24: Perhaps this should log the problem and continue?
         raise ValueError('Duplicate bundle version: {}'.format(
             newest_bundle.version))
-    ubuntu_candidates = _scan(
-        index.images, 'ubuntu-rootfs',
-        ubuntu_version, newest_bundle.images.ubuntu_rootfs)
-    android_candidates = _scan(
-        index.images, 'android',
-        android_version, newest_bundle.images.android)
+    if ubuntu_version is None:
+        ubuntu_candidates = []
+    else:
+        ubuntu_candidates = _scan(
+            index.images, 'ubuntu-rootfs',
+            ubuntu_version, newest_bundle.images.ubuntu_rootfs)
+    if android_version is None:
+        android_candidates = []
+    else:
+        android_candidates = _scan(
+            index.images, 'android',
+            android_version, newest_bundle.images.android)
     return ubuntu_candidates, android_candidates
