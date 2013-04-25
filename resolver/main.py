@@ -13,23 +13,29 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from setuptools import find_packages, setup
+__all__ = [
+    'main',
+    ]
 
-with open('resolver/version.txt') as fp:
-    __version__ = fp.read().strip()
+
+import argparse
+
+from pkg_resources import resource_string as resource_bytes
 
 
-setup(
-    name='resolver',
-    version=__version__,
-    description='Image Based Upgrades',
-    author='Barry Warsaw',
-    author_email='barry@ubuntu.com',
-    license='GNU GPLv3',
-    packages=find_packages(),
-    entry_points={
-        'console_scripts': ['resolver = resolver.main:main'],
-    },
-    include_package_data=True,
-    test_suite="resolver.tests",
-    )
+__version__ = resource_bytes('resolver', 'version.txt').decode('utf-8').strip()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog='resolver',
+        description='Resolver for Ubuntu phablet updates')
+    parser.add_argument('--version',
+                        action='version',
+                        version='resolver {}'.format(__version__))
+
+    parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()
