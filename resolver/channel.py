@@ -40,19 +40,34 @@ class Channels(Bag):
         return cls(**channels)
 
 
-def load_channel():
-    """Load the channel data from the web service, verifying the signature."""
-    from resolver.config import config
+def load_channel(cache=None):
+    """Load the channel data from the cache, or the web service if necessary.
+
+    The channels.json.asc signature file is verified, and if it doesn't match,
+    the cache remains empty and a FileNotFoundError is raised.
+    """
+    if cache is None:
+        from resolver.config import config
+        cache = Cache(config)
+    channels_path = cache.get_path('channels.json')
+    # If the file is already in the cache, there's no need to verify its
+    # signature since anyone who can subvert the .json file can also subvert
+    # the .json.asc signature file too.  Short-circuit for readability.
+    if channels_path is not None:
+        with open(channels_path, encoding='utf-8') as fp:
+            return Channels.from_json(fp.read())
+    # Download both the channels.json and signature file.
+    config = cache.config
     url = urljoin(config.service.base, 'channels.json')
     with Downloader(url) as response:
-        channel_data = response.read()
+        channel_data = response.read().decode('utf-8')
     url = urljoin(config.service.base, 'channels.json.asc')
     with Downloader(url) as response:
-        asc_data = response.read()
+        asc_data = response.read().decode('utf-8')
     # BAW 2013-04-26: This always downloads the phablet pubkey from the web
     # site too, but really, this should either be in the cache already,
     # retrieved from the cache, or in a hardcoded place on the file system.
-    pubkey_path = get_pubkey()
+    pubkey_path = get_pubkey(cache)
     # Store both data files as temp files in the cache directory.  Then verify
     # the signature.  If it matches, return a new Channels instance, otherwise
     # raise a FileNotFound exception.
@@ -64,14 +79,14 @@ def load_channel():
         cfp.flush()
         afp.flush()
         with Context(pubkey_path) as ctx:
-            if not ctx.verify(channels_path, asc_path):
+            # Check the signatures on the temporary files.
+            if not ctx.verify(afp.name, cfp.name):
                 # Raising this exception will unwind all the context managers,
                 # deleting the temporary files and not writing the
                 # channels.json{,.asc} files.
-                raise FileNotFound
+                raise FileNotFoundError
         # BAW 2013-04-26: One potential problem: if we have an error updating
         # the cache, we probably now have two bogus keys in the timeout data.
-        cache = Cache()
         cache.update('channels.json')
         cache.update('channels.json.asc')
     # All is good.  We have now have channels.json{,.asc} verified and

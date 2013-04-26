@@ -16,6 +16,7 @@
 """Test that we can verify GPG signatures."""
 
 __all__ = [
+    'TestGetPubkey',
     'TestSignature',
     ]
 
@@ -50,15 +51,26 @@ class TestSignature(unittest.TestCase):
             'resolver.tests.data', 'channels_01.json.asc')
         data_path = resource_filename(
             'resolver.tests.data', 'channels_01.json')
-        with Context(self.pubkey_path) as ctx, \
-             open(signature_path, 'rb') as sig_fp, \
-             open(data_path, 'rb') as data_fp:
-            results = ctx.import_result
-            signatures = ctx.verify(sig_fp, data_fp)
-        self.assertEqual(len(signatures), 1)
-        signed_by = set(sig.fpr for sig in signatures)
-        expected = set(imported[0] for imported in results.imports)
-        self.assertEqual(expected, signed_by)
+        with Context(self.pubkey_path) as ctx:
+            self.assertTrue(ctx.verify(signature_path, data_path))
+
+    def test_channel_bad_signature(self):
+        # The fingerprints in the signature do not match.
+        signature_path = resource_filename(
+            'resolver.tests.data', 'channels_01.json.bad.asc')
+        data_path = resource_filename(
+            'resolver.tests.data', 'channels_01.json')
+        with Context(self.pubkey_path) as ctx:
+            self.assertFalse(ctx.verify(signature_path, data_path))
+
+    def test_channel_no_signature(self):
+        # The signature file isn't even a signature file.
+        signature_path = resource_filename(
+            'resolver.tests.data', 'config_01.ini')
+        data_path = resource_filename(
+            'resolver.tests.data', 'channels_01.json')
+        with Context(self.pubkey_path) as ctx:
+            self.assertFalse(ctx.verify(signature_path, data_path))
 
 
 class TestGetPubkey(unittest.TestCase):

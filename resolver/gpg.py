@@ -81,10 +81,24 @@ class Context:
         # Don't swallow exceptions.
         return False
 
-    def verify(self, signature, signed_text):
-        # Since we always use detached signatures, the third argument,
-        # i.e. `plaintext` can always be None.
-        return self._ctx.verify(signature, signed_text, None)
+    def verify(self, signature_path, data_path):
+        # gpgme requires that its arguments are open, readable, binary mode
+        # file objects.  It's more convenient to pass in paths though, so open
+        # them now.
+        with open(signature_path, 'rb') as sig_fp, \
+             open(data_path, 'rb') as data_fp:
+            # Since we always use detached signatures, the third argument,
+            # i.e. `plaintext` can always be None.
+            try:
+                signatures = self._ctx.verify(sig_fp, data_fp, None)
+            except gpgme.GpgmeError:
+                # BAW 2013-04-26: Log this error probably.
+                return False
+        # The fingerprints in the validly signed file must match the
+        # fingerprint in the pubkey.
+        signed_by = set(sig.fpr for sig in signatures)
+        expected = set(imported[0] for imported in self.import_result.imports)
+        return signed_by == expected
 
 
 def get_pubkey(cache=None):
@@ -96,12 +110,13 @@ def get_pubkey(cache=None):
         cache = Cache(config)
     pubkey_path = cache.get_path('phablet.pubkey.asc')
     if pubkey_path is None:
-        url = urljoin(cache.config.service.base, 'phablet.pubkey.asc')
+        config = cache.config
+        url = urljoin(config.service.base, 'phablet.pubkey.asc')
         with Downloader(url) as response:
             pubkey = response.read().decode('utf-8')
         # Now, put the pubkey in the cache and update the cache with an
         # insanely long timeout for the file.
-        pubkey_path = os.path.join(cache.config.cache.directory,
+        pubkey_path = os.path.join(config.cache.directory,
                                    'phablet.pubkey.asc')
         when = datetime.now() + timedelta(days=365*10)
         # The pubkey is ASCII armored so the default utf-8 is good enough.

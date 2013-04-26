@@ -61,17 +61,10 @@ class Index(Bag):
         return cls(bundles=bundles, global_=global_, images=images)
 
 
-def load_current_index(force=False):
-    """Load the current index file.
-
-    :param force: Ignore any cached channels.json file and force
-        re-downloading it from the URL.
-    :type force: bool
-    :return: The index file for the current device/channel combination
-    :rtype: Index
-    """
-    # Let's first get the channels, either from the cache or downloaded.
-    channels = None
+def load_current_index():
+    """Load and return the current index file."""
+    ## # Let's first get the channels, either from the cache or downloaded.
+    ## channels = None
     ## if not force:
     ##     cache = Cache()
     ##     path = cache.get_path('channels.json')
@@ -95,4 +88,3 @@ def load_current_index(force=False):
     ##     # it here?  Seems of dubious additional security since anyone with
     ##     # access to subvert channels.json could just as easily subvert the
     ##     # system private key and channels.json signature.
-        
