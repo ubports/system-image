@@ -49,7 +49,7 @@ class Cache:
         # Load the current timestamps.
         if config is None:
             from resolver.config import config
-        self._config = config
+        self.config = config
         # Ensure that the cache directory exists.  The parent must exist.
         try:
             os.mkdir(config.cache.directory, 0o700)
@@ -75,7 +75,7 @@ class Cache:
         """
         if when is None:
             # Cache datetimes are local and naive.
-            when = _now() + self._config.cache.lifetime
+            when = _now() + self.config.cache.lifetime
         self._timestamps[key] = when
         with atomic(self._path) as fp:
             json.dump(self._timestamps, fp, cls=ExtendedEncoder)
@@ -100,4 +100,4 @@ class Cache:
         # prevent that from being useful.  The caller of .get_path() will just
         # have to catch the case when the named file for some reason does not
         # exist.
-        return os.path.join(self._config.cache.directory, filename)
+        return os.path.join(self.config.cache.directory, filename)

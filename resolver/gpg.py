@@ -87,20 +87,21 @@ class Context:
         return self._ctx.verify(signature, signed_text, None)
 
 
-def get_pubkey():
+def get_pubkey(cache=None):
     """Make sure we have the pubkey, downloading it if necessary."""
-    from resolver.config import config
     # BAW 2013-04-26: Ultimately, it's likely that the pubkey will be
     # placed on the file system at install time.
-    cache = Cache()
+    if cache is None:
+        from resolver.config import config
+        cache = Cache(config)
     pubkey_path = cache.get_path('phablet.pubkey.asc')
     if pubkey_path is None:
-        url = urljoin(config.service.base, 'phablet.pubkey.asc')
+        url = urljoin(cache.config.service.base, 'phablet.pubkey.asc')
         with Downloader(url) as response:
             pubkey = response.read().decode('utf-8')
         # Now, put the pubkey in the cache and update the cache with an
         # insanely long timeout for the file.
-        pubkey_path = os.path.join(config.cache.directory,
+        pubkey_path = os.path.join(cache.config.cache.directory,
                                    'phablet.pubkey.asc')
         when = datetime.now() + timedelta(days=365*10)
         # The pubkey is ASCII armored so the default utf-8 is good enough.

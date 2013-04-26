@@ -21,37 +21,16 @@ __all__ = [
 
 
 import os
-import shutil
-import tempfile
 import unittest
 
 from datetime import datetime, timedelta
-from pkg_resources import resource_filename
-from resolver.cache import Cache
-from resolver.config import Configuration
-from resolver.helpers import atomic
+from resolver.tests.helpers import make_temporary_cache
 from unittest.mock import patch
 
 
 class TestCache(unittest.TestCase):
     def setUp(self):
-        self._config = Configuration()
-        tempdir = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, tempdir)
-        ini_file = os.path.join(tempdir, 'config.ini')
-        with atomic(ini_file) as fp:
-            print("""\
-[service]
-base: https://phablet.example.com
-[cache]
-directory: {}
-lifetime: 1d
-[upgrade]
-channel: stable
-device: nexus7
-""".format(tempdir), file=fp)
-        self._config.load(ini_file)
-        self._cache = Cache(self._config)
+        self._cache = make_temporary_cache(self.addCleanup)
 
     def test_cache_miss(self):
         # Getting a file that does not exist in the cache returns None.
