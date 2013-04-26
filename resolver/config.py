@@ -17,11 +17,11 @@
 
 __all__ = [
     'Configuration',
+    'config',
     ]
 
 
 import os
-import re
 
 # BAW 2013-04-23: If we need something more sophisticated, lazr.config is the
 # way to go.  It provides a nice testing infrastruction (pushing/popping of
@@ -29,54 +29,8 @@ import re
 # conversion functions.  For now, we limit the non-stdlib dependencies and
 # roll our own.
 from configparser import ConfigParser
-from datetime import timedelta
 from pkg_resources import resource_filename
-from resolver.helpers import Bag
-
-
-# This is stolen directly out of lazr.config.  We can do that since we own
-# both code bases. :)
-def _sortkey(item):
-    """Return a value that sorted(..., key=_sortkey) can use."""
-    order = dict(
-        w=0,    # weeks
-        d=1,    # days
-        h=2,    # hours
-        m=3,    # minutes
-        s=4,    # seconds
-        )
-    return order.get(item[-1])
-
-
-def as_timedelta(value):
-    """Convert a value string to the equivalent timedeta."""
-    # Technically, the regex will match multiple decimal points in the
-    # left-hand side, but that's okay because the float/int conversion below
-    # will properly complain if there's more than one dot.
-    components = sorted(re.findall(r'([\d.]+[smhdw])', value), key=_sortkey)
-    # Complain if the components are out of order.
-    if ''.join(components) != value:
-        raise ValueError
-    keywords = dict((interval[0].lower(), interval)
-                    for interval in ('weeks', 'days', 'hours',
-                                     'minutes', 'seconds'))
-    keyword_arguments = {}
-    for interval in components:
-        if len(interval) == 0:
-            raise ValueError
-        keyword = keywords.get(interval[-1].lower())
-        if keyword is None:
-            raise ValueError
-        if keyword in keyword_arguments:
-            raise ValueError
-        if '.' in interval[:-1]:
-            converted = float(interval[:-1])
-        else:
-            converted = int(interval[:-1])
-        keyword_arguments[keyword] = converted
-    if len(keyword_arguments) == 0:
-        raise ValueError
-    return timedelta(**keyword_arguments)
+from resolver.helpers import Bag, as_timedelta
 
 
 class Configuration:
@@ -96,3 +50,9 @@ class Configuration:
         self.upgrade = Bag(channel=parser['upgrade']['channel'],
                            device=parser['upgrade']['device'],
                            )
+
+
+# This is the global configuration object.  It uses the defaults, but the
+# argument parsing can call load() on it to initialize it with a new .ini
+# file.
+config = Configuration()

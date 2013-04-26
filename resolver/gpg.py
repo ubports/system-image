@@ -17,6 +17,7 @@
 
 __all__ = [
     'Context',
+    'get_pubkey',
     ]
 
 
@@ -26,7 +27,12 @@ import shutil
 import tempfile
 
 from contextlib import ExitStack
+from datetime import datetime, timedelta
 from functools import partial
+from resolver.cache import Cache
+from resolver.download import Downloader
+from resolver.helpers import atomic
+from urllib.parse import urljoin
 
 
 class Context:
@@ -72,8 +78,33 @@ class Context:
 
     def __exit__(self, *exc_details):
         self._withstack.pop_all().close()
-        # Don't swallow any exceptions.
+        # Don't swallow exceptions.
         return False
 
-    def verify(self, signature, signed_text, plaintext):
-        return self._ctx.verify(signature, signed_text, plaintext)
+    def verify(self, signature, signed_text):
+        # Since we always use detached signatures, the third argument,
+        # i.e. `plaintext` can always be None.
+        return self._ctx.verify(signature, signed_text, None)
+
+
+def get_pubkey():
+    """Make sure we have the pubkey, downloading it if necessary."""
+    from resolver.config import config
+    # BAW 2013-04-26: Ultimately, it's likely that the pubkey will be
+    # placed on the file system at install time.
+    cache = Cache()
+    pubkey_path = cache.get_path('phablet.pubkey.asc')
+    if pubkey_path is None:
+        url = urljoin(config.service.base, 'phablet.pubkey.asc')
+        with Downloader(url) as response:
+            pubkey = response.read().decode('utf-8')
+        # Now, put the pubkey in the cache and update the cache with an
+        # insanely long timeout for the file.
+        pubkey_path = os.path.join(config.cache.directory,
+                                   'phablet.pubkey.asc')
+        when = datetime.now() + timedelta(days=365*10)
+        # The pubkey is ASCII armored so the default utf-8 is good enough.
+        with atomic(pubkey_path) as fp:
+            fp.write(pubkey)
+            cache.update('phablet.pubkey.asc', when)
+    return pubkey_path

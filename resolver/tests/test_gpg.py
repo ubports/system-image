@@ -52,7 +52,7 @@ class TestSignature(unittest.TestCase):
              open(signature_path, 'rb') as sig_fp, \
              open(data_path, 'rb') as data_fp:
             results = ctx.import_result
-            signatures = ctx.verify(sig_fp, data_fp, None)
+            signatures = ctx.verify(sig_fp, data_fp)
         self.assertEqual(len(signatures), 1)
         signed_by = set(sig.fpr for sig in signatures)
         expected = set(imported[0] for imported in results.imports)

@@ -44,6 +44,8 @@ class Policy:
 
 class ByDownloadSize(Policy):
     def choose(self, candidates):
+        if len(candidates) == 0:
+            return []
         sizes = []
         for path in candidates:
             size = sum(image.size for image in path)

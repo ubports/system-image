@@ -17,13 +17,18 @@
 
 __all__ = [
     'Index',
+    'load_current_index',
     ]
 
 
+import os
 import json
 
 from datetime import datetime, timezone
+from resolver.config import config
 from resolver.helpers import Bag
+from urllib.parse import urljoin
+
 
 FMT = '%a %b %d %H:%M:%S %Z %Y'
 
@@ -54,3 +59,40 @@ class Index(Bag):
             image = Bag(**image_data)
             images.append(image)
         return cls(bundles=bundles, global_=global_, images=images)
+
+
+def load_current_index(force=False):
+    """Load the current index file.
+
+    :param force: Ignore any cached channels.json file and force
+        re-downloading it from the URL.
+    :type force: bool
+    :return: The index file for the current device/channel combination
+    :rtype: Index
+    """
+    # Let's first get the channels, either from the cache or downloaded.
+    channels = None
+    if not force:
+        cache = Cache()
+        path = cache.get_path('channels.json')
+        if path is None:
+            # The file is not in the cache.
+            with Downloader(urljoin(config.service.base
+
+
+        # Has the cache lifetime expired?
+        timestamps_path = os.path.join(config.cache.directory,
+                                       'timestamps.json')
+        try:
+            with open(timestamps_path, encoding='utf-8') as fp:
+                timestamps = json.load(fp)
+        except FileNotFoundError:
+            timestamps = None
+        # Has the cache entry for the channels file expired?  This also works
+        # if the there is no 
+        json_path = os.path.join(config.cache.directory, 'channels.json')
+        # BAW 2013-04-26: Should we cache the channels.json.asc file and check
+        # it here?  Seems of dubious additional security since anyone with
+        # access to subvert channels.json could just as easily subvert the
+        # system private key and channels.json signature.
+        
