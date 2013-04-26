@@ -27,6 +27,11 @@ from datetime import datetime
 from resolver.helpers import ExtendedEncoder, as_utcdatetime, atomic
 
 
+def _now():
+    # For easier testing/mocking.
+    return datetime.now()
+
+
 def _object_hook(original):
     # For JSON decoding.  Turn timestamp values into datetimes.
     converted = {}
@@ -70,7 +75,7 @@ class Cache:
         """
         if when is None:
             # Cache datetimes are local and naive.
-            when = datetime.now() + self._config.cache.lifetime
+            when = _now() + self._config.cache.lifetime
         self._timestamps[key] = when
         with atomic(self._path) as fp:
             json.dump(self._timestamps, fp, cls=ExtendedEncoder)
@@ -85,7 +90,7 @@ class Cache:
         if lifetime is None:
             # The file is not in the cache.
             return None
-        if lifetime < datetime.now():
+        if lifetime < _now():
             # The cache entry has expired.
             del self._timestamps[filename]
             with atomic(self._path) as fp:

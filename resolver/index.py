@@ -72,27 +72,27 @@ def load_current_index(force=False):
     """
     # Let's first get the channels, either from the cache or downloaded.
     channels = None
-    if not force:
-        cache = Cache()
-        path = cache.get_path('channels.json')
-        if path is None:
-            # The file is not in the cache.
-            with Downloader(urljoin(config.service.base
+    ## if not force:
+    ##     cache = Cache()
+    ##     path = cache.get_path('channels.json')
+    ##     if path is None:
+    ##         # The file is not in the cache.
+    ##         with Downloader(urljoin(config.service.base
 
 
-        # Has the cache lifetime expired?
-        timestamps_path = os.path.join(config.cache.directory,
-                                       'timestamps.json')
-        try:
-            with open(timestamps_path, encoding='utf-8') as fp:
-                timestamps = json.load(fp)
-        except FileNotFoundError:
-            timestamps = None
-        # Has the cache entry for the channels file expired?  This also works
-        # if the there is no 
-        json_path = os.path.join(config.cache.directory, 'channels.json')
-        # BAW 2013-04-26: Should we cache the channels.json.asc file and check
-        # it here?  Seems of dubious additional security since anyone with
-        # access to subvert channels.json could just as easily subvert the
-        # system private key and channels.json signature.
+    ##     # Has the cache lifetime expired?
+    ##     timestamps_path = os.path.join(config.cache.directory,
+    ##                                    'timestamps.json')
+    ##     try:
+    ##         with open(timestamps_path, encoding='utf-8') as fp:
+    ##             timestamps = json.load(fp)
+    ##     except FileNotFoundError:
+    ##         timestamps = None
+    ##     # Has the cache entry for the channels file expired?  This also works
+    ##     # if the there is no 
+    ##     json_path = os.path.join(config.cache.directory, 'channels.json')
+    ##     # BAW 2013-04-26: Should we cache the channels.json.asc file and check
+    ##     # it here?  Seems of dubious additional security since anyone with
+    ##     # access to subvert channels.json could just as easily subvert the
+    ##     # system private key and channels.json signature.
         

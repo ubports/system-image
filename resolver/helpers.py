@@ -17,7 +17,7 @@
 
 __all__ = [
     'Bag',
-    'ExtendedDecoder',
+    'ExtendedEncoder',
     'as_timedelta',
     'as_utcdatetime',
     'atomic',
