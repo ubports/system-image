@@ -16,7 +16,6 @@
 """Various and sundry helpers."""
 
 __all__ = [
-    'Bag',
     'ExtendedEncoder',
     'as_timedelta',
     'as_utcdatetime',
@@ -27,21 +26,11 @@ __all__ = [
 import os
 import re
 import json
-import keyword
 import tempfile
 
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-
-
-class Bag:
-    def __init__(self, **kws):
-        for key, value in kws.items():
-            # Replace problematic characters, e.g. ubuntu-rootfs
-            key = key.replace('-', '_')
-            if keyword.iskeyword(key):
-                key += '_'
-            self.__dict__[key] = value
+from resolver.bag import Bag
 
 
 @contextmanager
@@ -138,4 +127,6 @@ class ExtendedEncoder(json.JSONEncoder):
                 seconds = obj.seconds + obj.microseconds / 1000000.0
                 return '{0}d{1}s'.format(obj.days, seconds)
             return '{0}d'.format(obj.days)
+        elif isinstance(obj, Bag):
+            return obj.original
         return json.JSONEncoder.default(self, obj)
