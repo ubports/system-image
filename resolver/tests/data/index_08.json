@@ -5,7 +5,7 @@
     "images": [
         {
             "bootme": true,
-            "description": "New full build 1",
+            "description": "Full 1",
             "files": [
                 {
                     "checksum": "",
@@ -35,7 +35,7 @@
         },
         {
             "bootme": true,
-            "description": "New full build 2",
+            "description": "Delta 1",
             "files": [
                 {
                     "checksum": "",

@@ -77,14 +77,15 @@ class WeightedScorer(Scorer):
 
     Examples:
 
-    - Path A requires two extra reboots, is the smallest total download and
-      leaves you at the higest available version.  Score: 200
+    - Path A requires three extra reboots, is the smallest total
+      download and leaves you at the highest available version.
+      Score: 300
 
-    - Path B requires one extra reboot, but is 100MiB bigger and leaves you at
-      the highest available version.  Score: 100
+     - Path B requires one extra reboot, but is 100MiB bigger and leaves
+       you at the highest available version.  Score: 200
 
-    - Path C requires no extra reboots, but is 200MiB bigger and leaves you at
-      20130200 instead of the highest 20130304.  Score: 304
+     - Path C requires no extra reboots, but is 400MiB bigger and leaves
+       you at 20130303 instead of the highest 20130304.  Score: 401
 
     Path B wins.
     """
@@ -94,7 +95,7 @@ class WeightedScorer(Scorer):
         # build number.  Remember the smallest size seen and highest build
         # number.
         max_build = 0
-        min_size = -1
+        min_size = None
         candidate_data = []
         for path in candidates:
             build = path[-1].version
@@ -106,7 +107,8 @@ class WeightedScorer(Scorer):
                           if getattr(image, 'bootme', False))
             candidate_data.append((build, size, reboots, path))
             max_build = build if build > max_build else max_build
-            min_size = size if size < min_size else min_size
+            min_size = (size if (min_size is None or size < min_size)
+                        else min_size)
         # Score the candidates, building the return list-of-tuples.
         scores = []
         for build, size, reboots, path in candidate_data:
