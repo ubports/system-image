@@ -23,66 +23,61 @@ __all__ = [
 import unittest
 
 from datetime import datetime, timezone
-from operator import attrgetter
+from pkg_resources import resource_string as resource_bytes
 from resolver.tests.helpers import get_index
 
 
 class TestIndex(unittest.TestCase):
-    def setUp(self):
-        self.index = get_index('stable_nexus7_index_01.json')
-
-    def test_index_bundles(self):
-        self.assertEqual(len(self.index.bundles), 1)
-        bundle = self.index.bundles[0]
-        self.assertEqual(bundle.images.android, '20130301')
-        self.assertEqual(bundle.images.ubuntu_rootfs, '20130301')
-        self.assertEqual(bundle.version, '20130304')
+    maxDiff = None
 
     def test_index_global(self):
-        self.assertEqual(self.index.global_.generated_at,
-                         datetime(2013, 4, 11, 15, 1, 46, tzinfo=timezone.utc))
+        index = get_index('index_01.json')
+        self.assertEqual(
+            index.global_.generated_at,
+            datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
 
-    def test_index_images(self):
-        self.assertEqual(len(self.index.images), 4)
-        # Sort the images by lexical order on the checksum string.
-        images = sorted(self.index.images, key=attrgetter('checksum'))
-        # The first image starts with 5a...
-        self.assertEqual(images[0].checksum,
-                         '5a37ba30664cde4ab245e337c12d16f8ad892278')
-        self.assertEqual(images[0].content, 'ubuntu-rootfs')
-        self.assertEqual(images[0].path,
-                         '/stable/ubuntu/ubuntu-20130301.full.zip')
-        self.assertEqual(images[0].size, 425039674)
-        self.assertEqual(images[0].type, 'full')
-        self.assertEqual(images[0].version, '20130301')
-        self.assertRaises(AttributeError, getattr, images[0], 'base')
-        # The second image starts with c5...
-        self.assertEqual(images[1].checksum,
-                         'c513dc5e4ed887d8c56e138386f68c8e33f93002')
-        self.assertEqual(images[1].content, 'ubuntu-rootfs')
-        self.assertEqual(images[1].path,
-                         '/stable/ubuntu/ubuntu-20130300.full.zip')
-        self.assertEqual(images[1].size, 423779219)
-        self.assertEqual(images[1].type, 'full')
-        self.assertEqual(images[1].version, '20130300')
-        self.assertRaises(AttributeError, getattr, images[0], 'base')
-        # The third image starts with ca...
-        self.assertEqual(images[2].checksum,
-                         'ca124997894fa5be76f42a9404f6375d3aca1664')
-        self.assertEqual(images[2].base, '20130300')
-        self.assertEqual(images[2].content, 'ubuntu-rootfs')
-        self.assertEqual(images[2].path,
-                         '/stable/ubuntu/ubuntu-20130301.delta-20130300.zip')
-        self.assertEqual(images[2].size, 24320692)
-        self.assertEqual(images[2].type, 'delta')
-        self.assertEqual(images[2].version, '20130301')
-        # The fourth image starts with da...
-        self.assertEqual(images[3].checksum,
-                         'da39a3ee5e6b4b0d3255bfef95601890afd80709')
-        self.assertEqual(images[3].base, '20130300')
-        self.assertEqual(images[3].content, 'android')
-        self.assertEqual(images[3].path,
-                         '/stable/nexus7/android-20130301.delta-20130300.zip')
-        self.assertEqual(images[3].size, 0)
-        self.assertEqual(images[3].type, 'delta')
-        self.assertEqual(images[3].version, '20130301')
+    def test_index_image_count(self):
+        index = get_index('index_01.json')
+        self.assertEqual(len(index.images), 0)
+        index = get_index('index_02.json')
+        self.assertEqual(len(index.images), 2)
+
+    def test_index_regenerate(self):
+        # Read an index and turn it back into JSON.
+        index = get_index('index_02.json')
+        text = resource_bytes('resolver.tests.data', 'index_02.json')
+        # json.dumps() doesn't give us the trailing newline.
+        self.assertMultiLineEqual(index.to_json(), text.decode('utf-8')[:-1])
+
+    def test_image_20130300_full(self):
+        index = get_index('sprint_nexus7_index_01.json')
+        image = index.images[0]
+        self.assertEqual(image.description, 'Some kind of daily build')
+        self.assertEqual(image.type, 'full')
+        self.assertEqual(image.version, 20130300)
+        self.assertTrue(image.bootme)
+        self.assertEqual(len(image.files), 3)
+        # The first file is the device dependent image.  The second is the
+        # device independent file, and the third is the version zip.
+        dev, ind, ver = image.files
+        self.assertEqual(dev.path, '/sprint/nexus7/nexus7-20130300.full.zip')
+        self.assertEqual(dev.signature,
+                         '/sprint/nexus7/nexus7-20130300.full.zip.asc')
+        self.assertEqual(dev.checksum, 'abcdef0')
+        self.assertEqual(dev.order, 0)
+        self.assertEqual(dev.size, 0)
+        # Let's not check the whole file, just a few useful bits.
+        self.assertEqual(ind.checksum, 'abcdef1')
+        self.assertEqual(ind.order, 0)
+        self.assertEqual(ver.checksum, 'abcdef2')
+        self.assertEqual(ver.order, 1)
+
+    def test_image_20130500_minversion(self):
+        # Some full images have a minimum version older than which they refuse
+        # to upgrade from.
+        index = get_index('sprint_nexus7_index_01.json')
+        image = index.images[5]
+        self.assertEqual(image.type, 'full')
+        self.assertEqual(image.version, 20130500)
+        self.assertTrue(image.bootme)
+        self.assertEqual(image.minversion, 20130100)

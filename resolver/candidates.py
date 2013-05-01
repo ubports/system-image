@@ -20,88 +20,99 @@ __all__ = [
     ]
 
 
-from operator import attrgetter
+from collections import deque
 
 
-def _scan(images, content, current_version, target_version):
-    """Scan the list of images looking for upgrade paths."""
-    # BAW 2013-04-24: No doubt we can make this more efficient later.  Let's
-    # get it *right* first.
-    starting_points = []
-    for image in images:
-        if image.content == content and image.version == target_version:
-            starting_points.append(image)
-    candidates = []
-    for here in starting_points:
-        path = []
-        while True:
-            if here.version == current_version:
-                break
-            path.append(here)
-            if here.type == 'full':
-                # We should never have to go back farther than at least one
-                # monthly, i.e. full update.
-                break
-            # Deltas must have a 'base' attribute.
-            base = here.base
-            # If we're already at the base image version, we're done.
-            if current_version == base:
-                break
-            for image in images:
-                if image.content == content and image.version == base:
-                    here = image
-                    break
-            else:
-                # The base image could not be found, but we're not at the
-                # current version.  What do we do?
-                raise ValueError('Base image not found: {}'.format(base))
-        if len(path) > 0:
-            candidates.append(list(reversed(path)))
-    # We want the candidates sorted in order from oldest to newest.
-    return candidates
+class _Chaser:
+    def __init__(self):
+        # Paths are represented by lists, so we need to listify each element
+        # of the initial set of roots.
+        self._paths = deque()
+
+    def __iter__(self):
+        while self._paths:
+            yield self._paths.pop()
+
+    def push(self, new_path):
+        # new_path must be a list.
+        self._paths.appendleft(new_path)
 
 
-def get_candidates(index, ubuntu_version=None, android_version=None):
+def get_candidates(index, build):
     """Calculate all the candidate upgrade paths.
 
-    This function returns a 2-tuple where the first element describes the list
-    of candidate upgrades for the Ubuntu side, and the second one describes
-    the list of candidate upgrades for the Android side.
+    This function returns a list of candidate upgrades paths, from the
+    current build number to the latest build available in the index
+    file.
 
-    Each of these individual lists is itself a list of image records.  Each of
-    these is a chain of updates from the latest image version backward to the
-    current image version.
+    Each element of this list of candidates is itself a list of `Image`
+    objects, in the order that they should be applied to upgrade the
+    device.
 
-    The upgrade candidate chainsy are not sorted, ordered, or prioritized in
-    any way.  They are simply the list of upgrades that will satisfy the
-    requirements.  It is possible that there are no chains for Ubuntu or
-    Android if they are already at the latest version.  In this case, the
-    lists will be empty.
+    The upgrade candidate chains are not sorted, ordered, or prioritized
+    in any way.  They are simply the list of upgrades that will satisfy
+    the requirements.  It is possible that there are no upgrade candidates if
+    the device is already at the latest build, or if the device is at a build
+    too old to update.
+
+    :param index: The index of available upgrades.
+    :type index: An `Index`
+    :param build: The build version number that the device is currently at.
+    :type build: str
+    :return: list-of-lists of upgrade paths.  The empty list is returned if
+        there are no candidate paths.
     """
-    # If there are no bundles, then there's nothing to do.
-    if len(index.bundles) == 0:
-        return [], []
-    # Sort the available bundles by 'version' key and take the highest one.
-    sorted_bundles = sorted(index.bundles, key=attrgetter('version'))
-    # The last element of the list will be the highest version.
-    newest_bundle = sorted_bundles.pop()
-    # Sanity check that that there is only one bundle at this version.  It is
-    # an error in the data if there is more than one.
-    if (len(sorted_bundles) > 0
-        and sorted_bundles[-1].version == newest_bundle.version):
-        # BAW 2013-04-24: Perhaps this should log the problem and continue?
-        raise ValueError('Duplicate bundle version: {}'.format(
-            newest_bundle.version))
-    if ubuntu_version is None:
-        ubuntu_candidates = []
-    else:
-        ubuntu_candidates = _scan(
-            index.images, 'ubuntu-rootfs',
-            ubuntu_version, newest_bundle.images.ubuntu_rootfs)
-    if android_version is None:
-        android_candidates = []
-    else:
-        android_candidates = _scan(
-            index.images, 'android',
-            android_version, newest_bundle.images.android)
-    return ubuntu_candidates, android_candidates
+    # Start by splitting the images into fulls and delta.  Throw out any full
+    # updates which have a minimum version greater than our version.
+    fulls = set()
+    deltas = set()
+    for image in index.images:
+        if image.type == 'full':
+            if getattr(image, 'minversion', 0) <= build:
+                fulls.add(image)
+        elif image.type == 'delta':
+            deltas.add(image)
+        else:
+            # BAW 2013-04-30: log and ignore.
+            raise AssertionError('unknown image type: {}'.format(image.type))
+    # Load up the roots of candidate upgrade paths.
+    chaser = _Chaser()
+    # Each full version that is newer than our current version provides the
+    # start of an upgrade path.
+    for image in fulls:
+        if image.version > build:
+            chaser.push([image])
+    # Each delta with a base that matches our version also provides the start
+    # of an upgrade path.
+    for image in deltas:
+        if image.base == build:
+            chaser.push([image])
+    # Chase the back pointers from the deltas until we run out of newer
+    # versions.  It's possible to push new paths into the chaser if we find a
+    # fork in the road (i.e. two deltas with the same base).
+    paths = list()
+    for path in chaser:
+        current = path[-1]
+        while True:
+            # Find all the deltas that have this step as their base.
+            next_steps = [delta for delta in deltas
+                          if delta.base == current.version]
+            # If there is no next step, then we're done with this path.
+            if len(next_steps) == 0:
+                paths.append(path)
+                break
+            # If there's only one next step, append that to path and keep
+            # going, with this step as the current image.
+            elif len(next_steps) == 1:
+                current = next_steps[0]
+                path.append(current)
+            # Otherwise, we have a fork.  Take one fork now and push the other
+            # paths onto the chaser.
+            else:
+                current = next_steps.pop()
+                for fork in next_steps:
+                    new_path = path.copy()
+                    new_path.append(fork)
+                    chaser.push(new_path)
+                path.append(current)
+    return paths

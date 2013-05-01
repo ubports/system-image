@@ -17,32 +17,26 @@
 
 __all__ = [
     'Index',
-    'load_current_index',
     ]
 
 
-import os
 import json
 
 from datetime import datetime, timezone
-from resolver.config import config
-from resolver.helpers import Bag
-from urllib.parse import urljoin
+from resolver.bag import Bag
+from resolver.helpers import ExtendedEncoder
+from resolver.image import Image
 
 
-FMT = '%a %b %d %H:%M:%S %Z %Y'
+IN_FMT = '%a %b %d %H:%M:%S %Z %Y'
+OUT_FMT = '%a %b %d %H:%M:%S UTC %Y'
 
 
 class Index(Bag):
     @classmethod
     def from_json(cls, data):
+        """Parse the JSON data and produce an index."""
         mapping = json.loads(data)
-        # Parse the bundles.
-        bundles = []
-        for bundle_data in mapping['bundles']:
-            images = Bag(**bundle_data['images'])
-            bundle = Bag(images=images, version=bundle_data['version'])
-            bundles.append(bundle)
         # Parse the global data, of which there is only the timestamp.  Even
         # though the string will contain 'UTC' (which we assert is so since we
         # can only handle UTC timestamps), strptime() will return a naive
@@ -50,41 +44,24 @@ class Index(Bag):
         # only thing that can possibly make sense.
         timestamp_str = mapping['global']['generated_at']
         assert 'UTC' in timestamp_str.split(), 'timestamps must be UTC'
-        naive_generated_at = datetime.strptime(timestamp_str, FMT)
+        naive_generated_at = datetime.strptime(timestamp_str, IN_FMT)
         generated_at=naive_generated_at.replace(tzinfo=timezone.utc)
         global_ = Bag(generated_at=generated_at)
         # Parse the images.
         images = []
         for image_data in mapping['images']:
-            image = Bag(**image_data)
-            images.append(image)
-        return cls(bundles=bundles, global_=global_, images=images)
+            files = image_data.pop('files', [])
+            bundles = [Bag(**bundle_data) for bundle_data in files]
+            images.append(Image(files=bundles, **image_data))
+        return cls(global_=global_, images=images)
 
-
-def load_current_index():
-    """Load and return the current index file."""
-    ## # Let's first get the channels, either from the cache or downloaded.
-    ## channels = None
-    ## if not force:
-    ##     cache = Cache()
-    ##     path = cache.get_path('channels.json')
-    ##     if path is None:
-    ##         # The file is not in the cache.
-    ##         with Downloader(urljoin(config.service.base
-
-
-    ##     # Has the cache lifetime expired?
-    ##     timestamps_path = os.path.join(config.cache.directory,
-    ##                                    'timestamps.json')
-    ##     try:
-    ##         with open(timestamps_path, encoding='utf-8') as fp:
-    ##             timestamps = json.load(fp)
-    ##     except FileNotFoundError:
-    ##         timestamps = None
-    ##     # Has the cache entry for the channels file expired?  This also works
-    ##     # if the there is no 
-    ##     json_path = os.path.join(config.cache.directory, 'channels.json')
-    ##     # BAW 2013-04-26: Should we cache the channels.json.asc file and check
-    ##     # it here?  Seems of dubious additional security since anyone with
-    ##     # access to subvert channels.json could just as easily subvert the
-    ##     # system private key and channels.json signature.
+    def to_json(self):
+        index = {
+            'global': {
+                'generated_at': self.global_.generated_at.strftime(OUT_FMT),
+                },
+            'images': [image.__original__ for image in self.images],
+            }
+        return json.dumps(index,
+                          sort_keys=True, indent=4, separators=(',', ': '),
+                          cls=ExtendedEncoder)

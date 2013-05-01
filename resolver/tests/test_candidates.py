@@ -22,221 +22,133 @@ __all__ = [
 
 import unittest
 
+from operator import attrgetter
 from resolver.candidates import get_candidates
-from resolver.tests.helpers import get_index, make_index
-from textwrap import dedent
+from resolver.tests.helpers import get_index
 
 
 class TestCandidates(unittest.TestCase):
-    def test_no_bundles(self):
-        # If there are no bundles defined, then there are no updates.
-        index = make_index("""\
-        {"bundles": [],
-         "global": {"generated_at": "Thu Apr 11 15:01:46 UTC 2013"},
-         "images": []
-        }
-        """)
-        ubuntu, android = get_candidates(index, '20130301', '20130301')
-        self.assertEqual(ubuntu, [])
-        self.assertEqual(android, [])
+    def test_no_images(self):
+        # If there are no images defined, there are no candidates.
+        index = get_index('index_01.json')
+        candidates = get_candidates(index, 20130400)
+        self.assertEqual(candidates, [])
 
-    def test_duplicate_bundle_version(self):
-        # It should not be possible to have duplicate bundles with the same
-        # version string.
-        index = make_index("""\
-        {"bundles": [
-            {"version": "20130304", "images": {}},
-            {"version": "20130304", "images": {}},
-            {"version": "20130201", "images": {}}
-            ],
-         "global": {"generated_at": "Thu Apr 11 15:01:46 UTC 2013"},
-         "images": []
-        }
-        """)
-        self.assertRaises(ValueError,
-                          get_candidates, index, '20130301', '20130301')
+    def test_only_higher_fulls(self):
+        # All the full images have a minversion greater than our version, so
+        # we cannot upgrade to any of them.
+        index = get_index('index_02.json')
+        candidates = get_candidates(index, 20120100)
+        self.assertEqual(candidates, [])
 
-    def test_at_current(self):
-        # If we're already at the current bundle versions, there's no upgrade
-        # paths available.  This data names the 20130304 bundle version, with
-        # image versions of 20130301 for both.
-        index = get_index('stable_nexus7_index_01.json')
-        ubuntu, android = get_candidates(index, '20130301', '20130301')
-        self.assertEqual(ubuntu, [])
-        self.assertEqual(android, [])
+    def test_one_higher_full(self):
+        # Our device is between the minversions of the two available fulls, so
+        # the older one can be upgraded too.
+        index = get_index('index_02.json')
+        candidates = get_candidates(index, 20120800)
+        # There is exactly one upgrade path.
+        self.assertEqual(len(candidates), 1)
+        path = candidates[0]
+        # The path has exactly one image.
+        self.assertEqual(len(path), 1)
+        image = path[0]
+        self.assertEqual(image.description, 'New full build 1')
 
-    def test_needs_delta_update(self):
-        # We're one delta behind.  This should give us two upgrade paths per
-        # image flavor, one through the delta and one from the full.
-        index = get_index('stable_nexus7_index_01.json')
-        ubuntu, android = get_candidates(index, '20130300', '20130300')
-        # Ubuntu upgrade paths:
-        # -> 20130301-full
-        # -> 20130301-delta
-        self.assertEqual(len(ubuntu), 2)
-        path0, path1 = ubuntu
+    def test_fulls_with_no_minversion(self):
+        # Like the previous test, there are two full upgrades, but because
+        # neither of them have minversions, both are candidates.
+        index = get_index('index_05.json')
+        candidates = get_candidates(index, 20120400)
+        self.assertEqual(len(candidates), 2)
+        # Both candidate paths have exactly one image in them.  We can't sort
+        # these paths, so just test them both.
+        path0, path1 = candidates
         self.assertEqual(len(path0), 1)
         self.assertEqual(len(path1), 1)
-        # We don't know which path has the full upgrade.
-        if path0[0].type == 'full':
-            full = path0[0]
-            delta = path1[0]
-        else:
-            full = path1[0]
-            delta = path0[0]
-        self.assertEqual(full.version, '20130301')
-        self.assertEqual(full.checksum,
-                         '5a37ba30664cde4ab245e337c12d16f8ad892278')
-        self.assertEqual(full.path, '/stable/ubuntu/ubuntu-20130301.full.zip')
-        self.assertEqual(delta.version, '20130301')
-        self.assertEqual(delta.checksum,
-                         'ca124997894fa5be76f42a9404f6375d3aca1664')
-        self.assertEqual(delta.path,
-                         '/stable/ubuntu/ubuntu-20130301.delta-20130300.zip')
-        # Android upgrade paths:
-        # -> 20130301-delta
-        # (there is no 20130301-full image in the sample data)
-        self.assertEqual(len(android), 1)
-        path0 = android[0]
-        self.assertEqual(len(path0), 1)
-        delta = path0[0]
-        self.assertEqual(delta.version, '20130301')
-        self.assertEqual(delta.checksum,
-                         'da39a3ee5e6b4b0d3255bfef95601890afd80709')
-        self.assertEqual(delta.path,
-                         '/stable/nexus7/android-20130301.delta-20130300.zip')
+        # One path gets us to version 20130300 and the other 20130400.
+        images = sorted([path0[0], path1[0]], key=attrgetter('version'))
+        self.assertEqual(images[0].description, 'New full build 1')
+        self.assertEqual(images[1].description, 'New full build 2')
 
-    def test_missing_base(self):
-        # If we need to upgrade to full monthly for which there is no image,
-        # we have a problem.  In this case, because the current Android
-        # version is at 20130200, we need the 20130300 full image, but that is
-        # missing from the Android data.
-        index = get_index('stable_nexus7_index_01.json')
-        self.assertRaises(ValueError, get_candidates,
-                          index, '20130200', '20130200')
+    def test_no_deltas_based_on_us(self):
+        # There are deltas in the test data, but no fulls.  None of the deltas
+        # have a base equal to our build number.
+        index = get_index('index_03.json')
+        candidates = get_candidates(index, 20120100)
+        self.assertEqual(candidates, [])
 
-    def test_ubuntu_upgrade_only(self):
-        # We're up to date with Android, but out of date for Ubuntu.
-        index = get_index('stable_nexus7_index_01.json')
-        ubuntu, android = get_candidates(index, '20130300', '20130301')
-        self.assertEqual(len(ubuntu), 2)
-        path0, path1 = ubuntu
-        # Ubuntu upgrade paths:
-        # -> 20130301-full
-        # -> 20130301-delta
+    def test_one_delta_based_on_us(self):
+        # There is one delta in the test data that is based on us.
+        index = get_index('index_03.json')
+        candidates = get_candidates(index, 20120500)
+        self.assertEqual(len(candidates), 1)
+        path = candidates[0]
+        # The path has exactly one image.
+        self.assertEqual(len(path), 1)
+        image = path[0]
+        self.assertEqual(image.description, 'Delta 2')
+
+    def test_two_deltas_based_on_us(self):
+        # There are two deltas that are based on us, so both are candidates.
+        # They get us to different final versions.
+        index = get_index('index_04.json')
+        candidates = get_candidates(index, 20130100)
+        self.assertEqual(len(candidates), 2)
+        # Both candidate paths have exactly one image in them.  We can't sort
+        # these paths, so just test them both.
+        path0, path1 = candidates
         self.assertEqual(len(path0), 1)
         self.assertEqual(len(path1), 1)
-        # We don't know which path has the full upgrade.
-        if path0[0].type == 'full':
-            full = path0[0]
-            delta = path1[0]
-        else:
-            full = path1[0]
-            delta = path0[0]
-        self.assertEqual(full.version, '20130301')
-        self.assertEqual(full.checksum,
-                         '5a37ba30664cde4ab245e337c12d16f8ad892278')
-        self.assertEqual(full.path, '/stable/ubuntu/ubuntu-20130301.full.zip')
-        self.assertEqual(delta.version, '20130301')
-        self.assertEqual(delta.checksum,
-                         'ca124997894fa5be76f42a9404f6375d3aca1664')
-        self.assertEqual(delta.path,
-                         '/stable/ubuntu/ubuntu-20130301.delta-20130300.zip')
-        # Android is up to date.
-        self.assertEqual(len(android), 0)
+        # One path gets us to version 20130300 and the other 20130400.
+        images = sorted([path0[0], path1[0]], key=attrgetter('version'))
+        self.assertEqual([image.description for image in images],
+                         ['Delta 2', 'Delta 1'])
 
-    def test_android_upgrade_only(self):
-        # We're up to date on Ubuntu but out of date on Android.
-        index = get_index('stable_nexus7_index_01.json')
-        ubuntu, android = get_candidates(index, '20130301', '20130300')
-        # Ubuntu is up to date.
-        self.assertEqual(len(ubuntu), 0)
-        # Android upgrade paths:
-        # -> 20130301-delta
-        # (there is no 20130301-full image in the sample data)
-        self.assertEqual(len(android), 1)
-        path0 = android[0]
-        self.assertEqual(len(path0), 1)
-        delta = path0[0]
-        self.assertEqual(delta.version, '20130301')
-        self.assertEqual(delta.checksum,
-                         'da39a3ee5e6b4b0d3255bfef95601890afd80709')
-        self.assertEqual(delta.path,
-                         '/stable/nexus7/android-20130301.delta-20130300.zip')
+    def test_one_path_with_full_and_deltas(self):
+        # There's one path to upgrade from our version to the final version.
+        # This one starts at a full and includes several deltas.
+        index = get_index('index_06.json')
+        candidates = get_candidates(index, 20120000)
+        self.assertEqual(len(candidates), 1)
+        path = candidates[0]
+        self.assertEqual(len(path), 3)
+        self.assertEqual([image.version for image in path],
+                         [20130300, 20130301, 20130302])
+        self.assertEqual([image.description for image in path],
+                         ['Full 1', 'Delta 1', 'Delta 2'])
 
-    def test_upgrade_by_a_bunch(self):
-        # We're out of date by a full and a few deltas, so there are multiple
-        # paths to the current version.
-        index = get_index('stable_nexus7_index_02.json')
-        ubuntu, android = get_candidates(index, '20130200', '20130200')
-        # Ubuntu paths to upgrade:
-        # -> 20130300 -> 20130301
-        # -> 20130301
-        self.assertEqual(len(ubuntu), 2)
-        sorted_paths = sorted(ubuntu, key=len)
-        full = sorted_paths[0]
-        self.assertEqual(len(full), 1)
-        monthly = full[0]
-        self.assertEqual(monthly.version, '20130301')
-        self.assertEqual(monthly.type, 'full')
-        self.assertEqual(monthly.checksum,
-                         '5a37ba30664cde4ab245e337c12d16f8ad892278')
-        staged = sorted_paths[1]
-        self.assertEqual(len(staged), 2)
-        monthly = staged[0]
-        self.assertEqual(monthly.version, '20130300')
-        self.assertEqual(monthly.type, 'full')
-        self.assertEqual(monthly.checksum,
-                         'c513dc5e4ed887d8c56e138386f68c8e33f93002')
-        delta = staged[1]
-        self.assertEqual(delta.version, '20130301')
-        self.assertEqual(delta.type, 'delta')
-        self.assertEqual(delta.checksum,
-                         'ca124997894fa5be76f42a9404f6375d3aca1664')
-        self.assertEqual(delta.base, '20130300')
-        # Android paths to upgrade:
-        # -> 20130300 -> 20130301
-        # -> 20130301
-        self.assertEqual(len(android), 2)
-        sorted_paths = sorted(android, key=len)
-        full = sorted_paths[0]
-        self.assertEqual(len(full), 1)
-        monthly = full[0]
-        self.assertEqual(monthly.version, '20130301')
-        self.assertEqual(monthly.type, 'full')
-        self.assertEqual(monthly.checksum,
-                         'ea37ba30664cde4ab245e337c12d16f8ad892278')
-        staged = sorted_paths[1]
-        self.assertEqual(len(staged), 2)
-        monthly = staged[0]
-        self.assertEqual(monthly.version, '20130300')
-        self.assertEqual(monthly.type, 'full')
-        self.assertEqual(monthly.checksum,
-                         'd513dc5e4ed887d8c56e138386f68c8e33f93002')
-        delta = staged[1]
-        self.assertEqual(delta.version, '20130301')
-        self.assertEqual(delta.type, 'delta')
-        self.assertEqual(delta.checksum,
-                         'da39a3ee5e6b4b0d3255bfef95601890afd80709')
-        self.assertEqual(delta.base, '20130300')
+    def test_one_path_with_deltas(self):
+        # Similar to above, except that because we're upgrading from the
+        # version of the full, the path is only two images long, i.e. the
+        # deltas.
+        index = get_index('index_06.json')
+        candidates = get_candidates(index, 20130300)
+        self.assertEqual(len(candidates), 1)
+        path = candidates[0]
+        self.assertEqual(len(path), 2)
+        self.assertEqual([image.version for image in path],
+                         [20130301, 20130302])
+        self.assertEqual([image.description for image in path],
+                         ['Delta 1', 'Delta 2'])
 
-    def test_ignore_android(self):
-        # Passing None ignores those candidates.
-        index = get_index('stable_nexus7_index_02.json')
-        ubuntu, android = get_candidates(index, '20130200')
-        self.assertEqual(len(ubuntu), 2)
-        self.assertEqual(len(android), 0)
-
-    def test_ignore_ubuntu(self):
-        # Passing None ignores those candidates.
-        index = get_index('stable_nexus7_index_02.json')
-        ubuntu, android = get_candidates(index, android_version='20130200')
-        self.assertEqual(len(ubuntu), 0)
-        self.assertEqual(len(android), 2)
-
-    def test_ignore_both(self):
-        # Passing None ignores those candidates.
-        index = get_index('stable_nexus7_index_02.json')
-        ubuntu, android = get_candidates(index)
-        self.assertEqual(len(ubuntu), 0)
-        self.assertEqual(len(android), 0)
+    def test_forked_paths(self):
+        # We have a fork in the road.  There is a full update, but two deltas
+        # with different versions point to the same base.  This will give us
+        # two upgrade paths, both of which include the full.
+        index = get_index('index_07.json')
+        candidates = get_candidates(index, 20130200)
+        self.assertEqual(len(candidates), 2)
+        # We can sort the paths by length.
+        paths = sorted(candidates, key=len)
+        # The shortest path gets us to 20130302 in two steps.
+        self.assertEqual(len(paths[0]), 2)
+        self.assertEqual([image.version for image in paths[0]],
+                         [20130300, 20130302])
+        self.assertEqual([image.description for image in paths[0]],
+                         ['Full 1', 'Delta 2'])
+        # The longer path gets us to 20130302 in three steps.
+        self.assertEqual(len(paths[1]), 3)
+        self.assertEqual([image.version for image in paths[1]],
+                         [20130300, 20130301, 20130302])
+        self.assertEqual([image.description for image in paths[1]],
+                         ['Full 1', 'Delta 1', 'Delta 3'])
