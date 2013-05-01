@@ -49,12 +49,12 @@ class TestIndex(unittest.TestCase):
         # json.dumps() doesn't give us the trailing newline.
         self.assertMultiLineEqual(index.to_json(), text.decode('utf-8')[:-1])
 
-    @unittest.skip('broken')
     def test_image_20130300_full(self):
-        image = self.index.images[0]
+        index = get_index('sprint_nexus7_index_01.json')
+        image = index.images[0]
         self.assertEqual(image.description, 'Some kind of daily build')
         self.assertEqual(image.type, 'full')
-        self.assertEqual(image.version, '20130300')
+        self.assertEqual(image.version, 20130300)
         self.assertTrue(image.bootme)
         self.assertEqual(len(image.files), 3)
         # The first file is the device dependent image.  The second is the
@@ -72,12 +72,12 @@ class TestIndex(unittest.TestCase):
         self.assertEqual(ver.checksum, 'abcdef2')
         self.assertEqual(ver.order, 1)
 
-    @unittest.skip('broken')
     def test_image_20130500_minversion(self):
         # Some full images have a minimum version older than which they refuse
         # to upgrade from.
-        image = self.index.images[5]
+        index = get_index('sprint_nexus7_index_01.json')
+        image = index.images[5]
         self.assertEqual(image.type, 'full')
-        self.assertEqual(image.version, '20130500')
+        self.assertEqual(image.version, 20130500)
         self.assertTrue(image.bootme)
-        self.assertEqual(image.minversion, '20130100')
+        self.assertEqual(image.minversion, 20130100)
