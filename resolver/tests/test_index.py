@@ -23,20 +23,31 @@ __all__ = [
 import unittest
 
 from datetime import datetime, timezone
+from pkg_resources import resource_string as resource_bytes
 from resolver.tests.helpers import get_index
 
 
 class TestIndex(unittest.TestCase):
-    def setUp(self):
-        self.index = get_index('sprint_nexus7_index_01.json')
+    maxDiff = None
 
     def test_index_global(self):
+        index = get_index('index_01.json')
         self.assertEqual(
-            self.index.global_.generated_at,
+            index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
 
     def test_index_image_count(self):
-        self.assertEqual(len(self.index.images), 7)
+        index = get_index('index_01.json')
+        self.assertEqual(len(index.images), 0)
+        index = get_index('index_02.json')
+        self.assertEqual(len(index.images), 2)
+
+    def test_index_regenerate(self):
+        # Read an index and turn it back into JSON.
+        index = get_index('index_02.json')
+        text = resource_bytes('resolver.tests.data', 'index_02.json')
+        # json.dumps() doesn't give us the trailing newline.
+        self.assertMultiLineEqual(index.to_json(), text.decode('utf-8')[:-1])
 
     @unittest.skip('broken')
     def test_image_20130300_full(self):

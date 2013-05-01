@@ -4,20 +4,20 @@
     },
     "images": [
         {
+            "bootme": true,
             "description": "New full build 1",
             "files": [],
-            "type": "full",
-            "version": 20130300,
             "minversion": 20120600,
-            "bootme": true
+            "type": "full",
+            "version": 20130300
         },
         {
+            "bootme": true,
             "description": "New full build 2",
             "files": [],
-            "type": "full",
-            "version": 20130400,
             "minversion": 20130100,
-            "bootme": true
+            "type": "full",
+            "version": 20130400
         }
     ]
 }

@@ -60,8 +60,8 @@ class Index(Bag):
             'global': {
                 'generated_at': self.global_.generated_at.strftime(OUT_FMT),
                 },
-            'images': [image.original for image in self.images],
+            'images': [image.__original__ for image in self.images],
             }
         return json.dumps(index,
-                          sort_keys=True, indent=4, separators=(', ', ': '),
+                          sort_keys=True, indent=4, separators=(',', ': '),
                           cls=ExtendedEncoder)
