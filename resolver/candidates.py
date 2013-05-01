@@ -90,7 +90,7 @@ def get_candidates(index, build):
     # Chase the back pointers from the deltas until we run out of newer
     # versions.  It's possible to push new paths into the chaser if we find a
     # fork in the road (i.e. two deltas with the same base).
-    paths = set()
+    paths = list()
     for path in chaser:
         current = path[-1]
         while True:

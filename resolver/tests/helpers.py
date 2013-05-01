@@ -19,7 +19,6 @@ __all__ = [
     'get_channels',
     'get_index',
     'make_http_server',
-    'make_index',
     'make_temporary_cache',
     ]
 
@@ -42,11 +41,7 @@ from unittest.mock import patch
 
 def get_index(filename):
     json_bytes = resource_bytes('resolver.tests.data', filename)
-    return make_index(json_bytes.decode('utf-8'))
-
-
-def make_index(json_string):
-    return Index.from_json(dedent(json_string))
+    return Index.from_json(json_bytes.decode('utf-8'))
 
 
 def get_channels(filename):
