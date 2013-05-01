@@ -19,8 +19,8 @@ Choose which upgrade path to use based on the available candidates.
 """
 
 __all__ = [
-    'ByDownloadSize',
     'Scorer',
+    'WeightedScorer',
     ]
 
 
@@ -30,21 +30,33 @@ MiB = 2 ** 20
 class Scorer:
     """Abstract base class providing an API for candidate selection."""
 
-    def score(self, candidates):
-        """Score the candidate upgrade paths.
-
-        Lowest score win.
+    def choose(self, candidates):
+        """Choose the candidate upgrade paths.
 
         Subclasses are expected to override this method.
+
+        Lowest score wins.
 
         :param candidates: A list of lists of image records needed to upgrade
             the device from the current version to the latest version, sorted
             in order from oldest verson to newest.
         :type candidates: list of lists
-        :return: A list of tuples of the same size as the `candidates` list.
-            The items are 2-tuples of the format `(score, path)`.  Sorting the
-            returned list will provide the candidate paths in sorted order
-            from lowest score to highest score.
+        :return: The chosen path.
+        :rtype: list
+        """
+        if len(candidates) == 0:
+            return []
+        return sorted(zip(self.score(candidates), candidates))[0][1]
+
+    def score(self, candidates):
+        """Like `choose()` except returns the candidate path scores.
+
+        :param candidates: A list of lists of image records needed to upgrade
+            the device from the current version to the latest version, sorted
+            in order from oldest verson to newest.
+        :type candidates: list of lists
+        :return: The list of path scores.  This will be the same size as the
+            list of paths in `candidates`.
         :rtype: list
         """
         raise NotImplementedError
@@ -52,6 +64,8 @@ class Scorer:
 
 class WeightedScorer(Scorer):
     """Use the following inputs and weights.
+
+    Lowest score wins.
 
     reboots - Look at the entire path and add 100 for every extra reboot
         required.  The implicit end-of-update reboot is not counted.
@@ -75,8 +89,6 @@ class WeightedScorer(Scorer):
     Path B wins.
     """
     def score(self, candidates):
-        if len(candidates) == 0:
-            return []
         # Iterate over every path, calculating the total download size of the
         # path, the number of extra reboots required, and the destination
         # build number.  Remember the smallest size seen and highest build
@@ -86,7 +98,10 @@ class WeightedScorer(Scorer):
         candidate_data = []
         for path in candidates:
             build = path[-1].version
-            size = sum(image.size for image in path)
+            size = 0
+            for image in path:
+                image_size = sum(filename.size for filename in image.files)
+                size += image_size
             reboots = sum(1 for image in path
                           if getattr(image, 'bootme', False))
             candidate_data.append((build, size, reboots, path))
@@ -98,8 +113,5 @@ class WeightedScorer(Scorer):
             score = ((100 * reboots) +
                      ((size - min_size) // MiB) +
                      max_build - build)
-            scores.append((score, path))
-        # Now sort the scores list.  Because the score is the first element of
-        # the 2-tuple items, the lowest score will always be first.  We don't
-        # really care if there are multiple paths with the same low score.
-        return sorted(scores)[0][1]
+            scores.append(score)
+        return scores

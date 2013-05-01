@@ -1,0 +1,67 @@
+{
+    "global": {
+        "generated_at": "Mon Apr 29 18:45:27 UTC 2013"
+    },
+    "images": [
+        {
+            "bootme": true,
+            "description": "New full build 1",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 100
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 200
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 300
+                }
+            ],
+            "minversion": 20120600,
+            "type": "full",
+            "version": 20130300
+        },
+        {
+            "bootme": true,
+            "description": "New full build 2",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 100
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 200
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 300
+                }
+            ],
+            "type": "delta",
+            "base": 20130300,
+            "version": 20130301
+        }
+    ]
+}
