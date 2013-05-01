@@ -4,7 +4,7 @@
     },
     "images": [
         {
-            "description": "New full build 1",
+            "description": "Full 1",
             "files": [],
             "type": "full",
             "version": 20130300,
@@ -20,7 +20,7 @@
         },
         {
             "base": 20130300,
-            "description": "Delta 1",
+            "description": "Delta 2",
             "files": [],
             "type": "delta",
             "version": 20130302,
@@ -28,7 +28,7 @@
         },
         {
             "base": 20130301,
-            "description": "Delta 2",
+            "description": "Delta 3",
             "files": [],
             "type": "delta",
             "version": 20130302,

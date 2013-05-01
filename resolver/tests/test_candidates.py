@@ -101,8 +101,8 @@ class TestCandidates(unittest.TestCase):
         self.assertEqual(len(path1), 1)
         # One path gets us to version 20130300 and the other 20130400.
         images = sorted([path0[0], path1[0]], key=attrgetter('version'))
-        self.assertEqual(images[0].description, 'Delta 2')
-        self.assertEqual(images[1].description, 'Delta 1')
+        self.assertEqual([image.description for image in images],
+                         ['Delta 2', 'Delta 1'])
 
     def test_one_path_with_full_and_deltas(self):
         # There's one path to upgrade from our version to the final version.
@@ -114,6 +114,8 @@ class TestCandidates(unittest.TestCase):
         self.assertEqual(len(path), 3)
         self.assertEqual([image.version for image in path],
                          [20130300, 20130301, 20130302])
+        self.assertEqual([image.description for image in path],
+                         ['Full 1', 'Delta 1', 'Delta 2'])
 
     def test_one_path_with_deltas(self):
         # Similar to above, except that because we're upgrading from the
@@ -126,6 +128,8 @@ class TestCandidates(unittest.TestCase):
         self.assertEqual(len(path), 2)
         self.assertEqual([image.version for image in path],
                          [20130301, 20130302])
+        self.assertEqual([image.description for image in path],
+                         ['Delta 1', 'Delta 2'])
 
     def test_forked_paths(self):
         # We have a fork in the road.  There is a full update, but two deltas
@@ -140,7 +144,11 @@ class TestCandidates(unittest.TestCase):
         self.assertEqual(len(paths[0]), 2)
         self.assertEqual([image.version for image in paths[0]],
                          [20130300, 20130302])
+        self.assertEqual([image.description for image in paths[0]],
+                         ['Full 1', 'Delta 2'])
         # The longer path gets us to 20130302 in three steps.
         self.assertEqual(len(paths[1]), 3)
         self.assertEqual([image.version for image in paths[1]],
                          [20130300, 20130301, 20130302])
+        self.assertEqual([image.description for image in paths[1]],
+                         ['Full 1', 'Delta 1', 'Delta 3'])
