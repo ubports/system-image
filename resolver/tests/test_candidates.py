@@ -17,14 +17,17 @@
 
 __all__ = [
     'TestCandidates',
+    'TestCandidateDownloads',
     ]
 
 
+import os
 import unittest
 
 from operator import attrgetter
-from resolver.candidates import get_candidates
-from resolver.tests.helpers import get_index
+from resolver.candidates import get_candidates, get_downloads
+from resolver.scores import WeightedScorer
+from resolver.tests.helpers import get_index, make_temporary_cache
 
 
 class TestCandidates(unittest.TestCase):
@@ -152,3 +155,106 @@ class TestCandidates(unittest.TestCase):
                          [20130300, 20130301, 20130302])
         self.assertEqual([image.description for image in paths[1]],
                          ['Full 1', 'Delta 1', 'Delta 3'])
+
+
+class TestCandidateDownloads(unittest.TestCase):
+    def setUp(self):
+        self._cache = make_temporary_cache(self.addCleanup)
+
+    def test_get_downloads(self):
+        # Path B will win; it has one full and two deltas, none of which have
+        # a bootme flag.  Download all their files.
+        index = get_index('index_10.json')
+        candidates = get_candidates(index, 20120600)
+        winner = WeightedScorer().choose(candidates)
+        self.assertEqual([image.description for image in winner],
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
+        downloads = get_downloads(winner, self._cache)
+        urls = set(url for url, path in downloads)
+        paths = set(path for url, path in downloads)
+        self.maxDiff = None
+        self.assertEqual(urls, set([
+            'http://localhost:8909/3/4/5.txt',
+            'http://localhost:8909/3/4/5.txt.asc',
+            'http://localhost:8909/4/5/6.txt',
+            'http://localhost:8909/4/5/6.txt.asc',
+            'http://localhost:8909/5/6/7.txt',
+            'http://localhost:8909/5/6/7.txt.asc',
+            'http://localhost:8909/6/7/8.txt',
+            'http://localhost:8909/6/7/8.txt.asc',
+            'http://localhost:8909/7/8/9.txt',
+            'http://localhost:8909/7/8/9.txt.asc',
+            'http://localhost:8909/8/9/a.txt',
+            'http://localhost:8909/8/9/a.txt.asc',
+            'http://localhost:8909/9/a/b.txt',
+            'http://localhost:8909/9/a/b.txt.asc',
+            'http://localhost:8909/e/d/c.txt',
+            'http://localhost:8909/e/d/c.txt.asc',
+            'http://localhost:8909/f/e/d.txt',
+            'http://localhost:8909/f/e/d.txt.asc',
+            ]))
+        # Strip the temporary directory at the start of the local file path.
+        self.assertEqual(set(os.path.basename(path) for path in paths),
+                         set([
+            '5.txt',
+            '5.txt.asc',
+            '6.txt',
+            '6.txt.asc',
+            '7.txt',
+            '7.txt.asc',
+            '8.txt',
+            '8.txt.asc',
+            '9.txt',
+            '9.txt.asc',
+            'a.txt',
+            'a.txt.asc',
+            'b.txt',
+            'b.txt.asc',
+            'c.txt',
+            'c.txt.asc',
+            'd.txt',
+            'd.txt.asc',
+            ]))
+
+    def test_get_downloads_with_bootme(self):
+        # Path B will win; it has one full and two deltas.  The first delta
+        # has a bootme flag so the second delta's files are not downloaded.
+        index = get_index('index_11.json')
+        candidates = get_candidates(index, 20120600)
+        winner = WeightedScorer().choose(candidates)
+        self.assertEqual([image.description for image in winner],
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
+        downloads = get_downloads(winner, self._cache)
+        urls = set(url for url, path in downloads)
+        paths = set(path for url, path in downloads)
+        self.maxDiff = None
+        self.assertEqual(urls, set([
+            'http://localhost:8909/3/4/5.txt',
+            'http://localhost:8909/3/4/5.txt.asc',
+            'http://localhost:8909/4/5/6.txt',
+            'http://localhost:8909/4/5/6.txt.asc',
+            'http://localhost:8909/5/6/7.txt',
+            'http://localhost:8909/5/6/7.txt.asc',
+            'http://localhost:8909/6/7/8.txt',
+            'http://localhost:8909/6/7/8.txt.asc',
+            'http://localhost:8909/7/8/9.txt',
+            'http://localhost:8909/7/8/9.txt.asc',
+            'http://localhost:8909/8/9/a.txt',
+            'http://localhost:8909/8/9/a.txt.asc',
+            ]))
+        # Strip the temporary directory at the start of the local file path.
+        self.assertEqual(set(os.path.basename(path) for path in paths),
+                         set([
+            '5.txt',
+            '5.txt.asc',
+            '6.txt',
+            '6.txt.asc',
+            '7.txt',
+            '7.txt.asc',
+            '8.txt',
+            '8.txt.asc',
+            '9.txt',
+            '9.txt.asc',
+            'a.txt',
+            'a.txt.asc',
+            ]))

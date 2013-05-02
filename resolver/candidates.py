@@ -21,8 +21,11 @@ __all__ = [
     ]
 
 
+import os
+
 from collections import deque
-from operator import attrgetter
+from resolver.cache import Cache
+from urllib.parse import urljoin
 
 
 class _Chaser:
@@ -120,21 +123,38 @@ def get_candidates(index, build):
     return paths
 
 
-def get_downloads(winner):
+def get_downloads(winner, cache=None):
     """Return the list of files to download given the upgrade winner.
 
-    This may be the entire path, if there is no intermediate `bootme` flag
-    found, otherwise the winning path with stop at the first reboot.
-    Additionally, the image files will be sorted by the `order` key on the
-    images.
+    Image traversal will stop after the first `bootme` flag is seen, so the
+    list of files to download may not include all the files in the upgrade
+    candidate.
 
-    :param winner: The path of images for upgrading.
-    :type winner: list of Images
-    :return: The list of files to download and apply in order.
-    :rtype: set
+    The return value is of the appropriate type to pass directly to
+    `resolver.download.get_files()`.
+
+    :param winner: The list of images for the winning candidate.
+    :return: List of 2-tuples where the first item is the url to download and
+        the second is the local path for the file.
     """
+    if cache is None:
+        from resolver.config import config
+        cache = Cache(config)
+    downloads = []
     for image in winner:
-        for file_record in sorted(image.files, key=attrgetter('order')):
-            yield file_record.path
-            yield file_record.signature
-            
+        for filerec in image.files:
+            # Add the file's url and local path.
+            downloads.append((
+                urljoin(cache.config.service.base, filerec.path),
+                os.path.join(cache.config.cache.directory,
+                             os.path.basename(filerec.path))
+                ))
+            # Add the signature file's url and local path.
+            downloads.append((
+                urljoin(cache.config.service.base, filerec.signature),
+                os.path.join(cache.config.cache.directory,
+                             os.path.basename(filerec.signature))
+                ))
+        if getattr(image, 'bootme', False):
+            break
+    return downloads
