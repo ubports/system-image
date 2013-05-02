@@ -32,14 +32,13 @@ __all__ = [
 
 import os
 
-from contextlib import ExitStack
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 from datetime import timedelta
 from functools import partial
-from urllib.parse import urljoin
-from urllib.request import urlopen
 from resolver.config import config
 from resolver.helpers import atomic
+from urllib.request import urlopen
 
 
 # Parameterized for testing purposes.
@@ -94,10 +93,8 @@ def get_files(downloads, callback=None):
     at least we do that concurrently; 2) this is an all-or-nothing function.
     Either you get all the requested files or none of them.
 
-    :param downloads: A list of 2-tuples where the first item is the full
-        source url path relative to the configuration file's `[service]base`
-        url, and the second item is the destination file relative to the
-        configuration file's `[cache]directory` path.
+    :param downloads: A list of 2-tuples where the first item is the url to
+        download, and the second item is the destination file.
     :param callback: If given, a function that's called every so often in all
         the download threads - so it must be prepared to be called
         asynchronously.  You don't have to worry about thread safety though
@@ -113,28 +110,33 @@ def get_files(downloads, callback=None):
         timeout = None
     else:
         timeout = config.service.timeout.total_seconds()
-    # Go through the list of download urls and destination files and make them
-    # absolute.  This way, we have them here and the map function doesn't have
-    # to do anything smart.
-    cleanup_files = []
-    abspath_downloads = []
-    for url_source, dst_file in downloads:
-        url = urljoin(config.service.base, url_source)
-        dst = os.path.join(config.cache.directory, dst_file)
-        cleanup_files.append(dst)
-        abspath_downloads.append((url, dst))
     try:
         with ThreadPoolExecutor(max_workers=config.service.threads) as tpe:
             # All we need to do is iterate over the returned generator in
             # order to complete all the requests.  There's really nothing to
             # return.  Either all the files got downloaded, or they didn't.
-            list(tpe.map(function, abspath_downloads, timeout=timeout))
+            #
+            # BAW 2013-05-02: There is a subtle bug lurking here, caused by
+            # the fact that the individual files are moved atomically, but
+            # get_files() makes global atomic promises.  Let's say you're
+            # downloading files A and B, but file A already exists.  File A
+            # downloads just fine and gets moved into place.  The download of
+            # file B fails though so it never gets moved into place, however
+            # the except code below will proceed to remove the new A without
+            # restoring the old A.
+            #
+            # In practice I think this won't hurt us because we shouldn't be
+            # overwriting any existing files that we care about anyway.
+            # Something to be aware of though.  The easiest fix is probably to
+            # stash any existing files away and restore them if the download
+            # fails, rather than os.remove()'ing them.
+            list(tpe.map(function, downloads, timeout=timeout))
     except:
         # If any exceptions occur, we want to delete files that downloaded
         # successfully.  The ones that failed will already have been deleted.
         # BAW 2013-05-01: I wish I could figure out how to do this with a
         # context manager.
-        for dst in cleanup_files:
+        for url, dst in downloads:
             try:
                 os.remove(dst)
             except OSError:

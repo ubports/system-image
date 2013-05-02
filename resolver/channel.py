@@ -24,7 +24,7 @@ import os
 import json
 
 from resolver.cache import Cache
-from resolver.download import Downloader
+from resolver.download import get_files
 from resolver.gpg import Context, get_pubkey
 from resolver.helpers import Bag, atomic
 from urllib.parse import urljoin
@@ -56,28 +56,24 @@ def load_channel(cache=None):
     if channels_path is not None:
         with open(channels_path, encoding='utf-8') as fp:
             return Channels.from_json(fp.read())
-    # Download both the channels.json and signature file.
-    config = cache.config
-    url = urljoin(config.service.base, 'channels.json')
-    with Downloader(url) as response:
-        channel_data = response.read().decode('utf-8')
-    url = urljoin(config.service.base, 'channels.json.asc')
-    with Downloader(url) as response:
-        asc_data = response.read().decode('utf-8')
     # BAW 2013-04-26: This always downloads the phablet pubkey from the web
     # site too, but really, this should either be in the cache already,
     # retrieved from the cache, or in a hardcoded place on the file system.
     pubkey_path = get_pubkey(cache)
-    # Store both data files as temp files in the cache directory.  Then verify
-    # the signature.  If it matches, return a new Channels instance, otherwise
-    # raise a FileNotFound exception.
+    # Download both the channels.json and signature file.  Store both data
+    # files as temporary files in the cache directory.  Then verify the
+    # signature.  If it matches, return a new Channels instance, otherwise
+    # raise a FileNotFound exception and remove all the temporary files.
+    config = cache.config
     channels_path = os.path.join(config.cache.directory, 'channels.json')
     asc_path = os.path.join(config.cache.directory, 'channels.json.asc')
     with atomic(channels_path) as cfp, atomic(asc_path) as afp:
-        cfp.write(channel_data)
-        afp.write(asc_data)
-        cfp.flush()
-        afp.flush()
+        cfp.close()
+        afp.close()
+        get_files([
+            (urljoin(config.service.base, 'channels.json'), cfp.name),
+            (urljoin(config.service.base, 'channels.json.asc'), afp.name),
+            ])
         with Context(pubkey_path) as ctx:
             # Check the signatures on the temporary files.
             if not ctx.verify(afp.name, cfp.name):
@@ -85,10 +81,12 @@ def load_channel(cache=None):
                 # deleting the temporary files and not writing the
                 # channels.json{,.asc} files.
                 raise FileNotFoundError
+        # All is good.  We have now have channels.json{,.asc} verified and
+        # available in the cache.  Create the return value.
+        with open(cfp.name, encoding='utf-8') as fp:
+            channels = Channels.from_json(fp.read())
         # BAW 2013-04-26: One potential problem: if we have an error updating
         # the cache, we probably now have two bogus keys in the timeout data.
         cache.update('channels.json')
         cache.update('channels.json.asc')
-    # All is good.  We have now have channels.json{,.asc} verified and
-    # available in the cache.  Create the return value.
-    return Channels.from_json(channel_data)
+        return channels

@@ -29,6 +29,7 @@ from resolver.download import get_files
 from resolver.tests.helpers import make_http_server, make_temporary_cache
 from unittest.mock import patch
 from urllib.error import URLError
+from urllib.parse import urljoin
 
 
 class TestDownloads(unittest.TestCase):
@@ -49,14 +50,19 @@ class TestDownloads(unittest.TestCase):
     def setUp(self):
         self._cache = make_temporary_cache(self.addCleanup)
 
+    def _abspathify(self, downloads):
+        return [
+            (urljoin(self._cache.config.service.base, url),
+             os.path.join(self._cache.config.cache.directory, filename)
+            ) for url, filename in downloads]
+
     def test_download_good_path(self):
         # Download a bunch of files that exist.  No callback.
-        with patch('resolver.download.config', self._cache.config):
-            get_files([
-                ('channels_01.json', 'channels.json'),
-                ('index_01.json', 'index.json'),
-                ('phablet.pubkey.asc', 'pubkey.asc'),
-                ])
+        get_files(self._abspathify([
+            ('channels_01.json', 'channels.json'),
+            ('index_01.json', 'index.json'),
+            ('phablet.pubkey.asc', 'pubkey.asc'),
+            ]))
         cache_listing = os.listdir(self._cache.config.cache.directory)
         self.assertEqual(sorted(cache_listing),
                          ['channels.json', 'index.json', 'pubkey.asc'])
@@ -65,12 +71,11 @@ class TestDownloads(unittest.TestCase):
         results = []
         def callback(*args):
             results.append(args)
-        with patch('resolver.download.config', self._cache.config):
-            get_files([
-                ('channels_01.json', 'channels.json'),
-                ('index_01.json', 'index.json'),
-                ('phablet.pubkey.asc', 'pubkey.asc'),
-                ], callback=callback)
+        get_files(self._abspathify([
+            ('channels_01.json', 'channels.json'),
+            ('index_01.json', 'index.json'),
+            ('phablet.pubkey.asc', 'pubkey.asc'),
+            ]), callback=callback)
         cache_listing = os.listdir(self._cache.config.cache.directory)
         self.assertEqual(sorted(cache_listing),
                          ['channels.json', 'index.json', 'pubkey.asc'])
@@ -96,12 +101,11 @@ class TestDownloads(unittest.TestCase):
         results = defaultdict(list)
         def callback(url, dst, size):
             results[url].append(size)
-        with patch('resolver.download.config', self._cache.config):
-            get_files([
-                ('channels_01.json', 'channels.json'),
-                ('index_01.json', 'index.json'),
-                ('phablet.pubkey.asc', 'pubkey.asc'),
-                ], callback=callback)
+        get_files(self._abspathify([
+            ('channels_01.json', 'channels.json'),
+            ('index_01.json', 'index.json'),
+            ('phablet.pubkey.asc', 'pubkey.asc'),
+            ]), callback=callback)
         channels = sorted(results['http://localhost:8909/channels_01.json'])
         self.assertEqual(channels, [i * 10 for i in range(1, 19)] + [185])
         index = sorted(results['http://localhost:8909/index_01.json'])
@@ -112,13 +116,12 @@ class TestDownloads(unittest.TestCase):
     def test_download_404(self):
         # Try to download a file which doesn't exist.  Since it's all or
         # nothing, the cache will be empty.
-        with patch('resolver.download.config', self._cache.config):
-            self.assertRaises(URLError, get_files, [
-                ('channels_01.json', 'channels.json'),
-                ('index_01.json', 'index.json'),
-                ('phablet.pubkey.asc', 'pubkey.asc'),
-                ('missing.txt', 'missing.txt'),
-                ])
-            self.assertEqual(
-                os.listdir(self._cache.config.cache.directory),
-                [])
+        self.assertRaises(URLError, get_files, self._abspathify([
+            ('channels_01.json', 'channels.json'),
+            ('index_01.json', 'index.json'),
+            ('phablet.pubkey.asc', 'pubkey.asc'),
+            ('missing.txt', 'missing.txt'),
+            ]))
+        self.assertEqual(
+            os.listdir(self._cache.config.cache.directory),
+            [])
