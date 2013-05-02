@@ -38,12 +38,9 @@ def main():
                         action='version',
                         version='resolver {}'.format(__version__))
     parser.add_argument('-C', '--config', default=None)
-    parser.add_argument('-a', '--android-version',
+    parser.add_argument('-b', '--build',
                         default=None,
-                        help='Current Android version')
-    parser.add_argument('-u', '--ubuntu-version',
-                        default=None,
-                        help='Current Ubuntu version')
+                        help='Current build number')
     parser.add_argument('-f', '--force',
                         default=False, action='store_true',
                         help='Ignore any cached data, forcing a download')
@@ -53,26 +50,10 @@ def main():
         config.load(args.config)
 
     index = load_current_index(args.force)
-    ubuntu_version, android_version = get_current_versions()
-    if args.ubuntu_version == 'ignore':
-        ubuntu_version = None
-    elif args.ubuntu_version is not None:
-        ubuntu_version = args.ubuntu_version
-    if args.android_version == 'ignore':
-        android_version = None
-    elif args.android_version is not None:
-        android_version = args.android_version
-    ubuntu_candidates, android_candidates = get_candidates(
-        index, ubuntu_version, android_version)
-    policy = get_policy()
-    ubuntu_path = policy.choose(ubuntu_candidates)
-    android_path = policy.choose(android_candidates)
-    # Convert the individual paths to download files, and download them.
-    ubuntu_files = download_path(ubuntu_path)
-    android_files = download_path(android_path)
-    # Print the results as JSON.
-    print(json.dumps(dict(ubuntu_files=ubuntu_files,
-                          android_files=android_files)))
+    build = get_current_version() if args.build is None else args.build
+    candidates = get_candidates(index, build)
+    scorer = get_scorer()
+    winner = scorer.choose(candidates)
 
 
 if __name__ == '__main__':

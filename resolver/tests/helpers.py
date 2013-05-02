@@ -88,20 +88,24 @@ def make_http_server(directory):
 
 
 def make_temporary_cache(cleaner):
-        tempdir = tempfile.mkdtemp()
-        cleaner(shutil.rmtree, tempdir)
-        ini_file = os.path.join(tempdir, 'config.ini')
+        cache_tempdir = tempfile.mkdtemp()
+        cleaner(shutil.rmtree, cache_tempdir)
+        ini_tempdir = tempfile.mkdtemp()
+        cleaner(shutil.rmtree, ini_tempdir)
+        ini_file = os.path.join(ini_tempdir, 'config.ini')
         with atomic(ini_file) as fp:
             print("""\
 [service]
 base: http://localhost:8909/
+threads: 5
+timeout: 1s
 [cache]
 directory: {}
 lifetime: 1d
 [upgrade]
 channel: stable
 device: nexus7
-""".format(tempdir), file=fp)
+""".format(cache_tempdir), file=fp)
         config = Configuration()
         config.load(ini_file)
         return Cache(config)

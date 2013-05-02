@@ -17,10 +17,12 @@
 
 __all__ = [
     'get_candidates',
+    'get_downloads',
     ]
 
 
 from collections import deque
+from operator import attrgetter
 
 
 class _Chaser:
@@ -116,3 +118,23 @@ def get_candidates(index, build):
                     chaser.push(new_path)
                 path.append(current)
     return paths
+
+
+def get_downloads(winner):
+    """Return the list of files to download given the upgrade winner.
+
+    This may be the entire path, if there is no intermediate `bootme` flag
+    found, otherwise the winning path with stop at the first reboot.
+    Additionally, the image files will be sorted by the `order` key on the
+    images.
+
+    :param winner: The path of images for upgrading.
+    :type winner: list of Images
+    :return: The list of files to download and apply in order.
+    :rtype: set
+    """
+    for image in winner:
+        for file_record in sorted(image.files, key=attrgetter('order')):
+            yield file_record.path
+            yield file_record.signature
+            

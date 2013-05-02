@@ -42,14 +42,19 @@ class Configuration:
     def load(self, path):
         parser = ConfigParser()
         parser.read(path)
-        self.service = Bag(base=parser['service']['base'])
+        self.service = Bag(
+            base=parser['service']['base'],
+            threads=int(parser['service']['threads']),
+            timeout=as_timedelta(parser['service']['timeout']),
+            )
         self.cache = Bag(
             directory=os.path.expanduser(parser['cache']['directory']),
             lifetime=as_timedelta(parser['cache']['lifetime']),
             )
-        self.upgrade = Bag(channel=parser['upgrade']['channel'],
-                           device=parser['upgrade']['device'],
-                           )
+        self.upgrade = Bag(
+            channel=parser['upgrade']['channel'],
+            device=parser['upgrade']['device'],
+            )
 
 
 # This is the global configuration object.  It uses the defaults, but the
