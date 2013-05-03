@@ -1,9 +1,16 @@
 {
     "daily": {
-        "nexus7": "/daily/nexus7/index.json",
-        "nexus4": "/daily/nexus4/index.json"
+        "nexus7": {
+            "index": "/daily/nexus7/index.json",
+            "keyring": "/daily/nexus7/keyring.gpg"
+        },
+        "nexus4":{
+            "index": "/daily/nexus4/index.json"
+        }
     },
     "stable": {
-        "nexus7": "/stable/nexus7/index.json"
+        "nexus7":{
+            "index": "/stable/nexus7/index.json"
+        }
     }
 }

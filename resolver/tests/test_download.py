@@ -33,6 +33,8 @@ from urllib.parse import urljoin
 
 
 class TestDownloads(unittest.TestCase):
+    maxDiff = None
+
     @classmethod
     def setUpClass(cls):
         # Start the HTTP server running.  Vend it out of our test data
@@ -89,9 +91,9 @@ class TestDownloads(unittest.TestCase):
         for url, dst, size in results:
             byte_totals[url] += size
         self.assertEqual(byte_totals, {
-            'http://localhost:8909/channels_01.json': 185,
+            'http://localhost:8909/channels_01.json': 334,
             'http://localhost:8909/index_01.json': 99,
-            'http://localhost:8909/phablet.pubkey.asc': 3149,
+            'http://localhost:8909/phablet.pubkey.asc': 1679,
             })
 
     @patch('resolver.download.CHUNK_SIZE', 10)
@@ -107,11 +109,11 @@ class TestDownloads(unittest.TestCase):
             ('phablet.pubkey.asc', 'pubkey.asc'),
             ]), callback=callback)
         channels = sorted(results['http://localhost:8909/channels_01.json'])
-        self.assertEqual(channels, [i * 10 for i in range(1, 19)] + [185])
+        self.assertEqual(channels, [i * 10 for i in range(1, 34)] + [334])
         index = sorted(results['http://localhost:8909/index_01.json'])
         self.assertEqual(index, [i * 10 for i in range(1, 10)] + [99])
         pubkey = sorted(results['http://localhost:8909/phablet.pubkey.asc'])
-        self.assertEqual(pubkey, [i * 10 for i in range(1, 315)] + [3149])
+        self.assertEqual(pubkey, [i * 10 for i in range(1, 168)] + [1679])
 
     def test_download_404(self):
         # Try to download a file which doesn't exist.  Since it's all or

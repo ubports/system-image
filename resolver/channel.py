@@ -35,8 +35,11 @@ class Channels(Bag):
     def from_json(cls, data):
         mapping = json.loads(data)
         channels = {}
-        for channel_name, index_data in mapping.items():
-            channels[channel_name] = Bag(**index_data)
+        for channel_name, device in mapping.items():
+            devices = {}
+            for name, data in device.items():
+                devices[name] = Bag(**data)
+            channels[channel_name] = Bag(**devices)
         return cls(**channels)
 
 

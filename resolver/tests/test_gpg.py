@@ -42,7 +42,7 @@ class TestSignature(unittest.TestCase):
         self.assertEqual(len(results.imports), 1)
         fingerprint, error, status = results.imports[0]
         self.assertEqual(fingerprint,
-                         '9E28BB58D3EEAB91EB5B3C4011F731054CB57BF5')
+                         '253E67218CF5327B4F965F3260D858F208B776C3')
         self.assertIsNone(error)
         self.assertEqual(status, gpgme.IMPORT_NEW)
 

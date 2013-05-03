@@ -38,13 +38,16 @@ class TestChannels(unittest.TestCase):
 
     def test_channels(self):
         # Test that parsing a simple top level channels.json file produces the
-        # expected set of channels.
+        # expected set of channels.  The Nexus 7 daily images have a device
+        # specific keyring.
         self.assertEqual(
-            self.channels.daily.nexus7, '/daily/nexus7/index.json')
+            self.channels.daily.nexus7.index, '/daily/nexus7/index.json')
         self.assertEqual(
-            self.channels.daily.nexus4, '/daily/nexus4/index.json')
+            self.channels.daily.nexus7.keyring, '/daily/nexus7/keyring.gpg')
         self.assertEqual(
-            self.channels.stable.nexus7, '/stable/nexus7/index.json')
+            self.channels.daily.nexus4.index, '/daily/nexus4/index.json')
+        self.assertEqual(
+            self.channels.stable.nexus7.index, '/stable/nexus7/index.json')
 
     def test_getattr_failure(self):
         # Test the getattr syntax on an unknown channel or device combination.
@@ -99,9 +102,16 @@ class TestLoadChannels(unittest.TestCase):
         self.assertIsNone(self._cache.get_path('channels.json'))
         channels = load_channel(self._cache)
         self.assertIsNotNone(self._cache.get_path('channels.json'))
-        self.assertEqual(channels.daily.nexus7, '/daily/nexus7/index.json')
-        self.assertEqual(channels.daily.nexus4, '/daily/nexus4/index.json')
-        self.assertEqual(channels.stable.nexus7, '/stable/nexus7/index.json')
+        self.assertEqual(channels.daily.nexus7.index,
+                         '/daily/nexus7/index.json')
+        self.assertEqual(channels.daily.nexus7.keyring,
+                         '/daily/nexus7/keyring.gpg')
+        self.assertEqual(channels.daily.nexus4.index,
+                         '/daily/nexus4/index.json')
+        self.assertIsNone(getattr(channels.daily.nexus4, 'keyring', None))
+        self.assertEqual(channels.stable.nexus7.index,
+                         '/stable/nexus7/index.json')
+        self.assertIsNone(getattr(channels.stable.nexus7, 'keyring', None))
 
     def test_load_channel_bad_signature(self):
         # If the signature on the channels.json file is bad, then we get a
@@ -121,9 +131,14 @@ class TestLoadChannels(unittest.TestCase):
         load_channel(self._cache)
         self.assertIsNotNone(self._cache.get_path('channels.json'))
         channels = load_channel(self._cache)
-        self.assertEqual(channels.daily.nexus7, '/daily/nexus7/index.json')
-        self.assertEqual(channels.daily.nexus4, '/daily/nexus4/index.json')
-        self.assertEqual(channels.stable.nexus7, '/stable/nexus7/index.json')
+        self.assertEqual(channels.daily.nexus7.index,
+                         '/daily/nexus7/index.json')
+        self.assertEqual(channels.daily.nexus7.keyring,
+                         '/daily/nexus7/keyring.gpg')
+        self.assertEqual(channels.daily.nexus4.index,
+                         '/daily/nexus4/index.json')
+        self.assertEqual(channels.stable.nexus7.index,
+                         '/stable/nexus7/index.json')
 
     def test_load_channel_bad_signature_gets_fixed(self):
         # The first load gets a bad signature, but the second one fixes the
@@ -143,6 +158,11 @@ class TestLoadChannels(unittest.TestCase):
         shutil.copyfile(asc_src, asc_dst)
         channels = load_channel(self._cache)
         self.assertIsNotNone(self._cache.get_path('channels.json'))
-        self.assertEqual(channels.daily.nexus7, '/daily/nexus7/index.json')
-        self.assertEqual(channels.daily.nexus4, '/daily/nexus4/index.json')
-        self.assertEqual(channels.stable.nexus7, '/stable/nexus7/index.json')
+        self.assertEqual(channels.daily.nexus7.index,
+                         '/daily/nexus7/index.json')
+        self.assertEqual(channels.daily.nexus7.keyring,
+                         '/daily/nexus7/keyring.gpg')
+        self.assertEqual(channels.daily.nexus4.index,
+                         '/daily/nexus4/index.json')
+        self.assertEqual(channels.stable.nexus7.index,
+                         '/stable/nexus7/index.json')
