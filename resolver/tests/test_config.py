@@ -59,3 +59,8 @@ class TestConfiguration(unittest.TestCase):
             with open(path, 'w', encoding='utf-8') as fp:
                 print(20130500, file=fp)
             self.assertEqual(cache.config.get_build_number(), 20130500)
+
+    def test_get_build_number_missing(self):
+        # The build file is missing, so the build number defaults to 0.
+        with temporary_cache() as cache:
+            self.assertEqual(cache.config.get_build_number(), 0)

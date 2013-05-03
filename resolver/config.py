@@ -56,8 +56,11 @@ class Configuration:
                           **parser['system'])
 
     def get_build_number(self):
-        with open(self.system.build_file, encoding='utf-8') as fp:
-            return int(fp.read().strip())
+        try:
+            with open(self.system.build_file, encoding='utf-8') as fp:
+                return int(fp.read().strip())
+        except FileNotFoundError:
+            return 0
 
 
 # This is the global configuration object.  It uses the defaults, but the
