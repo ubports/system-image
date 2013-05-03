@@ -119,23 +119,6 @@ class TestDownloadIndex(unittest.TestCase):
         copy('channels_02.json.asc', 'channels.json.asc')
         # index_10.json path B will win, with no bootme flags.
         copy('index_10.json', 'stable/nexus7/index.json')
-        # Create every file in path B.  The contents of the files will be the
-        # checksum value.  We need to create the signatures on the fly too.
-        ## path = resource_filename('resolver.tests.data', 'index_10.json')
-        ## with open(path, encoding='utf-8') as fp:
-        ##     index = Index.from_json(fp.read())
-        ## for image in index.images:
-        ##     if 'B' not in image.description:
-        ##         continue
-        ##     for filerec in image.files:
-        ##         path = (filerec.path[1:]
-        ##                 if filerec.path.startswith('/')
-        ##                 else filrecpath)
-        ##         dst = os.path.join(cls._serverdir, path)
-        ##         safe_makedirs(dst)
-        ##         with open(dst, 'w', encoding='utf-8') as fp:
-        ##             print(filerec.checksum, file=fp)
-        ##         # BAW 2013-05-03: Sign the download files.
         cls._stop = make_http_server(cls._serverdir)
         cls._cleaners.insert(0, (cls._stop,))
 

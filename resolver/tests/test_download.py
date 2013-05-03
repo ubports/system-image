@@ -17,19 +17,33 @@
 
 __all__ = [
     'TestDownloads',
+    'TestWinnerDownloads',
     ]
 
 
 import os
+import shutil
+import tempfile
 import unittest
 
 from collections import defaultdict
 from pkg_resources import resource_filename
+from resolver.candidates import get_candidates, get_downloads
 from resolver.download import get_files
+from resolver.index import Index, load_current_index
+from resolver.scores import WeightedScorer
 from resolver.tests.helpers import make_http_server, make_temporary_cache
+from subprocess import check_call, PIPE
 from unittest.mock import patch
 from urllib.error import URLError
 from urllib.parse import urljoin
+
+
+def safe_makedirs(path):
+    try:
+        os.makedirs(os.path.dirname(path))
+    except FileExistsError:
+        pass
 
 
 class TestDownloads(unittest.TestCase):
@@ -127,3 +141,122 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(
             os.listdir(self._cache.config.cache.directory),
             [])
+
+
+class TestWinnerDownloads(unittest.TestCase):
+    """Test full end-to-end downloads through index.json."""
+
+    maxDiff = None
+
+    @classmethod
+    def setUpClass(cls):
+        # Start the HTTP server running.  Vend it out of a temporary directory
+        # which we load up with the right files.
+        cls._cleaners = []
+        def append(*args):
+            cls._cleaners.append(args)
+        cls._serverdir = tempfile.mkdtemp()
+        cls._cleaners.append((shutil.rmtree, cls._serverdir))
+        def copy(filename, dst=None, sign=False):
+            src = resource_filename('resolver.tests.data', filename)
+            dst = os.path.join(cls._serverdir,
+                               (filename if dst is None else dst))
+            safe_makedirs(dst)
+            shutil.copy(src, dst)
+        # BAW 2013-05-03: Use pygpgme instead of shelling out for signing.
+        keyring_dir = os.path.dirname(os.path.abspath(resource_filename(
+            'resolver.tests.data', 'pubring_01.gpg')))
+        def sign(server_file):
+            command = ('gpg --homedir {datadir}'
+                       '    --keyring {datadir}/pubring_01.gpg'
+                       '    --secret-keyring {datadir}/secring_01.gpg'
+                       '    --no-default-keyring'
+                       '    --detach-sign --armor {filename} '
+                       ''.format(datadir=keyring_dir,
+                                 filename=server_file))
+            check_call(command.split(),
+                      stdout=PIPE, stderr=PIPE,
+                      universal_newlines=True)
+        copy('phablet.pubkey.asc')
+        copy('channels_02.json', 'channels.json')
+        copy('channels_02.json.asc', 'channels.json.asc')
+        # index_10.json path B will win, with no bootme flags.
+        copy('index_10.json', 'stable/nexus7/index.json')
+        # Create every file in path B.  The contents of the files will be the
+        # checksum value.  We need to create the signatures on the fly too.
+        path = resource_filename('resolver.tests.data', 'index_10.json')
+        with open(path, encoding='utf-8') as fp:
+            index = Index.from_json(fp.read())
+        for image in index.images:
+            if 'B' not in image.description:
+                continue
+            for filerec in image.files:
+                path = (filerec.path[1:]
+                        if filerec.path.startswith('/')
+                        else filrecpath)
+                dst = os.path.join(cls._serverdir, path)
+                safe_makedirs(dst)
+                with open(dst, 'w', encoding='utf-8') as fp:
+                    fp.write(filerec.checksum)
+                sign(dst)
+                # BAW 2013-05-03: Sign the download files.
+        cls._stop = make_http_server(cls._serverdir)
+        cls._cleaners.insert(0, (cls._stop,))
+
+    @classmethod
+    def tearDownClass(cls):
+        # Run all the cleanups.
+        for func, *args in cls._cleaners:
+            try:
+                func(*args)
+            except:
+                # Boo hiss.
+                pass
+
+    def setUp(self):
+        self._cache = make_temporary_cache(self.addCleanup)
+
+    def test_download_winners(self):
+        # This is essentially an integration test making sure that the
+        # procedure in main() leaves you with the expected files.  In this
+        # case all the B path files will have been downloaded.
+        index = load_current_index(self._cache, force=True)
+        candidates = get_candidates(index, 20130100)
+        winner = WeightedScorer().choose(candidates)
+        downloads = get_downloads(winner, self._cache)
+        get_files(downloads)
+        # The B path files contain their checksums.
+        cache_dir = self._cache.config.cache.directory
+        # Full B files.
+        with open(os.path.join(cache_dir, '5.txt'), encoding='utf-8') as fp:
+            self.assertEqual(fp.read(), '345')
+        with open(os.path.join(cache_dir, '6.txt'), encoding='utf-8') as fp:
+            self.assertEqual(fp.read(), '456')
+        with open(os.path.join(cache_dir, '7.txt'), encoding='utf-8') as fp:
+            self.assertEqual(fp.read(), '567')
+        # Delta B.1 files.
+        with open(os.path.join(cache_dir, '8.txt'), encoding='utf-8') as fp:
+            self.assertEqual(fp.read(), '678')
+        with open(os.path.join(cache_dir, '9.txt'), encoding='utf-8') as fp:
+            self.assertEqual(fp.read(), '789')
+        with open(os.path.join(cache_dir, 'a.txt'), encoding='utf-8') as fp:
+            self.assertEqual(fp.read(), '89a')
+        # Delta B.2 files.
+        with open(os.path.join(cache_dir, 'b.txt'), encoding='utf-8') as fp:
+            self.assertEqual(fp.read(), '9ab')
+        with open(os.path.join(cache_dir, 'd.txt'), encoding='utf-8') as fp:
+            self.assertEqual(fp.read(), 'fed')
+        with open(os.path.join(cache_dir, 'c.txt'), encoding='utf-8') as fp:
+            self.assertEqual(fp.read(), 'edc')
+        # There should be no other files.
+        self.assertEqual(set(os.listdir(cache_dir)), set([
+            'timestamps.json', 'index.json',
+            'channels.json', 'channels.json.asc',
+            'phablet.pubkey.asc',
+            '5.txt', '6.txt', '7.txt',
+            '8.txt', '9.txt', 'a.txt',
+            'b.txt', 'd.txt', 'c.txt',
+            '5.txt.asc', '6.txt.asc', '7.txt.asc',
+            '8.txt.asc', '9.txt.asc', 'a.txt.asc',
+            'b.txt.asc', 'd.txt.asc', 'c.txt.asc',
+            ]))
