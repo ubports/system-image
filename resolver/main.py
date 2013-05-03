@@ -38,7 +38,7 @@ def main():
                         version='resolver {}'.format(__version__))
     parser.add_argument('-C', '--config', default=None)
     parser.add_argument('-b', '--build',
-                        default=None,
+                        default=None, action=int,
                         help='Current build number')
     parser.add_argument('-f', '--force',
                         default=False, action='store_true',
@@ -48,8 +48,11 @@ def main():
     if args.config is not None:
         config.load(args.config)
 
+    build = config.get_build_number() if args.build is None else args.build
+
     index = load_current_index(args.force)
-    build = get_current_version() if args.build is None else args.build
+
+
     candidates = get_candidates(index, build)
     scorer = get_scorer()
     winner = scorer.choose(candidates)

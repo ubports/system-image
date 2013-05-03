@@ -43,7 +43,7 @@ class Channels(Bag):
         return cls(**channels)
 
 
-def load_channel(cache=None):
+def load_channel(cache=None, *, force=False):
     """Load the channel data from the cache, or the web service if necessary.
 
     The channels.json.asc signature file is verified, and if it doesn't match,
@@ -52,7 +52,7 @@ def load_channel(cache=None):
     if cache is None:
         from resolver.config import config
         cache = Cache(config)
-    channels_path = cache.get_path('channels.json')
+    channels_path = cache.get_path('channels.json') if not force else None
     # If the file is already in the cache, there's no need to verify its
     # signature since anyone who can subvert the .json file can also subvert
     # the .json.asc signature file too.  Short-circuit for readability.

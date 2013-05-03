@@ -166,3 +166,21 @@ class TestLoadChannels(unittest.TestCase):
                          '/daily/nexus4/index.json')
         self.assertEqual(channels.stable.nexus7.index,
                          '/stable/nexus7/index.json')
+
+    def test_load_channel_force(self):
+        # Even if a channels.json file exists in the cache, the force flag
+        # will download a new version.  Start by seeding the cache with a
+        # minimal channels.json file.
+        src_channel = resource_filename(
+            'resolver.tests.data', 'channels_02.json')
+        dst_channel = os.path.join(
+            self._cache.config.cache.directory, 'channels.json')
+        shutil.copy(src_channel, dst_channel)
+        self._cache.update('channels.json')
+        # Start by not forcing, just to ensure the cache is happy.
+        channels = load_channel(self._cache)
+        # The cached channel only has a stable channel.
+        self.assertFalse(hasattr(channels, 'daily'))
+        # Now force a download of the full channels file.
+        channels = load_channel(self._cache, force=True)
+        self.assertTrue(hasattr(channels, 'daily'))
