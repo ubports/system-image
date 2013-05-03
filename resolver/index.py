@@ -17,15 +17,21 @@
 
 __all__ = [
     'Index',
+    'load_current_index',
     ]
 
 
+import os
 import json
 
 from datetime import datetime, timezone
 from resolver.bag import Bag
+from resolver.cache import Cache
+from resolver.channel import load_channel
+from resolver.download import get_files
 from resolver.helpers import ExtendedEncoder
 from resolver.image import Image
+from urllib.parse import urljoin
 
 
 IN_FMT = '%a %b %d %H:%M:%S %Z %Y'
@@ -65,3 +71,36 @@ class Index(Bag):
         return json.dumps(index,
                           sort_keys=True, indent=4, separators=(',', ': '),
                           cls=ExtendedEncoder)
+
+
+def load_current_index(cache=None, *, force=False):
+    """Load the current index file.
+
+    Download the current index file by first reading the channels file and
+    chasing the index file link.   The channels file may be cached; use that
+    unless forced to download a new one.  The index.json file is always
+    downloaded.
+
+    The new `Index` object is returned.
+    """
+    if cache is None:
+        from resolver.config import config
+        cache = Cache(config)
+    config = cache.config
+    channel = load_channel(cache, force=force)
+    device = getattr(getattr(channel, config.system.channel),
+                     config.system.device)
+    remote_index_path = urljoin(config.service.base, device.index)
+    local_index_path = os.path.join(config.cache.directory,
+                                    os.path.basename(device.index))
+    downloads = [(remote_index_path, local_index_path)]
+    keyring_path = getattr(device, 'keyring', None)
+    if keyring_path is not None:
+        remote_keyring_path = urljoin(config.service.base, keyring_path)
+        local_keyring_path = os.path.join(config.cache.directory,
+                                          os.path.basename(keyring_path))
+        downloads.append((remote_keyring_path, local_keyring_path))
+    get_files(downloads)
+    # BAW 2013-05-03: validate the index using the keyring!
+    with open(local_index_path, encoding='utf-8') as fp:
+        return Index.from_json(fp.read())

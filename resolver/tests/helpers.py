@@ -113,4 +113,8 @@ def temporary_cache():
         yield make_temporary_cache(append)
     finally:
         for func, *args in cleaners:
-            func(*args)
+            try:
+                func(*args)
+            except:
+                # Boo hiss.
+                pass

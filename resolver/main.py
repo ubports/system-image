@@ -21,8 +21,11 @@ __all__ = [
 import argparse
 
 from pkg_resources import resource_string as resource_bytes
+from resolver.candidates import get_candidates, get_downloads
 from resolver.config import config
+from resolver.download import get_files
 from resolver.index import load_current_index
+from resolver.scores import WeightedScorer
 
 
 __version__ = resource_bytes('resolver', 'version.txt').decode('utf-8').strip()
@@ -38,7 +41,7 @@ def main():
                         version='resolver {}'.format(__version__))
     parser.add_argument('-C', '--config', default=None)
     parser.add_argument('-b', '--build',
-                        default=None, action=int,
+                        default=None,
                         help='Current build number')
     parser.add_argument('-f', '--force',
                         default=False, action='store_true',
@@ -48,14 +51,15 @@ def main():
     if args.config is not None:
         config.load(args.config)
 
-    build = config.get_build_number() if args.build is None else args.build
-
-    index = load_current_index(args.force)
-
-
+    build = (config.get_build_number()
+             if args.build is None else int(args.build))
+    index = load_current_index(force=args.force)
     candidates = get_candidates(index, build)
-    scorer = get_scorer()
-    winner = scorer.choose(candidates)
+    winner = WeightedScorer().choose(candidates)
+    downloads = get_downloads(winner)
+    get_files(downloads)
+    for url, path in downloads:
+        print(path)
 
 
 if __name__ == '__main__':

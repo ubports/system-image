@@ -17,14 +17,27 @@
 
 __all__ = [
     'TestIndex',
+    'TestDownloadIndex',
     ]
 
 
+import os
+import shutil
+import tempfile
 import unittest
 
 from datetime import datetime, timezone
-from pkg_resources import resource_string as resource_bytes
-from resolver.tests.helpers import get_index
+from pkg_resources import resource_filename, resource_string as resource_bytes
+from resolver.index import Index, load_current_index
+from resolver.tests.helpers import (
+    get_index, make_http_server, make_temporary_cache)
+
+
+def safe_makedirs(path):
+    try:
+        os.makedirs(os.path.dirname(path))
+    except FileExistsError:
+        pass
 
 
 class TestIndex(unittest.TestCase):
@@ -81,3 +94,82 @@ class TestIndex(unittest.TestCase):
         self.assertEqual(image.version, 20130500)
         self.assertTrue(image.bootme)
         self.assertEqual(image.minversion, 20130100)
+
+
+class TestDownloadIndex(unittest.TestCase):
+    maxDiff = None
+
+    @classmethod
+    def setUpClass(cls):
+        # Start the HTTP server running.  Vend it out of a temporary directory
+        # which we load up with the right files.
+        cls._cleaners = []
+        def append(*args):
+            cls._cleaners.append(args)
+        cls._serverdir = tempfile.mkdtemp()
+        cls._cleaners.append((shutil.rmtree, cls._serverdir))
+        def copy(filename, dst=None, sign=False):
+            src = resource_filename('resolver.tests.data', filename)
+            dst = os.path.join(cls._serverdir,
+                               (filename if dst is None else dst))
+            safe_makedirs(dst)
+            shutil.copy(src, dst)
+        copy('phablet.pubkey.asc')
+        copy('channels_02.json', 'channels.json')
+        copy('channels_02.json.asc', 'channels.json.asc')
+        # index_10.json path B will win, with no bootme flags.
+        copy('index_10.json', 'stable/nexus7/index.json')
+        # Create every file in path B.  The contents of the files will be the
+        # checksum value.  We need to create the signatures on the fly too.
+        ## path = resource_filename('resolver.tests.data', 'index_10.json')
+        ## with open(path, encoding='utf-8') as fp:
+        ##     index = Index.from_json(fp.read())
+        ## for image in index.images:
+        ##     if 'B' not in image.description:
+        ##         continue
+        ##     for filerec in image.files:
+        ##         path = (filerec.path[1:]
+        ##                 if filerec.path.startswith('/')
+        ##                 else filrecpath)
+        ##         dst = os.path.join(cls._serverdir, path)
+        ##         safe_makedirs(dst)
+        ##         with open(dst, 'w', encoding='utf-8') as fp:
+        ##             print(filerec.checksum, file=fp)
+        ##         # BAW 2013-05-03: Sign the download files.
+        cls._stop = make_http_server(cls._serverdir)
+        cls._cleaners.insert(0, (cls._stop,))
+
+    @classmethod
+    def tearDownClass(cls):
+        # Run all the cleanups.
+        for func, *args in cls._cleaners:
+            try:
+                func(*args)
+            except:
+                # Boo hiss.
+                pass
+
+    def setUp(self):
+        self._cache = make_temporary_cache(self.addCleanup)
+
+    def test_load_current_index(self):
+        # Load the index.json pointed to by the channels.json.  We set the
+        # force flag to force downloading a new channels.json file.
+        index = load_current_index(self._cache, force=True)
+        self.assertEqual(
+            index.global_.generated_at,
+            datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
+        self.assertEqual(
+            index.images[0].files[1].checksum, 'bcd')
+
+    @unittest.skip('FIXME')
+    def test_load_current_index_force(self):
+        pass
+
+    @unittest.skip('FIXME')
+    def test_load_current_index_with_keyring(self):
+        pass
+
+    @unittest.skip('FIXME')
+    def test_load_current_index_with_bad_keyring(self):
+        pass
