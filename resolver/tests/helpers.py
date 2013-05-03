@@ -20,6 +20,7 @@ __all__ = [
     'get_index',
     'make_http_server',
     'make_temporary_cache',
+    'temporary_cache',
     ]
 
 
@@ -27,6 +28,7 @@ import os
 import shutil
 import tempfile
 
+from contextlib import contextmanager
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_string as resource_bytes
 from resolver.cache import Cache
@@ -88,15 +90,27 @@ def make_http_server(directory):
 
 
 def make_temporary_cache(cleaner):
-        cache_tempdir = tempfile.mkdtemp()
-        cleaner(shutil.rmtree, cache_tempdir)
-        ini_tempdir = tempfile.mkdtemp()
-        cleaner(shutil.rmtree, ini_tempdir)
-        ini_file = os.path.join(ini_tempdir, 'config.ini')
-        template = resource_bytes(
-                'resolver.tests.data', 'config_00.ini').decode('utf-8')
-        with atomic(ini_file) as fp:
-            print(template.format(tmpdir=cache_tempdir), file=fp)
-        config = Configuration()
-        config.load(ini_file)
-        return Cache(config)
+    cache_tempdir = tempfile.mkdtemp()
+    cleaner(shutil.rmtree, cache_tempdir)
+    ini_tempdir = tempfile.mkdtemp()
+    cleaner(shutil.rmtree, ini_tempdir)
+    ini_file = os.path.join(ini_tempdir, 'config.ini')
+    template = resource_bytes(
+            'resolver.tests.data', 'config_00.ini').decode('utf-8')
+    with atomic(ini_file) as fp:
+        print(template.format(tmpdir=cache_tempdir), file=fp)
+    config = Configuration()
+    config.load(ini_file)
+    return Cache(config)
+
+
+@contextmanager
+def temporary_cache():
+    cleaners = []
+    def append(*args):
+        cleaners.append(args)
+    try:
+        yield make_temporary_cache(append)
+    finally:
+        for func, *args in cleaners:
+            func(*args)

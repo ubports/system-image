@@ -55,6 +55,10 @@ class Configuration:
         self.system = Bag(converters=dict(build_file=expand_path),
                           **parser['system'])
 
+    def get_build_number(self):
+        with open(self.system.build_file, encoding='utf-8') as fp:
+            return int(fp.read().strip())
+
 
 # This is the global configuration object.  It uses the defaults, but the
 # argument parsing can call load() on it to initialize it with a new .ini

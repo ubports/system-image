@@ -26,6 +26,7 @@ import unittest
 from datetime import timedelta
 from pkg_resources import resource_filename
 from resolver.config import Configuration
+from resolver.tests.helpers import temporary_cache
 
 
 class TestConfiguration(unittest.TestCase):
@@ -49,3 +50,12 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.cache.lifetime, timedelta(days=14))
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
+
+    def test_get_build_number(self):
+        # The current build number is stored in a file specified in the
+        # configuration file.
+        with temporary_cache() as cache:
+            path = cache.config.system.build_file
+            with open(path, 'w', encoding='utf-8') as fp:
+                print(20130500, file=fp)
+            self.assertEqual(cache.config.get_build_number(), 20130500)
