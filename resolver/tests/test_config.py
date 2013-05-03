@@ -35,8 +35,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.cache.directory,
                          os.path.expanduser('~/.cache/phablet'))
         self.assertEqual(config.cache.lifetime, timedelta(seconds=1))
-        self.assertEqual(config.upgrade.channel, 'stable')
-        self.assertEqual(config.upgrade.device, 'nexus7')
+        self.assertEqual(config.system.channel, 'stable')
+        self.assertEqual(config.system.device, 'nexus7')
 
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
@@ -47,5 +47,5 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.base, 'https://phablet.example.com')
         self.assertEqual(config.cache.directory, '/var/cache/resolver')
         self.assertEqual(config.cache.lifetime, timedelta(days=14))
-        self.assertEqual(config.upgrade.channel, 'stable')
-        self.assertEqual(config.upgrade.device, 'nexus7')
+        self.assertEqual(config.system.channel, 'stable')
+        self.assertEqual(config.system.device, 'nexus7')

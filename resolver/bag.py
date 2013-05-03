@@ -22,14 +22,30 @@ __all__ = [
 
 import keyword
 
+from collections import defaultdict
+
 
 COMMASPACE = ', '
 
 
+def default():
+    def identity(value):
+        return value
+    return identity
+
+def make_converter(original):
+    converters = defaultdict(default)
+    if original is not None:
+        converters.update(original)
+    return converters
+
+
 class Bag:
-    def __init__(self, **kws):
+    def __init__(self, *, converters=None, **kws):
+        converters = make_converter(converters)
         self.__original__ = {}
         for key, value in kws.items():
+            value = converters[key](value)
             self.__original__[key] = value
             # Replace problematic characters, e.g. ubuntu-rootfs
             safe_key = key.replace('-', '_')

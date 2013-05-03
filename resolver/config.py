@@ -33,6 +33,10 @@ from pkg_resources import resource_filename
 from resolver.helpers import Bag, as_timedelta
 
 
+def expand_path(path):
+    return os.path.abspath(os.path.expanduser(path))
+
+
 class Configuration:
     def __init__(self):
         # Defaults.
@@ -42,19 +46,14 @@ class Configuration:
     def load(self, path):
         parser = ConfigParser()
         parser.read(path)
-        self.service = Bag(
-            base=parser['service']['base'],
-            threads=int(parser['service']['threads']),
-            timeout=as_timedelta(parser['service']['timeout']),
-            )
-        self.cache = Bag(
-            directory=os.path.expanduser(parser['cache']['directory']),
-            lifetime=as_timedelta(parser['cache']['lifetime']),
-            )
-        self.upgrade = Bag(
-            channel=parser['upgrade']['channel'],
-            device=parser['upgrade']['device'],
-            )
+        self.service = Bag(converters=dict(timeout=as_timedelta,
+                                           threads=int),
+                           **parser['service'])
+        self.cache = Bag(converters=dict(lifetime=as_timedelta,
+                                         directory=expand_path),
+                         **parser['cache'])
+        self.system = Bag(converters=dict(build_file=expand_path),
+                          **parser['system'])
 
 
 # This is the global configuration object.  It uses the defaults, but the

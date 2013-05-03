@@ -18,7 +18,6 @@ __all__ = [
     ]
 
 
-import json
 import argparse
 
 from pkg_resources import resource_string as resource_bytes

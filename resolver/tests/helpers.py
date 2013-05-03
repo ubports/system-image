@@ -93,19 +93,10 @@ def make_temporary_cache(cleaner):
         ini_tempdir = tempfile.mkdtemp()
         cleaner(shutil.rmtree, ini_tempdir)
         ini_file = os.path.join(ini_tempdir, 'config.ini')
+        template = resource_bytes(
+                'resolver.tests.data', 'config_00.ini').decode('utf-8')
         with atomic(ini_file) as fp:
-            print("""\
-[service]
-base: http://localhost:8909/
-threads: 5
-timeout: 1s
-[cache]
-directory: {}
-lifetime: 1d
-[upgrade]
-channel: stable
-device: nexus7
-""".format(cache_tempdir), file=fp)
+            print(template.format(tmpdir=cache_tempdir), file=fp)
         config = Configuration()
         config.load(ini_file)
         return Cache(config)
