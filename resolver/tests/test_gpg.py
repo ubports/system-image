@@ -22,7 +22,6 @@ __all__ = [
 
 
 import os
-import gpgme
 import unittest
 
 from pkg_resources import resource_filename
@@ -39,12 +38,12 @@ class TestSignature(unittest.TestCase):
         with Context(self.pubkey_path) as ctx:
             results = ctx.import_result
         # Exactly one key was successfully imported.
-        self.assertEqual(len(results.imports), 1)
-        fingerprint, error, status = results.imports[0]
-        self.assertEqual(fingerprint,
+        self.assertEqual(results.count, 1)
+        self.assertEqual(len(results.fingerprints), 1)
+        self.assertEqual(results.fingerprints[0],
                          '253E67218CF5327B4F965F3260D858F208B776C3')
-        self.assertIsNone(error)
-        self.assertEqual(status, gpgme.IMPORT_NEW)
+        # One new key was imported.
+        self.assertEqual(results.imported, 1)
 
     def test_channel_signature(self):
         signature_path = resource_filename(

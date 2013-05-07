@@ -22,7 +22,7 @@ __all__ = [
 
 
 import os
-import gpgme
+import gnupg
 import shutil
 import tempfile
 
@@ -55,20 +55,10 @@ class Context:
                 self._withstack.callback(partial(shutil.rmtree, home))
             else:
                 home = self.home
-            # Create the context, using the $GNUPGHOME.
-            old_gnupghome = os.environ.get('GNUPGHOME')
-            if old_gnupghome is None:
-                self._withstack.callback(
-                    partial(os.environ.__delitem__, 'GNUPGHOME'))
-            else:
-                self._withstack.callback(
-                    partial(os.environ.__setitem__,
-                            'GNUPGHOME', old_gnupghome))
-            os.environ['GNUPGHOME'] = home
-            self._ctx = gpgme.Context()
+            self._ctx = gnupg.GPG(gnupghome=home)
             self._withstack.callback(partial(setattr, self, '_ctx', None))
             with open(self.pubkey_path, 'rb') as fp:
-                self.import_result = self._ctx.import_(fp)
+                self.import_result = self._ctx.import_keys(fp.read())
         except:
             # Restore all context and re-raise the exception.
             self._withstack.pop_all().close()
@@ -82,23 +72,11 @@ class Context:
         return False
 
     def verify(self, signature_path, data_path):
-        # gpgme requires that its arguments are open, readable, binary mode
-        # file objects.  It's more convenient to pass in paths though, so open
-        # them now.
-        with open(signature_path, 'rb') as sig_fp, \
-             open(data_path, 'rb') as data_fp:
-            # Since we always use detached signatures, the third argument,
-            # i.e. `plaintext` can always be None.
-            try:
-                signatures = self._ctx.verify(sig_fp, data_fp, None)
-            except gpgme.GpgmeError:
-                # BAW 2013-04-26: Log this error probably.
-                return False
+        with open(signature_path, 'rb') as sig_fp:
+            verified = self._ctx.verify_file(sig_fp, data_path)
         # The fingerprints in the validly signed file must match the
         # fingerprint in the pubkey.
-        signed_by = set(sig.fpr for sig in signatures)
-        expected = set(imported[0] for imported in self.import_result.imports)
-        return signed_by == expected
+        return verified.fingerprint == self.import_result.fingerprints[0]
 
 
 def get_pubkey(cache=None):

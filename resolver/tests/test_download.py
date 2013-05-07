@@ -32,7 +32,7 @@ from resolver.candidates import get_candidates, get_downloads
 from resolver.download import get_files
 from resolver.index import Index, load_current_index
 from resolver.scores import WeightedScorer
-from resolver.tests.helpers import make_http_server, make_temporary_cache
+from resolver.tests.helpers import make_http_server, make_temporary_cache, sign
 from subprocess import check_call, PIPE
 from unittest.mock import patch
 from urllib.error import URLError
@@ -166,17 +166,6 @@ class TestWinnerDownloads(unittest.TestCase):
         # BAW 2013-05-03: Use pygpgme instead of shelling out for signing.
         keyring_dir = os.path.dirname(os.path.abspath(resource_filename(
             'resolver.tests.data', 'pubring_01.gpg')))
-        def sign(server_file):
-            command = ('gpg --homedir {datadir}'
-                       '    --keyring {datadir}/pubring_01.gpg'
-                       '    --secret-keyring {datadir}/secring_01.gpg'
-                       '    --no-default-keyring'
-                       '    --detach-sign --armor {filename} '
-                       ''.format(datadir=keyring_dir,
-                                 filename=server_file))
-            check_call(command.split(),
-                      stdout=PIPE, stderr=PIPE,
-                      universal_newlines=True)
         copy('phablet.pubkey.asc')
         copy('channels_02.json', 'channels.json')
         copy('channels_02.json.asc', 'channels.json.asc')
@@ -198,7 +187,7 @@ class TestWinnerDownloads(unittest.TestCase):
                 safe_makedirs(dst)
                 with open(dst, 'w', encoding='utf-8') as fp:
                     fp.write(filerec.checksum)
-                sign(dst)
+                sign(keyring_dir, dst)
                 # BAW 2013-05-03: Sign the download files.
         cls._stop = make_http_server(cls._serverdir)
         cls._cleaners.insert(0, (cls._stop,))
