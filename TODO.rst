@@ -32,3 +32,13 @@ To do
  - put current build version in User-Agent
  - Don't cache channels.json, it's not worth it
  - Combine the cache and config objects... if we keep the cache at all
+
+
+Hand off
+========
+ - Store command into /cache/recovery/command
+   --update_package=path  - OTA package file
+   --wipe_data - erase user data and reboot
+ - adb reboot recovery
+ - http://blog.surgut.co.uk/2013/02/flash-nexus7-like-rock-star.html
+ - https://wiki.ubuntu.com/ImageBasedUpgrades/Mobile/GPG
