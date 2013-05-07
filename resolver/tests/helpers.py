@@ -16,10 +16,12 @@
 """Test helpers."""
 
 __all__ = [
+    'copy',
     'get_channels',
     'get_index',
     'make_http_server',
     'make_temporary_cache',
+    'makedirs',
     'sign',
     'temporary_cache',
     ]
@@ -32,7 +34,7 @@ import tempfile
 
 from contextlib import contextmanager
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-from pkg_resources import resource_string as resource_bytes
+from pkg_resources import resource_filename, resource_string as resource_bytes
 from resolver.cache import Cache
 from resolver.channel import Channels
 from resolver.config import Configuration
@@ -136,3 +138,17 @@ def sign(homedir, filename):
         signed_data = ctx.sign_file(dfp, detach=True)
     with open(filename + '.asc', 'wb') as sfp:
         sfp.write(signed_data.data)
+
+
+def makedirs(dir):
+    try:
+        os.makedirs(dir)
+    except FileExistsError:
+        pass
+
+
+def copy(filename, todir, dst=None):
+    src = resource_filename('resolver.tests.data', filename)
+    dst = os.path.join(todir, filename if dst is None else dst)
+    makedirs(os.path.dirname(dst))
+    shutil.copy(src, dst)

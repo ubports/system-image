@@ -27,23 +27,18 @@ import tempfile
 import unittest
 
 from collections import defaultdict
+from functools import partial
 from pkg_resources import resource_filename
 from resolver.candidates import get_candidates, get_downloads
 from resolver.download import get_files
 from resolver.index import Index, load_current_index
 from resolver.scores import WeightedScorer
-from resolver.tests.helpers import make_http_server, make_temporary_cache, sign
-from subprocess import check_call, PIPE
+from resolver.tests.helpers import (
+    copy as copyfile, get_index, make_http_server, make_temporary_cache,
+    makedirs, sign)
 from unittest.mock import patch
 from urllib.error import URLError
 from urllib.parse import urljoin
-
-
-def safe_makedirs(path):
-    try:
-        os.makedirs(os.path.dirname(path))
-    except FileExistsError:
-        pass
 
 
 class TestDownloads(unittest.TestCase):
@@ -157,25 +152,17 @@ class TestWinnerDownloads(unittest.TestCase):
             cls._cleaners.append(args)
         cls._serverdir = tempfile.mkdtemp()
         cls._cleaners.append((shutil.rmtree, cls._serverdir))
-        def copy(filename, dst=None, sign=False):
-            src = resource_filename('resolver.tests.data', filename)
-            dst = os.path.join(cls._serverdir,
-                               (filename if dst is None else dst))
-            safe_makedirs(dst)
-            shutil.copy(src, dst)
-        # BAW 2013-05-03: Use pygpgme instead of shelling out for signing.
         keyring_dir = os.path.dirname(os.path.abspath(resource_filename(
             'resolver.tests.data', 'pubring_01.gpg')))
+        copy = partial(copyfile, todir=cls._serverdir)
         copy('phablet.pubkey.asc')
-        copy('channels_02.json', 'channels.json')
-        copy('channels_02.json.asc', 'channels.json.asc')
+        copy('channels_02.json', dst='channels.json')
+        copy('channels_02.json.asc', dst='channels.json.asc')
         # index_10.json path B will win, with no bootme flags.
-        copy('index_10.json', 'stable/nexus7/index.json')
+        copy('index_10.json', dst='stable/nexus7/index.json')
         # Create every file in path B.  The contents of the files will be the
         # checksum value.  We need to create the signatures on the fly too.
-        path = resource_filename('resolver.tests.data', 'index_10.json')
-        with open(path, encoding='utf-8') as fp:
-            index = Index.from_json(fp.read())
+        index = get_index('index_10.json')
         for image in index.images:
             if 'B' not in image.description:
                 continue
@@ -184,7 +171,7 @@ class TestWinnerDownloads(unittest.TestCase):
                         if filerec.path.startswith('/')
                         else filrecpath)
                 dst = os.path.join(cls._serverdir, path)
-                safe_makedirs(dst)
+                makedirs(os.path.dirname(dst))
                 with open(dst, 'w', encoding='utf-8') as fp:
                     fp.write(filerec.checksum)
                 sign(keyring_dir, dst)

@@ -27,10 +27,11 @@ import tempfile
 import unittest
 
 from datetime import datetime, timezone
+from functools import partial
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from resolver.index import Index, load_current_index
 from resolver.tests.helpers import (
-    get_index, make_http_server, make_temporary_cache)
+    copy as copyfile, get_index, make_http_server, make_temporary_cache)
 
 
 def safe_makedirs(path):
@@ -108,17 +109,12 @@ class TestDownloadIndex(unittest.TestCase):
             cls._cleaners.append(args)
         cls._serverdir = tempfile.mkdtemp()
         cls._cleaners.append((shutil.rmtree, cls._serverdir))
-        def copy(filename, dst=None, sign=False):
-            src = resource_filename('resolver.tests.data', filename)
-            dst = os.path.join(cls._serverdir,
-                               (filename if dst is None else dst))
-            safe_makedirs(dst)
-            shutil.copy(src, dst)
+        copy = partial(copyfile, todir=cls._serverdir)
         copy('phablet.pubkey.asc')
-        copy('channels_02.json', 'channels.json')
-        copy('channels_02.json.asc', 'channels.json.asc')
+        copy('channels_02.json', dst='channels.json')
+        copy('channels_02.json.asc', dst='channels.json.asc')
         # index_10.json path B will win, with no bootme flags.
-        copy('index_10.json', 'stable/nexus7/index.json')
+        copy('index_10.json', dst='stable/nexus7/index.json')
         cls._stop = make_http_server(cls._serverdir)
         cls._cleaners.insert(0, (cls._stop,))
 
