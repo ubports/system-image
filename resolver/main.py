@@ -41,8 +41,11 @@ def main():
                         version='resolver {}'.format(__version__))
     parser.add_argument('-C', '--config', default=None)
     parser.add_argument('-b', '--build',
+                        default=False, action='store_true',
+                        help='Show the current build number and exit')
+    parser.add_argument('-u', '--upgrade',
                         default=None,
-                        help='Current build number')
+                        help='Upgrade from this build number')
     parser.add_argument('-f', '--force',
                         default=False, action='store_true',
                         help='Ignore any cached data, forcing a download')
@@ -52,7 +55,11 @@ def main():
         config.load(args.config)
 
     build = (config.get_build_number()
-             if args.build is None else int(args.build))
+             if args.upgrade is None else int(args.upgrade))
+    if args.build:
+        print('build number:', build)
+        return
+
     index = load_current_index(force=args.force)
     candidates = get_candidates(index, build)
     winner = WeightedScorer().choose(candidates)
