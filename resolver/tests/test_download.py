@@ -37,7 +37,6 @@ from resolver.tests.helpers import (
     copy as copyfile, get_index, make_http_server, make_temporary_cache,
     makedirs, sign)
 from unittest.mock import patch
-from urllib.error import URLError
 from urllib.parse import urljoin
 
 
@@ -127,7 +126,7 @@ class TestDownloads(unittest.TestCase):
     def test_download_404(self):
         # Try to download a file which doesn't exist.  Since it's all or
         # nothing, the cache will be empty.
-        self.assertRaises(URLError, get_files, self._abspathify([
+        self.assertRaises(FileNotFoundError, get_files, self._abspathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ('phablet.pubkey.asc', 'pubkey.asc'),
@@ -200,7 +199,7 @@ class TestWinnerDownloads(unittest.TestCase):
         candidates = get_candidates(index, 20130100)
         winner = WeightedScorer().choose(candidates)
         downloads = get_downloads(winner, self._cache)
-        get_files(downloads)
+        get_files(downloads, cache=self._cache)
         # The B path files contain their checksums.
         cache_dir = self._cache.config.cache.directory
         # Full B files.
@@ -235,4 +234,48 @@ class TestWinnerDownloads(unittest.TestCase):
             '5.txt.asc', '6.txt.asc', '7.txt.asc',
             '8.txt.asc', '9.txt.asc', 'a.txt.asc',
             'b.txt.asc', 'd.txt.asc', 'c.txt.asc',
+            ]))
+
+    def test_no_download_winners_with_missing_signature(self):
+        # If one of the download files is missing a signature, none of the
+        # files get downloaded and get_files() fails.
+        os.remove(os.path.join(self._serverdir, '6/7/8.txt.asc'))
+        index = load_current_index(self._cache, force=True)
+        candidates = get_candidates(index, 20130100)
+        winner = WeightedScorer().choose(candidates)
+        downloads = get_downloads(winner, self._cache)
+        self.assertRaises(FileNotFoundError, get_files, downloads,
+                          cache=self._cache)
+        cache_dir = self._cache.config.cache.directory
+        self.assertEqual(set(os.listdir(cache_dir)), set([
+            'channels.json',
+            'index.json',
+            'channels.json.asc',
+            'phablet.pubkey.asc',
+            'timestamps.json',
+            ]))
+
+    def test_no_download_winners_with_bad_signature(self):
+        # If one of the download files has a bad a signature, none of the
+        # files get downloaded and get_files() fails.
+        target = os.path.join(self._serverdir, '6/7/8.txt')
+        os.remove(target + '.asc')
+        # Sign the file with the attacker's key.
+        sign(os.path.dirname(os.path.abspath(resource_filename(
+            'resolver.tests.data', 'pubring_02.gpg'))),
+             target,
+             ('pubring_02.gpg', 'secring_02.gpg'))
+        index = load_current_index(self._cache, force=True)
+        candidates = get_candidates(index, 20130100)
+        winner = WeightedScorer().choose(candidates)
+        downloads = get_downloads(winner, self._cache)
+        self.assertRaises(FileNotFoundError, get_files, downloads,
+                          cache=self._cache)
+        cache_dir = self._cache.config.cache.directory
+        self.assertEqual(set(os.listdir(cache_dir)), set([
+            'channels.json',
+            'index.json',
+            'channels.json.asc',
+            'phablet.pubkey.asc',
+            'timestamps.json',
             ]))

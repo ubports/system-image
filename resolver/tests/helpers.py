@@ -124,16 +124,21 @@ def temporary_cache():
                 pass
 
 
-def sign(homedir, filename):
+def sign(homedir, filename, ring_files=None):
     """GPG sign the given file, producing an armored detached signature."""
     # The version of python3-gnupg in Ubuntu 13.04 is too old to support the
     # `options` constructor keyword, so hack around it.
+    if ring_files is None:
+        pubring = 'pubring_01.gpg'
+        secring = 'secring_01.gpg'
+    else:
+        pubring, secring = ring_files
     class Signing(gnupg.GPG):
         def _open_subprocess(self, args, passphrase=False):
-            args.append('--secret-keyring secring_01.gpg')
+            args.append('--secret-keyring {}'.format(secring))
             return super()._open_subprocess(args, passphrase)
     ctx = Signing(gnupghome=homedir,
-                  keyring=os.path.join(homedir, 'pubring_01.gpg'))
+                  keyring=os.path.join(homedir, pubring))
     with open(filename, 'rb') as dfp:
         signed_data = ctx.sign_file(dfp, detach=True)
     with open(filename + '.asc', 'wb') as sfp:

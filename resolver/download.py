@@ -38,6 +38,7 @@ from datetime import timedelta
 from functools import partial
 from resolver.config import config
 from resolver.helpers import atomic
+from urllib.error import HTTPError
 from urllib.request import urlopen
 
 
@@ -75,12 +76,9 @@ def _get_one_file(download, callback=None):
             out.write(chunk)
             if callback is not None:
                 callback(url, dst, bytes_read)
-    # Return the actual absolute path to the destination file so it can be
-    # cleaned up if any other download fails.
-    return dst
 
 
-def get_files(downloads, callback=None):
+def get_files(downloads, callback=None, cache=None):
     """Download a bunch of files concurrently.
 
     The files named in `downloads` are downloaded in separate threads,
@@ -93,6 +91,11 @@ def get_files(downloads, callback=None):
     at least we do that concurrently; 2) this is an all-or-nothing function.
     Either you get all the requested files or none of them.
 
+    After all the files are successful downloaded, any file with both a .asc
+    signature file and a matching non-.asc file are checked against the
+    pubkey.  If any signatures fail, then a FileNotFoundError is raised and
+    all files are deleted.
+
     :param downloads: A list of 2-tuples where the first item is the url to
         download, and the second item is the destination file.
     :param callback: If given, a function that's called every so often in all
@@ -102,7 +105,8 @@ def get_files(downloads, callback=None):
     :type callback: A function that takes three arguments: the full source url
         including the base, the absolute path of the destination, and the
         total number of bytes read so far from this url.
-    :raises: `urllib.error.URLError` and `TimeOutError`
+    :raises: FileNotFoundError if any download error occurred.  In this case,
+        all download files are deleted.
     """
     function = partial(_get_one_file, callback=callback)
     if config.service.timeout <= timedelta():
@@ -130,7 +134,26 @@ def get_files(downloads, callback=None):
             # Something to be aware of though.  The easiest fix is probably to
             # stash any existing files away and restore them if the download
             # fails, rather than os.remove()'ing them.
-            list(tpe.map(function, downloads, timeout=timeout))
+            try:
+                list(tpe.map(function, downloads, timeout=timeout))
+            except HTTPError:
+                raise FileNotFoundError
+            # Avoid circular references.
+            from resolver.gpg import Context, get_pubkey
+            # Check all the signed files.
+            local_files = set(path for url, path in downloads)
+            sig_files = set(path for path in local_files
+                            if path.endswith('.asc'))
+            check_sigs = []
+            for sig in sig_files:
+                data_file = os.path.splitext(sig)[0]
+                if data_file in local_files:
+                    check_sigs.append((sig, data_file))
+            pubkey_path = get_pubkey(cache)
+            with Context(pubkey_path) as ctx:
+                for sig_file, data_file in check_sigs:
+                    if not ctx.verify(sig_file, data_file):
+                        raise FileNotFoundError
     except:
         # If any exceptions occur, we want to delete files that downloaded
         # successfully.  The ones that failed will already have been deleted.
