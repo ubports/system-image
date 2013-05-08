@@ -18,7 +18,6 @@ To do
    - ordering of zip files
  - base url should not include http/https
    - infer this from the file type and the spec
- - separate signatures on image files
  - how do we change channels?  store the current channel along with the
    current version so we know that if we change channels, we need a new full
    one bundle image, multiple downloads (indep/dep)
