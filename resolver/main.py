@@ -46,9 +46,6 @@ def main():
     parser.add_argument('-u', '--upgrade',
                         default=None,
                         help='Upgrade from this build number')
-    parser.add_argument('-f', '--force',
-                        default=False, action='store_true',
-                        help='Ignore any cached data, forcing a download')
 
     args = parser.parse_args()
     if args.config is not None:
@@ -60,8 +57,8 @@ def main():
         print('build number:', build)
         return
 
-    index = load_current_index(force=args.force)
-    candidates = get_candidates(index, build)
+    index = load_current_index()
+    candidates = get_candidates(index)
     winner = WeightedScorer().choose(candidates)
     downloads = get_downloads(winner)
     get_files(downloads)

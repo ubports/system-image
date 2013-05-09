@@ -27,7 +27,7 @@ import unittest
 from operator import attrgetter
 from resolver.candidates import get_candidates, get_downloads
 from resolver.scores import WeightedScorer
-from resolver.tests.helpers import get_index, make_temporary_cache
+from resolver.tests.helpers import get_index, test_configuration
 
 
 class TestCandidates(unittest.TestCase):
@@ -158,9 +158,8 @@ class TestCandidates(unittest.TestCase):
 
 
 class TestCandidateDownloads(unittest.TestCase):
-    def setUp(self):
-        self._cache = make_temporary_cache(self.addCleanup)
 
+    @test_configuration
     def test_get_downloads(self):
         # Path B will win; it has one full and two deltas, none of which have
         # a bootme flag.  Download all their files.
@@ -169,7 +168,7 @@ class TestCandidateDownloads(unittest.TestCase):
         winner = WeightedScorer().choose(candidates)
         self.assertEqual([image.description for image in winner],
                          ['Full B', 'Delta B.1', 'Delta B.2'])
-        downloads = get_downloads(winner, self._cache)
+        downloads = get_downloads(winner)
         urls = set(url for url, path in downloads)
         paths = set(path for url, path in downloads)
         self.maxDiff = None
@@ -216,6 +215,7 @@ class TestCandidateDownloads(unittest.TestCase):
             'd.txt.asc',
             ]))
 
+    @test_configuration
     def test_get_downloads_with_bootme(self):
         # Path B will win; it has one full and two deltas.  The first delta
         # has a bootme flag so the second delta's files are not downloaded.
@@ -224,7 +224,7 @@ class TestCandidateDownloads(unittest.TestCase):
         winner = WeightedScorer().choose(candidates)
         self.assertEqual([image.description for image in winner],
                          ['Full B', 'Delta B.1', 'Delta B.2'])
-        downloads = get_downloads(winner, self._cache)
+        downloads = get_downloads(winner)
         urls = set(url for url, path in downloads)
         paths = set(path for url, path in downloads)
         self.maxDiff = None

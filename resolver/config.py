@@ -49,10 +49,8 @@ class Configuration:
         self.service = Bag(converters=dict(timeout=as_timedelta,
                                            threads=int),
                            **parser['service'])
-        self.cache = Bag(converters=dict(lifetime=as_timedelta,
-                                         directory=expand_path),
-                         **parser['cache'])
-        self.system = Bag(converters=dict(build_file=expand_path),
+        self.system = Bag(converters=dict(build_file=expand_path,
+                                          tempdir=expand_path),
                           **parser['system'])
 
     def get_build_number(self):
@@ -63,7 +61,25 @@ class Configuration:
             return 0
 
 
-# This is the global configuration object.  It uses the defaults, but the
-# argument parsing can call load() on it to initialize it with a new .ini
-# file.
-config = Configuration()
+# Define the global configuration object.  Normal use can be as simple as:
+#
+# from resolver.config import config
+# build_file = config.system.build_file
+#
+# In the test suite though, the actual configuration object can be easily
+# patched by doing something like this:
+#
+# test_config = Configuration(...)
+# with unittest.mock.patch('config._config', test_config):
+#     run_test()
+#
+# and now every module which does the first code example will get build_file
+# from the mocked Configuration instance.
+
+_config = Configuration()
+
+class _Proxy:
+    def __getattribute__(self, name):
+        return getattr(_config, name)
+
+config = _Proxy()

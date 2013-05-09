@@ -20,10 +20,9 @@ __all__ = [
     'get_channels',
     'get_index',
     'make_http_server',
-    'make_temporary_cache',
     'makedirs',
     'sign',
-    'temporary_cache',
+    'test_configuration',
     ]
 
 
@@ -32,15 +31,13 @@ import gnupg
 import shutil
 import tempfile
 
-from contextlib import contextmanager
+from contextlib import ExitStack
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
-from resolver.cache import Cache
 from resolver.channel import Channels
 from resolver.config import Configuration
 from resolver.helpers import atomic
 from resolver.index import Index
-from textwrap import dedent
 from threading import Thread
 from unittest.mock import patch
 
@@ -93,35 +90,34 @@ def make_http_server(directory):
     return shutdown
 
 
-def make_temporary_cache(cleaner):
-    cache_tempdir = tempfile.mkdtemp()
-    cleaner(shutil.rmtree, cache_tempdir)
-    ini_tempdir = tempfile.mkdtemp()
-    cleaner(shutil.rmtree, ini_tempdir)
-    ini_file = os.path.join(ini_tempdir, 'config.ini')
-    template = resource_bytes(
-            'resolver.tests.data', 'config_00.ini').decode('utf-8')
-    with atomic(ini_file) as fp:
-        print(template.format(tmpdir=cache_tempdir), file=fp)
-    config = Configuration()
-    config.load(ini_file)
-    return Cache(config)
+def test_configuration(function):
+    """Test decorator that produces a temporary configuration.
 
+    The config_00.ini template is copied to a temporary file and the
+    [system]tempdir variable is filled in with the location for a, er,
+    temporary temporary directory.  This temporary configuration file is
+    loaded up and the global configuration object is patched so that all
+    other code will see it instead of the default global configuration
+    object.
 
-@contextmanager
-def temporary_cache():
-    cleaners = []
-    def append(*args):
-        cleaners.append(args)
-    try:
-        yield make_temporary_cache(append)
-    finally:
-        for func, *args in cleaners:
-            try:
-                func(*args)
-            except:
-                # Boo hiss.
-                pass
+    Everything is properly cleaned up after the test method exits.
+    """
+    def wrapper(*args, **kws):
+        with ExitStack() as stack:
+            fd, ini_file = tempfile.mkstemp(suffix='.ini')
+            os.close(fd)
+            stack.callback(os.remove, ini_file)
+            temp_tempdir = tempfile.mkdtemp()
+            stack.callback(shutil.rmtree, temp_tempdir)
+            template = resource_bytes(
+                'resolver.tests.data', 'config_00.ini').decode('utf-8')
+            with atomic(ini_file) as fp:
+                print(template.format(tmpdir=temp_tempdir), file=fp)
+            config = Configuration()
+            config.load(ini_file)
+            stack.enter_context(patch('resolver.config._config', config))
+            return function(*args, **kws)
+    return wrapper
 
 
 def sign(homedir, filename, ring_files=None):

@@ -27,9 +27,8 @@ import shutil
 import tempfile
 
 from contextlib import ExitStack
-from datetime import datetime, timedelta
 from functools import partial
-from resolver.cache import Cache
+from resolver.config import config
 from resolver.download import Downloader
 from resolver.helpers import atomic
 from urllib.parse import urljoin
@@ -79,26 +78,18 @@ class Context:
         return verified.fingerprint == self.import_result.fingerprints[0]
 
 
-def get_pubkey(cache=None):
+def get_pubkey():
     """Make sure we have the pubkey, downloading it if necessary."""
     # BAW 2013-04-26: Ultimately, it's likely that the pubkey will be
     # placed on the file system at install time.
-    if cache is None:
-        from resolver.config import config
-        cache = Cache(config)
-    pubkey_path = cache.get_path('phablet.pubkey.asc')
-    if pubkey_path is None:
-        config = cache.config
-        url = urljoin(config.service.base, 'phablet.pubkey.asc')
-        with Downloader(url) as response:
-            pubkey = response.read().decode('utf-8')
-        # Now, put the pubkey in the cache and update the cache with an
-        # insanely long timeout for the file.
-        pubkey_path = os.path.join(config.cache.directory,
-                                   'phablet.pubkey.asc')
-        when = datetime.now() + timedelta(days=365*10)
-        # The pubkey is ASCII armored so the default utf-8 is good enough.
-        with atomic(pubkey_path) as fp:
-            fp.write(pubkey)
-            cache.update('phablet.pubkey.asc', when)
+    url = urljoin(config.service.base, 'phablet.pubkey.asc')
+    pubkey_path = os.path.join(config.system.tempdir, 'phablet.pubkey.asc')
+    # Don't use get_files() here because get_files() calls get_pubkey(), so
+    # you'd end up with infinite recursion.  Use the lower level API.
+    with Downloader(url) as response:
+        pubkey = response.read().decode('utf-8')
+    # Now, put the pubkey in the temporary directory The pubkey is ASCII
+    # armored so the default utf-8 is good enough.
+    with atomic(pubkey_path) as fp:
+        fp.write(pubkey)
     return pubkey_path

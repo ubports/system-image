@@ -24,7 +24,7 @@ __all__ = [
 import os
 
 from collections import deque
-from resolver.cache import Cache
+from resolver.config import config
 from urllib.parse import urljoin
 
 
@@ -123,7 +123,7 @@ def get_candidates(index, build):
     return paths
 
 
-def get_downloads(winner, cache=None):
+def get_downloads(winner):
     """Return the list of files to download given the upgrade winner.
 
     Image traversal will stop after the first `bootme` flag is seen, so the
@@ -137,22 +137,19 @@ def get_downloads(winner, cache=None):
     :return: List of 2-tuples where the first item is the url to download and
         the second is the local path for the file.
     """
-    if cache is None:
-        from resolver.config import config
-        cache = Cache(config)
     downloads = []
     for image in winner:
         for filerec in image.files:
             # Add the file's url and local path.
             downloads.append((
-                urljoin(cache.config.service.base, filerec.path),
-                os.path.join(cache.config.cache.directory,
+                urljoin(config.service.base, filerec.path),
+                os.path.join(config.system.tempdir,
                              os.path.basename(filerec.path))
                 ))
             # Add the signature file's url and local path.
             downloads.append((
-                urljoin(cache.config.service.base, filerec.signature),
-                os.path.join(cache.config.cache.directory,
+                urljoin(config.service.base, filerec.signature),
+                os.path.join(config.system.tempdir,
                              os.path.basename(filerec.signature))
                 ))
         if getattr(image, 'bootme', False):
