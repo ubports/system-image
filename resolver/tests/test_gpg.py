@@ -26,7 +26,7 @@ import unittest
 
 from pkg_resources import resource_filename
 from resolver.gpg import Context, get_pubkey
-from resolver.tests.helpers import make_http_server, make_temporary_cache
+from resolver.tests.helpers import make_http_server, test_configuration
 
 
 class TestSignature(unittest.TestCase):
@@ -89,12 +89,7 @@ class TestGetPubkey(unittest.TestCase):
         # Stop the HTTP server.
         cls._stop()
 
-    def setUp(self):
-        self._cache = make_temporary_cache(self.addCleanup)
-
+    @test_configuration
     def test_get_pubkey(self):
-        # When the cache is empty, we'll download our pubkey.
-        self.assertIsNone(self._cache.get_path('phablet.pubkey.asc'))
-        pubkey = get_pubkey(self._cache)
+        pubkey = get_pubkey()
         self.assertEqual(os.path.basename(pubkey), 'phablet.pubkey.asc')
-        self.assertEqual(get_pubkey(self._cache), pubkey)

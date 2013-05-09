@@ -78,23 +78,25 @@ def _get_one_file(download, callback=None):
                 callback(url, dst, bytes_read)
 
 
-def get_files(downloads, callback=None, cache=None):
+def get_files(downloads, callback=None):
     """Download a bunch of files concurrently.
 
     The files named in `downloads` are downloaded in separate threads,
-    concurrently using asynchronous I/O.  Occasionally, the callback is called
-    to report on progress.  This function blocks until all files have been
-    downloaded or an exception occurs.  In the latter case, the cache will be
-    cleared of the files that succeeded and the exception will be re-raised.
+    concurrently using asynchronous I/O.  Occasionally, the callback is
+    called to report on progress.  This function blocks until all files
+    have been downloaded or an exception occurs.  In the latter case,
+    the download directory will be cleared of the files that succeeded
+    and the exception will be re-raised.
 
-    This means that 1) the function blocks until all files are downloaded, but
-    at least we do that concurrently; 2) this is an all-or-nothing function.
-    Either you get all the requested files or none of them.
+    This means that 1) the function blocks until all files are
+    downloaded, but at least we do that concurrently; 2) this is an
+    all-or-nothing function.  Either you get all the requested files or
+    none of them.
 
-    After all the files are successful downloaded, any file with both a .asc
-    signature file and a matching non-.asc file are checked against the
-    pubkey.  If any signatures fail, then a FileNotFoundError is raised and
-    all files are deleted.
+    After all the files are successful downloaded, any file with both a
+    .asc signature file and a matching non-.asc file are checked against
+    the pubkey.  If any signatures fail, then a FileNotFoundError is
+    raised and all files are deleted.
 
     :param downloads: A list of 2-tuples where the first item is the url to
         download, and the second item is the destination file.
@@ -149,7 +151,7 @@ def get_files(downloads, callback=None, cache=None):
                 data_file = os.path.splitext(sig)[0]
                 if data_file in local_files:
                     check_sigs.append((sig, data_file))
-            pubkey_path = get_pubkey(cache)
+            pubkey_path = get_pubkey()
             with Context(pubkey_path) as ctx:
                 for sig_file, data_file in check_sigs:
                     if not ctx.verify(sig_file, data_file):

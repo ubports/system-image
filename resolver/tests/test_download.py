@@ -30,12 +30,13 @@ from collections import defaultdict
 from functools import partial
 from pkg_resources import resource_filename
 from resolver.candidates import get_candidates, get_downloads
+from resolver.config import config
 from resolver.download import get_files
 from resolver.index import Index, load_current_index
 from resolver.scores import WeightedScorer
 from resolver.tests.helpers import (
-    copy as copyfile, get_index, make_http_server, make_temporary_cache,
-    makedirs, sign)
+    copy as copyfile, get_index, make_http_server, makedirs, sign,
+    test_configuration)
 from unittest.mock import patch
 from urllib.parse import urljoin
 
@@ -57,15 +58,13 @@ class TestDownloads(unittest.TestCase):
         # Stop the HTTP server.
         cls._stop()
 
-    def setUp(self):
-        self._cache = make_temporary_cache(self.addCleanup)
-
     def _abspathify(self, downloads):
         return [
-            (urljoin(self._cache.config.service.base, url),
-             os.path.join(self._cache.config.cache.directory, filename)
+            (urljoin(config.service.base, url),
+             os.path.join(config.system.tempdir, filename)
             ) for url, filename in downloads]
 
+    @test_configuration
     def test_download_good_path(self):
         # Download a bunch of files that exist.  No callback.
         get_files(self._abspathify([
@@ -73,10 +72,12 @@ class TestDownloads(unittest.TestCase):
             ('index_01.json', 'index.json'),
             ('phablet.pubkey.asc', 'pubkey.asc'),
             ]))
-        cache_listing = os.listdir(self._cache.config.cache.directory)
-        self.assertEqual(sorted(cache_listing),
-                         ['channels.json', 'index.json', 'pubkey.asc'])
+        self.assertEqual(
+            set(os.listdir(config.system.tempdir)),
+            set(['channels.json', 'index.json', 'pubkey.asc',
+                 'phablet.pubkey.asc']))
 
+    @test_configuration
     def test_download_with_callback(self):
         results = []
         def callback(*args):
@@ -86,9 +87,10 @@ class TestDownloads(unittest.TestCase):
             ('index_01.json', 'index.json'),
             ('phablet.pubkey.asc', 'pubkey.asc'),
             ]), callback=callback)
-        cache_listing = os.listdir(self._cache.config.cache.directory)
-        self.assertEqual(sorted(cache_listing),
-                         ['channels.json', 'index.json', 'pubkey.asc'])
+        self.assertEqual(
+            set(os.listdir(config.system.tempdir)),
+            set(['channels.json', 'index.json', 'pubkey.asc',
+                 'phablet.pubkey.asc']))
         # Because we're doing async i/o, even though it's to localhost,
         # there's no guarantee about the order of things in the results list,
         # nor of their count.  It's *likely* that there's exactly one entry
@@ -99,11 +101,12 @@ class TestDownloads(unittest.TestCase):
         for url, dst, size in results:
             byte_totals[url] += size
         self.assertEqual(byte_totals, {
-            'http://localhost:8909/channels_01.json': 334,
-            'http://localhost:8909/index_01.json': 99,
-            'http://localhost:8909/phablet.pubkey.asc': 1679,
+            urljoin(config.service.base, 'channels_01.json'): 334,
+            urljoin(config.service.base, 'index_01.json'): 99,
+            urljoin(config.service.base, 'phablet.pubkey.asc'): 1679,
             })
 
+    @test_configuration
     @patch('resolver.download.CHUNK_SIZE', 10)
     def test_download_chunks(self):
         # Similar to the above test, but makes sure that the chunking reads in
@@ -116,25 +119,26 @@ class TestDownloads(unittest.TestCase):
             ('index_01.json', 'index.json'),
             ('phablet.pubkey.asc', 'pubkey.asc'),
             ]), callback=callback)
-        channels = sorted(results['http://localhost:8909/channels_01.json'])
+        channels = sorted(
+            results[urljoin(config.service.base, 'channels_01.json')])
         self.assertEqual(channels, [i * 10 for i in range(1, 34)] + [334])
-        index = sorted(results['http://localhost:8909/index_01.json'])
+        index = sorted(results[urljoin(config.service.base, 'index_01.json')])
         self.assertEqual(index, [i * 10 for i in range(1, 10)] + [99])
-        pubkey = sorted(results['http://localhost:8909/phablet.pubkey.asc'])
+        pubkey = sorted(
+            results[urljoin(config.service.base, 'phablet.pubkey.asc')])
         self.assertEqual(pubkey, [i * 10 for i in range(1, 168)] + [1679])
 
+    @test_configuration
     def test_download_404(self):
         # Try to download a file which doesn't exist.  Since it's all or
-        # nothing, the cache will be empty.
+        # nothing, the temp directory will be empty.
         self.assertRaises(FileNotFoundError, get_files, self._abspathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ('phablet.pubkey.asc', 'pubkey.asc'),
             ('missing.txt', 'missing.txt'),
             ]))
-        self.assertEqual(
-            os.listdir(self._cache.config.cache.directory),
-            [])
+        self.assertEqual(os.listdir(config.system.tempdir), [])
 
 
 class TestWinnerDownloads(unittest.TestCase):
@@ -188,44 +192,35 @@ class TestWinnerDownloads(unittest.TestCase):
                 # Boo hiss.
                 pass
 
-    def setUp(self):
-        self._cache = make_temporary_cache(self.addCleanup)
-
+    @test_configuration
     def test_download_winners(self):
         # This is essentially an integration test making sure that the
         # procedure in main() leaves you with the expected files.  In this
         # case all the B path files will have been downloaded.
-        index = load_current_index(self._cache, force=True)
+        index = load_current_index()
         candidates = get_candidates(index, 20130100)
         winner = WeightedScorer().choose(candidates)
-        downloads = get_downloads(winner, self._cache)
-        get_files(downloads, cache=self._cache)
+        downloads = get_downloads(winner)
+        get_files(downloads)
         # The B path files contain their checksums.
-        cache_dir = self._cache.config.cache.directory
-        # Full B files.
-        with open(os.path.join(cache_dir, '5.txt'), encoding='utf-8') as fp:
-            self.assertEqual(fp.read(), '345')
-        with open(os.path.join(cache_dir, '6.txt'), encoding='utf-8') as fp:
-            self.assertEqual(fp.read(), '456')
-        with open(os.path.join(cache_dir, '7.txt'), encoding='utf-8') as fp:
-            self.assertEqual(fp.read(), '567')
+        def assert_file_contains(filename, contents):
+            path = os.path.join(config.system.tempdir, filename)
+            with open(path, encoding='utf-8') as fp:
+                self.assertEqual(fp.read(), contents)
+        assert_file_contains('5.txt', '345')
+        assert_file_contains('6.txt', '456')
+        assert_file_contains('7.txt', '567')
         # Delta B.1 files.
-        with open(os.path.join(cache_dir, '8.txt'), encoding='utf-8') as fp:
-            self.assertEqual(fp.read(), '678')
-        with open(os.path.join(cache_dir, '9.txt'), encoding='utf-8') as fp:
-            self.assertEqual(fp.read(), '789')
-        with open(os.path.join(cache_dir, 'a.txt'), encoding='utf-8') as fp:
-            self.assertEqual(fp.read(), '89a')
+        assert_file_contains('8.txt', '678')
+        assert_file_contains('9.txt', '789')
+        assert_file_contains('a.txt', '89a')
         # Delta B.2 files.
-        with open(os.path.join(cache_dir, 'b.txt'), encoding='utf-8') as fp:
-            self.assertEqual(fp.read(), '9ab')
-        with open(os.path.join(cache_dir, 'd.txt'), encoding='utf-8') as fp:
-            self.assertEqual(fp.read(), 'fed')
-        with open(os.path.join(cache_dir, 'c.txt'), encoding='utf-8') as fp:
-            self.assertEqual(fp.read(), 'edc')
+        assert_file_contains('b.txt', '9ab')
+        assert_file_contains('d.txt', 'fed')
+        assert_file_contains('c.txt', 'edc')
         # There should be no other files.
-        self.assertEqual(set(os.listdir(cache_dir)), set([
-            'timestamps.json', 'index.json',
+        self.assertEqual(set(os.listdir(config.system.tempdir)), set([
+            'index.json',
             'channels.json', 'channels.json.asc',
             'phablet.pubkey.asc',
             '5.txt', '6.txt', '7.txt',
@@ -236,25 +231,24 @@ class TestWinnerDownloads(unittest.TestCase):
             'b.txt.asc', 'd.txt.asc', 'c.txt.asc',
             ]))
 
+    @test_configuration
     def test_no_download_winners_with_missing_signature(self):
         # If one of the download files is missing a signature, none of the
         # files get downloaded and get_files() fails.
         os.remove(os.path.join(self._serverdir, '6/7/8.txt.asc'))
-        index = load_current_index(self._cache, force=True)
+        index = load_current_index()
         candidates = get_candidates(index, 20130100)
         winner = WeightedScorer().choose(candidates)
-        downloads = get_downloads(winner, self._cache)
-        self.assertRaises(FileNotFoundError, get_files, downloads,
-                          cache=self._cache)
-        cache_dir = self._cache.config.cache.directory
-        self.assertEqual(set(os.listdir(cache_dir)), set([
+        downloads = get_downloads(winner)
+        self.assertRaises(FileNotFoundError, get_files, downloads)
+        self.assertEqual(set(os.listdir(config.system.tempdir)), set([
             'channels.json',
             'index.json',
             'channels.json.asc',
             'phablet.pubkey.asc',
-            'timestamps.json',
             ]))
 
+    @test_configuration
     def test_no_download_winners_with_bad_signature(self):
         # If one of the download files has a bad a signature, none of the
         # files get downloaded and get_files() fails.
@@ -265,17 +259,14 @@ class TestWinnerDownloads(unittest.TestCase):
             'resolver.tests.data', 'pubring_02.gpg'))),
              target,
              ('pubring_02.gpg', 'secring_02.gpg'))
-        index = load_current_index(self._cache, force=True)
+        index = load_current_index()
         candidates = get_candidates(index, 20130100)
         winner = WeightedScorer().choose(candidates)
-        downloads = get_downloads(winner, self._cache)
-        self.assertRaises(FileNotFoundError, get_files, downloads,
-                          cache=self._cache)
-        cache_dir = self._cache.config.cache.directory
-        self.assertEqual(set(os.listdir(cache_dir)), set([
+        downloads = get_downloads(winner)
+        self.assertRaises(FileNotFoundError, get_files, downloads)
+        self.assertEqual(set(os.listdir(config.system.tempdir)), set([
             'channels.json',
             'index.json',
             'channels.json.asc',
             'phablet.pubkey.asc',
-            'timestamps.json',
             ]))

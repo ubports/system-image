@@ -29,8 +29,6 @@ To do
  - wifi only upgrades
  - dbus api
  - put current build version in User-Agent
- - Don't cache channels.json, it's not worth it
- - Combine the cache and config objects... if we keep the cache at all
 
 
 Hand off

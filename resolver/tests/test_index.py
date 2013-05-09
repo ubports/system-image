@@ -31,7 +31,7 @@ from functools import partial
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from resolver.index import Index, load_current_index
 from resolver.tests.helpers import (
-    copy as copyfile, get_index, make_http_server, make_temporary_cache)
+    copy as copyfile, get_index, make_http_server, test_configuration)
 
 
 def safe_makedirs(path):
@@ -128,22 +128,16 @@ class TestDownloadIndex(unittest.TestCase):
                 # Boo hiss.
                 pass
 
-    def setUp(self):
-        self._cache = make_temporary_cache(self.addCleanup)
-
+    @test_configuration
     def test_load_current_index(self):
         # Load the index.json pointed to by the channels.json.  We set the
         # force flag to force downloading a new channels.json file.
-        index = load_current_index(self._cache, force=True)
+        index = load_current_index()
         self.assertEqual(
             index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
         self.assertEqual(
             index.images[0].files[1].checksum, 'bcd')
-
-    @unittest.skip('FIXME')
-    def test_load_current_index_force(self):
-        pass
 
     @unittest.skip('FIXME')
     def test_load_current_index_with_keyring(self):

@@ -26,10 +26,10 @@ import shutil
 import tempfile
 import unittest
 
+from pkg_resources import resource_filename
 from resolver.channel import load_channel
 from resolver.tests.helpers import (
-    get_channels, make_http_server, make_temporary_cache)
-from pkg_resources import resource_filename
+    get_channels, make_http_server, test_configuration)
 
 
 class TestChannels(unittest.TestCase):
@@ -93,15 +93,11 @@ class TestLoadChannels(unittest.TestCase):
         finally:
             cls._stop()
 
-    def setUp(self):
-        self._cache = make_temporary_cache(self.addCleanup)
-
+    @test_configuration
     def test_load_channel(self):
-        # With an empty cache, the channel.json and channels.json.asc files
-        # are downloaded, and the signature matches.
-        self.assertIsNone(self._cache.get_path('channels.json'))
-        channels = load_channel(self._cache)
-        self.assertIsNotNone(self._cache.get_path('channels.json'))
+        # The channel.json and channels.json.asc files are downloaded, and the
+        # signature matches.
+        channels = load_channel()
         self.assertEqual(channels.daily.nexus7.index,
                          '/daily/nexus7/index.json')
         self.assertEqual(channels.daily.nexus7.keyring,
@@ -113,33 +109,17 @@ class TestLoadChannels(unittest.TestCase):
                          '/stable/nexus7/index.json')
         self.assertIsNone(getattr(channels.stable.nexus7, 'keyring', None))
 
+    @test_configuration
     def test_load_channel_bad_signature(self):
         # If the signature on the channels.json file is bad, then we get a
-        # FileNotFoundError and the cache is not filled.
+        # FileNotFoundError.
         asc_src = resource_filename('resolver.tests.data',
                                     'channels_01.json.bad.asc')
         asc_dst = os.path.join(self._tempdir, 'channels.json.asc')
         shutil.copyfile(asc_src, asc_dst)
-        self.assertRaises(FileNotFoundError, load_channel, self._cache)
-        self.assertIsNone(self._cache.get_path('channels.json'))
-        self.assertIsNone(self._cache.get_path('channels.json.asc'))
+        self.assertRaises(FileNotFoundError, load_channel)
 
-    def test_load_channel_from_cache(self):
-        # The first time downloads from the web service.  The second one loads
-        # it from the cache.
-        self.assertIsNone(self._cache.get_path('channels.json'))
-        load_channel(self._cache)
-        self.assertIsNotNone(self._cache.get_path('channels.json'))
-        channels = load_channel(self._cache)
-        self.assertEqual(channels.daily.nexus7.index,
-                         '/daily/nexus7/index.json')
-        self.assertEqual(channels.daily.nexus7.keyring,
-                         '/daily/nexus7/keyring.gpg')
-        self.assertEqual(channels.daily.nexus4.index,
-                         '/daily/nexus4/index.json')
-        self.assertEqual(channels.stable.nexus7.index,
-                         '/stable/nexus7/index.json')
-
+    @test_configuration
     def test_load_channel_bad_signature_gets_fixed(self):
         # The first load gets a bad signature, but the second one fixes the
         # signature and everything is fine.
@@ -147,17 +127,13 @@ class TestLoadChannels(unittest.TestCase):
                                     'channels_01.json.bad.asc')
         asc_dst = os.path.join(self._tempdir, 'channels.json.asc')
         shutil.copyfile(asc_src, asc_dst)
-        self.assertRaises(FileNotFoundError, load_channel, self._cache)
-        self.assertIsNone(self._cache.get_path('channels.json'))
-        self.assertIsNone(self._cache.get_path('channels.json.asc'))
-        # Fix the signature file on the server.  Because the cache wasn't
-        # filled, it will be downloaded again.
+        self.assertRaises(FileNotFoundError, load_channel)
+        # Fix the signature file on the server.
         asc_src = resource_filename('resolver.tests.data',
                                     'channels_01.json.asc')
         asc_dst = os.path.join(self._tempdir, 'channels.json.asc')
         shutil.copyfile(asc_src, asc_dst)
-        channels = load_channel(self._cache)
-        self.assertIsNotNone(self._cache.get_path('channels.json'))
+        channels = load_channel()
         self.assertEqual(channels.daily.nexus7.index,
                          '/daily/nexus7/index.json')
         self.assertEqual(channels.daily.nexus7.keyring,
@@ -166,21 +142,3 @@ class TestLoadChannels(unittest.TestCase):
                          '/daily/nexus4/index.json')
         self.assertEqual(channels.stable.nexus7.index,
                          '/stable/nexus7/index.json')
-
-    def test_load_channel_force(self):
-        # Even if a channels.json file exists in the cache, the force flag
-        # will download a new version.  Start by seeding the cache with a
-        # minimal channels.json file.
-        src_channel = resource_filename(
-            'resolver.tests.data', 'channels_02.json')
-        dst_channel = os.path.join(
-            self._cache.config.cache.directory, 'channels.json')
-        shutil.copy(src_channel, dst_channel)
-        self._cache.update('channels.json')
-        # Start by not forcing, just to ensure the cache is happy.
-        channels = load_channel(self._cache)
-        # The cached channel only has a stable channel.
-        self.assertFalse(hasattr(channels, 'daily'))
-        # Now force a download of the full channels file.
-        channels = load_channel(self._cache, force=True)
-        self.assertTrue(hasattr(channels, 'daily'))
