@@ -26,10 +26,11 @@ import shutil
 import tempfile
 import unittest
 
+from contextlib import ExitStack
 from datetime import datetime, timezone
 from functools import partial
-from pkg_resources import resource_filename, resource_string as resource_bytes
-from resolver.index import Index, load_current_index
+from pkg_resources import resource_string as resource_bytes
+from resolver.index import load_current_index
 from resolver.tests.helpers import (
     copy as copyfile, get_index, make_http_server, test_configuration)
 
@@ -104,29 +105,25 @@ class TestDownloadIndex(unittest.TestCase):
     def setUpClass(cls):
         # Start the HTTP server running.  Vend it out of a temporary directory
         # which we load up with the right files.
-        cls._cleaners = []
-        def append(*args):
-            cls._cleaners.append(args)
-        cls._serverdir = tempfile.mkdtemp()
-        cls._cleaners.append((shutil.rmtree, cls._serverdir))
-        copy = partial(copyfile, todir=cls._serverdir)
-        copy('phablet.pubkey.asc')
-        copy('channels_02.json', dst='channels.json')
-        copy('channels_02.json.asc', dst='channels.json.asc')
-        # index_10.json path B will win, with no bootme flags.
-        copy('index_10.json', dst='stable/nexus7/index.json')
-        cls._stop = make_http_server(cls._serverdir)
-        cls._cleaners.insert(0, (cls._stop,))
+        cls._cleaners = ExitStack()
+        try:
+            cls._serverdir = tempfile.mkdtemp()
+            cls._cleaners.callback(shutil.rmtree, cls._serverdir)
+            copy = partial(copyfile, todir=cls._serverdir)
+            copy('phablet.pubkey.asc')
+            copy('channels_02.json', dst='channels.json')
+            copy('channels_02.json.asc', dst='channels.json.asc')
+            # index_10.json path B will win, with no bootme flags.
+            copy('index_10.json', dst='stable/nexus7/index.json')
+            cls._stop = make_http_server(cls._serverdir)
+            cls._cleaners.callback(cls._stop)
+        except:
+            cls._cleaners.pop_all().close()
+            raise
 
     @classmethod
     def tearDownClass(cls):
-        # Run all the cleanups.
-        for func, *args in cls._cleaners:
-            try:
-                func(*args)
-            except:
-                # Boo hiss.
-                pass
+        cls._cleaners.close()
 
     @test_configuration
     def test_load_current_index(self):

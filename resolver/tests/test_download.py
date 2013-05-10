@@ -27,12 +27,13 @@ import tempfile
 import unittest
 
 from collections import defaultdict
+from contextlib import ExitStack
 from functools import partial
 from pkg_resources import resource_filename
 from resolver.candidates import get_candidates, get_downloads
 from resolver.config import config
 from resolver.download import get_files
-from resolver.index import Index, load_current_index
+from resolver.index import load_current_index
 from resolver.scores import WeightedScorer
 from resolver.tests.helpers import (
     copy as copyfile, get_index, make_http_server, makedirs, sign,
@@ -150,47 +151,42 @@ class TestWinnerDownloads(unittest.TestCase):
     def setUpClass(cls):
         # Start the HTTP server running.  Vend it out of a temporary directory
         # which we load up with the right files.
-        cls._cleaners = []
-        def append(*args):
-            cls._cleaners.append(args)
-        cls._serverdir = tempfile.mkdtemp()
-        cls._cleaners.append((shutil.rmtree, cls._serverdir))
-        keyring_dir = os.path.dirname(os.path.abspath(resource_filename(
-            'resolver.tests.data', 'pubring_01.gpg')))
-        copy = partial(copyfile, todir=cls._serverdir)
-        copy('phablet.pubkey.asc')
-        copy('channels_02.json', dst='channels.json')
-        copy('channels_02.json.asc', dst='channels.json.asc')
-        # index_10.json path B will win, with no bootme flags.
-        copy('index_10.json', dst='stable/nexus7/index.json')
-        # Create every file in path B.  The contents of the files will be the
-        # checksum value.  We need to create the signatures on the fly too.
-        index = get_index('index_10.json')
-        for image in index.images:
-            if 'B' not in image.description:
-                continue
-            for filerec in image.files:
-                path = (filerec.path[1:]
-                        if filerec.path.startswith('/')
-                        else filrecpath)
-                dst = os.path.join(cls._serverdir, path)
-                makedirs(os.path.dirname(dst))
-                with open(dst, 'w', encoding='utf-8') as fp:
-                    fp.write(filerec.checksum)
-                sign(keyring_dir, dst)
-                # BAW 2013-05-03: Sign the download files.
-        cls._stop = make_http_server(cls._serverdir)
-        cls._cleaners.insert(0, (cls._stop,))
+        cls._cleaners = ExitStack()
+        try:
+            cls._serverdir = tempfile.mkdtemp()
+            cls._cleaners.callback(shutil.rmtree, cls._serverdir)
+            keyring_dir = os.path.dirname(os.path.abspath(resource_filename(
+                'resolver.tests.data', 'pubring_01.gpg')))
+            copy = partial(copyfile, todir=cls._serverdir)
+            copy('phablet.pubkey.asc')
+            copy('channels_02.json', dst='channels.json')
+            copy('channels_02.json.asc', dst='channels.json.asc')
+            # index_10.json path B will win, with no bootme flags.
+            copy('index_10.json', dst='stable/nexus7/index.json')
+            # Create every file in path B.  The file contents will be the
+            # checksum value.  We need to create the signatures on the fly.
+            index = get_index('index_10.json')
+            for image in index.images:
+                if 'B' not in image.description:
+                    continue
+                for filerec in image.files:
+                    path = (filerec.path[1:]
+                            if filerec.path.startswith('/')
+                            else filerec.path)
+                    dst = os.path.join(cls._serverdir, path)
+                    makedirs(os.path.dirname(dst))
+                    with open(dst, 'w', encoding='utf-8') as fp:
+                        fp.write(filerec.checksum)
+                    sign(keyring_dir, dst)
+            cls._stop = make_http_server(cls._serverdir)
+            cls._cleaners.callback(cls._stop)
+        except:
+            cls._cleaners.pop_all().close()
+            raise
 
     @classmethod
     def tearDownClass(cls):
-        # Run all the cleanups.
-        for func, *args in cls._cleaners:
-            try:
-                func(*args)
-            except:
-                # Boo hiss.
-                pass
+        cls._cleaners.close()
 
     @test_configuration
     def test_download_winners(self):

@@ -26,10 +26,12 @@ import shutil
 import tempfile
 import unittest
 
+from contextlib import ExitStack
+from functools import partial
 from pkg_resources import resource_filename
 from resolver.channel import load_channel
 from resolver.tests.helpers import (
-    get_channels, make_http_server, test_configuration)
+    copy as copyfile, get_channels, make_http_server, test_configuration)
 
 
 class TestChannels(unittest.TestCase):
@@ -61,37 +63,25 @@ class TestLoadChannels(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls._cleaners = ExitStack()
         # Start the HTTP server running.  Vend it out of a temporary directory
         # we conspire to contain the appropriate files.
-        cls._tempdir = tempfile.mkdtemp()
         try:
-            # If an exception occurs in any of the following, we must make
-            # sure to remove our temporary directory explicitly, since
-            # tearDownClass() won't get called.
-            pubkey_src = resource_filename('resolver.tests.data',
-                                           'phablet.pubkey.asc')
-            pubkey_dst = os.path.join(cls._tempdir, 'phablet.pubkey.asc')
-            shutil.copyfile(pubkey_src, pubkey_dst)
-            channels_src = resource_filename('resolver.tests.data',
-                                             'channels_01.json')
-            channels_dst = os.path.join(cls._tempdir, 'channels.json')
-            shutil.copyfile(channels_src, channels_dst)
-            asc_src = resource_filename('resolver.tests.data',
-                                        'channels_01.json.asc')
-            asc_dst = os.path.join(cls._tempdir, 'channels.json.asc')
-            shutil.copyfile(asc_src, asc_dst)
+            cls._tempdir = tempfile.mkdtemp()
+            copy = partial(copyfile, todir=cls._tempdir)
+            cls._cleaners.callback(shutil.rmtree, cls._tempdir)
+            copy('phablet.pubkey.asc')
+            copy('channels_01.json', dst='channels.json')
+            copy('channels_01.json.asc', dst='channels.json.asc')
+            cls._stop = make_http_server(cls._tempdir)
+            cls._cleaners.callback(cls._stop)
         except:
-            shutil.rmtree(cls._tempdir)
+            cls._cleaners.pop_all().close()
             raise
-        cls._stop = make_http_server(cls._tempdir)
 
     @classmethod
     def tearDownClass(cls):
-        # Stop the HTTP server.
-        try:
-            shutil.rmtree(cls._tempdir)
-        finally:
-            cls._stop()
+        cls._cleaners.close()
 
     @test_configuration
     def test_load_channel(self):
