@@ -142,13 +142,13 @@ def get_downloads(winner):
         for filerec in image.files:
             # Add the file's url and local path.
             downloads.append((
-                urljoin(config.service.base, filerec.path),
+                urljoin(config.service.http_base, filerec.path),
                 os.path.join(config.system.tempdir,
                              os.path.basename(filerec.path))
                 ))
             # Add the signature file's url and local path.
             downloads.append((
-                urljoin(config.service.base, filerec.signature),
+                urljoin(config.service.http_base, filerec.signature),
                 os.path.join(config.system.tempdir,
                              os.path.basename(filerec.signature))
                 ))

@@ -82,7 +82,7 @@ class TestGetPubkey(unittest.TestCase):
         pubkey_file = resource_filename('resolver.tests.data',
                                         'phablet.pubkey.asc')
         directory = os.path.dirname(pubkey_file)
-        cls._stop = make_http_server(directory)
+        cls._stop = make_http_server(directory, 8980)
 
     @classmethod
     def tearDownClass(cls):

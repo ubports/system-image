@@ -42,20 +42,30 @@ def make_converter(original):
 
 class Bag:
     def __init__(self, *, converters=None, **kws):
-        converters = make_converter(converters)
+        self._converters = make_converter(converters)
         self.__original__ = {}
         for key, value in kws.items():
-            value = converters[key](value)
             self.__original__[key] = value
-            # Replace problematic characters, e.g. ubuntu-rootfs
-            safe_key = key.replace('-', '_')
-            if keyword.iskeyword(safe_key):
-                safe_key += '_'
+            safe_key, converted_value = self._normalize_key_value(key, value)
             # BAW 2013-04-30: attribute values *must* be immutable, but for
             # now we don't enforce this.  If you set or delete attributes, you
             # will probably break things.
-            self.__dict__[safe_key] = value
+            self.__dict__[safe_key] = converted_value
+
+    def _normalize_key_value(self, key, value):
+        value = self._converters[key](value)
+        key = key.replace('-', '_')
+        if keyword.iskeyword(key):
+            key += '_'
+        return key, value
 
     def __repr__(self):
         return '<Bag: {}>'.format(COMMASPACE.join(sorted(
-            key for key in self.__dict__ if key != '__original__')))
+            key for key in self.__dict__ if not key.startswith('_'))))
+
+    def __setitem__(self, key, value):
+        if key in self.__original__:
+            raise ValueError('Attributes are immutable: {}'.format(key))
+        self.__original__[key] = value
+        safe_key, converted_value = self._normalize_key_value(key, value)
+        self.__dict__[safe_key] = converted_value

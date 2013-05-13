@@ -47,8 +47,22 @@ class Configuration:
         parser = ConfigParser()
         parser.read(path)
         self.service = Bag(converters=dict(timeout=as_timedelta,
-                                           threads=int),
+                                           threads=int,
+                                           http_port=int,
+                                           https_port=int),
                            **parser['service'])
+        # Construct the HTTP and HTTPS base urls, which most applications will
+        # actually use.
+        if self.service.http_port == 80:
+            self.service['http_base'] = 'http://{}'.format(self.service.base)
+        else:
+            self.service['http_base'] = 'http://{}:{}'.format(
+                self.service.base, self.service.http_port)
+        if self.service.https_port == 443:
+            self.service['https_base'] = 'https://{}'.format(self.service.base)
+        else:
+            self.service['https_base'] = 'https://{}:{}'.format(
+                self.service.base, self.service.https_port)
         self.system = Bag(converters=dict(build_file=expand_path,
                                           tempdir=expand_path),
                           **parser['system'])

@@ -22,6 +22,7 @@ __all__ = [
 
 import unittest
 
+from operator import setitem
 from resolver.bag import Bag
 
 
@@ -52,3 +53,13 @@ class TestBag(unittest.TestCase):
         source = {'a-b': 1, 'global': 2, 'foo': 3}
         bag = Bag(**source)
         self.assertEqual(bag.__original__, source)
+
+    def test_add_key(self):
+        bag = Bag(a=1, b=2, c=3)
+        bag['d'] = bag.b + bag.c
+        self.assertEqual(bag.d, 5)
+
+    def test_add_existing_key(self):
+        bag = Bag(a=1, b=2, c=3)
+        self.assertRaises(ValueError, setitem, bag, 'b', 5)
+        self.assertEqual(bag.b, 2)

@@ -73,7 +73,7 @@ class TestLoadChannels(unittest.TestCase):
             copy('phablet.pubkey.asc')
             copy('channels_01.json', dst='channels.json')
             copy('channels_01.json.asc', dst='channels.json.asc')
-            cls._stop = make_http_server(cls._tempdir)
+            cls._stop = make_http_server(cls._tempdir, 8980)
             cls._cleaners.callback(cls._stop)
         except:
             cls._cleaners.pop_all().close()

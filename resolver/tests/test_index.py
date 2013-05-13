@@ -115,7 +115,7 @@ class TestDownloadIndex(unittest.TestCase):
             copy('channels_02.json.asc', dst='channels.json.asc')
             # index_10.json path B will win, with no bootme flags.
             copy('index_10.json', dst='stable/nexus7/index.json')
-            cls._stop = make_http_server(cls._serverdir)
+            cls._stop = make_http_server(cls._serverdir, 8980)
             cls._cleaners.callback(cls._stop)
         except:
             cls._cleaners.pop_all().close()

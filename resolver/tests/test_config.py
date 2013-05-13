@@ -32,7 +32,11 @@ from resolver.tests.helpers import test_configuration
 class TestConfiguration(unittest.TestCase):
     def test_defaults(self):
         config = Configuration()
-        self.assertEqual(config.service.base, 'https://phablet.stgraber.org')
+        self.assertEqual(config.service.base, 'phablet.stgraber.org')
+        self.assertEqual(config.service.http_base,
+                         'http://phablet.stgraber.org')
+        self.assertEqual(config.service.https_base,
+                         'https://phablet.stgraber.org')
         self.assertEqual(config.system.tempdir,
                          os.path.expanduser('~/.cache/phablet'))
         self.assertEqual(config.system.channel, 'stable')
@@ -44,12 +48,27 @@ class TestConfiguration(unittest.TestCase):
         ini_file = resource_filename('resolver.tests.data', 'config_01.ini')
         config = Configuration()
         config.load(ini_file)
-        self.assertEqual(config.service.base, 'https://phablet.example.com')
+        self.assertEqual(config.service.base, 'phablet.example.com')
+        self.assertEqual(config.service.http_base,
+                         'http://phablet.example.com')
+        self.assertEqual(config.service.https_base,
+                         'https://phablet.example.com')
         self.assertEqual(config.service.threads, 5)
         self.assertEqual(config.service.timeout, timedelta(seconds=10))
         self.assertEqual(config.system.tempdir, '/var/tmp/resolver')
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
+
+    def test_nonstandard_ports(self):
+        # config_02.ini has non-standard http and https ports.
+        ini_file = resource_filename('resolver.tests.data', 'config_02.ini')
+        config = Configuration()
+        config.load(ini_file)
+        self.assertEqual(config.service.base, 'phablet.example.com')
+        self.assertEqual(config.service.http_base,
+                         'http://phablet.example.com:8080')
+        self.assertEqual(config.service.https_base,
+                         'https://phablet.example.com:80443')
 
     @test_configuration
     def test_get_build_number(self):

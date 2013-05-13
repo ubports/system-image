@@ -1,8 +1,9 @@
 To do
 =====
 
- - logging
- - debugging
+ - base url should not include http/https
+   - infer this from the file type and the spec
+ - logging/debugging
  - reading files from the file system (e.g. current version)
    - build version
  - partial candidates, e.g. not enough disk space to get from where we are to
@@ -16,11 +17,13 @@ To do
      right now I'm thinking that the cli will write a JSON output file naming
      the download location).
    - ordering of zip files
- - base url should not include http/https
-   - infer this from the file type and the spec
+   - pluggable since reboots may be different per device
  - how do we change channels?  store the current channel along with the
    current version so we know that if we change channels, we need a new full
    one bundle image, multiple downloads (indep/dep)
+   - need to download latest full to change channels
+   - command line switch
+   - not supported by partials
  - switch to developer (a.k.a. apt-get) mode
    - grab tarball from server to initialize apt updates
    - if dpkg exists we're in developer mode
@@ -29,6 +32,7 @@ To do
  - wifi only upgrades
  - dbus api
  - put current build version in User-Agent
+ - full testing through lxc containers
 
 
 Hand off

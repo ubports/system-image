@@ -52,7 +52,7 @@ class TestDownloads(unittest.TestCase):
         pubkey_file = resource_filename('resolver.tests.data',
                                         'phablet.pubkey.asc')
         directory = os.path.dirname(pubkey_file)
-        cls._stop = make_http_server(directory)
+        cls._stop = make_http_server(directory, 8980)
 
     @classmethod
     def tearDownClass(cls):
@@ -61,7 +61,7 @@ class TestDownloads(unittest.TestCase):
 
     def _abspathify(self, downloads):
         return [
-            (urljoin(config.service.base, url),
+            (urljoin(config.service.http_base, url),
              os.path.join(config.system.tempdir, filename)
             ) for url, filename in downloads]
 
@@ -102,9 +102,9 @@ class TestDownloads(unittest.TestCase):
         for url, dst, size in results:
             byte_totals[url] += size
         self.assertEqual(byte_totals, {
-            urljoin(config.service.base, 'channels_01.json'): 334,
-            urljoin(config.service.base, 'index_01.json'): 99,
-            urljoin(config.service.base, 'phablet.pubkey.asc'): 1679,
+            urljoin(config.service.http_base, 'channels_01.json'): 334,
+            urljoin(config.service.http_base, 'index_01.json'): 99,
+            urljoin(config.service.http_base, 'phablet.pubkey.asc'): 1679,
             })
 
     @test_configuration
@@ -121,12 +121,13 @@ class TestDownloads(unittest.TestCase):
             ('phablet.pubkey.asc', 'pubkey.asc'),
             ]), callback=callback)
         channels = sorted(
-            results[urljoin(config.service.base, 'channels_01.json')])
+            results[urljoin(config.service.http_base, 'channels_01.json')])
         self.assertEqual(channels, [i * 10 for i in range(1, 34)] + [334])
-        index = sorted(results[urljoin(config.service.base, 'index_01.json')])
+        index = sorted(
+            results[urljoin(config.service.http_base, 'index_01.json')])
         self.assertEqual(index, [i * 10 for i in range(1, 10)] + [99])
         pubkey = sorted(
-            results[urljoin(config.service.base, 'phablet.pubkey.asc')])
+            results[urljoin(config.service.http_base, 'phablet.pubkey.asc')])
         self.assertEqual(pubkey, [i * 10 for i in range(1, 168)] + [1679])
 
     @test_configuration
@@ -178,7 +179,7 @@ class TestWinnerDownloads(unittest.TestCase):
                     with open(dst, 'w', encoding='utf-8') as fp:
                         fp.write(filerec.checksum)
                     sign(keyring_dir, dst)
-            cls._stop = make_http_server(cls._serverdir)
+            cls._stop = make_http_server(cls._serverdir, 8980)
             cls._cleaners.callback(cls._stop)
         except:
             cls._cleaners.pop_all().close()

@@ -58,8 +58,8 @@ def load_channel():
     # files as temporary files.  Then verify the signature.  If it matches,
     # return a new Channels instance, otherwise raise a FileNotFound exception
     # and remove all the temporary files.
-    channels_url = urljoin(config.service.base, 'channels.json')
-    asc_url = urljoin(config.service.base, 'channels.json.asc')
+    channels_url = urljoin(config.service.http_base, 'channels.json')
+    asc_url = urljoin(config.service.http_base, 'channels.json.asc')
     channels_path = os.path.join(config.system.tempdir, 'channels.json')
     asc_path = os.path.join(config.system.tempdir, 'channels.json.asc')
     get_files([

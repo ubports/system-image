@@ -52,30 +52,32 @@ def get_channels(filename):
     return Channels.from_json(json_bytes.decode('utf-8'))
 
 
-class RequestHandler(SimpleHTTPRequestHandler):
-    directory = None
-
-    def translate_path(self, path):
-        with patch('http.server.os.getcwd', return_value=self.directory):
-            return super().translate_path(path)
-
-    def log_message(self, *args, **kws):
-        # Please shut up.
-        pass
-
-
-def make_http_server(directory):
+def make_http_server(directory, port, ssl_context=None):
     # We need an HTTP/S server to vend the file system, or at least parts of
     # it, that we want to test.  Since all the files are static, and we're
     # only going to GET files, this makes our lives much easier.  We'll just
     # vend all the files in the directory.
-    #
+    class RequestHandler(SimpleHTTPRequestHandler):
+        # The base class hardcodes the use of os.getcwd() to vend the
+        # files from, but we want to be able to pass in any directory.  I
+        # suppose we could chdir in the server thread, but let's hack the
+        # path instead.
+        def translate_path(self, path):
+            with patch('http.server.os.getcwd', return_value=directory):
+                return super().translate_path(path)
+
+        def log_message(self, *args, **kws):
+            # Please shut up.
+            pass
     # Create the server in the main thread, but start it in the sub-thread.
     # This lets the main thread call .shutdown() to stop everything.  Return
     # just the shutdown method to the caller.
     RequestHandler.directory = directory
-    server = HTTPServer(('localhost', 8909), RequestHandler)
+    server = HTTPServer(('localhost', port), RequestHandler)
     server.allow_reuse_address = True
+    # Wrap the socket in the SSL context if given.
+    if ssl_context is not None:
+        server.socket = ssl_context.wrap(server.socket, server_side=True)
     thread = Thread(target=server.serve_forever)
     thread.daemon = True
     thread.start()

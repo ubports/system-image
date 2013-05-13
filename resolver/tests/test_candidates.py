@@ -28,6 +28,7 @@ from operator import attrgetter
 from resolver.candidates import get_candidates, get_downloads
 from resolver.scores import WeightedScorer
 from resolver.tests.helpers import get_index, test_configuration
+from urllib.parse import urlsplit
 
 
 class TestCandidates(unittest.TestCase):
@@ -172,25 +173,26 @@ class TestCandidateDownloads(unittest.TestCase):
         urls = set(url for url, path in downloads)
         paths = set(path for url, path in downloads)
         self.maxDiff = None
-        self.assertEqual(urls, set([
-            'http://localhost:8909/3/4/5.txt',
-            'http://localhost:8909/3/4/5.txt.asc',
-            'http://localhost:8909/4/5/6.txt',
-            'http://localhost:8909/4/5/6.txt.asc',
-            'http://localhost:8909/5/6/7.txt',
-            'http://localhost:8909/5/6/7.txt.asc',
-            'http://localhost:8909/6/7/8.txt',
-            'http://localhost:8909/6/7/8.txt.asc',
-            'http://localhost:8909/7/8/9.txt',
-            'http://localhost:8909/7/8/9.txt.asc',
-            'http://localhost:8909/8/9/a.txt',
-            'http://localhost:8909/8/9/a.txt.asc',
-            'http://localhost:8909/9/a/b.txt',
-            'http://localhost:8909/9/a/b.txt.asc',
-            'http://localhost:8909/e/d/c.txt',
-            'http://localhost:8909/e/d/c.txt.asc',
-            'http://localhost:8909/f/e/d.txt',
-            'http://localhost:8909/f/e/d.txt.asc',
+        self.assertEqual({urlsplit(url).path for url in urls},
+                         set([
+            '/3/4/5.txt',
+            '/3/4/5.txt.asc',
+            '/4/5/6.txt',
+            '/4/5/6.txt.asc',
+            '/5/6/7.txt',
+            '/5/6/7.txt.asc',
+            '/6/7/8.txt',
+            '/6/7/8.txt.asc',
+            '/7/8/9.txt',
+            '/7/8/9.txt.asc',
+            '/8/9/a.txt',
+            '/8/9/a.txt.asc',
+            '/9/a/b.txt',
+            '/9/a/b.txt.asc',
+            '/e/d/c.txt',
+            '/e/d/c.txt.asc',
+            '/f/e/d.txt',
+            '/f/e/d.txt.asc',
             ]))
         # Strip the temporary directory at the start of the local file path.
         self.assertEqual(set(os.path.basename(path) for path in paths),
@@ -228,19 +230,20 @@ class TestCandidateDownloads(unittest.TestCase):
         urls = set(url for url, path in downloads)
         paths = set(path for url, path in downloads)
         self.maxDiff = None
-        self.assertEqual(urls, set([
-            'http://localhost:8909/3/4/5.txt',
-            'http://localhost:8909/3/4/5.txt.asc',
-            'http://localhost:8909/4/5/6.txt',
-            'http://localhost:8909/4/5/6.txt.asc',
-            'http://localhost:8909/5/6/7.txt',
-            'http://localhost:8909/5/6/7.txt.asc',
-            'http://localhost:8909/6/7/8.txt',
-            'http://localhost:8909/6/7/8.txt.asc',
-            'http://localhost:8909/7/8/9.txt',
-            'http://localhost:8909/7/8/9.txt.asc',
-            'http://localhost:8909/8/9/a.txt',
-            'http://localhost:8909/8/9/a.txt.asc',
+        self.assertEqual({urlsplit(url).path for url in urls},
+                         set([
+            '/3/4/5.txt',
+            '/3/4/5.txt.asc',
+            '/4/5/6.txt',
+            '/4/5/6.txt.asc',
+            '/5/6/7.txt',
+            '/5/6/7.txt.asc',
+            '/6/7/8.txt',
+            '/6/7/8.txt.asc',
+            '/7/8/9.txt',
+            '/7/8/9.txt.asc',
+            '/8/9/a.txt',
+            '/8/9/a.txt.asc',
             ]))
         # Strip the temporary directory at the start of the local file path.
         self.assertEqual(set(os.path.basename(path) for path in paths),
