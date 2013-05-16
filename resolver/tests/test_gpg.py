@@ -25,8 +25,9 @@ import os
 import unittest
 
 from pkg_resources import resource_filename
+from resolver.config import config
 from resolver.gpg import Context, get_pubkey
-from resolver.tests.helpers import make_http_server, test_configuration
+from resolver.tests.helpers import make_http_server, testable_configuration
 
 
 class TestSignature(unittest.TestCase):
@@ -75,21 +76,16 @@ class TestSignature(unittest.TestCase):
 class TestGetPubkey(unittest.TestCase):
     """Test downloading and caching the public key."""
 
-    @classmethod
-    def setUpClass(cls):
-        # Start the HTTP server running.  Vend it out of our test data
-        # directory, which will at least have a phablet.pubkey.asc file.
-        pubkey_file = resource_filename('resolver.tests.data',
-                                        'phablet.pubkey.asc')
-        directory = os.path.dirname(pubkey_file)
-        cls._stop = make_http_server(directory, 8980)
+    def setUp(self):
+        self._directory = os.path.dirname(resource_filename(
+            'resolver.tests.data', 'phablet.pubkey.asc'))
 
-    @classmethod
-    def tearDownClass(cls):
-        # Stop the HTTP server.
-        cls._stop()
-
-    @test_configuration
+    @testable_configuration
     def test_get_pubkey(self):
-        pubkey = get_pubkey()
-        self.assertEqual(os.path.basename(pubkey), 'phablet.pubkey.asc')
+        with make_http_server(
+                self._directory, 8943, 'cert.pem', 'key.pem',
+                # The following isn't strictly necessary, since its default.
+                selfsign=True):
+            self.assertEqual(
+                get_pubkey(),
+                os.path.join(config.system.tempdir, 'phablet.pubkey.asc'))

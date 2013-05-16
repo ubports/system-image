@@ -1,8 +1,6 @@
 To do
 =====
 
- - base url should not include http/https
-   - infer this from the file type and the spec
  - logging/debugging
  - reading files from the file system (e.g. current version)
    - build version

@@ -17,6 +17,7 @@
 
 __all__ = [
     'TestChannels',
+    'TestLoadChannelOverHTTPS',
     'TestLoadChannels',
     ]
 
@@ -31,7 +32,8 @@ from functools import partial
 from pkg_resources import resource_filename
 from resolver.channel import load_channel
 from resolver.tests.helpers import (
-    copy as copyfile, get_channels, make_http_server, test_configuration)
+    cached_pubkey, copy as copyfile, get_channels, make_http_server,
+    testable_configuration)
 
 
 class TestChannels(unittest.TestCase):
@@ -63,27 +65,29 @@ class TestLoadChannels(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._cleaners = ExitStack()
-        # Start the HTTP server running.  Vend it out of a temporary directory
-        # we conspire to contain the appropriate files.
+        cls._stack = ExitStack()
+        # Start the HTTPS server running.  Vend it out of a temporary
+        # directory we conspire to contain the appropriate files.
         try:
             cls._tempdir = tempfile.mkdtemp()
             copy = partial(copyfile, todir=cls._tempdir)
-            cls._cleaners.callback(shutil.rmtree, cls._tempdir)
-            copy('phablet.pubkey.asc')
+            cls._stack.callback(shutil.rmtree, cls._tempdir)
             copy('channels_01.json', dst='channels.json')
             copy('channels_01.json.asc', dst='channels.json.asc')
-            cls._stop = make_http_server(cls._tempdir, 8980)
-            cls._cleaners.callback(cls._stop)
+            cls._stack.push(make_http_server(
+                cls._tempdir, 8943, 'cert.pem', 'key.pem',
+                # The following isn't strictly necessary, since its default.
+                selfsign=True))
         except:
-            cls._cleaners.pop_all().close()
+            cls._stack.close()
             raise
 
     @classmethod
     def tearDownClass(cls):
-        cls._cleaners.close()
+        cls._stack.close()
 
-    @test_configuration
+    @cached_pubkey('channel', 'download')
+    @testable_configuration
     def test_load_channel(self):
         # The channel.json and channels.json.asc files are downloaded, and the
         # signature matches.
@@ -99,7 +103,8 @@ class TestLoadChannels(unittest.TestCase):
                          '/stable/nexus7/index.json')
         self.assertIsNone(getattr(channels.stable.nexus7, 'keyring', None))
 
-    @test_configuration
+    @cached_pubkey('channel', 'download')
+    @testable_configuration
     def test_load_channel_bad_signature(self):
         # If the signature on the channels.json file is bad, then we get a
         # FileNotFoundError.
@@ -109,7 +114,8 @@ class TestLoadChannels(unittest.TestCase):
         shutil.copyfile(asc_src, asc_dst)
         self.assertRaises(FileNotFoundError, load_channel)
 
-    @test_configuration
+    @cached_pubkey('channel', 'download')
+    @testable_configuration
     def test_load_channel_bad_signature_gets_fixed(self):
         # The first load gets a bad signature, but the second one fixes the
         # signature and everything is fine.
@@ -132,3 +138,36 @@ class TestLoadChannels(unittest.TestCase):
                          '/daily/nexus4/index.json')
         self.assertEqual(channels.stable.nexus7.index,
                          '/stable/nexus7/index.json')
+
+
+class TestLoadChannelOverHTTPS(unittest.TestCase):
+    """channels.json MUST be downloaded over HTTPS.
+
+    Start an HTTP server, no HTTPS server to show the download fails.
+    """
+    @classmethod
+    def setUpClass(cls):
+        cls._stack = ExitStack()
+        # Start the HTTP server running.  Vend it out of a temporary directory
+        # we conspire to contain the appropriate files.
+        try:
+            cls._tempdir = tempfile.mkdtemp()
+            copy = partial(copyfile, todir=cls._tempdir)
+            cls._stack.callback(shutil.rmtree, cls._tempdir)
+            copy('channels_01.json', dst='channels.json')
+            copy('channels_01.json.asc', dst='channels.json.asc')
+        except:
+            cls._stack.close()
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._stack.close()
+
+    @cached_pubkey('channel', 'download')
+    @testable_configuration
+    def test_load_channel_over_https_port_with_http_fails(self):
+        # We maliciously put an HTTP server on the HTTPS port.  This should
+        # still fail.
+        with make_http_server(self._tempdir, 8943):
+            self.assertRaises(FileNotFoundError, load_channel)

@@ -85,14 +85,14 @@ def load_current_index():
     channel = load_channel()
     device = getattr(getattr(channel, config.system.channel),
                      config.system.device)
-    index_url = urljoin(config.service.http_base, device.index)
+    index_url = urljoin(config.service.https_base, device.index)
     index_path = os.path.join(config.system.tempdir,
                               os.path.basename(device.index))
     downloads = [(index_url, index_path)]
     # The index file might specify its own keyring.  If so, download that too.
     keyring = getattr(device, 'keyring', None)
     if keyring is not None:
-        keyring_url = urljoin(config.service.http_base, keyring)
+        keyring_url = urljoin(config.service.https_base, keyring)
         keyring_path = os.path.join(config.system.tempdir,
                                     os.path.basename(keyring))
         downloads.append((keyring_url, keyring_path))

@@ -32,7 +32,8 @@ from functools import partial
 from pkg_resources import resource_string as resource_bytes
 from resolver.index import load_current_index
 from resolver.tests.helpers import (
-    copy as copyfile, get_index, make_http_server, test_configuration)
+    cached_pubkey, copy as copyfile, get_index, make_http_server,
+    testable_configuration)
 
 
 def safe_makedirs(path):
@@ -103,29 +104,31 @@ class TestDownloadIndex(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Start the HTTP server running.  Vend it out of a temporary directory
-        # which we load up with the right files.
-        cls._cleaners = ExitStack()
+        # Start the HTTPS server running.  Vend it out of a temporary
+        # directory which we load up with the right files.
+        cls._stack = ExitStack()
         try:
             cls._serverdir = tempfile.mkdtemp()
-            cls._cleaners.callback(shutil.rmtree, cls._serverdir)
+            cls._stack.callback(shutil.rmtree, cls._serverdir)
             copy = partial(copyfile, todir=cls._serverdir)
-            copy('phablet.pubkey.asc')
             copy('channels_02.json', dst='channels.json')
             copy('channels_02.json.asc', dst='channels.json.asc')
             # index_10.json path B will win, with no bootme flags.
             copy('index_10.json', dst='stable/nexus7/index.json')
-            cls._stop = make_http_server(cls._serverdir, 8980)
-            cls._cleaners.callback(cls._stop)
+            cls._stack.push(make_http_server(
+                cls._serverdir, 8943, 'cert.pem', 'key.pem',
+                # The following isn't strictly necessary, since its default.
+                selfsign=True))
         except:
-            cls._cleaners.pop_all().close()
+            cls._stack.close()
             raise
 
     @classmethod
     def tearDownClass(cls):
-        cls._cleaners.close()
+        cls._stack.close()
 
-    @test_configuration
+    @cached_pubkey('channel', 'download')
+    @testable_configuration
     def test_load_current_index(self):
         # Load the index.json pointed to by the channels.json.  We set the
         # force flag to force downloading a new channels.json file.

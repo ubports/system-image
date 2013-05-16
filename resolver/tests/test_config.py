@@ -26,7 +26,7 @@ import unittest
 from datetime import timedelta
 from pkg_resources import resource_filename
 from resolver.config import Configuration, config
-from resolver.tests.helpers import test_configuration
+from resolver.tests.helpers import testable_configuration
 
 
 class TestConfiguration(unittest.TestCase):
@@ -70,7 +70,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.https_base,
                          'https://phablet.example.com:80443')
 
-    @test_configuration
+    @testable_configuration
     def test_get_build_number(self):
         # The current build number is stored in a file specified in the
         # configuration file.

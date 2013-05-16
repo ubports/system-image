@@ -29,7 +29,6 @@ import tempfile
 from contextlib import ExitStack
 from functools import partial
 from resolver.config import config
-from resolver.download import Downloader
 from resolver.helpers import atomic
 from urllib.parse import urljoin
 
@@ -82,10 +81,13 @@ def get_pubkey():
     """Make sure we have the pubkey, downloading it if necessary."""
     # BAW 2013-04-26: Ultimately, it's likely that the pubkey will be
     # placed on the file system at install time.
-    url = urljoin(config.service.http_base, 'phablet.pubkey.asc')
+    url = urljoin(config.service.https_base, 'phablet.pubkey.asc')
     pubkey_path = os.path.join(config.system.tempdir, 'phablet.pubkey.asc')
     # Don't use get_files() here because get_files() calls get_pubkey(), so
     # you'd end up with infinite recursion.  Use the lower level API.
+    #
+    # Avoid circular imports.
+    from resolver.download import Downloader
     with Downloader(url) as response:
         pubkey = response.read().decode('utf-8')
     # Now, put the pubkey in the temporary directory The pubkey is ASCII

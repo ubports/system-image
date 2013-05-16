@@ -37,8 +37,10 @@ from contextlib import ExitStack
 from datetime import timedelta
 from functools import partial
 from resolver.config import config
+from resolver.gpg import Context, get_pubkey
 from resolver.helpers import atomic
-from urllib.error import HTTPError
+from ssl import CertificateError
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 
@@ -49,17 +51,14 @@ CHUNK_SIZE = 4096
 class Downloader:
     def __init__(self, url):
         self.url = url
-        self._withstack = ExitStack()
+        self._stack = ExitStack()
 
     def __enter__(self):
-        response = urlopen(self.url)
-        self._withstack.push(response)
-        # Allow the response object to be .read() from directly in the body of
-        # the context manager.  This may have to change.
-        return response
+        # Make sure to fallback to the system certificate store.
+        return self._stack.enter_context(urlopen(self.url, cadefault=True))
 
     def __exit__(self, *exc_details):
-        self._withstack.pop_all().close()
+        self._stack.close()
         # Don't swallow exceptions.
         return False
 
@@ -138,10 +137,8 @@ def get_files(downloads, callback=None):
             # fails, rather than os.remove()'ing them.
             try:
                 list(tpe.map(function, downloads, timeout=timeout))
-            except HTTPError:
+            except (HTTPError, URLError, CertificateError):
                 raise FileNotFoundError
-            # Avoid circular references.
-            from resolver.gpg import Context, get_pubkey
             # Check all the signed files.
             local_files = set(path for url, path in downloads)
             sig_files = set(path for path in local_files

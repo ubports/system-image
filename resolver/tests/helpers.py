@@ -16,22 +16,25 @@
 """Test helpers."""
 
 __all__ = [
+    'cached_pubkey',
     'copy',
     'get_channels',
     'get_index',
     'make_http_server',
     'makedirs',
     'sign',
-    'test_configuration',
+    'testable_configuration',
     ]
 
 
 import os
+import ssl
 import gnupg
 import shutil
 import tempfile
 
 from contextlib import ExitStack
+from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from resolver.channel import Channels
@@ -40,6 +43,7 @@ from resolver.helpers import atomic
 from resolver.index import Index
 from threading import Thread
 from unittest.mock import patch
+from urllib.request import urlopen
 
 
 def get_index(filename):
@@ -52,7 +56,22 @@ def get_channels(filename):
     return Channels.from_json(json_bytes.decode('utf-8'))
 
 
-def make_http_server(directory, port, ssl_context=None):
+def make_http_server(directory, port, certpem=None, keypem=None,
+                     *, selfsign=True):
+    """Create an HTTP/S server to vend from the file system.
+
+    :param directory: The file system directory to vend files from.
+    :param port: The port to listen on for the server.
+    :param certpem: For HTTPS servers, the path to the certificate PEM file.
+        If the file name does not start with a slash, it is considered
+        relative to the test data directory.
+    :param keypem: For HTTPS servers, the path to the key PEM file.  If the
+        file name does not start with a slash, it is considered relative to
+        the test data directory.
+    :param selfsign: Flag indicating whether or not `urlopen()` should be
+        patched to accept the self-signed certificate in certpem.
+    :return: A context manager that when closed, stops the server.
+    """
     # We need an HTTP/S server to vend the file system, or at least parts of
     # it, that we want to test.  Since all the files are static, and we're
     # only going to GET files, this makes our lives much easier.  We'll just
@@ -73,27 +92,51 @@ def make_http_server(directory, port, ssl_context=None):
     # This lets the main thread call .shutdown() to stop everything.  Return
     # just the shutdown method to the caller.
     RequestHandler.directory = directory
-    server = HTTPServer(('localhost', port), RequestHandler)
-    server.allow_reuse_address = True
     # Wrap the socket in the SSL context if given.
-    if ssl_context is not None:
-        server.socket = ssl_context.wrap(server.socket, server_side=True)
-    thread = Thread(target=server.serve_forever)
-    thread.daemon = True
-    thread.start()
-    def shutdown():
-        nonlocal server
-        server.shutdown()
-        thread.join()
-        # This should reference count the server away, allowing for the
-        # address to be properly reusable immediately.
-        server.socket.close()
-        server = None
-    return shutdown
+    ssl_context = None
+    if certpem is not None and keypem is not None:
+        data_dir = os.path.dirname(resource_filename(
+            'resolver.tests.data', 'phablet.pubkey.asc'))
+        if not os.path.isabs(certpem):
+            certpem = os.path.join(data_dir, certpem)
+        if not os.path.isabs(keypem):
+            keypem = os.path.join(data_dir, keypem)
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        ssl_context.load_cert_chain(certfile=certpem, keyfile=keypem)
+    # Define a small class with a method that arranges for the self-signed
+    # certificates to be valid in the client.
+    with ExitStack() as stack:
+        server = HTTPServer(('localhost', port), RequestHandler)
+        server.allow_reuse_address = True
+        def close():
+            nonlocal server
+            # This should reference count the server away, allowing for the
+            # address to be properly reusable immediately.
+            server.socket.close()
+            server = None
+        if ssl_context is not None:
+            server.socket = ssl_context.wrap_socket(
+                server.socket, server_side=True)
+        stack.callback(close)
+        thread = Thread(target=server.serve_forever)
+        thread.daemon = True
+        def shutdown():
+            server.shutdown()
+            thread.join()
+        stack.callback(shutdown)
+        thread.start()
+        if selfsign and ssl_context is not None:
+            stack.enter_context(patch('resolver.download.urlopen',
+                                      partial(urlopen, cafile=certpem)))
+        # Everything succeeded, so transfer the resource management to a new
+        # ExitStack().  This way, when the with statement above completes, the
+        # server will still be running and urlopen() will still be patched.
+        # The caller is responsible for closing the new ExitStack.
+        return stack.pop_all()
 
 
-def test_configuration(function):
-    """Test decorator that produces a temporary configuration.
+def testable_configuration(function):
+    """Decorator that produces a temporary configuration for testing.
 
     The config_00.ini template is copied to a temporary file and the
     [system]tempdir variable is filled in with the location for a, er,
@@ -120,6 +163,31 @@ def test_configuration(function):
             stack.enter_context(patch('resolver.config._config', config))
             return function(*args, **kws)
     return wrapper
+
+
+def cached_pubkey(*things_to_patch):
+    """Use a cached phablet.pubkey.asc so it won't try to download it.
+
+    :param things_to_patch: The name of the things to patch.  This is a
+        sequence of strings.  For each string item, if no dots are
+        in that string, then `resolver.<module_to_patch>.get_pubkey` will be
+        patched, otherwise you must specify the full name to the function to
+        patch.
+    """
+    static_pubkey = resource_filename('resolver.tests.data',
+                                      'phablet.pubkey.asc')
+    def decorator(function):
+        def wrapper(*args, **kws):
+            with ExitStack() as stack:
+                for thing_to_patch in things_to_patch:
+                    if '.' not in thing_to_patch:
+                        thing_to_patch = 'resolver.{}.get_pubkey'.format(
+                            thing_to_patch)
+                    stack.enter_context(patch(thing_to_patch,
+                                              return_value=static_pubkey))
+                return function(*args, **kws)
+        return wrapper
+    return decorator
 
 
 def sign(homedir, filename, ring_files=None):

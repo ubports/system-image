@@ -27,7 +27,7 @@ import unittest
 from operator import attrgetter
 from resolver.candidates import get_candidates, get_downloads
 from resolver.scores import WeightedScorer
-from resolver.tests.helpers import get_index, test_configuration
+from resolver.tests.helpers import get_index, testable_configuration
 from urllib.parse import urlsplit
 
 
@@ -160,7 +160,7 @@ class TestCandidates(unittest.TestCase):
 
 class TestCandidateDownloads(unittest.TestCase):
 
-    @test_configuration
+    @testable_configuration
     def test_get_downloads(self):
         # Path B will win; it has one full and two deltas, none of which have
         # a bootme flag.  Download all their files.
@@ -217,7 +217,7 @@ class TestCandidateDownloads(unittest.TestCase):
             'd.txt.asc',
             ]))
 
-    @test_configuration
+    @testable_configuration
     def test_get_downloads_with_bootme(self):
         # Path B will win; it has one full and two deltas.  The first delta
         # has a bootme flag so the second delta's files are not downloaded.
