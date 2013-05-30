@@ -17,8 +17,6 @@
 
 __all__ = [
     'TestKeyrings',
-
-
     'TestGetPubkey',
     'TestSignature',
     ]
