@@ -34,40 +34,45 @@ from urllib.parse import urljoin
 
 
 class Context:
-    def __init__(self, pubkey_path, home=None):
-        self.pubkey_path = pubkey_path
-        self.home = home
+    def __init__(self, *keyrings):
         self._ctx = None
         self._withstack = ExitStack()
-        self.import_result = None
+        self.keyrings = keyrings
 
     def __enter__(self):
         try:
-            # If any errors occur, pop the exit stack to clean up any
-            # temporary directories.
-            if self.home is None:
-                # No $GNUPGHOME specified, so use a temporary directory, but
-                # be sure to arrange for the tempdir to be deleted no matter
-                # what.
-                home = tempfile.mkdtemp(prefix='.otaupdate')
-                self._withstack.callback(partial(shutil.rmtree, home))
-            else:
-                home = self.home
-            self._ctx = gnupg.GPG(gnupghome=home)
+            # Use a temporary directory for the $GNUPGHOME, but be sure to
+            # arrange for the tempdir to be deleted no matter what.
+            home = tempfile.mkdtemp(prefix='.otaupdate')
+            self._withstack.callback(partial(shutil.rmtree, home))
+            options = []
+            for keyring in self.keyrings:
+                options.extend(('--keyring', keyring))
+            self._ctx = gnupg.GPG(gnupghome=home, options=options)
             self._withstack.callback(partial(setattr, self, '_ctx', None))
-            with open(self.pubkey_path, 'rb') as fp:
-                self.import_result = self._ctx.import_keys(fp.read())
         except:
             # Restore all context and re-raise the exception.
-            self._withstack.pop_all().close()
+            self._withstack.close()
             raise
         else:
             return self
 
     def __exit__(self, *exc_details):
-        self._withstack.pop_all().close()
+        self._withstack.close()
         # Don't swallow exceptions.
         return False
+
+    @property
+    def keys(self):
+        return self._ctx.list_keys()
+
+    @property
+    def fingerprints(self):
+        return set(info['fingerprint'] for info in self._ctx.list_keys())
+
+    @property
+    def key_ids(self):
+        return set(info['keyid'] for info in self._ctx.list_keys())
 
     def verify(self, signature_path, data_path):
         with open(signature_path, 'rb') as sig_fp:

@@ -66,6 +66,7 @@ class Configuration:
         self.system = Bag(converters=dict(build_file=expand_path,
                                           tempdir=expand_path),
                           **parser['system'])
+        self.gpg = Bag(**parser['gpg'])
 
     def get_build_number(self):
         try:
