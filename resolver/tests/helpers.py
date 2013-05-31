@@ -16,7 +16,6 @@
 """Test helpers."""
 
 __all__ = [
-    'cached_pubkey',
     'copy',
     'get_channels',
     'get_index',
@@ -167,30 +166,6 @@ def testable_configuration(function):
             stack.enter_context(patch('resolver.config._config', config))
             return function(*args, **kws)
     return wrapper
-
-
-def cached_pubkey(*things_to_patch):
-    """Use a cached phablet.pubkey.asc so it won't try to download it.
-
-    :param things_to_patch: The name of the things to patch.  This is a
-        sequence of strings.  For each string item, if no dots are
-        in that string, then `resolver.<module_to_patch>.get_pubkey` will be
-        patched, otherwise you must specify the full name to the function to
-        patch.
-    """
-    static_pubkey = test_data_path('phablet.pubkey.asc')
-    def decorator(function):
-        def wrapper(*args, **kws):
-            with ExitStack() as stack:
-                for thing_to_patch in things_to_patch:
-                    if '.' not in thing_to_patch:
-                        thing_to_patch = 'resolver.{}.get_pubkey'.format(
-                            thing_to_patch)
-                    stack.enter_context(patch(thing_to_patch,
-                                              return_value=static_pubkey))
-                return function(*args, **kws)
-        return wrapper
-    return decorator
 
 
 def sign(filename, pubkey_ring):

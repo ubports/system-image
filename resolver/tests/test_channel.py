@@ -18,7 +18,7 @@
 __all__ = [
     'TestChannels',
     'TestLoadChannelOverHTTPS',
-    'TestLoadChannels',
+    'TestLoadChannel',
     ]
 
 
@@ -29,10 +29,9 @@ import unittest
 
 from contextlib import ExitStack
 from functools import partial
-from pkg_resources import resource_filename
 from resolver.channel import load_channel
 from resolver.tests.helpers import (
-    cached_pubkey, copy as copyfile, get_channels, make_http_server,
+    copy as copyfile, get_channels, make_http_server, test_data_path,
     testable_configuration)
 
 
@@ -60,7 +59,7 @@ class TestChannels(unittest.TestCase):
                           getattr, self.channels.stable, 'nexus3')
 
 
-class TestLoadChannels(unittest.TestCase):
+class TestLoadChannel(unittest.TestCase):
     """Test downloading and caching the channels.json file."""
 
     @classmethod
@@ -86,7 +85,6 @@ class TestLoadChannels(unittest.TestCase):
     def tearDownClass(cls):
         cls._stack.close()
 
-    @cached_pubkey('channel', 'download')
     @testable_configuration
     def test_load_channel(self):
         # The channel.json and channels.json.asc files are downloaded, and the
@@ -103,30 +101,25 @@ class TestLoadChannels(unittest.TestCase):
                          '/stable/nexus7/index.json')
         self.assertIsNone(getattr(channels.stable.nexus7, 'keyring', None))
 
-    @cached_pubkey('channel', 'download')
     @testable_configuration
     def test_load_channel_bad_signature(self):
         # If the signature on the channels.json file is bad, then we get a
         # FileNotFoundError.
-        asc_src = resource_filename('resolver.tests.data',
-                                    'channels_01.json.bad.asc')
+        asc_src = test_data_path('channels_01.json.bad.asc')
         asc_dst = os.path.join(self._tempdir, 'channels.json.asc')
         shutil.copyfile(asc_src, asc_dst)
         self.assertRaises(FileNotFoundError, load_channel)
 
-    @cached_pubkey('channel', 'download')
     @testable_configuration
     def test_load_channel_bad_signature_gets_fixed(self):
         # The first load gets a bad signature, but the second one fixes the
         # signature and everything is fine.
-        asc_src = resource_filename('resolver.tests.data',
-                                    'channels_01.json.bad.asc')
+        asc_src = test_data_path('channels_01.json.bad.asc')
         asc_dst = os.path.join(self._tempdir, 'channels.json.asc')
         shutil.copyfile(asc_src, asc_dst)
         self.assertRaises(FileNotFoundError, load_channel)
         # Fix the signature file on the server.
-        asc_src = resource_filename('resolver.tests.data',
-                                    'channels_01.json.asc')
+        asc_src = test_data_path('channels_01.json.asc')
         asc_dst = os.path.join(self._tempdir, 'channels.json.asc')
         shutil.copyfile(asc_src, asc_dst)
         channels = load_channel()
@@ -164,7 +157,6 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
     def tearDownClass(cls):
         cls._stack.close()
 
-    @cached_pubkey('channel', 'download')
     @testable_configuration
     def test_load_channel_over_https_port_with_http_fails(self):
         # We maliciously put an HTTP server on the HTTPS port.  This should

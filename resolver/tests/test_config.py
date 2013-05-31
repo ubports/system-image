@@ -24,9 +24,8 @@ import os
 import unittest
 
 from datetime import timedelta
-from pkg_resources import resource_filename
 from resolver.config import Configuration, config
-from resolver.tests.helpers import testable_configuration
+from resolver.tests.helpers import test_data_path, testable_configuration
 
 
 class TestConfiguration(unittest.TestCase):
@@ -53,7 +52,7 @@ class TestConfiguration(unittest.TestCase):
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
         # values are correct.
-        ini_file = resource_filename('resolver.tests.data', 'config_01.ini')
+        ini_file = test_data_path('config_01.ini')
         config = Configuration()
         config.load(ini_file)
         self.assertEqual(config.service.base, 'phablet.example.com')
@@ -77,7 +76,7 @@ class TestConfiguration(unittest.TestCase):
 
     def test_nonstandard_ports(self):
         # config_02.ini has non-standard http and https ports.
-        ini_file = resource_filename('resolver.tests.data', 'config_02.ini')
+        ini_file = test_data_path('config_02.ini')
         config = Configuration()
         config.load(ini_file)
         self.assertEqual(config.service.base, 'phablet.example.com')

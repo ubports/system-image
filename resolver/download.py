@@ -37,7 +37,6 @@ from contextlib import ExitStack
 from datetime import timedelta
 from functools import partial
 from resolver.config import config
-from resolver.gpg import Context
 from resolver.helpers import atomic
 from ssl import CertificateError
 from urllib.error import HTTPError, URLError
@@ -92,11 +91,6 @@ def get_files(downloads, callback=None):
     all-or-nothing function.  Either you get all the requested files or
     none of them.
 
-    After all the files are successful downloaded, any file with both a
-    .asc signature file and a matching non-.asc file are checked against
-    the pubkey.  If any signatures fail, then a FileNotFoundError is
-    raised and all files are deleted.
-
     :param downloads: A list of 2-tuples where the first item is the url to
         download, and the second item is the destination file.
     :param callback: If given, a function that's called every so often in all
@@ -109,6 +103,7 @@ def get_files(downloads, callback=None):
     :raises: FileNotFoundError if any download error occurred.  In this case,
         all download files are deleted.
     """
+    # Download all the files, blocking until we get them all.
     function = partial(_get_one_file, callback=callback)
     if config.service.timeout <= timedelta():
         # E.g. -1s or 0s or 0d etc.
@@ -139,28 +134,14 @@ def get_files(downloads, callback=None):
                 list(tpe.map(function, downloads, timeout=timeout))
             except (HTTPError, URLError, CertificateError):
                 raise FileNotFoundError
-            # Check all the signed files.
-            local_files = set(path for url, path in downloads)
-            sig_files = set(path for path in local_files
-                            if path.endswith('.asc'))
-            check_sigs = []
-            for sig in sig_files:
-                data_file = os.path.splitext(sig)[0]
-                if data_file in local_files:
-                    check_sigs.append((sig, data_file))
-            pubkey_path = get_pubkey()
-            with Context(pubkey_path) as ctx:
-                for sig_file, data_file in check_sigs:
-                    if not ctx.verify(sig_file, data_file):
-                        raise FileNotFoundError
+            # Check all the signed files.  First, grab the blacklists file if
+            # there is one available.
     except:
         # If any exceptions occur, we want to delete files that downloaded
         # successfully.  The ones that failed will already have been deleted.
-        # BAW 2013-05-01: I wish I could figure out how to do this with a
-        # context manager.
-        for url, dst in downloads:
+        for src, dst in downloads:
             try:
                 os.remove(dst)
-            except OSError:
+            except FileNotFoundError:
                 pass
         raise

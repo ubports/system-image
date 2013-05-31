@@ -52,8 +52,9 @@ def load_channel():
 
     :return: The current channel object.
     :rtype: Channels
+    :raises FileNotFoundError: if the channels.json file is not properly
+        signed by the image signing key.
     """
-    pubkey_path = get_pubkey()
     # Download both the channels.json and signature file.  Store both data
     # files as temporary files.  Then verify the signature.  If it matches,
     # return a new Channels instance, otherwise raise a FileNotFound exception
