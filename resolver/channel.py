@@ -26,7 +26,7 @@ import json
 from contextlib import ExitStack
 from resolver.config import config
 from resolver.download import get_files
-from resolver.gpg import Context, get_pubkey
+from resolver.gpg import Context
 from resolver.helpers import Bag
 from urllib.parse import urljoin
 

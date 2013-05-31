@@ -23,6 +23,7 @@ __all__ = [
     'make_http_server',
     'makedirs',
     'sign',
+    'test_data_path',
     'testable_configuration',
     ]
 
@@ -54,6 +55,10 @@ def get_index(filename):
 def get_channels(filename):
     json_bytes = resource_bytes('resolver.tests.data', filename)
     return Channels.from_json(json_bytes.decode('utf-8'))
+
+
+def test_data_path(filename):
+    return os.path.abspath(resource_filename('resolver.tests.data', filename))
 
 
 def make_http_server(directory, port, certpem=None, keypem=None,
@@ -95,8 +100,7 @@ def make_http_server(directory, port, certpem=None, keypem=None,
     # Wrap the socket in the SSL context if given.
     ssl_context = None
     if certpem is not None and keypem is not None:
-        data_dir = os.path.dirname(resource_filename(
-            'resolver.tests.data', 'phablet.pubkey.asc'))
+        data_dir = os.path.dirname(test_data_path('phablet.pubkey.asc'))
         if not os.path.isabs(certpem):
             certpem = os.path.join(data_dir, certpem)
         if not os.path.isabs(keypem):
@@ -174,8 +178,7 @@ def cached_pubkey(*things_to_patch):
         patched, otherwise you must specify the full name to the function to
         patch.
     """
-    static_pubkey = resource_filename('resolver.tests.data',
-                                      'phablet.pubkey.asc')
+    static_pubkey = test_data_path('phablet.pubkey.asc')
     def decorator(function):
         def wrapper(*args, **kws):
             with ExitStack() as stack:
@@ -190,24 +193,28 @@ def cached_pubkey(*things_to_patch):
     return decorator
 
 
-def sign(homedir, filename, ring_files=None):
-    """GPG sign the given file, producing an armored detached signature."""
-    # The version of python3-gnupg in Ubuntu 13.04 is too old to support the
-    # `options` constructor keyword, so hack around it.
-    if ring_files is None:
-        pubring = 'pubring_01.gpg'
-        secring = 'secring_01.gpg'
-    else:
-        pubring, secring = ring_files
-    class Signing(gnupg.GPG):
-        def _open_subprocess(self, args, passphrase=False):
-            args.append('--secret-keyring {}'.format(secring))
-            return super()._open_subprocess(args, passphrase)
-    ctx = Signing(gnupghome=homedir,
-                  keyring=os.path.join(homedir, pubring))
-    with open(filename, 'rb') as dfp:
-        signed_data = ctx.sign_file(dfp, detach=True)
-    with open(filename + '.asc', 'wb') as sfp:
+def sign(filename, pubkey_ring):
+    """GPG sign the given file, producing an armored detached signature.
+
+    :param filename: The path to the file to sign.
+    :param pubkey_ring: The public keyring containing the key to sign the file
+        with.  This keyring must contain only one key, and its key id must
+        exist in the master secret keyring.
+    """
+    with ExitStack() as stack:
+        home = tempfile.mkdtemp()
+        stack.callback(shutil.rmtree, home)
+        secring = test_data_path('master-secring.gpg')
+        pubring = test_data_path(pubkey_ring)
+        ctx = gnupg.GPG(gnupghome=home, keyring=pubring,
+                        #verbose=True,
+                        options=('--secret-keyring', secring))
+        public_keys = ctx.list_keys()
+        assert len(public_keys) == 1, 'Too many keys'
+        key_id = public_keys[0]['keyid']
+        dfp = stack.enter_context(open(filename, 'rb'))
+        signed_data = ctx.sign_file(dfp, keyid=key_id, detach=True)
+        sfp = stack.enter_context(open(filename + '.asc', 'wb'))
         sfp.write(signed_data.data)
 
 
@@ -219,7 +226,7 @@ def makedirs(dir):
 
 
 def copy(filename, todir, dst=None):
-    src = resource_filename('resolver.tests.data', filename)
+    src = test_data_path(filename)
     dst = os.path.join(todir, filename if dst is None else dst)
     makedirs(os.path.dirname(dst))
     shutil.copy(src, dst)

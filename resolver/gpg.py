@@ -17,39 +17,39 @@
 
 __all__ = [
     'Context',
-    'get_pubkey',
     ]
 
 
-import os
 import gnupg
 import shutil
 import tempfile
 
 from contextlib import ExitStack
-from functools import partial
-from resolver.config import config
-from resolver.helpers import atomic
-from urllib.parse import urljoin
 
 
 class Context:
-    def __init__(self, *keyrings):
+    def __init__(self, *keyrings, blacklist=None):
         self._ctx = None
         self._withstack = ExitStack()
-        self.keyrings = keyrings
+        self._keyrings = keyrings
+        if blacklist is not None:
+            # Extract all the blacklisted fingerprints.
+            with Context(blacklist) as ctx:
+                self._blacklisted_fingerprints = ctx.fingerprints
+        else:
+            self._blacklisted_fingerprints = set()
 
     def __enter__(self):
         try:
             # Use a temporary directory for the $GNUPGHOME, but be sure to
             # arrange for the tempdir to be deleted no matter what.
             home = tempfile.mkdtemp(prefix='.otaupdate')
-            self._withstack.callback(partial(shutil.rmtree, home))
+            self._withstack.callback(shutil.rmtree, home)
             options = []
-            for keyring in self.keyrings:
+            for keyring in self._keyrings:
                 options.extend(('--keyring', keyring))
             self._ctx = gnupg.GPG(gnupghome=home, options=options)
-            self._withstack.callback(partial(setattr, self, '_ctx', None))
+            self._withstack.callback(setattr, self, '_ctx', None)
         except:
             # Restore all context and re-raise the exception.
             self._withstack.close()
@@ -77,26 +77,9 @@ class Context:
     def verify(self, signature_path, data_path):
         with open(signature_path, 'rb') as sig_fp:
             verified = self._ctx.verify_file(sig_fp, data_path)
-        # The fingerprints in the validly signed file must match the
-        # fingerprint in the pubkey.
-        return verified.fingerprint == self.import_result.fingerprints[0]
-
-
-def get_pubkey():
-    """Make sure we have the pubkey, downloading it if necessary."""
-    # BAW 2013-04-26: Ultimately, it's likely that the pubkey will be
-    # placed on the file system at install time.
-    url = urljoin(config.service.https_base, 'phablet.pubkey.asc')
-    pubkey_path = os.path.join(config.system.tempdir, 'phablet.pubkey.asc')
-    # Don't use get_files() here because get_files() calls get_pubkey(), so
-    # you'd end up with infinite recursion.  Use the lower level API.
-    #
-    # Avoid circular imports.
-    from resolver.download import Downloader
-    with Downloader(url) as response:
-        pubkey = response.read().decode('utf-8')
-    # Now, put the pubkey in the temporary directory The pubkey is ASCII
-    # armored so the default utf-8 is good enough.
-    with atomic(pubkey_path) as fp:
-        fp.write(pubkey)
-    return pubkey_path
+        # If the file is properly signed, we'll be able to get back a set of
+        # fingerprints that signed the file.   From here we do a set operation
+        # to see if the fingerprints are in the list of keys from all the
+        # loaded-up keyrings.  If so, the signature succeeds.
+        return verified.fingerprint in (self.fingerprints -
+                                        self._blacklisted_fingerprints)

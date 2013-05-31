@@ -37,7 +37,7 @@ from contextlib import ExitStack
 from datetime import timedelta
 from functools import partial
 from resolver.config import config
-from resolver.gpg import Context, get_pubkey
+from resolver.gpg import Context
 from resolver.helpers import atomic
 from ssl import CertificateError
 from urllib.error import HTTPError, URLError
