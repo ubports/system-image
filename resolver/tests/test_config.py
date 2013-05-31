@@ -48,6 +48,8 @@ class TestConfiguration(unittest.TestCase):
                          '/etc/phablet/image-signing.gpg')
         self.assertEqual(config.gpg.vendor_signing,
                          '/etc/phablet/vendor-signing.gpg')
+        self.assertEqual(config.gpg.blacklist,
+                         '/etc/phablet/blacklist.gpg')
 
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
@@ -73,6 +75,8 @@ class TestConfiguration(unittest.TestCase):
                          '/etc/phablet/image-signing.gpg')
         self.assertEqual(config.gpg.vendor_signing,
                          '/etc/phablet/vendor-signing.gpg')
+        self.assertEqual(config.gpg.blacklist,
+                         '/etc/phablet/blacklist.gpg')
 
     def test_nonstandard_ports(self):
         # config_02.ini has non-standard http and https ports.
