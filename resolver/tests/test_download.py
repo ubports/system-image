@@ -24,14 +24,13 @@ __all__ = [
 import os
 import ssl
 import json
-import shutil
-import tempfile
 import unittest
 
 from collections import defaultdict
 from contextlib import ExitStack
 from resolver.config import config
 from resolver.download import Downloader, get_files
+from resolver.helpers import temporary_directory
 from resolver.tests.helpers import (
     make_http_server, test_data_path, testable_configuration)
 from unittest.mock import patch
@@ -157,8 +156,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # in the system's trusted path), so downloading over https succeeds
         # (i.e. the good path).
         with ExitStack() as stack:
-            tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, tempdir)
+            tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
                 self._directory, 8943, 'cert.pem', 'key.pem',
                 # The following isn't strictly necessary, since its default.
@@ -184,8 +182,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # The self-signed certificate fails because it's not in the system's
         # CApath (no known-good CA).
         with ExitStack() as stack:
-            tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, tempdir)
+            tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
                 self._directory, 8943, 'cert.pem', 'key.pem',
                 selfsign=False))
@@ -207,8 +204,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # There's an HTTP server pretending to be an HTTPS server.  This
         # should fail to download over https URLs.
         with ExitStack() as stack:
-            tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, tempdir)
+            tempdir = stack.enter_context(temporary_directory())
             # By not providing an SSL context wrapped socket, this isn't
             # really an https server.
             stack.push(make_http_server(self._directory, 8943))
@@ -231,8 +227,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # The HTTPS server has an expired certificate (mocked so that its CA
         # is in the system's trusted path).
         with ExitStack() as stack:
-            tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, tempdir)
+            tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
                 self._directory, 8943, 'expired_cert.pem', 'expired_key.pem',
                 # The following isn't strictly necessary, since its default.
@@ -256,8 +251,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # The HTTPS server has a certificate with a non-matching hostname
         # (mocked so that its CA is in the system's trusted path).
         with ExitStack() as stack:
-            tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, tempdir)
+            tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
                 self._directory, 8943, 'nasty_cert.pem', 'nasty_key.pem',
                 # The following isn't strictly necessary, since its default.

@@ -22,13 +22,12 @@ __all__ = [
 
 
 import os
-import shutil
-import tempfile
 import unittest
 
 from contextlib import ExitStack
 from resolver.config import config
 from resolver.gpg import Context
+from resolver.helpers import temporary_directory
 from resolver.tests.helpers import (
     copy, sign, test_data_path, testable_configuration)
 
@@ -191,8 +190,7 @@ class TestKeyrings(unittest.TestCase):
 class TestSignature(unittest.TestCase):
     def setUp(self):
         self._stack = ExitStack()
-        self._tmpdir = tempfile.mkdtemp()
-        self._stack.callback(shutil.rmtree, self._tmpdir)
+        self._tmpdir = self._stack.enter_context(temporary_directory())
 
     def tearDown(self):
         self._stack.close()

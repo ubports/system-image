@@ -21,8 +21,6 @@ __all__ = [
 
 
 import os
-import shutil
-import tempfile
 import unittest
 
 from contextlib import ExitStack
@@ -30,6 +28,7 @@ from functools import partial
 from resolver.candidates import get_candidates, get_downloads
 from resolver.config import config
 from resolver.download import get_files
+from resolver.helpers import temporary_directory
 from resolver.index import load_current_index
 from resolver.scores import WeightedScorer
 from resolver.tests.helpers import (
@@ -49,8 +48,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # of a temporary directory which we load up with the right files.
         cls._stack = ExitStack()
         try:
-            cls._serverdir = tempfile.mkdtemp()
-            cls._stack.callback(shutil.rmtree, cls._serverdir)
+            cls._serverdir = cls._stack.enter_context(temporary_directory())
             keyring_dir = os.path.dirname(test_data_path('__init__.py'))
             copy = partial(copyfile, todir=cls._serverdir)
             copy('channels_02.json', dst='channels.json')

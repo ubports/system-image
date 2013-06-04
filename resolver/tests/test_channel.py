@@ -24,12 +24,12 @@ __all__ = [
 
 import os
 import shutil
-import tempfile
 import unittest
 
 from contextlib import ExitStack
 from functools import partial
 from resolver.channel import load_channel
+from resolver.helpers import temporary_directory
 from resolver.tests.helpers import (
     copy as copyfile, get_channels, make_http_server, test_data_path,
     testable_configuration)
@@ -68,9 +68,8 @@ class TestLoadChannel(unittest.TestCase):
         # Start the HTTPS server running.  Vend it out of a temporary
         # directory we conspire to contain the appropriate files.
         try:
-            cls._tempdir = tempfile.mkdtemp()
+            cls._tempdir = cls._stack.enter_context(temporary_directory())
             copy = partial(copyfile, todir=cls._tempdir)
-            cls._stack.callback(shutil.rmtree, cls._tempdir)
             copy('channels_01.json', dst='channels.json')
             copy('channels_01.json.asc', dst='channels.json.asc')
             cls._stack.push(make_http_server(
@@ -144,9 +143,8 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
         # Start the HTTP server running.  Vend it out of a temporary directory
         # we conspire to contain the appropriate files.
         try:
-            cls._tempdir = tempfile.mkdtemp()
+            cls._tempdir = cls._stack.enter_context(temporary_directory())
             copy = partial(copyfile, todir=cls._tempdir)
-            cls._stack.callback(shutil.rmtree, cls._tempdir)
             copy('channels_01.json', dst='channels.json')
             copy('channels_01.json.asc', dst='channels.json.asc')
         except:

@@ -20,12 +20,14 @@ __all__ = [
     'as_timedelta',
     'as_utcdatetime',
     'atomic',
+    'temporary_directory',
     ]
 
 
 import os
 import re
 import json
+import shutil
 import tempfile
 
 from contextlib import contextmanager
@@ -130,3 +132,17 @@ class ExtendedEncoder(json.JSONEncoder):
         elif isinstance(obj, Bag):
             return obj.original
         return json.JSONEncoder.default(self, obj)
+
+
+@contextmanager
+def temporary_directory(*args, **kws):
+    """A context manager that creates a temporary directory.
+
+    The directory and all its contents are deleted when the context manager
+    exits.  All positional and keyword arguments are passed to mkdtemp().
+    """
+    try:
+        tempdir = tempfile.mkdtemp(*args, **kws)
+        yield tempdir
+    finally:
+        shutil.rmtree(tempdir)

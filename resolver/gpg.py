@@ -26,12 +26,13 @@ import shutil
 import tempfile
 
 from contextlib import ExitStack
+from resolver.helpers import temporary_directory
 
 
 class Context:
     def __init__(self, *keyrings, blacklist=None):
         self._ctx = None
-        self._withstack = ExitStack()
+        self._stack = ExitStack()
         self._keyrings = keyrings
         # Since python-gnupg doesn't do this for us, verify that all the
         # keyrings and blacklist files exist.  Yes, this introduces a race
@@ -53,22 +54,22 @@ class Context:
         try:
             # Use a temporary directory for the $GNUPGHOME, but be sure to
             # arrange for the tempdir to be deleted no matter what.
-            home = tempfile.mkdtemp(prefix='.otaupdate')
-            self._withstack.callback(shutil.rmtree, home)
+            home = self._stack.enter_context(
+                temporary_directory(prefix='.otaupdate'))
             options = []
             for keyring in self._keyrings:
                 options.extend(('--keyring', keyring))
             self._ctx = gnupg.GPG(gnupghome=home, options=options)
-            self._withstack.callback(setattr, self, '_ctx', None)
+            self._stack.callback(setattr, self, '_ctx', None)
         except:
             # Restore all context and re-raise the exception.
-            self._withstack.close()
+            self._stack.close()
             raise
         else:
             return self
 
     def __exit__(self, *exc_details):
-        self._withstack.close()
+        self._stack.close()
         # Don't swallow exceptions.
         return False
 

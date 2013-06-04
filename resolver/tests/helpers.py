@@ -33,13 +33,13 @@ import gnupg
 import shutil
 import tempfile
 
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from resolver.channel import Channels
 from resolver.config import Configuration
-from resolver.helpers import atomic
+from resolver.helpers import atomic, temporary_directory
 from resolver.index import Index
 from threading import Thread
 from unittest.mock import patch
@@ -155,12 +155,13 @@ def testable_configuration(function):
             fd, ini_file = tempfile.mkstemp(suffix='.ini')
             os.close(fd)
             stack.callback(os.remove, ini_file)
-            temp_tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, temp_tempdir)
+            temp_tmpdir = stack.enter_context(temporary_directory())
+            temp_vardir = stack.enter_context(temporary_directory())
             template = resource_bytes(
                 'resolver.tests.data', 'config_00.ini').decode('utf-8')
             with atomic(ini_file) as fp:
-                print(template.format(tmpdir=temp_tempdir), file=fp)
+                print(template.format(tmpdir=temp_tmpdir,
+                                      vardir=temp_vardir), file=fp)
             config = Configuration()
             config.load(ini_file)
             stack.enter_context(patch('resolver.config._config', config))
@@ -177,8 +178,7 @@ def sign(filename, pubkey_ring):
         exist in the master secret keyring.
     """
     with ExitStack() as stack:
-        home = tempfile.mkdtemp()
-        stack.callback(shutil.rmtree, home)
+        home = stack.enter_context(temporary_directory())
         secring = test_data_path('master-secring.gpg')
         pubring = test_data_path(pubkey_ring)
         ctx = gnupg.GPG(gnupghome=home, keyring=pubring,

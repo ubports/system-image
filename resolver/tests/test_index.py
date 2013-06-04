@@ -22,14 +22,13 @@ __all__ = [
 
 
 import os
-import shutil
-import tempfile
 import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from functools import partial
 from pkg_resources import resource_string as resource_bytes
+from resolver.helpers import temporary_directory
 from resolver.index import load_current_index
 from resolver.tests.helpers import (
     cached_pubkey, copy as copyfile, get_index, make_http_server,
@@ -108,8 +107,7 @@ class TestDownloadIndex(unittest.TestCase):
         # directory which we load up with the right files.
         cls._stack = ExitStack()
         try:
-            cls._serverdir = tempfile.mkdtemp()
-            cls._stack.callback(shutil.rmtree, cls._serverdir)
+            cls._serverdir = cls._stack.enter_context(temporary_directory())
             copy = partial(copyfile, todir=cls._serverdir)
             copy('channels_02.json', dst='channels.json')
             copy('channels_02.json.asc', dst='channels.json.asc')
