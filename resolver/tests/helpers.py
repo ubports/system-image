@@ -185,6 +185,7 @@ def sign(filename, pubkey_ring):
                         #verbose=True,
                         options=('--secret-keyring', secring))
         public_keys = ctx.list_keys()
+        assert len(public_keys) != 0, 'No keys found'
         assert len(public_keys) == 1, 'Too many keys'
         key_id = public_keys[0]['keyid']
         dfp = stack.enter_context(open(filename, 'rb'))
