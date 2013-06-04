@@ -20,6 +20,7 @@ __all__ = [
     ]
 
 
+import os
 import gnupg
 import shutil
 import tempfile
@@ -32,7 +33,16 @@ class Context:
         self._ctx = None
         self._withstack = ExitStack()
         self._keyrings = keyrings
+        # Since python-gnupg doesn't do this for us, verify that all the
+        # keyrings and blacklist files exist.  Yes, this introduces a race
+        # condition, but I don't see any good way to eliminate this given
+        # python-gnupg's behavior.
+        for path in keyrings:
+            if not os.path.exists(path):
+                raise FileNotFoundError(path)
         if blacklist is not None:
+            if not os.path.exists(blacklist):
+                raise FileNotFoundError(blacklist)
             # Extract all the blacklisted fingerprints.
             with Context(blacklist) as ctx:
                 self._blacklisted_fingerprints = ctx.fingerprints

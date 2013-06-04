@@ -173,6 +173,20 @@ class TestKeyrings(unittest.TestCase):
                     '<system-image@acme-phones.example.com>',
                 ])
 
+    @testable_configuration
+    def test_missing_keyring(self):
+        # The keyring file does not exist.
+        self.assertRaises(
+            FileNotFoundError, Context,
+            os.path.join(config.system.tempdir, 'does-not-exist.gpg'))
+
+    @testable_configuration
+    def test_missing_blacklist(self):
+        # The blacklist file does not exist.
+        self.assertRaises(
+            FileNotFoundError, Context,
+            blacklist=os.path.join(config.system.tempdir, 'no-blacklist.gpg'))
+
 
 class TestSignature(unittest.TestCase):
     def setUp(self):
