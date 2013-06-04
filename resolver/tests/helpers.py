@@ -21,6 +21,7 @@ __all__ = [
     'get_index',
     'make_http_server',
     'makedirs',
+    'setup_keyrings',
     'sign',
     'test_data_path',
     'testable_configuration',
@@ -38,7 +39,7 @@ from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from resolver.channel import Channels
-from resolver.config import Configuration
+from resolver.config import Configuration, config
 from resolver.helpers import atomic, temporary_directory
 from resolver.index import Index
 from threading import Thread
@@ -206,3 +207,10 @@ def copy(filename, todir, dst=None):
     dst = os.path.join(todir, filename if dst is None else dst)
     makedirs(os.path.dirname(dst))
     shutil.copy(src, dst)
+
+
+def setup_keyrings():
+    copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+    copy('image-master.gpg', os.path.dirname(config.gpg.image_master))
+    copy('image-signing.gpg', os.path.dirname(config.gpg.image_signing))
+    copy('vendor-signing.gpg', os.path.dirname(config.gpg.vendor_signing))
