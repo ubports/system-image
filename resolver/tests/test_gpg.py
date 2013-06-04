@@ -39,7 +39,7 @@ class TestKeyrings(unittest.TestCase):
     def test_archive_master(self):
         # The archive master keyring contains the master key.  This a
         # persistent, mandatory, shipped, non-expiring key.
-        copy('archive-master.gpg', config.system.tempdir)
+        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
         with Context(config.gpg.archive_master) as ctx:
             # There is only one key in the master keyring.
             self.assertEqual(
@@ -61,8 +61,8 @@ class TestKeyrings(unittest.TestCase):
         # There is also a system image master key which is also persistent,
         # mandatory, shipped, and non-expiring.  It should never need
         # changing, but it is possible to do so if it gets compromised.
-        copy('archive-master.gpg', config.system.tempdir)
-        copy('image-master.gpg', config.system.tempdir)
+        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+        copy('image-master.gpg', os.path.dirname(config.gpg.image_master))
         keyrings = [
             config.gpg.archive_master,
             config.gpg.image_master,
@@ -93,9 +93,9 @@ class TestKeyrings(unittest.TestCase):
         # generally what downloaded files are signed with.  This key is also
         # persistent, mandatory, and shipped.  It is updated regularly and
         # expires every two years.
-        copy('archive-master.gpg', config.system.tempdir)
-        copy('image-master.gpg', config.system.tempdir)
-        copy('image-signing.gpg', config.system.tempdir)
+        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+        copy('image-master.gpg', os.path.dirname(config.gpg.image_master))
+        copy('image-signing.gpg', os.path.dirname(config.gpg.image_signing))
         keyrings = [
             config.gpg.archive_master,
             config.gpg.image_master,
@@ -133,10 +133,10 @@ class TestKeyrings(unittest.TestCase):
         # persistent, mandatory, and shipped.  It is optional, so doesn't need
         # to exist, but it is also updated regularly and expires after one
         # month.
-        copy('archive-master.gpg', config.system.tempdir)
-        copy('image-master.gpg', config.system.tempdir)
-        copy('image-signing.gpg', config.system.tempdir)
-        copy('vendor-signing.gpg', config.system.tempdir)
+        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+        copy('image-master.gpg', os.path.dirname(config.gpg.image_master))
+        copy('image-signing.gpg', os.path.dirname(config.gpg.image_signing))
+        copy('vendor-signing.gpg', os.path.dirname(config.gpg.vendor_signing))
         keyrings = [
             config.gpg.archive_master,
             config.gpg.image_master,
