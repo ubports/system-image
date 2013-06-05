@@ -31,8 +31,8 @@ from functools import partial
 from resolver.channel import load_channel
 from resolver.helpers import temporary_directory
 from resolver.tests.helpers import (
-    copy as copyfile, get_channels, make_http_server, test_data_path,
-    testable_configuration)
+    copy, get_channels, make_http_server, setup_keyrings, sign,
+    test_data_path, testable_configuration)
 
 
 class TestChannels(unittest.TestCase):
@@ -62,30 +62,26 @@ class TestChannels(unittest.TestCase):
 class TestLoadChannel(unittest.TestCase):
     """Test downloading and caching the channels.json file."""
 
-    @classmethod
-    def setUpClass(cls):
-        cls._stack = ExitStack()
-        # Start the HTTPS server running.  Vend it out of a temporary
-        # directory we conspire to contain the appropriate files.
+    def setUp(self):
+        self._stack = ExitStack()
         try:
-            cls._tempdir = cls._stack.enter_context(temporary_directory())
-            copy = partial(copyfile, todir=cls._tempdir)
-            copy('channels_01.json', dst='channels.json')
-            copy('channels_01.json.asc', dst='channels.json.asc')
-            cls._stack.push(make_http_server(
-                cls._tempdir, 8943, 'cert.pem', 'key.pem',
-                # The following isn't strictly necessary, since its default.
-                selfsign=True))
+            self._tmpdir = self._stack.enter_context(temporary_directory())
+            self._stack.push(make_http_server(
+                self._tmpdir, 8943, 'cert.pem', 'key.pem'))
         except:
-            cls._stack.close()
+            self._stack.close()
             raise
 
-    @classmethod
-    def tearDownClass(cls):
-        cls._stack.close()
+    def tearDown(self):
+        self._stack.close()
 
     @testable_configuration
     def test_load_channel(self):
+        # A channels.json file signed by the image signing key with no
+        # blacklist gets loadded.
+        copy('channels_01.json', self._tmpdir, 'channels.json')
+        sign(os.path.join(self._tmpdir, 'channels.json'), 'image-signing.gpg')
+        setup_keyrings()
         # The channel.json and channels.json.asc files are downloaded, and the
         # signature matches.
         channels = load_channel()

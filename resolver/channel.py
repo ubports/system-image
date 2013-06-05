@@ -26,8 +26,9 @@ import json
 from contextlib import ExitStack
 from resolver.config import config
 from resolver.download import get_files
-from resolver.gpg import Context
+from resolver.gpg import Context, SignatureError
 from resolver.helpers import Bag
+from resolver.keyring import get_keyring
 from urllib.parse import urljoin
 
 
@@ -48,17 +49,17 @@ def load_channel():
     """Load the channel data from the web service.
 
     The channels.json.asc signature file is verified, and if it doesn't match,
-    a FileNotFoundError is raised.
+    a SignatureError is raised.
 
     :return: The current channel object.
     :rtype: Channels
-    :raises FileNotFoundError: if the channels.json file is not properly
+    :raises SignatureError: if the channels.json file is not properly
         signed by the image signing key.
     """
-    # Download both the channels.json and signature file.  Store both data
-    # files as temporary files.  Then verify the signature.  If it matches,
-    # return a new Channels instance, otherwise raise a FileNotFound exception
-    # and remove all the temporary files.
+    # Download the blacklist file, if there is one.
+    get_keyring('blacklist')
+    
+
     channels_url = urljoin(config.service.https_base, 'channels.json')
     asc_url = urljoin(config.service.https_base, 'channels.json.asc')
     channels_path = os.path.join(config.system.tempdir, 'channels.json')

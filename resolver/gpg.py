@@ -17,6 +17,7 @@
 
 __all__ = [
     'Context',
+    'SignatureError',
     ]
 
 
@@ -27,6 +28,15 @@ import tempfile
 
 from contextlib import ExitStack
 from resolver.helpers import temporary_directory
+
+
+class SignatureError(Exception):
+    """Exception raised when some signature fails to validate.
+
+    Note that this exception isn't raised by Context.verify(); that method
+    always returns a boolean.  This exception is used by other functions to
+    signal that a .asc file did not match.
+    """
 
 
 class Context:

@@ -140,7 +140,7 @@ def get_keyring(keyring_type):
             if expiry < timestamp:
                 # We've passed the expiration date for this keyring.
                 raise KeyringError('expired keyring timestamp')
-        # Everything is good, so copy the keyring.gpg file to blacklist.gpg.
-        # The original keyring.gpg file will be deleted when the context
-        # manager exits.
-        shutil.copy(keyring_gpg, config.gpg.blacklist)
+        # Everything is good, so copy the keyring.gpg file to its final
+        # destination.  The original keyring.gpg file will be deleted when the
+        # context manager exits.
+        shutil.copy(keyring_gpg, getattr(config.gpg, config_keyring))

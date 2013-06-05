@@ -104,6 +104,21 @@ class TestKeyring(unittest.TestCase):
         self.assertEqual(cm.exception.message, 'bad signature')
 
     @testable_configuration
+    def test_keyring_blacklisted_signature(self):
+        # Normally, the signature would be good, except that the fingerprint
+        # of the signing key is blacklisted.
+        self._setup_server('vendor-signing.gpg', 'image-master.gpg',
+                           dict(type='blacklist'),
+                           'blacklist')
+        setup_keyrings()
+        copy('image-master.gpg',
+             os.path.dirname(config.gpg.blacklist),
+             os.path.basename(config.gpg.blacklist))
+        with self.assertRaises(KeyringError) as cm:
+            get_keyring('blacklist')
+        self.assertEqual(cm.exception.message, 'bad signature')
+
+    @testable_configuration
     def test_keyring_bad_json_type(self):
         # Similar to above, but while the signature matches, the keyring type
         # in the json file is not 'blacklist'.
@@ -195,3 +210,15 @@ class TestKeyring(unittest.TestCase):
         with Context(config.gpg.blacklist) as ctx:
             self.assertEqual(ctx.fingerprints,
                              set(['C43D6575FDD935D2F9BC2A4669BC664FCB86D917']))
+
+    @testable_configuration
+    def test_good_path_vendor_keyring(self):
+        # Make sure there are no hardcoded references to the blacklist keyring.
+        self._setup_server('spare.gpg', 'image-signing.gpg',
+                           dict(type='device'),
+                           'stable/nexus7/device')
+        setup_keyrings()
+        get_keyring('device')
+        with Context(config.gpg.vendor_signing) as ctx:
+            self.assertEqual(ctx.fingerprints,
+                             set(['94BE2CECF8A5AF9F3A10E2A6526B7016C3D2FB44']))
