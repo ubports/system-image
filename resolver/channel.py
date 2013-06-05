@@ -56,10 +56,14 @@ def load_channel():
     :raises SignatureError: if the channels.json file is not properly
         signed by the image signing key.
     """
-    # Download the blacklist file, if there is one.
-    get_keyring('blacklist')
-    
-
+    # Download the blacklist file, if there is one.  It's okay if there is no
+    # blacklist keyring.
+    try:
+        get_keyring('blacklist')
+        blacklist = config.gpg.blacklist
+    except FileNotFoundError:
+        blacklist = None
+    # Calculate the files to download.
     channels_url = urljoin(config.service.https_base, 'channels.json')
     asc_url = urljoin(config.service.https_base, 'channels.json.asc')
     channels_path = os.path.join(config.system.tempdir, 'channels.json')
@@ -69,13 +73,15 @@ def load_channel():
         (asc_url, asc_path),
         ])
     with ExitStack() as stack:
-        ctx = stack.enter_context(Context(pubkey_path))
+        # Once we're done with them, we can remove these files.
+        stack.callback(os.remove, channels_path)
+        stack.callback(os.remove, asc_path)
+        # The channels.json file must be signed with the SYSTEM IMAGE SIGNING
+        # key.  There may or may not be a blacklist.
+        ctx = stack.enter_context(
+            Context(config.gpg.image_signing, blacklist=blacklist))
         if not ctx.verify(asc_path, channels_path):
-            # The signature did not verify, so arrange for the .json and .asc
-            # files to be removed before we raise the exception.
-            stack.callback(os.remove, channels_path)
-            stack.callback(os.remove, asc_path)
-            raise FileNotFoundError
-    # The signature was good.
-    with open(channels_path, encoding='utf-8') as fp:
-        return Channels.from_json(fp.read())
+            raise SignatureError
+        # The signature was good.
+        with open(channels_path, encoding='utf-8') as fp:
+            return Channels.from_json(fp.read())

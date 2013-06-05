@@ -22,6 +22,7 @@ __all__ = [
     'make_http_server',
     'makedirs',
     'setup_keyrings',
+    'setup_remote_keyring',
     'sign',
     'test_data_path',
     'testable_configuration',
@@ -30,8 +31,10 @@ __all__ = [
 
 import os
 import ssl
+import json
 import gnupg
 import shutil
+import tarfile
 import tempfile
 
 from contextlib import ExitStack, contextmanager
@@ -214,3 +217,35 @@ def setup_keyrings():
     copy('image-master.gpg', os.path.dirname(config.gpg.image_master))
     copy('image-signing.gpg', os.path.dirname(config.gpg.image_signing))
     copy('vendor-signing.gpg', os.path.dirname(config.gpg.vendor_signing))
+
+
+def setup_remote_keyring(keyring_src, signing_keyring, json_data, dst):
+    """Set up remote keyrings, e.g. in a server's vending directory.
+
+    The source keyring and json data is used to create a .tar.xz file and an
+    associated .asc signature file.  These are then copied to the given
+    destination path name.
+
+    :param keyring_src: The source keyring (i.e. .gpg file).
+    :param signing_keyring: The name of the keyring to sign the resulting
+        tarball with.
+    :param json_data: The JSON data dictionary.
+    :param dst: The destination path of the .tar.xz file.  For the resulting
+        signature file, the .asc suffix will be automatically appended.
+    """
+    with temporary_directory() as tmpdir:
+        copy(keyring_src, tmpdir, 'keyring.gpg')
+        json_path = os.path.join(tmpdir, 'keyring.json')
+        with open(json_path, 'w', encoding='utf-8') as fp:
+            json.dump(json_data, fp)
+        # Tar up the .gpg and .json files into a .tar.xz file.
+        tarxz_path = os.path.join(tmpdir, 'keyring.tar.xz')
+        with tarfile.open(tarxz_path, 'w:xz') as tf:
+            tf.add(os.path.join(tmpdir, 'keyring.gpg'), 'keyring.gpg')
+            tf.add(json_path, 'keyring.json')
+        sign(tarxz_path, signing_keyring)
+        # Copy the .tar.xz and .asc files to the proper directory under
+        # the path the https server is vending them from.
+        os.makedirs(os.path.dirname(dst))
+        shutil.copy(tarxz_path, dst)
+        shutil.copy(tarxz_path + '.asc', dst + '.asc')
