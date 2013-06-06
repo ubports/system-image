@@ -34,13 +34,6 @@ from resolver.tests.helpers import (
     copy as copyfile, get_index, make_http_server, testable_configuration)
 
 
-def safe_makedirs(path):
-    try:
-        os.makedirs(os.path.dirname(path))
-    except FileExistsError:
-        pass
-
-
 class TestIndex(unittest.TestCase):
     maxDiff = None
 
