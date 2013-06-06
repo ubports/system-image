@@ -115,16 +115,10 @@ def make_http_server(directory, port, certpem=None, keypem=None,
     with ExitStack() as stack:
         server = HTTPServer(('localhost', port), RequestHandler)
         server.allow_reuse_address = True
-        def close():
-            nonlocal server
-            # This should reference count the server away, allowing for the
-            # address to be properly reusable immediately.
-            server.socket.close()
-            server = None
+        stack.callback(server.server_close)
         if ssl_context is not None:
             server.socket = ssl_context.wrap_socket(
                 server.socket, server_side=True)
-        stack.callback(close)
         thread = Thread(target=server.serve_forever)
         thread.daemon = True
         def shutdown():
@@ -187,7 +181,7 @@ def sign(filename, pubkey_ring):
         pubring = test_data_path(pubkey_ring)
         ctx = gnupg.GPG(gnupghome=home, keyring=pubring,
                         #verbose=True,
-                        options=('--secret-keyring', secring))
+                        secret_keyring=secring)
         public_keys = ctx.list_keys()
         assert len(public_keys) != 0, 'No keys found'
         assert len(public_keys) == 1, 'Too many keys'

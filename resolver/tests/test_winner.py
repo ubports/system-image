@@ -36,6 +36,7 @@ from resolver.tests.helpers import (
     test_data_path, testable_configuration)
 
 
+@unittest.skip('disabled')
 class TestWinnerDownloads(unittest.TestCase):
     """Test full end-to-end downloads through index.json."""
 

@@ -112,14 +112,13 @@ def get_keyring(keyring_type):
                 raise KeyringError('bad signature')
         # The signature is good, so now unpack the tarball, load the json file
         # and verify its contents.
+        keyring_gpg = os.path.join(config.system.tempdir, 'keyring.gpg')
+        keyring_json = os.path.join(config.system.tempdir, 'keyring.json')
         with tarfile.open(tarxz_dst, 'r:xz') as tf:
             tf.extractall(config.system.tempdir)
-        keyring_gpg = os.path.join(config.system.tempdir, 'keyring.gpg')
         stack.callback(os.remove, keyring_gpg)
-        stack.callback(os.remove,
-                       os.path.join(config.system.tempdir, 'keyring.json'))
-        json_path = os.path.join(config.system.tempdir, 'keyring.json')
-        with open(json_path, 'r', encoding='utf-8') as fp:
+        stack.callback(os.remove, keyring_json)
+        with open(keyring_json, 'r', encoding='utf-8') as fp:
             data = json.load(fp)
         # Check the mandatory keys first.
         json_type = data['type']

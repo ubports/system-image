@@ -66,10 +66,7 @@ class Context:
             # arrange for the tempdir to be deleted no matter what.
             home = self._stack.enter_context(
                 temporary_directory(prefix='.otaupdate'))
-            options = []
-            for keyring in self._keyrings:
-                options.extend(('--keyring', keyring))
-            self._ctx = gnupg.GPG(gnupghome=home, options=options)
+            self._ctx = gnupg.GPG(gnupghome=home, keyring=self._keyrings)
             self._stack.callback(setattr, self, '_ctx', None)
         except:
             # Restore all context and re-raise the exception.

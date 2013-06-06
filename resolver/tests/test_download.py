@@ -41,20 +41,19 @@ from urllib.parse import urljoin
 class TestDownloads(unittest.TestCase):
     maxDiff = None
 
-    @classmethod
-    def setUpClass(cls):
-        cls._stack = ExitStack()
+    def setUp(self):
+        self._stack = ExitStack()
         try:
             # Start the HTTP server running, vending files out of our test
             # data directory.
             directory = os.path.dirname(test_data_path('__init__.py'))
-            cls._stack.push(make_http_server(directory, 8980))
+            self._stack.push(make_http_server(directory, 8980))
         except:
-            cls._stack.close()
+            self._stack.close()
+            raise
 
-    @classmethod
-    def tearDownClass(cls):
-        cls._stack.close()
+    def tearDown(self):
+        self._stack.close()
 
     def _abspathify(self, downloads):
         return [

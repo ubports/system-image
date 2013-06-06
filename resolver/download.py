@@ -54,7 +54,11 @@ class Downloader:
 
     def __enter__(self):
         # Make sure to fallback to the system certificate store.
-        return self._stack.enter_context(urlopen(self.url, cadefault=True))
+        try:
+            return self._stack.enter_context(urlopen(self.url, cadefault=True))
+        except:
+            self._stack.close()
+            raise
 
     def __exit__(self, *exc_details):
         self._stack.close()

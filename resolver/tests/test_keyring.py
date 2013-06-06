@@ -22,9 +22,6 @@ __all__ = [
 
 
 import os
-import json
-import shutil
-import tarfile
 import unittest
 
 from contextlib import ExitStack
@@ -34,7 +31,7 @@ from resolver.gpg import Context
 from resolver.helpers import temporary_directory
 from resolver.keyring import KeyringError, get_keyring
 from resolver.tests.helpers import (
-    copy, make_http_server, setup_keyrings, setup_remote_keyring, sign,
+    copy, make_http_server, setup_keyrings, setup_remote_keyring,
     testable_configuration)
 
 
@@ -60,14 +57,23 @@ class TestKeyring(unittest.TestCase):
     @testable_configuration
     def test_tar_xz_file_missing(self):
         # If the tar.xz file cannot be downloaded, an error is raised.
+        tarxz_path = os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz')
+        setup_keyrings()
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'archive-master.gpg', dict(type='blacklist'),
+            tarxz_path)
+        os.remove(tarxz_path)
         self.assertRaises(FileNotFoundError, get_keyring, 'blacklist')
 
     @testable_configuration
     def test_asc_file_missing(self):
         # If the tar.xz.asc file cannot be downloaded, an error is raised.
-        tarxz_path = os.path.join(config.system.tempdir, 'blacklist.tar.xz')
-        with open(tarxz_path, 'wb'):
-            pass
+        tarxz_path = os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz')
+        setup_keyrings()
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'archive-master.gpg', dict(type='blacklist'),
+            tarxz_path)
+        os.remove(tarxz_path + '.asc')
         self.assertRaises(FileNotFoundError, get_keyring, 'blacklist')
 
     @testable_configuration
