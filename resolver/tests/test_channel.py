@@ -23,17 +23,15 @@ __all__ = [
 
 
 import os
-import shutil
 import unittest
 
 from contextlib import ExitStack
-from functools import partial
 from resolver.channel import load_channel
 from resolver.gpg import SignatureError
 from resolver.helpers import temporary_directory
 from resolver.tests.helpers import (
     copy, get_channels, make_http_server, setup_keyrings,
-    setup_remote_keyring, sign, test_data_path, testable_configuration)
+    setup_remote_keyring, sign, testable_configuration)
 
 
 class TestChannels(unittest.TestCase):
