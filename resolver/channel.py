@@ -20,16 +20,9 @@ __all__ = [
     ]
 
 
-import os
 import json
 
-from contextlib import ExitStack
-from resolver.config import config
-from resolver.download import get_files
-from resolver.gpg import Context, SignatureError
 from resolver.helpers import Bag
-from resolver.keyring import get_keyring
-from urllib.parse import urljoin
 
 
 class Channels(Bag):
@@ -52,45 +45,3 @@ class Channels(Bag):
             # e.g. daily -> {nexus7, nexus4}
             channels[channel_name] = Bag(**devices)
         return cls(**channels)
-
-
-def load_channel():
-    """Load the channel data from the web service.
-
-    The channels.json.asc signature file is verified, and if it doesn't match,
-    a SignatureError is raised.
-
-    :return: The current channel object.
-    :rtype: Channels
-    :raises SignatureError: if the channels.json file is not properly
-        signed by the image signing key.
-    """
-    # Download the blacklist file, if there is one.  It's okay if there is no
-    # blacklist keyring.
-    try:
-        get_keyring('blacklist')
-        blacklist = config.gpg.blacklist
-    except FileNotFoundError:
-        blacklist = None
-    # Calculate the files to download.
-    channels_url = urljoin(config.service.https_base, 'channels.json')
-    asc_url = urljoin(config.service.https_base, 'channels.json.asc')
-    channels_path = os.path.join(config.system.tempdir, 'channels.json')
-    asc_path = os.path.join(config.system.tempdir, 'channels.json.asc')
-    get_files([
-        (channels_url, channels_path),
-        (asc_url, asc_path),
-        ])
-    with ExitStack() as stack:
-        # Once we're done with them, we can remove these files.
-        stack.callback(os.remove, channels_path)
-        stack.callback(os.remove, asc_path)
-        # The channels.json file must be signed with the SYSTEM IMAGE SIGNING
-        # key.  There may or may not be a blacklist.
-        ctx = stack.enter_context(
-            Context(config.gpg.image_signing, blacklist=blacklist))
-        if not ctx.verify(asc_path, channels_path):
-            raise SignatureError
-        # The signature was good.
-        with open(channels_path, encoding='utf-8') as fp:
-            return Channels.from_json(fp.read())

@@ -26,9 +26,9 @@ import os
 import unittest
 
 from contextlib import ExitStack
-from resolver.channel import load_channel
 from resolver.gpg import SignatureError
 from resolver.helpers import temporary_directory
+from resolver.state import State
 from resolver.tests.helpers import (
     copy, get_channels, make_http_server, setup_keyrings,
     setup_remote_keyring, sign, testable_configuration)
@@ -66,6 +66,7 @@ class TestLoadChannel(unittest.TestCase):
 
     def setUp(self):
         self._stack = ExitStack()
+        self._state = State()
         try:
             self._serverdir = self._stack.enter_context(temporary_directory())
             self._stack.push(make_http_server(
@@ -73,6 +74,8 @@ class TestLoadChannel(unittest.TestCase):
             copy('channels_01.json', self._serverdir, 'channels.json')
             self._channels_path = os.path.join(
                 self._serverdir, 'channels.json')
+            # Get the blacklist.
+            next(self._state)
         except:
             self._stack.close()
             raise
@@ -85,7 +88,8 @@ class TestLoadChannel(unittest.TestCase):
         # A channels.json file signed by the image signing key, no blacklist.
         sign(self._channels_path, 'image-signing.gpg')
         setup_keyrings()
-        channels = load_channel()
+        next(self._state)
+        channels = self._state.channels
         self.assertEqual(channels.daily.nexus7.keyring.signature,
                          '/daily/nexus7/device-keyring.tar.xz.asc')
 
@@ -94,7 +98,7 @@ class TestLoadChannel(unittest.TestCase):
         # We get an error if the signature on the channels.json file is bad.
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
-        self.assertRaises(SignatureError, load_channel)
+        self.assertRaises(SignatureError, next, self._state)
 
     @testable_configuration
     def test_load_channel_blacklisted_signature(self):
@@ -105,7 +109,10 @@ class TestLoadChannel(unittest.TestCase):
         setup_remote_keyring(
             'image-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        self.assertRaises(SignatureError, load_channel)
+        # We need a new state object to find the blacklist.
+        self._state = State()
+        next(self._state)
+        self.assertRaises(SignatureError, next, self._state)
 
     @testable_configuration
     def test_load_channel_bad_signature_gets_fixed(self):
@@ -113,9 +120,10 @@ class TestLoadChannel(unittest.TestCase):
         # signature and everything is fine.
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
-        self.assertRaises(SignatureError, load_channel)
+        self.assertRaises(SignatureError, next, self._state)
         sign(self._channels_path, 'image-signing.gpg')
-        channels = load_channel()
+        next(self._state)
+        channels = self._state.channels
         self.assertEqual(channels.daily.nexus7.keyring.signature,
                          '/daily/nexus7/device-keyring.tar.xz.asc')
 
@@ -127,11 +135,14 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
     """
     def setUp(self):
         self._stack = ExitStack()
+        self._state = State()
         try:
             self._serverdir = self._stack.enter_context(temporary_directory())
             copy('channels_01.json', self._serverdir, 'channels.json')
             sign(os.path.join(self._serverdir, 'channels.json'),
                  'image-signing.gpg')
+            # Get the blacklist.
+            next(self._state)
         except:
             self._stack.close()
             raise
@@ -144,4 +155,4 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
         # We maliciously put an HTTP server on the HTTPS port.  This should
         # still fail.
         with make_http_server(self._serverdir, 8943):
-            self.assertRaises(FileNotFoundError, load_channel)
+            self.assertRaises(FileNotFoundError, next, self._state)
