@@ -27,7 +27,7 @@ import unittest
 from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from resolver.config import config
-from resolver.gpg import Context
+from resolver.gpg import Context, SignatureError
 from resolver.helpers import temporary_directory
 from resolver.keyring import KeyringError, get_keyring
 from resolver.tests.helpers import (
@@ -55,6 +55,81 @@ class TestKeyring(unittest.TestCase):
         self._stack.close()
 
     @testable_configuration
+    def test_keyring_good_path(self):
+        # Everything checks out.
+        next_year = datetime.now(tz=timezone.utc) + timedelta(days=365)
+        setup_keyrings()
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'image-master.gpg',
+            dict(type='blacklist', model='nexus7',
+                 expiry=next_year.timestamp()),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        url = 'gpg/blacklist.tar.xz'
+        dst = get_keyring('blacklist', url, url + '.asc', 'image_master')
+        with Context(dst) as ctx:
+            self.assertEqual(ctx.fingerprints,
+                             set(['C43D6575FDD935D2F9BC2A4669BC664FCB86D917']))
+
+    @testable_configuration
+    def test_keyring_no_expiration_good_path(self):
+        # Everything checks out.
+        setup_keyrings()
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'image-master.gpg',
+            dict(type='blacklist', model='nexus7'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        url = 'gpg/blacklist.tar.xz'
+        dst = get_keyring('blacklist', url, url + '.asc', 'image_master')
+        with Context(dst) as ctx:
+            self.assertEqual(ctx.fingerprints,
+                             set(['C43D6575FDD935D2F9BC2A4669BC664FCB86D917']))
+
+    @testable_configuration
+    def test_keyring_no_model_good_path(self):
+        # Everything checks out.
+        next_year = datetime.now(tz=timezone.utc) + timedelta(days=365)
+        setup_keyrings()
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'image-master.gpg',
+            dict(type='blacklist', expiry=next_year.timestamp()),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        url = 'gpg/blacklist.tar.xz'
+        dst = get_keyring('blacklist', url, url + '.asc', 'image_master')
+        with Context(dst) as ctx:
+            self.assertEqual(ctx.fingerprints,
+                             set(['C43D6575FDD935D2F9BC2A4669BC664FCB86D917']))
+
+    @testable_configuration
+    def test_keyring_no_model_or_expiration_good_path(self):
+        # Everything checks out.
+        setup_keyrings()
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'image-master.gpg',
+            dict(type='blacklist'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        url = 'gpg/blacklist.tar.xz'
+        dst = get_keyring('blacklist', url, url + '.asc', 'image_master')
+        with Context(dst) as ctx:
+            self.assertEqual(ctx.fingerprints,
+                             set(['C43D6575FDD935D2F9BC2A4669BC664FCB86D917']))
+
+    @testable_configuration
+    def test_good_path_vendor_keyring(self):
+        # Make sure there are no hardcoded references to the blacklist keyring.
+        setup_keyrings()
+        setup_remote_keyring(
+            'spare.gpg', 'image-signing.gpg',
+            dict(type='device'),
+            os.path.join(
+                self._serverdir, 'gpg', 'stable', 'nexus7', 'device.tar.xz'))
+        url = 'gpg/{}/{}/device.tar.xz'.format(
+            config.system.channel, config.system.device)
+        dst = get_keyring('device', url, url + '.asc', 'image_signing')
+        with Context(dst) as ctx:
+            self.assertEqual(ctx.fingerprints,
+                             set(['94BE2CECF8A5AF9F3A10E2A6526B7016C3D2FB44']))
+
+    @testable_configuration
     def test_tar_xz_file_missing(self):
         # If the tar.xz file cannot be downloaded, an error is raised.
         tarxz_path = os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz')
@@ -63,7 +138,9 @@ class TestKeyring(unittest.TestCase):
             'vendor-signing.gpg', 'archive-master.gpg', dict(type='blacklist'),
             tarxz_path)
         os.remove(tarxz_path)
-        self.assertRaises(FileNotFoundError, get_keyring, 'blacklist')
+        url = 'gpg/blacklist.tar.xz'
+        self.assertRaises(FileNotFoundError, get_keyring,
+                          'blacklist', url, url + '.asc', 'image_master')
 
     @testable_configuration
     def test_asc_file_missing(self):
@@ -74,7 +151,9 @@ class TestKeyring(unittest.TestCase):
             'vendor-signing.gpg', 'archive-master.gpg', dict(type='blacklist'),
             tarxz_path)
         os.remove(tarxz_path + '.asc')
-        self.assertRaises(FileNotFoundError, get_keyring, 'blacklist')
+        url = 'gpg/blacklist.tar.xz'
+        self.assertRaises(FileNotFoundError, get_keyring,
+                          'blacklist', url, url + '.asc', 'image_master')
 
     @testable_configuration
     def test_keyring_bad_signature(self):
@@ -88,9 +167,9 @@ class TestKeyring(unittest.TestCase):
         setup_remote_keyring(
             'vendor-signing.gpg', 'archive-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        with self.assertRaises(KeyringError) as cm:
-            get_keyring('blacklist')
-        self.assertEqual(cm.exception.message, 'bad signature')
+        url = 'gpg/blacklist.tar.xz'
+        self.assertRaises(SignatureError, get_keyring,
+                          'blacklist', url, url + '.asc', 'image_master')
 
     @testable_configuration
     def test_keyring_blacklisted_signature(self):
@@ -102,9 +181,10 @@ class TestKeyring(unittest.TestCase):
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         head, tail = os.path.split(config.gpg.blacklist)
         copy('image-master.gpg', head, tail)
-        with self.assertRaises(KeyringError) as cm:
-            get_keyring('blacklist')
-        self.assertEqual(cm.exception.message, 'bad signature')
+        url = 'gpg/blacklist.tar.xz'
+        self.assertRaises(SignatureError, get_keyring,
+                          'blacklist', url, url + '.asc', 'image_master',
+                          config.gpg.blacklist)
 
     @testable_configuration
     def test_keyring_bad_json_type(self):
@@ -114,8 +194,9 @@ class TestKeyring(unittest.TestCase):
         setup_remote_keyring(
             'vendor-signing.gpg', 'image-master.gpg', dict(type='master'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        url = 'gpg/blacklist.tar.xz'
         with self.assertRaises(KeyringError) as cm:
-            get_keyring('blacklist')
+            get_keyring('blacklist', url, url + '.asc', 'image_master')
         self.assertEqual(
             cm.exception.message,
             'keyring type mismatch; wanted: blacklist, got: master')
@@ -128,8 +209,9 @@ class TestKeyring(unittest.TestCase):
             'vendor-signing.gpg', 'image-master.gpg',
             dict(type='blacklist', model='nexus0'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        url = 'gpg/blacklist.tar.xz'
         with self.assertRaises(KeyringError) as cm:
-            get_keyring('blacklist')
+            get_keyring('blacklist', url, url + '.asc', 'image_master')
         self.assertEqual(
             cm.exception.message,
             'keyring model mismatch; wanted: nexus7, got: nexus0')
@@ -145,76 +227,8 @@ class TestKeyring(unittest.TestCase):
             dict(type='blacklist', model='nexus7',
                  expiry=last_year.timestamp()),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        url = 'gpg/blacklist.tar.xz'
         with self.assertRaises(KeyringError) as cm:
-            get_keyring('blacklist')
+            get_keyring('blacklist', url, url + '.asc', 'image_master')
         self.assertEqual(
             cm.exception.message, 'expired keyring timestamp')
-
-    @testable_configuration
-    def test_keyring_good_path(self):
-        # Everything checks out.
-        next_year = datetime.now(tz=timezone.utc) + timedelta(days=365)
-        setup_keyrings()
-        setup_remote_keyring(
-            'vendor-signing.gpg', 'image-master.gpg',
-            dict(type='blacklist', model='nexus7',
-                 expiry=next_year.timestamp()),
-            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        get_keyring('blacklist')
-        with Context(config.gpg.blacklist) as ctx:
-            self.assertEqual(ctx.fingerprints,
-                             set(['C43D6575FDD935D2F9BC2A4669BC664FCB86D917']))
-
-    @testable_configuration
-    def test_keyring_no_expiration_good_path(self):
-        # Everything checks out.
-        setup_keyrings()
-        setup_remote_keyring(
-            'vendor-signing.gpg', 'image-master.gpg',
-            dict(type='blacklist', model='nexus7'),
-            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        get_keyring('blacklist')
-        with Context(config.gpg.blacklist) as ctx:
-            self.assertEqual(ctx.fingerprints,
-                             set(['C43D6575FDD935D2F9BC2A4669BC664FCB86D917']))
-
-    @testable_configuration
-    def test_keyring_no_model_good_path(self):
-        # Everything checks out.
-        next_year = datetime.now(tz=timezone.utc) + timedelta(days=365)
-        setup_keyrings()
-        setup_remote_keyring(
-            'vendor-signing.gpg', 'image-master.gpg',
-            dict(type='blacklist', expiry=next_year.timestamp()),
-            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        get_keyring('blacklist')
-        with Context(config.gpg.blacklist) as ctx:
-            self.assertEqual(ctx.fingerprints,
-                             set(['C43D6575FDD935D2F9BC2A4669BC664FCB86D917']))
-
-    @testable_configuration
-    def test_keyring_no_model_or_expiration_good_path(self):
-        # Everything checks out.
-        setup_keyrings()
-        setup_remote_keyring(
-            'vendor-signing.gpg', 'image-master.gpg',
-            dict(type='blacklist'),
-            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        get_keyring('blacklist')
-        with Context(config.gpg.blacklist) as ctx:
-            self.assertEqual(ctx.fingerprints,
-                             set(['C43D6575FDD935D2F9BC2A4669BC664FCB86D917']))
-
-    @testable_configuration
-    def test_good_path_vendor_keyring(self):
-        # Make sure there are no hardcoded references to the blacklist keyring.
-        setup_keyrings()
-        setup_remote_keyring(
-            'spare.gpg', 'image-signing.gpg',
-            dict(type='device'),
-            os.path.join(
-                self._serverdir, 'gpg', 'stable', 'nexus7', 'device.tar.xz'))
-        get_keyring('device')
-        with Context(config.gpg.vendor_signing) as ctx:
-            self.assertEqual(ctx.fingerprints,
-                             set(['94BE2CECF8A5AF9F3A10E2A6526B7016C3D2FB44']))

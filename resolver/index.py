@@ -27,7 +27,6 @@ import json
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from resolver.bag import Bag
-from resolver.channel import load_channel
 from resolver.config import config
 from resolver.download import get_files
 from resolver.helpers import ExtendedEncoder
