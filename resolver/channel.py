@@ -37,10 +37,19 @@ class Channels(Bag):
     def from_json(cls, data):
         mapping = json.loads(data)
         channels = {}
-        for channel_name, device in mapping.items():
+        # e.g. keys: daily, stable
+        for channel_name, device_mapping in mapping.items():
             devices = {}
-            for name, data in device.items():
-                devices[name] = Bag(**data)
+            # e.g. keys: nexus7, nexus4
+            for device_name, detail_mapping in device_mapping.items():
+                # Most of the keys at this level (e.g. index) have flat
+                # values, however the keyring key is itself a mapping.
+                keyring = detail_mapping.pop('keyring', None)
+                if keyring is not None:
+                    detail_mapping['keyring'] = Bag(**keyring)
+                # e.g. nexus7 -> {index, keyring}
+                devices[device_name] = Bag(**detail_mapping)
+            # e.g. daily -> {nexus7, nexus4}
             channels[channel_name] = Bag(**devices)
         return cls(**channels)
 

@@ -42,14 +42,17 @@ class TestChannels(unittest.TestCase):
         # Test that parsing a simple top level channels.json file produces the
         # expected set of channels.  The Nexus 7 daily images have a device
         # specific keyring.
-        self.assertEqual(
-            self.channels.daily.nexus7.index, '/daily/nexus7/index.json')
-        self.assertEqual(
-            self.channels.daily.nexus7.keyring, '/daily/nexus7/keyring.gpg')
-        self.assertEqual(
-            self.channels.daily.nexus4.index, '/daily/nexus4/index.json')
-        self.assertEqual(
-            self.channels.stable.nexus7.index, '/stable/nexus7/index.json')
+        self.assertEqual(self.channels.daily.nexus7.index,
+                         '/daily/nexus7/index.json')
+        self.assertEqual(self.channels.daily.nexus7.keyring.path,
+                         '/daily/nexus7/device-keyring.tar.xz')
+        self.assertEqual(self.channels.daily.nexus7.keyring.signature,
+                         '/daily/nexus7/device-keyring.tar.xz.asc')
+        self.assertEqual(self.channels.daily.nexus4.index,
+                         '/daily/nexus4/index.json')
+        self.assertIsNone(getattr(self.channels.daily.nexus4, 'keyring', None))
+        self.assertEqual(self.channels.stable.nexus7.index,
+                         '/stable/nexus7/index.json')
 
     def test_getattr_failure(self):
         # Test the getattr syntax on an unknown channel or device combination.
@@ -83,16 +86,8 @@ class TestLoadChannel(unittest.TestCase):
         sign(self._channels_path, 'image-signing.gpg')
         setup_keyrings()
         channels = load_channel()
-        self.assertEqual(channels.daily.nexus7.index,
-                         '/daily/nexus7/index.json')
-        self.assertEqual(channels.daily.nexus7.keyring,
-                         '/daily/nexus7/keyring.gpg')
-        self.assertEqual(channels.daily.nexus4.index,
-                         '/daily/nexus4/index.json')
-        self.assertIsNone(getattr(channels.daily.nexus4, 'keyring', None))
-        self.assertEqual(channels.stable.nexus7.index,
-                         '/stable/nexus7/index.json')
-        self.assertIsNone(getattr(channels.stable.nexus7, 'keyring', None))
+        self.assertEqual(channels.daily.nexus7.keyring.signature,
+                         '/daily/nexus7/device-keyring.tar.xz.asc')
 
     @testable_configuration
     def test_load_channel_bad_signature(self):
@@ -121,8 +116,8 @@ class TestLoadChannel(unittest.TestCase):
         self.assertRaises(SignatureError, load_channel)
         sign(self._channels_path, 'image-signing.gpg')
         channels = load_channel()
-        self.assertEqual(
-            channels.daily.nexus7.index, '/daily/nexus7/index.json')
+        self.assertEqual(channels.daily.nexus7.keyring.signature,
+                         '/daily/nexus7/device-keyring.tar.xz.asc')
 
 
 class TestLoadChannelOverHTTPS(unittest.TestCase):

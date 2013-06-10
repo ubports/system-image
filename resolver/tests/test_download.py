@@ -94,7 +94,7 @@ class TestDownloads(unittest.TestCase):
         for url, dst, size in results:
             byte_totals[url] += size
         self.assertEqual(byte_totals, {
-            urljoin(config.service.http_base, 'channels_01.json'): 334,
+            urljoin(config.service.http_base, 'channels_01.json'): 456,
             urljoin(config.service.http_base, 'index_01.json'): 99,
             })
 
@@ -112,7 +112,7 @@ class TestDownloads(unittest.TestCase):
             ]), callback=callback)
         channels = sorted(
             results[urljoin(config.service.http_base, 'channels_01.json')])
-        self.assertEqual(channels, [i * 10 for i in range(1, 34)] + [334])
+        self.assertEqual(channels, [i * 10 for i in range(1, 46)] + [456])
         index = sorted(
             results[urljoin(config.service.http_base, 'index_01.json')])
         self.assertEqual(index, [i * 10 for i in range(1, 10)] + [99])
