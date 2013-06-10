@@ -26,12 +26,11 @@ import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timezone
-from functools import partial
 from pkg_resources import resource_string as resource_bytes
 from resolver.helpers import temporary_directory
-from resolver.index import load_current_index
+from resolver.index import load_index
 from resolver.tests.helpers import (
-    copy as copyfile, get_index, make_http_server, testable_configuration)
+    copy, get_index, make_http_server, sign, testable_configuration)
 
 
 class TestIndex(unittest.TestCase):
@@ -90,39 +89,38 @@ class TestIndex(unittest.TestCase):
         self.assertEqual(image.minversion, 20130100)
 
 
-@unittest.skip('disabled')
 class TestDownloadIndex(unittest.TestCase):
     maxDiff = None
 
-    @classmethod
-    def setUpClass(cls):
+    def setUp(self):
         # Start the HTTPS server running.  Vend it out of a temporary
         # directory which we load up with the right files.
-        cls._stack = ExitStack()
+        self._stack = ExitStack()
         try:
-            cls._serverdir = cls._stack.enter_context(temporary_directory())
-            copy = partial(copyfile, todir=cls._serverdir)
-            copy('channels_02.json', dst='channels.json')
-            copy('channels_02.json.asc', dst='channels.json.asc')
-            # index_10.json path B will win, with no bootme flags.
-            copy('index_10.json', dst='stable/nexus7/index.json')
-            cls._stack.push(make_http_server(
-                cls._serverdir, 8943, 'cert.pem', 'key.pem',
-                # The following isn't strictly necessary, since its default.
-                selfsign=True))
+            self._serverdir = self._stack.enter_context(temporary_directory())
+            self._stack.push(make_http_server(
+                self._serverdir, 8943, 'cert.pem', 'key.pem'))
         except:
-            cls._stack.close()
+            self._stack.close()
             raise
 
-    @classmethod
-    def tearDownClass(cls):
-        cls._stack.close()
+    def tearDown(self):
+        self._stack.close()
+
+    def _copysign(self, src, dst, keyring):
+        copy(src, self._serverdir, dst)
+        sign(os.path.join(self._serverdir, dst), keyring)
 
     @testable_configuration
-    def test_load_current_index(self):
-        # Load the index.json pointed to by the channels.json.  We set the
-        # force flag to force downloading a new channels.json file.
-        index = load_current_index()
+    def test_load_index_good_path(self):
+        # Load the index.json pointed to by the channels.json.  All signatures
+        # validate correctly and there is no device keyring or blacklist.
+        self._copysign(
+            'channels_02.json', 'channels.json', 'image-signing.gpg')
+        # index_10.json path B will win, with no bootme flags.
+        self._copysign(
+            'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
+        index = load_index()
         self.assertEqual(
             index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
