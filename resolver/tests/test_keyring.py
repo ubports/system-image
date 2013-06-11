@@ -31,7 +31,7 @@ from resolver.gpg import Context, SignatureError
 from resolver.helpers import temporary_directory
 from resolver.keyring import KeyringError, get_keyring
 from resolver.tests.helpers import (
-    copy, make_http_server, setup_keyrings, setup_remote_keyring,
+    make_http_server, setup_keyrings, setup_remote_keyring, test_data_path,
     testable_configuration)
 
 
@@ -179,12 +179,10 @@ class TestKeyring(unittest.TestCase):
         setup_remote_keyring(
             'vendor-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        head, tail = os.path.split(config.gpg.blacklist)
-        copy('image-master.gpg', head, tail)
         url = 'gpg/blacklist.tar.xz'
         self.assertRaises(SignatureError, get_keyring,
                           'blacklist', url, url + '.asc', 'image_master',
-                          config.gpg.blacklist)
+                          test_data_path('image-master.gpg'))
 
     @testable_configuration
     def test_keyring_bad_json_type(self):
