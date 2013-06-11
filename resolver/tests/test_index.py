@@ -26,7 +26,6 @@ import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timezone
-from pkg_resources import resource_string as resource_bytes
 from resolver.gpg import SignatureError
 from resolver.helpers import temporary_directory
 from resolver.state import State

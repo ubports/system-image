@@ -25,6 +25,7 @@ import os
 from collections import deque
 from contextlib import ExitStack
 from functools import partial
+from resolver.candidates import get_candidates, get_downloads
 from resolver.channel import Channels
 from resolver.config import config
 from resolver.download import get_files
@@ -44,6 +45,8 @@ class State:
         self.channels = None
         self.index = None
         self.device_keyring = None
+        self.candidates = None
+        self.winner = None
 
     def __iter__(self):
         return self
@@ -109,6 +112,7 @@ class State:
         asc_url = urljoin(config.service.https_base, keyring.signature)
         self.device_keyring = get_keyring(
             'device', keyring_url, asc_url, 'image_signing', self.blacklist)
+        # We don't need to set the next action because it's already been done.
 
     def _get_index(self, index):
         """Get and verify the index.json file."""
@@ -135,3 +139,11 @@ class State:
             # The signature was good.
             with open(index_path, encoding='utf-8') as fp:
                 self.index = Index.from_json(fp.read())
+        self._next.append(self._calculate_winner)
+
+    def _calculate_winner(self):
+        """Given an index, calculate the paths and score a winner."""
+        # Store these as attributes for debugging and testing.
+        self.candidates = get_candidates(self.index, config.build_number)
+        self.winner = config.score.scorer().choose(self.candidates)
+        #self._next.append(self._download_files)

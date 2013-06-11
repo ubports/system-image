@@ -24,66 +24,104 @@ import os
 import unittest
 
 from contextlib import ExitStack
-from functools import partial
 from resolver.candidates import get_candidates, get_downloads
 from resolver.config import config
 from resolver.download import get_files
 from resolver.helpers import temporary_directory
 from resolver.scores import WeightedScorer
+from resolver.state import State
 from resolver.tests.helpers import (
-    copy as copyfile, get_index, make_http_server, makedirs, sign,
+    copy, get_index, make_http_server, makedirs, setup_keyrings, sign,
     test_data_path, testable_configuration)
 
 
-@unittest.skip('disabled')
 class TestWinnerDownloads(unittest.TestCase):
     """Test full end-to-end downloads through index.json."""
 
     maxDiff = None
 
-    @classmethod
-    def setUpClass(cls):
+    def setUp(self):
         # Start both an HTTP and an HTTPS server running.  The former is for
         # the zip files and the latter is for everything else.  Vend them out
         # of a temporary directory which we load up with the right files.
-        cls._stack = ExitStack()
+        self._stack = ExitStack()
         try:
-            cls._serverdir = cls._stack.enter_context(temporary_directory())
-            keyring_dir = os.path.dirname(test_data_path('__init__.py'))
-            copy = partial(copyfile, todir=cls._serverdir)
-            copy('channels_02.json', dst='channels.json')
-            copy('channels_02.json.asc', dst='channels.json.asc')
+            self._serverdir = self._stack.enter_context(temporary_directory())
+            copy('channels_02.json', self._serverdir, 'channels.json')
+            sign(os.path.join(self._serverdir, 'channels.json'),
+                 'image-signing.gpg')
             # index_10.json path B will win, with no bootme flags.
-            copy('index_10.json', dst='stable/nexus7/index.json')
+            subpath = os.path.join('stable', 'nexus7', 'index.json')
+            copy('index_10.json', self._serverdir, subpath)
+            sign(os.path.join(self._serverdir, subpath), 'image-signing.gpg')
             # Create every file in path B.  The file contents will be the
             # checksum value.  We need to create the signatures on the fly.
-            index = get_index('index_10.json')
-            for image in index.images:
-                if 'B' not in image.description:
-                    continue
-                for filerec in image.files:
-                    path = (filerec.path[1:]
-                            if filerec.path.startswith('/')
-                            else filerec.path)
-                    dst = os.path.join(cls._serverdir, path)
-                    makedirs(os.path.dirname(dst))
-                    with open(dst, 'w', encoding='utf-8') as fp:
-                        fp.write(filerec.checksum)
-                    sign(keyring_dir, dst)
-            cls._stack.push(
-                make_http_server(cls._serverdir, 8943, 'cert.pem', 'key.pem',
-                    # The following isn't strictly necessary, since its
-                    # the default.
-                    selfsign=True))
-            cls._stack.push(make_http_server(cls._serverdir, 8980))
+            self._index = get_index('index_10.json')
+            self._signfiles()
+            self._stack.push(
+                make_http_server(self._serverdir, 8943, 'cert.pem', 'key.pem'))
+            self._stack.push(make_http_server(self._serverdir, 8980))
         except:
-            cls._stack.close()
+            self._stack.close()
             raise
 
-    @classmethod
-    def tearDownClass(cls):
-        cls._stack.close()
+    def tearDown(self):
+        self._stack.close()
 
+    def _signfiles(self):
+        for image in self._index.images:
+            if 'B' not in image.description:
+                continue
+            for filerec in image.files:
+                path = (filerec.path[1:]
+                        if filerec.path.startswith('/')
+                        else filerec.path)
+                dst = os.path.join(self._serverdir, path)
+                makedirs(os.path.dirname(dst))
+                with open(dst, 'w', encoding='utf-8') as fp:
+                    fp.write(filerec.checksum)
+                # Sign with the imaging signing key.  Some tests will
+                # re-sign all these files with the device key.
+                sign(dst, 'image-signing.gpg')
+
+    @testable_configuration
+    def test_calculate_candidates(self):
+        # Calculate the candidate paths.
+        setup_keyrings()
+        state = State()
+        # Run the state machine 4 times to get the candidates and winner.
+        # (blacklist -> channel -> index -> calculate)
+        for i in range(4):
+            next(state)
+        # Set the build number.
+        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
+            print(20120100, file=fp)
+        # There are three candidate upgrade paths.
+        self.assertEqual(len(state.candidates), 3)
+        self.assertEqual([c.description for c in state.candidates[0]],
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
+        self.assertEqual([c.description for c in state.candidates[1]],
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
+        self.assertEqual([c.description for c in state.candidates[2]],
+                         ['Full C', 'Delta C.1'])
+
+    @testable_configuration
+    def test_calculate_winner(self):
+        # Calculate the winning upgrade path.
+        setup_keyrings()
+        state = State()
+        # Run the state machine 4 times to get the candidates and winner.
+        # (blacklist -> channel -> index -> calculate)
+        for i in range(4):
+            next(state)
+        # Set the build number.
+        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
+            print(20120100, file=fp)
+        # There are three candidate upgrade paths.
+        self.assertEqual([w.description for w in state.winner],
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
+
+    @unittest.skip('disabled')
     @testable_configuration
     def test_download_winners(self):
         # This is essentially an integration test making sure that the
@@ -122,6 +160,7 @@ class TestWinnerDownloads(unittest.TestCase):
             'b.txt.asc', 'd.txt.asc', 'c.txt.asc',
             ]))
 
+    @unittest.skip('disabled')
     @testable_configuration
     def test_no_download_winners_with_missing_signature(self):
         # If one of the download files is missing a signature, none of the
@@ -138,6 +177,7 @@ class TestWinnerDownloads(unittest.TestCase):
             'channels.json.asc',
             ]))
 
+    @unittest.skip('disabled')
     @testable_configuration
     def test_no_download_winners_with_bad_signature(self):
         # If one of the download files has a bad a signature, none of the

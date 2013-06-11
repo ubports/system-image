@@ -98,8 +98,8 @@ class TestConfiguration(unittest.TestCase):
         # configuration file.
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130500, file=fp)
-        self.assertEqual(config.get_build_number(), 20130500)
+        self.assertEqual(config.build_number, 20130500)
 
     def test_get_build_number_missing(self):
         # The build file is missing, so the build number defaults to 0.
-        self.assertEqual(config.get_build_number(), 0)
+        self.assertEqual(config.build_number, 0)

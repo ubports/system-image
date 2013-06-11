@@ -70,7 +70,8 @@ class Configuration:
         self.score = Bag(converters=dict(scorer=as_object),
                          **parser['score'])
 
-    def get_build_number(self):
+    @property
+    def build_number(self):
         try:
             with open(self.system.build_file, encoding='utf-8') as fp:
                 return int(fp.read().strip())
