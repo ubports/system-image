@@ -54,14 +54,3 @@ class Index(Bag):
             bundles = [Bag(**bundle_data) for bundle_data in files]
             images.append(Image(files=bundles, **image_data))
         return cls(global_=global_, images=images)
-
-    def to_json(self):
-        index = {
-            'global': {
-                'generated_at': self.global_.generated_at.strftime(OUT_FMT),
-                },
-            'images': [image.__original__ for image in self.images],
-            }
-        return json.dumps(index,
-                          sort_keys=True, indent=4, separators=(',', ': '),
-                          cls=ExtendedEncoder)

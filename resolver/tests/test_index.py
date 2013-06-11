@@ -50,13 +50,6 @@ class TestIndex(unittest.TestCase):
         index = get_index('index_02.json')
         self.assertEqual(len(index.images), 2)
 
-    def test_index_regenerate(self):
-        # Read an index and turn it back into JSON.
-        index = get_index('index_02.json')
-        text = resource_bytes('resolver.tests.data', 'index_02.json')
-        # json.dumps() doesn't give us the trailing newline.
-        self.assertMultiLineEqual(index.to_json(), text.decode('utf-8')[:-1])
-
     def test_image_20130300_full(self):
         index = get_index('sprint_nexus7_index_01.json')
         image = index.images[0]
