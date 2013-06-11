@@ -31,7 +31,7 @@ from resolver.config import config
 from resolver.download import get_files
 from resolver.gpg import Context, SignatureError
 from resolver.index import Index
-from resolver.keyring import get_keyring
+from resolver.keyring import KeyringError, get_keyring
 from urllib.parse import urljoin
 
 
@@ -93,7 +93,12 @@ class State:
             ctx = stack.enter_context(
                 Context(config.gpg.image_signing, blacklist=self.blacklist))
             if not ctx.verify(asc_path, channels_path):
-                raise SignatureError
+                # The signature on the channels.json file did not match.
+                # Maybe there's a new image signing key on the server.  If a
+                # new key *is* found, retry the current step.
+                self._next.appendleft(
+                    partial(self._get_signing_key, self._get_channel))
+                return
             # The signature was good.
             with open(channels_path, encoding='utf-8') as fp:
                 self.channels = Channels.from_json(fp.read())
@@ -181,3 +186,22 @@ class State:
                         raise SignatureError
             # Everything is fine so nothing needs to be cleared.
             stack.pop_all()
+        # There's nothing left to do, so don't push anything onto the deque.
+
+    def _get_signing_key(self, next_step):
+        """Try to get and validate a new image signing key.
+
+        If there isn't one, throw a SignatureError.
+        """
+        url = urljoin(config.service.https_base, 'gpg/signing.tar.xz')
+        try:
+            # The image signing key must be signed by the image master.
+            path = get_keyring(
+                'signing', url, url + '.asc', 'image_master', self.blacklist)
+        except (FileNotFoundError, SignatureError, KeyringError):
+            # No valid image signing key could be found.  Don't chain this
+            # exception.
+            raise SignatureError from None
+        # Copy the new key into place, then retry the previous step.
+        os.rename(path, config.gpg.image_signing)
+        self._next.append(next_step)
