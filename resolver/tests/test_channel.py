@@ -110,9 +110,9 @@ class TestLoadChannel(unittest.TestCase):
             'image-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         # We need a new state object to find the blacklist.
-        self._state = State()
-        next(self._state)
-        self.assertRaises(SignatureError, next, self._state)
+        state = State()
+        next(state)
+        self.assertRaises(SignatureError, next, state)
 
     @testable_configuration
     def test_load_channel_bad_signature_gets_fixed(self):
@@ -122,8 +122,11 @@ class TestLoadChannel(unittest.TestCase):
         setup_keyrings()
         self.assertRaises(SignatureError, next, self._state)
         sign(self._channels_path, 'image-signing.gpg')
-        next(self._state)
-        channels = self._state.channels
+        # Two state transitions are necessary (blacklist -> channels).
+        state = State()
+        next(state)
+        next(state)
+        channels = state.channels
         self.assertEqual(channels.daily.nexus7.keyring.signature,
                          '/daily/nexus7/device-keyring.tar.xz.asc')
 

@@ -27,10 +27,12 @@ import unittest
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from pkg_resources import resource_string as resource_bytes
+from resolver.gpg import SignatureError
 from resolver.helpers import temporary_directory
-from resolver.index import load_index
+from resolver.state import State
 from resolver.tests.helpers import (
-    copy, get_index, make_http_server, sign, testable_configuration)
+    copy, get_index, make_http_server, makedirs, setup_keyrings,
+    setup_remote_keyring, sign, testable_configuration)
 
 
 class TestIndex(unittest.TestCase):
@@ -108,8 +110,10 @@ class TestDownloadIndex(unittest.TestCase):
         self._stack.close()
 
     def _copysign(self, src, dst, keyring):
+        server_dst = os.path.join(self._serverdir, dst)
+        makedirs(os.path.dirname(server_dst))
         copy(src, self._serverdir, dst)
-        sign(os.path.join(self._serverdir, dst), keyring)
+        sign(server_dst, keyring)
 
     @testable_configuration
     def test_load_index_good_path(self):
@@ -120,17 +124,83 @@ class TestDownloadIndex(unittest.TestCase):
         # index_10.json path B will win, with no bootme flags.
         self._copysign(
             'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
-        index = load_index()
+        setup_keyrings()
+        # Since there is no device keyring, we know that three state changes
+        # will get us an index (blacklist -> channels -> index).
+        state = State()
+        next(state)
+        next(state)
+        next(state)
         self.assertEqual(
-            index.global_.generated_at,
+            state.index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
         self.assertEqual(
-            index.images[0].files[1].checksum, 'bcd')
+            state.index.images[0].files[1].checksum, 'bcd')
 
-    @unittest.skip('FIXME')
-    def test_load_current_index_with_keyring(self):
-        pass
+    @testable_configuration
+    def test_load_index_with_device_keyring(self):
+        # Here, the index.json file is signed with a device keyring.
+        self._copysign(
+            'channels_03.json', 'channels.json', 'image-signing.gpg')
+        # index_10.json path B will win, with no bootme flags.
+        self._copysign(
+            'index_10.json', 'stable/nexus7/index.json', 'vendor-signing.gpg')
+        setup_keyrings()
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
+        # Since there is a device keyring, four state changes are necessary to
+        # get us an index (blacklist -> channels -> index).
+        state = State()
+        next(state)
+        next(state)
+        next(state)
+        next(state)
+        self.assertEqual(
+            state.index.global_.generated_at,
+            datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
+        self.assertEqual(
+            state.index.images[0].files[1].checksum, 'bcd')
 
-    @unittest.skip('FIXME')
-    def test_load_current_index_with_bad_keyring(self):
-        pass
+    @testable_configuration
+    def test_load_index_with_bad_keyring(self):
+        # Here, the index.json file is signed with a defective device keyring.
+        self._copysign(
+            'channels_03.json', 'channels.json', 'image-signing.gpg')
+        # This will be signed by a keyring that is not the device keyring.
+        self._copysign(
+            'index_10.json', 'stable/nexus7/index.json', 'spare.gpg')
+        setup_keyrings()
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
+        # Since there is a device keyring, four state changes are necessary to
+        # get us an index (blacklist -> channels -> index).
+        state = State()
+        next(state)
+        next(state)
+        next(state)
+        self.assertRaises(SignatureError, next, state)
+
+    @testable_configuration
+    def test_load_index_with_blacklist(self):
+        # Here, we've blacklisted the device key.
+        self._copysign(
+            'channels_03.json', 'channels.json', 'image-signing.gpg')
+        # This will be signed by a keyring that is not the device keyring.
+        self._copysign(
+            'index_10.json', 'stable/nexus7/index.json', 'vendor-signing.gpg')
+        setup_keyrings()
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        # Since there is a device keyring, four state changes are necessary to
+        # get us an index (blacklist -> channels -> index).
+        state = State()
+        next(state)
+        next(state)
+        next(state)
+        self.assertRaises(SignatureError, next, state)

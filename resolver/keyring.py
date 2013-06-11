@@ -24,7 +24,6 @@ __all__ = [
 
 import os
 import json
-import shutil
 import tarfile
 
 from contextlib import ExitStack

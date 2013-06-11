@@ -194,7 +194,7 @@ def sign(filename, pubkey_ring):
 
 def makedirs(dir):
     try:
-        os.makedirs(dir)
+        os.makedirs(dir, exist_ok=True)
     except FileExistsError:
         pass
 
@@ -240,6 +240,6 @@ def setup_remote_keyring(keyring_src, signing_keyring, json_data, dst):
         sign(tarxz_path, signing_keyring)
         # Copy the .tar.xz and .asc files to the proper directory under
         # the path the https server is vending them from.
-        os.makedirs(os.path.dirname(dst))
+        makedirs(os.path.dirname(dst))
         shutil.copy(tarxz_path, dst)
         shutil.copy(tarxz_path + '.asc', dst + '.asc')

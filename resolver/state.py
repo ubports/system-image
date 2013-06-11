@@ -22,12 +22,14 @@ __all__ = [
 
 import os
 
+from collections import deque
 from contextlib import ExitStack
 from functools import partial
 from resolver.channel import Channels
 from resolver.config import config
 from resolver.download import get_files
 from resolver.gpg import Context, SignatureError
+from resolver.index import Index
 from resolver.keyring import get_keyring
 from urllib.parse import urljoin
 
@@ -35,7 +37,8 @@ from urllib.parse import urljoin
 class State:
     def __init__(self):
         # Variables which manage state transitions.
-        self._next = self._get_blacklist
+        self._next = deque()
+        self._next.append(self._get_blacklist)
         # Variables which represent things we've learned.
         self.blacklist = None
         self.channels = None
@@ -46,9 +49,10 @@ class State:
         return self
 
     def __next__(self):
-        if self._next is None:
+        try:
+            self._next.popleft()()
+        except IndexError:
             raise StopIteration
-        self._next()
 
     def _get_blacklist(self):
         """Get the blacklist keyring if there is one."""
@@ -64,7 +68,7 @@ class State:
             pass
         else:
             self.blacklist = dst
-        self._next = self._get_channel
+        self._next.append(self._get_channel)
 
     def _get_channel(self):
         """Get and verify the channels.json file."""
@@ -96,21 +100,38 @@ class State:
             getattr(self.channels, config.system.channel),
             config.system.device)
         keyring = getattr(device, 'keyring', None)
-        ## self._next = (self._get_index
-        ##               if keyring is None
-        ##               else partial(self._get_device_keyring, keyring))
-        self._next = None
+        if keyring:
+            self._next.append(partial(self._get_device_keyring, keyring))
+        self._next.append(partial(self._get_index, device.index))
 
-    ## def _get_device_keyring(self, keyring):
-    ##     with ExitStack() as stack:
-    ##         keyring_url = urljoin(config.service.https_base, keyring.path)
-    ##         keyring_path = os.path.join(config.system.tempdir,
-    ##                                     'device.tar.xz')
-    ##         asc_url = urljoin(config.service.https_base, keyring.signature)
-    ##         asc_path = keyring_path + '.asc'
-    ##         with ExitStack() as stack:
-    ##             pass
-            
-    ## def _load_index(self):
-    ##     """Get and verify the index.json file."""
-    ##     #keyring_url = urljoin(config.service.https_base,
+    def _get_device_keyring(self, keyring):
+        keyring_url = urljoin(config.service.https_base, keyring.path)
+        asc_url = urljoin(config.service.https_base, keyring.signature)
+        self.device_keyring = get_keyring(
+            'device', keyring_url, asc_url, 'image_signing', self.blacklist)
+
+    def _get_index(self, index):
+        """Get and verify the index.json file."""
+        index_url = urljoin(config.service.https_base, index)
+        asc_url = index_url + '.asc'
+        index_path = os.path.join(config.system.tempdir, 'index.json')
+        asc_path = index_path + '.asc'
+        with ExitStack() as stack:
+            get_files([
+                (index_url, index_path),
+                (asc_url, asc_path),
+                ])
+            stack.callback(os.remove, index_path)
+            stack.callback(os.remove, asc_path)
+            # Check the signature of the index.json file.  It will have been
+            # signed by the device keyring if given, otherwise it will have
+            # been signed by the image signing key.
+            ctx = stack.enter_context(
+                Context(config.gpg.image_signing
+                        if self.device_keyring is None
+                        else self.device_keyring, blacklist=self.blacklist))
+            if not ctx.verify(asc_path, index_path):
+                raise SignatureError
+            # The signature was good.
+            with open(index_path, encoding='utf-8') as fp:
+                self.index = Index.from_json(fp.read())

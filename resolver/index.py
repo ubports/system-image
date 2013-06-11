@@ -17,22 +17,15 @@
 
 __all__ = [
     'Index',
-    'load_index',
     ]
 
 
-import os
 import json
 
-from contextlib import ExitStack
 from datetime import datetime, timezone
 from resolver.bag import Bag
-from resolver.config import config
-from resolver.download import get_files
 from resolver.helpers import ExtendedEncoder
 from resolver.image import Image
-from resolver.keyring import get_keyring
-from urllib.parse import urljoin
 
 
 IN_FMT = '%a %b %d %H:%M:%S %Z %Y'
@@ -72,70 +65,3 @@ class Index(Bag):
         return json.dumps(index,
                           sort_keys=True, indent=4, separators=(',', ': '),
                           cls=ExtendedEncoder)
-
-
-def load_index():
-    """Load the index file.
-
-    Download the current index file by first reading the channels file and
-    chasing the index file link.
-
-    :return: The new `Index` object.
-    :rtype: Index
-    :raises SignatureError: if the index.json file is not properly signed by
-        the device signing (i.e. vendor) key if there is one, or the image
-        signing key.
-    """
-    # Loading the channel will also load the blacklist, which will be
-    # available on the path named by config.gpg.blacklist if there is one.
-    channel = load_channel()
-    # Calculate the url to the index.json and index.json.asc files, and
-    # download them.
-    device = getattr(getattr(channel, config.system.channel),
-                     config.system.device)
-    with ExitStack() as stack:
-        index_url = urljoin(config.service.https_base, device.index)
-        index_path = os.path.join(config.system.tempdir, 'index.json')
-        downloads = [
-            (index_url, index_path),
-            (index_url + '.asc', index_path + '.asc'),
-            ]
-        # The temporary files can be removed when we're done with them.
-        stack.callback(os.remove, index_path)
-        stack.callback(os.remove, index_path + '.asc')
-        # The index file might specify a device keyring.
-        keyring = getattr(device, 'keyring', None)
-        if keyring is not None:
-            keyring_url = urljoin(config.service.https_base, keyring.path)
-            keyring_path = os.path.join(
-                config.system.tempdir, 'device-keyring.tar.xz')
-            signature_url = urljoin(
-                config.service.https_base, keyring.signature)
-            signature_path = os.path.join(
-                config.system.tempdir, 'device-keyring.tar.xz.asc')
-            downloads.extend([
-                (keyring_url, keyring_path),
-                (signature_url, signature_path),
-                ])
-            stack.callback(os.remove, keyring_path)
-            stack.callback(os.remove, signature_path)
-    # If there is a device signing key, get that now.
-    try:
-        get_keyring('device')
-        device_keyring = config.gpg.vendor_signing
-    except FileNotFoundError:
-        device_keyring = None
-    # If there's already a blacklist key, use it.
-    blacklist = (config.gpg.blacklist
-                 if os.path.exists(config.gpg.blacklist)
-                 else None)
-
-
-    downloads = [(index_url, index_path),
-                 (index_url + '.asc', index_path + '.asc')]
-    
-
-    get_files(downloads)
-    # BAW 2013-05-03: validate the index using the keyring!
-    with open(index_path, encoding='utf-8') as fp:
-        return Index.from_json(fp.read())
