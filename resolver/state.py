@@ -55,7 +55,8 @@ class State:
         try:
             self._next.popleft()()
         except IndexError:
-            raise StopIteration
+            # Do not chain the exception.
+            raise StopIteration from None
 
     def _get_blacklist(self):
         """Get the blacklist keyring if there is one."""
@@ -98,10 +99,15 @@ class State:
                 self.channels = Channels.from_json(fp.read())
         # The next step will depend on whether there is a device keyring
         # available or not.  If there is, download and verify it now.
-        device = getattr(
-            # This device's channel.
-            getattr(self.channels, config.system.channel),
-            config.system.device)
+        try:
+            device = getattr(
+                # This device's channel.
+                getattr(self.channels, config.system.channel),
+                config.system.device)
+        except AttributeError:
+            # Either our channel or device isn't described in the
+            # channels.json file, so there's nothing more to do.
+            return
         keyring = getattr(device, 'keyring', None)
         if keyring:
             self._next.append(partial(self._get_device_keyring, keyring))

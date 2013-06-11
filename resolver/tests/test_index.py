@@ -192,7 +192,40 @@ class TestDownloadIndex(unittest.TestCase):
         # Since there is a device keyring, four state changes are necessary to
         # get us an index (blacklist -> channels -> index).
         state = State()
-        next(state)
-        next(state)
-        next(state)
+        for i in range(3):
+            next(state)
         self.assertRaises(SignatureError, next, state)
+
+    @testable_configuration
+    def test_missing_channel(self):
+        # The system's channel does not exist.
+        self._copysign(
+            'channels_04.json', 'channels.json', 'image-signing.gpg')
+        # index_10.json path B will win, with no bootme flags.
+        self._copysign(
+            'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
+        setup_keyrings()
+        # Our channel (stable) isn't in the channels.json file, so there's
+        # nothing to do.  Running the state machine to its conclusion leaves
+        # us with no index file.
+        state = State()
+        list(state)
+        # There really is nothing left to do.
+        self.assertIsNone(state.index)
+
+    @testable_configuration
+    def test_missing_device(self):
+        # The system's device does not exist.
+        self._copysign(
+            'channels_05.json', 'channels.json', 'image-signing.gpg')
+        # index_10.json path B will win, with no bootme flags.
+        self._copysign(
+            'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
+        setup_keyrings()
+        # Our device (nexus7) isn't in the channels.json file, so there's
+        # nothing to do.  Running the state machine to its conclusion leaves
+        # us with no index file.
+        state = State()
+        list(state)
+        # There really is nothing left to do.
+        self.assertIsNone(state.index)
