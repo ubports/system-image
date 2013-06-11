@@ -146,4 +146,31 @@ class State:
         # Store these as attributes for debugging and testing.
         self.candidates = get_candidates(self.index, config.build_number)
         self.winner = config.score.scorer().choose(self.candidates)
-        #self._next.append(self._download_files)
+        self._next.append(self._download_files)
+
+    def _download_files(self):
+        """Download and verify all the winning upgrade path's files."""
+        downloads = get_downloads(self.winner)
+        local_files = set(dst for url, dst in downloads
+                          if os.path.splitext(dst)[1] != '.asc')
+        # Now, verify the signatures of all the downloaded files.  If there is
+        # a device key, the files will be signed by that, otherwise they'll be
+        # signed by the imaging signing key.
+        keyring = (config.gpg.image_signing
+                   if self.device_keyring is None
+                   else self.device_keyring)
+        get_files(downloads)
+        with ExitStack() as stack:
+            # Set things up to remove the files if a SignatureError gets
+            # raised.  If the exception doesn't get raised, then everything's
+            # okay and we'll clear the stack before the context manager exits
+            # so none of the files will get removed.
+            for path in local_files:
+                stack.callback(os.remove, path)
+                stack.callback(os.remove, path + '.asc')
+            with Context(keyring, blacklist=self.blacklist) as ctx:
+                for path in local_files:
+                    if not ctx.verify(path + '.asc', path):
+                        raise SignatureError
+            # Everything is fine so nothing needs to be cleared.
+            stack.pop_all()
