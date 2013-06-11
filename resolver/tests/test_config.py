@@ -25,6 +25,7 @@ import unittest
 
 from datetime import timedelta
 from resolver.config import Configuration, config
+from resolver.scores import WeightedScorer
 from resolver.tests.helpers import test_data_path, testable_configuration
 
 
@@ -40,6 +41,7 @@ class TestConfiguration(unittest.TestCase):
                          os.path.expanduser('~/.cache/phablet'))
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
+        self.assertEqual(config.score.scorer, WeightedScorer)
         self.assertEqual(config.gpg.archive_master,
                          '/etc/phablet/archive-master.gpg')
         self.assertEqual(config.gpg.image_master,
@@ -67,6 +69,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.tempdir, '/var/tmp/resolver')
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
+        self.assertEqual(config.score.scorer, WeightedScorer)
         self.assertEqual(config.gpg.archive_master,
                          '/etc/phablet/archive-master.gpg')
         self.assertEqual(config.gpg.image_master,

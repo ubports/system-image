@@ -29,7 +29,6 @@ from resolver.candidates import get_candidates, get_downloads
 from resolver.config import config
 from resolver.download import get_files
 from resolver.helpers import temporary_directory
-from resolver.index import load_index
 from resolver.scores import WeightedScorer
 from resolver.tests.helpers import (
     copy as copyfile, get_index, make_http_server, makedirs, sign,

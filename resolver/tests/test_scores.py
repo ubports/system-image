@@ -25,7 +25,6 @@ from resolver.scores import WeightedScorer
 from resolver.tests.helpers import get_index
 
 
-@unittest.skip('disabled')
 class TestWeightedScorer(unittest.TestCase):
     def setUp(self):
         self.scorer = WeightedScorer()
