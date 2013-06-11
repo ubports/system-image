@@ -198,6 +198,50 @@ class TestWinnerDownloads(unittest.TestCase):
         assert_file_contains('c.txt', 'edc')
 
     @testable_configuration
+    def test_download_winners_signed_by_signing_key_with_device_key(self):
+        # Check that all the winning path's files are downloaded, even when
+        # they are signed by the device key instead of the image signing
+        # master.
+        setup_keyrings()
+        # To set up the device signing key, we need to load channels_03.json
+        # and copy the device keyring to the server.
+        copy('channels_03.json', self._serverdir, 'channels.json')
+        sign(os.path.join(self._serverdir, 'channels.json'),
+             'image-signing.gpg')
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
+        sign(os.path.join(self._serverdir, self._indexpath),
+             'vendor-signing.gpg')
+        # All the downloadable files are now signed with the image signing key.
+        self._signfiles('image-signing.gpg')
+        # Set the build number.
+        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
+            print(20120100, file=fp)
+        # Because there's a device key, run the state machine 6 times to get
+        # the files.
+        # (blacklist -> channel -> index -> devicekey -> calculate -> download)
+        state = State()
+        for i in range(6):
+            next(state)
+        # The B path files contain their checksums.
+        def assert_file_contains(filename, contents):
+            path = os.path.join(config.system.tempdir, filename)
+            with open(path, encoding='utf-8') as fp:
+                self.assertEqual(fp.read(), contents)
+        assert_file_contains('5.txt', '345')
+        assert_file_contains('6.txt', '456')
+        assert_file_contains('7.txt', '567')
+        # Delta B.1 files.
+        assert_file_contains('8.txt', '678')
+        assert_file_contains('9.txt', '789')
+        assert_file_contains('a.txt', '89a')
+        # Delta B.2 files.
+        assert_file_contains('b.txt', '9ab')
+        assert_file_contains('d.txt', 'fed')
+        assert_file_contains('c.txt', 'edc')
+
+    @testable_configuration
     def test_download_winners_signed_by_wrong_key(self):
         # There is a device key, but the image files are signed by the image
         # signing key, which according to the spec means the files are not
@@ -211,10 +255,10 @@ class TestWinnerDownloads(unittest.TestCase):
         setup_remote_keyring(
             'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
-        # The index.json file and all the downloadable files must now be
-        # signed with the device key.
         sign(os.path.join(self._serverdir, self._indexpath),
              'vendor-signing.gpg')
+        # All the downloadable files are now signed with a bogus key.
+        self._signfiles('spare.gpg')
         # Set the build number.
         with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
             print(20120100, file=fp)

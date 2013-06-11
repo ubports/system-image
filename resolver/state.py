@@ -133,13 +133,14 @@ class State:
                 ])
             stack.callback(os.remove, index_path)
             stack.callback(os.remove, asc_path)
-            # Check the signature of the index.json file.  It will have been
-            # signed by the device keyring if given, otherwise it will have
-            # been signed by the image signing key.
+            # Check the signature of the index.json file.  It may be signed by
+            # either the device keyring (if one exists) or the image signing
+            # key.
+            keyrings = [config.gpg.image_signing]
+            if self.device_keyring is not None:
+                keyrings.append(self.device_keyring)
             ctx = stack.enter_context(
-                Context(config.gpg.image_signing
-                        if self.device_keyring is None
-                        else self.device_keyring, blacklist=self.blacklist))
+                Context(*keyrings, blacklist=self.blacklist))
             if not ctx.verify(asc_path, index_path):
                 raise SignatureError
             # The signature was good.
@@ -160,11 +161,11 @@ class State:
         local_files = set(dst for url, dst in downloads
                           if os.path.splitext(dst)[1] != '.asc')
         # Now, verify the signatures of all the downloaded files.  If there is
-        # a device key, the files will be signed by that, otherwise they'll be
-        # signed by the imaging signing key.
-        keyring = (config.gpg.image_signing
-                   if self.device_keyring is None
-                   else self.device_keyring)
+        # a device key, the files can be signed by that or the imaging signing
+        # key.
+        keyrings = [config.gpg.image_signing]
+        if self.device_keyring is not None:
+            keyrings.append(self.device_keyring)
         get_files(downloads)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets
@@ -174,7 +175,7 @@ class State:
             for path in local_files:
                 stack.callback(os.remove, path)
                 stack.callback(os.remove, path + '.asc')
-            with Context(keyring, blacklist=self.blacklist) as ctx:
+            with Context(*keyrings, blacklist=self.blacklist) as ctx:
                 for path in local_files:
                     if not ctx.verify(path + '.asc', path):
                         raise SignatureError

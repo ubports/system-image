@@ -120,9 +120,8 @@ class TestDownloadIndex(unittest.TestCase):
         # Since there is no device keyring, we know that three state changes
         # will get us an index (blacklist -> channels -> index).
         state = State()
-        next(state)
-        next(state)
-        next(state)
+        for i in range(3):
+            next(state)
         self.assertEqual(
             state.index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
@@ -144,10 +143,32 @@ class TestDownloadIndex(unittest.TestCase):
         # Since there is a device keyring, four state changes are necessary to
         # get us an index (blacklist -> channels -> index).
         state = State()
-        next(state)
-        next(state)
-        next(state)
-        next(state)
+        for i in range(4):
+            next(state)
+        self.assertEqual(
+            state.index.global_.generated_at,
+            datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
+        self.assertEqual(
+            state.index.images[0].files[1].checksum, 'bcd')
+
+    @testable_configuration
+    def test_load_index_with_device_keyring_and_signing_key(self):
+        # Here, the index.json file is signed with the image signing keyring,
+        # even though there is a device key.  That's fine.
+        self._copysign(
+            'channels_03.json', 'channels.json', 'image-signing.gpg')
+        # index_10.json path B will win, with no bootme flags.
+        self._copysign(
+            'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
+        setup_keyrings()
+        setup_remote_keyring(
+            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
+        # Since there is a device keyring, four state changes are necessary to
+        # get us an index (blacklist -> channels -> index).
+        state = State()
+        for i in range(4):
+            next(state)
         self.assertEqual(
             state.index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
@@ -169,9 +190,8 @@ class TestDownloadIndex(unittest.TestCase):
         # Since there is a device keyring, four state changes are necessary to
         # get us an index (blacklist -> channels -> index).
         state = State()
-        next(state)
-        next(state)
-        next(state)
+        for i in range(3):
+            next(state)
         self.assertRaises(SignatureError, next, state)
 
     @testable_configuration
