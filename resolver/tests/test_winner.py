@@ -257,24 +257,25 @@ class TestWinnerDownloads(unittest.TestCase):
                        if os.path.splitext(filename)[1] == '.txt')
         self.assertEqual(len(txtfiles), 0)
 
-    @unittest.skip('disabled')
     @testable_configuration
     def test_no_download_winners_with_bad_signature(self):
         # If one of the download files has a bad a signature, none of the
         # files get downloaded and get_files() fails.
-        target = os.path.join(self._serverdir, '6/7/8.txt')
-        os.remove(target + '.asc')
-        # Sign the file with the attacker's key.
-        sign(os.path.dirname(test_data_path('__init__.py')),
-             target,
-             ('pubring_02.gpg', 'secring_02.gpg'))
-        index = load_current_index()
-        candidates = get_candidates(index, 20130100)
-        winner = WeightedScorer().choose(candidates)
-        downloads = get_downloads(winner)
-        self.assertRaises(FileNotFoundError, get_files, downloads)
-        self.assertEqual(set(os.listdir(config.system.tempdir)), set([
-            'channels.json',
-            'index.json',
-            'channels.json.asc',
-            ]))
+        setup_keyrings()
+        state = State()
+        # Set the build number.
+        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
+            print(20120100, file=fp)
+        # Break a signature
+        sign(os.path.join(self._serverdir, '6', '7', '8.txt'), 'spare.gpg')
+        # Run the state machine 4 times to calculate the winning path.
+        # (blacklist -> channel -> index -> calculate [-> download])
+        for i in range(4):
+            next(state)
+        # The next state transition will fail because of the missing signature.
+        self.assertRaises(SignatureError, next, state)
+        # There are no downloaded files.
+        txtfiles = set(filename
+                       for filename in os.listdir(config.system.tempdir)
+                       if os.path.splitext(filename)[1] == '.txt')
+        self.assertEqual(len(txtfiles), 0)
