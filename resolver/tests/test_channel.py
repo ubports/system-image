@@ -17,23 +17,21 @@
 
 __all__ = [
     'TestChannels',
+    'TestLoadChannel',
     'TestLoadChannelOverHTTPS',
-    'TestLoadChannels',
     ]
 
 
 import os
-import shutil
-import tempfile
 import unittest
 
 from contextlib import ExitStack
-from functools import partial
-from pkg_resources import resource_filename
-from resolver.channel import load_channel
+from resolver.gpg import SignatureError
+from resolver.helpers import temporary_directory
+from resolver.state import State
 from resolver.tests.helpers import (
-    cached_pubkey, copy as copyfile, get_channels, make_http_server,
-    testable_configuration)
+    copy, get_channels, make_http_server, setup_keyrings,
+    setup_remote_keyring, sign, testable_configuration)
 
 
 class TestChannels(unittest.TestCase):
@@ -44,14 +42,17 @@ class TestChannels(unittest.TestCase):
         # Test that parsing a simple top level channels.json file produces the
         # expected set of channels.  The Nexus 7 daily images have a device
         # specific keyring.
-        self.assertEqual(
-            self.channels.daily.nexus7.index, '/daily/nexus7/index.json')
-        self.assertEqual(
-            self.channels.daily.nexus7.keyring, '/daily/nexus7/keyring.gpg')
-        self.assertEqual(
-            self.channels.daily.nexus4.index, '/daily/nexus4/index.json')
-        self.assertEqual(
-            self.channels.stable.nexus7.index, '/stable/nexus7/index.json')
+        self.assertEqual(self.channels.daily.nexus7.index,
+                         '/daily/nexus7/index.json')
+        self.assertEqual(self.channels.daily.nexus7.keyring.path,
+                         '/daily/nexus7/device-keyring.tar.xz')
+        self.assertEqual(self.channels.daily.nexus7.keyring.signature,
+                         '/daily/nexus7/device-keyring.tar.xz.asc')
+        self.assertEqual(self.channels.daily.nexus4.index,
+                         '/daily/nexus4/index.json')
+        self.assertIsNone(getattr(self.channels.daily.nexus4, 'keyring', None))
+        self.assertEqual(self.channels.stable.nexus7.index,
+                         '/stable/nexus7/index.json')
 
     def test_getattr_failure(self):
         # Test the getattr syntax on an unknown channel or device combination.
@@ -60,84 +61,83 @@ class TestChannels(unittest.TestCase):
                           getattr, self.channels.stable, 'nexus3')
 
 
-class TestLoadChannels(unittest.TestCase):
+class TestLoadChannel(unittest.TestCase):
     """Test downloading and caching the channels.json file."""
 
-    @classmethod
-    def setUpClass(cls):
-        cls._stack = ExitStack()
-        # Start the HTTPS server running.  Vend it out of a temporary
-        # directory we conspire to contain the appropriate files.
+    def setUp(self):
+        self._stack = ExitStack()
+        self._state = State()
         try:
-            cls._tempdir = tempfile.mkdtemp()
-            copy = partial(copyfile, todir=cls._tempdir)
-            cls._stack.callback(shutil.rmtree, cls._tempdir)
-            copy('channels_01.json', dst='channels.json')
-            copy('channels_01.json.asc', dst='channels.json.asc')
-            cls._stack.push(make_http_server(
-                cls._tempdir, 8943, 'cert.pem', 'key.pem',
-                # The following isn't strictly necessary, since its default.
-                selfsign=True))
+            self._serverdir = self._stack.enter_context(temporary_directory())
+            self._stack.push(make_http_server(
+                self._serverdir, 8943, 'cert.pem', 'key.pem'))
+            copy('channels_01.json', self._serverdir, 'channels.json')
+            self._channels_path = os.path.join(
+                self._serverdir, 'channels.json')
         except:
-            cls._stack.close()
+            self._stack.close()
             raise
 
-    @classmethod
-    def tearDownClass(cls):
-        cls._stack.close()
+    def tearDown(self):
+        self._stack.close()
 
-    @cached_pubkey('channel', 'download')
     @testable_configuration
-    def test_load_channel(self):
-        # The channel.json and channels.json.asc files are downloaded, and the
-        # signature matches.
-        channels = load_channel()
-        self.assertEqual(channels.daily.nexus7.index,
-                         '/daily/nexus7/index.json')
-        self.assertEqual(channels.daily.nexus7.keyring,
-                         '/daily/nexus7/keyring.gpg')
-        self.assertEqual(channels.daily.nexus4.index,
-                         '/daily/nexus4/index.json')
-        self.assertIsNone(getattr(channels.daily.nexus4, 'keyring', None))
-        self.assertEqual(channels.stable.nexus7.index,
-                         '/stable/nexus7/index.json')
-        self.assertIsNone(getattr(channels.stable.nexus7, 'keyring', None))
+    def test_load_channel_good_path(self):
+        # A channels.json file signed by the image signing key, no blacklist.
+        # (blacklist -> channels)
+        sign(self._channels_path, 'image-signing.gpg')
+        setup_keyrings()
+        next(self._state)
+        next(self._state)
+        channels = self._state.channels
+        self.assertEqual(channels.daily.nexus7.keyring.signature,
+                         '/daily/nexus7/device-keyring.tar.xz.asc')
 
-    @cached_pubkey('channel', 'download')
     @testable_configuration
     def test_load_channel_bad_signature(self):
-        # If the signature on the channels.json file is bad, then we get a
-        # FileNotFoundError.
-        asc_src = resource_filename('resolver.tests.data',
-                                    'channels_01.json.bad.asc')
-        asc_dst = os.path.join(self._tempdir, 'channels.json.asc')
-        shutil.copyfile(asc_src, asc_dst)
-        self.assertRaises(FileNotFoundError, load_channel)
+        # We get an error if the signature on the channels.json file is bad.
+        # The state machine needs three transitions:
+        # (blacklist -> channels -> signing_key)
+        sign(self._channels_path, 'spare.gpg')
+        setup_keyrings()
+        next(self._state)
+        next(self._state)
+        self.assertRaises(SignatureError, next, self._state)
 
-    @cached_pubkey('channel', 'download')
+    @testable_configuration
+    def test_load_channel_blacklisted_signature(self):
+        # We get an error if the signature on the channels.json file is good
+        # but the key is blacklisted.
+        # (blacklist -> channels -> signing_key)
+        sign(self._channels_path, 'image-signing.gpg')
+        setup_keyrings()
+        setup_remote_keyring(
+            'image-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        next(self._state)
+        next(self._state)
+        self.assertRaises(SignatureError, next, self._state)
+
     @testable_configuration
     def test_load_channel_bad_signature_gets_fixed(self):
         # The first load gets a bad signature, but the second one fixes the
         # signature and everything is fine.
-        asc_src = resource_filename('resolver.tests.data',
-                                    'channels_01.json.bad.asc')
-        asc_dst = os.path.join(self._tempdir, 'channels.json.asc')
-        shutil.copyfile(asc_src, asc_dst)
-        self.assertRaises(FileNotFoundError, load_channel)
-        # Fix the signature file on the server.
-        asc_src = resource_filename('resolver.tests.data',
-                                    'channels_01.json.asc')
-        asc_dst = os.path.join(self._tempdir, 'channels.json.asc')
-        shutil.copyfile(asc_src, asc_dst)
-        channels = load_channel()
-        self.assertEqual(channels.daily.nexus7.index,
-                         '/daily/nexus7/index.json')
-        self.assertEqual(channels.daily.nexus7.keyring,
-                         '/daily/nexus7/keyring.gpg')
-        self.assertEqual(channels.daily.nexus4.index,
-                         '/daily/nexus4/index.json')
-        self.assertEqual(channels.stable.nexus7.index,
-                         '/stable/nexus7/index.json')
+        # (blacklist -> channels -> signing_key: FAIL)
+        # ...then, re-sign and...
+        # (blacklist -> channels)
+        sign(self._channels_path, 'spare.gpg')
+        setup_keyrings()
+        next(self._state)
+        next(self._state)
+        self.assertRaises(SignatureError, next, self._state)
+        sign(self._channels_path, 'image-signing.gpg')
+        # Two state transitions are necessary (blacklist -> channels).
+        state = State()
+        next(state)
+        next(state)
+        channels = state.channels
+        self.assertEqual(channels.daily.nexus7.keyring.signature,
+                         '/daily/nexus7/device-keyring.tar.xz.asc')
 
 
 class TestLoadChannelOverHTTPS(unittest.TestCase):
@@ -145,29 +145,26 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
 
     Start an HTTP server, no HTTPS server to show the download fails.
     """
-    @classmethod
-    def setUpClass(cls):
-        cls._stack = ExitStack()
-        # Start the HTTP server running.  Vend it out of a temporary directory
-        # we conspire to contain the appropriate files.
+    def setUp(self):
+        self._stack = ExitStack()
+        self._state = State()
         try:
-            cls._tempdir = tempfile.mkdtemp()
-            copy = partial(copyfile, todir=cls._tempdir)
-            cls._stack.callback(shutil.rmtree, cls._tempdir)
-            copy('channels_01.json', dst='channels.json')
-            copy('channels_01.json.asc', dst='channels.json.asc')
+            self._serverdir = self._stack.enter_context(temporary_directory())
+            copy('channels_01.json', self._serverdir, 'channels.json')
+            sign(os.path.join(self._serverdir, 'channels.json'),
+                 'image-signing.gpg')
+            # Get the blacklist.
+            next(self._state)
         except:
-            cls._stack.close()
+            self._stack.close()
             raise
 
-    @classmethod
-    def tearDownClass(cls):
-        cls._stack.close()
+    def tearDown(self):
+        self._stack.close()
 
-    @cached_pubkey('channel', 'download')
     @testable_configuration
     def test_load_channel_over_https_port_with_http_fails(self):
         # We maliciously put an HTTP server on the HTTPS port.  This should
         # still fail.
-        with make_http_server(self._tempdir, 8943):
-            self.assertRaises(FileNotFoundError, load_channel)
+        with make_http_server(self._serverdir, 8943):
+            self.assertRaises(FileNotFoundError, next, self._state)

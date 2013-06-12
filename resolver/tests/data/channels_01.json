@@ -2,7 +2,10 @@
     "daily": {
         "nexus7": {
             "index": "/daily/nexus7/index.json",
-            "keyring": "/daily/nexus7/keyring.gpg"
+            "keyring": {
+                "path": "/daily/nexus7/device-keyring.tar.xz",
+                "signature": "/daily/nexus7/device-keyring.tar.xz.asc"
+            }
         },
         "nexus4":{
             "index": "/daily/nexus4/index.json"

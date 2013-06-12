@@ -16,30 +16,34 @@
 """Test helpers."""
 
 __all__ = [
-    'cached_pubkey',
     'copy',
     'get_channels',
     'get_index',
     'make_http_server',
     'makedirs',
+    'setup_keyrings',
+    'setup_remote_keyring',
     'sign',
+    'test_data_path',
     'testable_configuration',
     ]
 
 
 import os
 import ssl
+import json
 import gnupg
 import shutil
+import tarfile
 import tempfile
 
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from resolver.channel import Channels
-from resolver.config import Configuration
-from resolver.helpers import atomic
+from resolver.config import Configuration, config
+from resolver.helpers import atomic, temporary_directory
 from resolver.index import Index
 from threading import Thread
 from unittest.mock import patch
@@ -54,6 +58,10 @@ def get_index(filename):
 def get_channels(filename):
     json_bytes = resource_bytes('resolver.tests.data', filename)
     return Channels.from_json(json_bytes.decode('utf-8'))
+
+
+def test_data_path(filename):
+    return os.path.abspath(resource_filename('resolver.tests.data', filename))
 
 
 def make_http_server(directory, port, certpem=None, keypem=None,
@@ -95,8 +103,7 @@ def make_http_server(directory, port, certpem=None, keypem=None,
     # Wrap the socket in the SSL context if given.
     ssl_context = None
     if certpem is not None and keypem is not None:
-        data_dir = os.path.dirname(resource_filename(
-            'resolver.tests.data', 'phablet.pubkey.asc'))
+        data_dir = os.path.dirname(test_data_path('phablet.pubkey.asc'))
         if not os.path.isabs(certpem):
             certpem = os.path.join(data_dir, certpem)
         if not os.path.isabs(keypem):
@@ -108,16 +115,10 @@ def make_http_server(directory, port, certpem=None, keypem=None,
     with ExitStack() as stack:
         server = HTTPServer(('localhost', port), RequestHandler)
         server.allow_reuse_address = True
-        def close():
-            nonlocal server
-            # This should reference count the server away, allowing for the
-            # address to be properly reusable immediately.
-            server.socket.close()
-            server = None
+        stack.callback(server.server_close)
         if ssl_context is not None:
             server.socket = ssl_context.wrap_socket(
                 server.socket, server_side=True)
-        stack.callback(close)
         thread = Thread(target=server.serve_forever)
         thread.daemon = True
         def shutdown():
@@ -152,12 +153,13 @@ def testable_configuration(function):
             fd, ini_file = tempfile.mkstemp(suffix='.ini')
             os.close(fd)
             stack.callback(os.remove, ini_file)
-            temp_tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, temp_tempdir)
+            temp_tmpdir = stack.enter_context(temporary_directory())
+            temp_vardir = stack.enter_context(temporary_directory())
             template = resource_bytes(
                 'resolver.tests.data', 'config_00.ini').decode('utf-8')
             with atomic(ini_file) as fp:
-                print(template.format(tmpdir=temp_tempdir), file=fp)
+                print(template.format(tmpdir=temp_tmpdir,
+                                      vardir=temp_vardir), file=fp)
             config = Configuration()
             config.load(ini_file)
             stack.enter_context(patch('resolver.config._config', config))
@@ -165,61 +167,79 @@ def testable_configuration(function):
     return wrapper
 
 
-def cached_pubkey(*things_to_patch):
-    """Use a cached phablet.pubkey.asc so it won't try to download it.
+def sign(filename, pubkey_ring):
+    """GPG sign the given file, producing an armored detached signature.
 
-    :param things_to_patch: The name of the things to patch.  This is a
-        sequence of strings.  For each string item, if no dots are
-        in that string, then `resolver.<module_to_patch>.get_pubkey` will be
-        patched, otherwise you must specify the full name to the function to
-        patch.
+    :param filename: The path to the file to sign.
+    :param pubkey_ring: The public keyring containing the key to sign the file
+        with.  This keyring must contain only one key, and its key id must
+        exist in the master secret keyring.
     """
-    static_pubkey = resource_filename('resolver.tests.data',
-                                      'phablet.pubkey.asc')
-    def decorator(function):
-        def wrapper(*args, **kws):
-            with ExitStack() as stack:
-                for thing_to_patch in things_to_patch:
-                    if '.' not in thing_to_patch:
-                        thing_to_patch = 'resolver.{}.get_pubkey'.format(
-                            thing_to_patch)
-                    stack.enter_context(patch(thing_to_patch,
-                                              return_value=static_pubkey))
-                return function(*args, **kws)
-        return wrapper
-    return decorator
-
-
-def sign(homedir, filename, ring_files=None):
-    """GPG sign the given file, producing an armored detached signature."""
-    # The version of python3-gnupg in Ubuntu 13.04 is too old to support the
-    # `options` constructor keyword, so hack around it.
-    if ring_files is None:
-        pubring = 'pubring_01.gpg'
-        secring = 'secring_01.gpg'
-    else:
-        pubring, secring = ring_files
-    class Signing(gnupg.GPG):
-        def _open_subprocess(self, args, passphrase=False):
-            args.append('--secret-keyring {}'.format(secring))
-            return super()._open_subprocess(args, passphrase)
-    ctx = Signing(gnupghome=homedir,
-                  keyring=os.path.join(homedir, pubring))
-    with open(filename, 'rb') as dfp:
-        signed_data = ctx.sign_file(dfp, detach=True)
-    with open(filename + '.asc', 'wb') as sfp:
+    with ExitStack() as stack:
+        home = stack.enter_context(temporary_directory())
+        secring = test_data_path('master-secring.gpg')
+        pubring = test_data_path(pubkey_ring)
+        ctx = gnupg.GPG(gnupghome=home, keyring=pubring,
+                        #verbose=True,
+                        secret_keyring=secring)
+        public_keys = ctx.list_keys()
+        assert len(public_keys) != 0, 'No keys found'
+        assert len(public_keys) == 1, 'Too many keys'
+        key_id = public_keys[0]['keyid']
+        dfp = stack.enter_context(open(filename, 'rb'))
+        signed_data = ctx.sign_file(dfp, keyid=key_id, detach=True)
+        sfp = stack.enter_context(open(filename + '.asc', 'wb'))
         sfp.write(signed_data.data)
 
 
 def makedirs(dir):
     try:
-        os.makedirs(dir)
+        os.makedirs(dir, exist_ok=True)
     except FileExistsError:
         pass
 
 
 def copy(filename, todir, dst=None):
-    src = resource_filename('resolver.tests.data', filename)
+    src = test_data_path(filename)
     dst = os.path.join(todir, filename if dst is None else dst)
     makedirs(os.path.dirname(dst))
     shutil.copy(src, dst)
+
+
+def setup_keyrings():
+    copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+    copy('image-master.gpg', os.path.dirname(config.gpg.image_master))
+    copy('image-signing.gpg', os.path.dirname(config.gpg.image_signing))
+    copy('vendor-signing.gpg', os.path.dirname(config.gpg.vendor_signing))
+
+
+def setup_remote_keyring(keyring_src, signing_keyring, json_data, dst):
+    """Set up remote keyrings, e.g. in a server's vending directory.
+
+    The source keyring and json data is used to create a .tar.xz file and an
+    associated .asc signature file.  These are then copied to the given
+    destination path name.
+
+    :param keyring_src: The source keyring (i.e. .gpg file).
+    :param signing_keyring: The name of the keyring to sign the resulting
+        tarball with.
+    :param json_data: The JSON data dictionary.
+    :param dst: The destination path of the .tar.xz file.  For the resulting
+        signature file, the .asc suffix will be automatically appended.
+    """
+    with temporary_directory() as tmpdir:
+        copy(keyring_src, tmpdir, 'keyring.gpg')
+        json_path = os.path.join(tmpdir, 'keyring.json')
+        with open(json_path, 'w', encoding='utf-8') as fp:
+            json.dump(json_data, fp)
+        # Tar up the .gpg and .json files into a .tar.xz file.
+        tarxz_path = os.path.join(tmpdir, 'keyring.tar.xz')
+        with tarfile.open(tarxz_path, 'w:xz') as tf:
+            tf.add(os.path.join(tmpdir, 'keyring.gpg'), 'keyring.gpg')
+            tf.add(json_path, 'keyring.json')
+        sign(tarxz_path, signing_keyring)
+        # Copy the .tar.xz and .asc files to the proper directory under
+        # the path the https server is vending them from.
+        makedirs(os.path.dirname(dst))
+        shutil.copy(tarxz_path, dst)
+        shutil.copy(tarxz_path + '.asc', dst + '.asc')

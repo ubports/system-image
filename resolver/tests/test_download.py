@@ -18,29 +18,21 @@
 __all__ = [
     'TestDownloads',
     'TestHTTPSDownloads',
-    'TestWinnerDownloads',
     ]
 
 
 import os
 import ssl
 import json
-import shutil
-import tempfile
 import unittest
 
 from collections import defaultdict
 from contextlib import ExitStack
-from functools import partial
-from pkg_resources import resource_filename
-from resolver.candidates import get_candidates, get_downloads
 from resolver.config import config
 from resolver.download import Downloader, get_files
-from resolver.index import load_current_index
-from resolver.scores import WeightedScorer
+from resolver.helpers import temporary_directory
 from resolver.tests.helpers import (
-    cached_pubkey, copy as copyfile, get_index, make_http_server, makedirs,
-    sign, testable_configuration)
+    make_http_server, test_data_path, testable_configuration)
 from unittest.mock import patch
 from urllib.error import URLError
 from urllib.parse import urljoin
@@ -49,21 +41,19 @@ from urllib.parse import urljoin
 class TestDownloads(unittest.TestCase):
     maxDiff = None
 
-    @classmethod
-    def setUpClass(cls):
-        cls._stack = ExitStack()
+    def setUp(self):
+        self._stack = ExitStack()
         try:
-            # Start the HTTP server running.  Vend it out of our test data
-            # directory, which will at least have a phablet.pubkey.asc file.
-            directory = os.path.dirname(
-                resource_filename('resolver.tests.data', 'phablet.pubkey.asc'))
-            cls._stack.push(make_http_server(directory, 8980))
+            # Start the HTTP server running, vending files out of our test
+            # data directory.
+            directory = os.path.dirname(test_data_path('__init__.py'))
+            self._stack.push(make_http_server(directory, 8980))
         except:
-            cls._stack.close()
+            self._stack.close()
+            raise
 
-    @classmethod
-    def tearDownClass(cls):
-        cls._stack.close()
+    def tearDown(self):
+        self._stack.close()
 
     def _abspathify(self, downloads):
         return [
@@ -71,7 +61,6 @@ class TestDownloads(unittest.TestCase):
              os.path.join(config.system.tempdir, filename)
             ) for url, filename in downloads]
 
-    @cached_pubkey('download')
     @testable_configuration
     def test_download_good_path(self):
         # Download a bunch of files that exist.  No callback.
@@ -83,7 +72,6 @@ class TestDownloads(unittest.TestCase):
             set(os.listdir(config.system.tempdir)),
             set(['channels.json', 'index.json']))
 
-    @cached_pubkey('download')
     @testable_configuration
     def test_download_with_callback(self):
         results = []
@@ -106,11 +94,10 @@ class TestDownloads(unittest.TestCase):
         for url, dst, size in results:
             byte_totals[url] += size
         self.assertEqual(byte_totals, {
-            urljoin(config.service.http_base, 'channels_01.json'): 334,
+            urljoin(config.service.http_base, 'channels_01.json'): 456,
             urljoin(config.service.http_base, 'index_01.json'): 99,
             })
 
-    @cached_pubkey('download')
     @testable_configuration
     @patch('resolver.download.CHUNK_SIZE', 10)
     def test_download_chunks(self):
@@ -122,19 +109,14 @@ class TestDownloads(unittest.TestCase):
         get_files(self._abspathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
-            ('phablet.pubkey.asc', 'pubkey.asc'),
             ]), callback=callback)
         channels = sorted(
             results[urljoin(config.service.http_base, 'channels_01.json')])
-        self.assertEqual(channels, [i * 10 for i in range(1, 34)] + [334])
+        self.assertEqual(channels, [i * 10 for i in range(1, 46)] + [456])
         index = sorted(
             results[urljoin(config.service.http_base, 'index_01.json')])
         self.assertEqual(index, [i * 10 for i in range(1, 10)] + [99])
-        pubkey = sorted(
-            results[urljoin(config.service.http_base, 'phablet.pubkey.asc')])
-        self.assertEqual(pubkey, [i * 10 for i in range(1, 168)] + [1679])
 
-    @cached_pubkey('download')
     @testable_configuration
     def test_download_404(self):
         # Try to download a file which doesn't exist.  Since it's all or
@@ -142,151 +124,16 @@ class TestDownloads(unittest.TestCase):
         self.assertRaises(FileNotFoundError, get_files, self._abspathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
-            ('phablet.pubkey.asc', 'pubkey.asc'),
             ('missing.txt', 'missing.txt'),
             ]))
         self.assertEqual(os.listdir(config.system.tempdir), [])
-
-
-class TestWinnerDownloads(unittest.TestCase):
-    """Test full end-to-end downloads through index.json."""
-
-    maxDiff = None
-
-    @classmethod
-    def setUpClass(cls):
-        # Start both an HTTP and an HTTPS server running.  The former is for
-        # the zip files and the latter is for everything else.  Vend them out
-        # of a temporary directory which we load up with the right files.
-        cls._stack = ExitStack()
-        try:
-            cls._serverdir = tempfile.mkdtemp()
-            cls._stack.callback(shutil.rmtree, cls._serverdir)
-            keyring_dir = os.path.dirname(os.path.abspath(resource_filename(
-                'resolver.tests.data', 'pubring_01.gpg')))
-            copy = partial(copyfile, todir=cls._serverdir)
-            copy('phablet.pubkey.asc')
-            copy('channels_02.json', dst='channels.json')
-            copy('channels_02.json.asc', dst='channels.json.asc')
-            # index_10.json path B will win, with no bootme flags.
-            copy('index_10.json', dst='stable/nexus7/index.json')
-            # Create every file in path B.  The file contents will be the
-            # checksum value.  We need to create the signatures on the fly.
-            index = get_index('index_10.json')
-            for image in index.images:
-                if 'B' not in image.description:
-                    continue
-                for filerec in image.files:
-                    path = (filerec.path[1:]
-                            if filerec.path.startswith('/')
-                            else filerec.path)
-                    dst = os.path.join(cls._serverdir, path)
-                    makedirs(os.path.dirname(dst))
-                    with open(dst, 'w', encoding='utf-8') as fp:
-                        fp.write(filerec.checksum)
-                    sign(keyring_dir, dst)
-            cls._stack.push(
-                make_http_server(cls._serverdir, 8943, 'cert.pem', 'key.pem',
-                    # The following isn't strictly necessary, since its
-                    # the default.
-                    selfsign=True))
-            cls._stack.push(make_http_server(cls._serverdir, 8980))
-        except:
-            cls._stack.close()
-            raise
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._stack.close()
-
-    @cached_pubkey('channel')
-    @testable_configuration
-    def test_download_winners(self):
-        # This is essentially an integration test making sure that the
-        # procedure in main() leaves you with the expected files.  In this
-        # case all the B path files will have been downloaded.
-        index = load_current_index()
-        candidates = get_candidates(index, 20130100)
-        winner = WeightedScorer().choose(candidates)
-        downloads = get_downloads(winner)
-        get_files(downloads)
-        # The B path files contain their checksums.
-        def assert_file_contains(filename, contents):
-            path = os.path.join(config.system.tempdir, filename)
-            with open(path, encoding='utf-8') as fp:
-                self.assertEqual(fp.read(), contents)
-        assert_file_contains('5.txt', '345')
-        assert_file_contains('6.txt', '456')
-        assert_file_contains('7.txt', '567')
-        # Delta B.1 files.
-        assert_file_contains('8.txt', '678')
-        assert_file_contains('9.txt', '789')
-        assert_file_contains('a.txt', '89a')
-        # Delta B.2 files.
-        assert_file_contains('b.txt', '9ab')
-        assert_file_contains('d.txt', 'fed')
-        assert_file_contains('c.txt', 'edc')
-        # There should be no other files.
-        self.assertEqual(set(os.listdir(config.system.tempdir)), set([
-            'index.json',
-            'channels.json', 'channels.json.asc',
-            'phablet.pubkey.asc',
-            '5.txt', '6.txt', '7.txt',
-            '8.txt', '9.txt', 'a.txt',
-            'b.txt', 'd.txt', 'c.txt',
-            '5.txt.asc', '6.txt.asc', '7.txt.asc',
-            '8.txt.asc', '9.txt.asc', 'a.txt.asc',
-            'b.txt.asc', 'd.txt.asc', 'c.txt.asc',
-            ]))
-
-    @cached_pubkey('download')
-    @testable_configuration
-    def test_no_download_winners_with_missing_signature(self):
-        # If one of the download files is missing a signature, none of the
-        # files get downloaded and get_files() fails.
-        os.remove(os.path.join(self._serverdir, '6/7/8.txt.asc'))
-        index = load_current_index()
-        candidates = get_candidates(index, 20130100)
-        winner = WeightedScorer().choose(candidates)
-        downloads = get_downloads(winner)
-        self.assertRaises(FileNotFoundError, get_files, downloads)
-        self.assertEqual(set(os.listdir(config.system.tempdir)), set([
-            'channels.json',
-            'index.json',
-            'channels.json.asc',
-            'phablet.pubkey.asc',
-            ]))
-
-    @cached_pubkey('channel', 'download')
-    @testable_configuration
-    def test_no_download_winners_with_bad_signature(self):
-        # If one of the download files has a bad a signature, none of the
-        # files get downloaded and get_files() fails.
-        target = os.path.join(self._serverdir, '6/7/8.txt')
-        os.remove(target + '.asc')
-        # Sign the file with the attacker's key.
-        sign(os.path.dirname(os.path.abspath(resource_filename(
-            'resolver.tests.data', 'pubring_02.gpg'))),
-             target,
-             ('pubring_02.gpg', 'secring_02.gpg'))
-        index = load_current_index()
-        candidates = get_candidates(index, 20130100)
-        winner = WeightedScorer().choose(candidates)
-        downloads = get_downloads(winner)
-        self.assertRaises(FileNotFoundError, get_files, downloads)
-        self.assertEqual(set(os.listdir(config.system.tempdir)), set([
-            'channels.json',
-            'index.json',
-            'channels.json.asc',
-            ]))
 
 
 class TestHTTPSDownloads(unittest.TestCase):
     maxDiff = None
 
     def setUp(self):
-        self._directory = os.path.dirname(
-            resource_filename('resolver.tests.data', 'phablet.pubkey.asc'))
+        self._directory = os.path.dirname(test_data_path('__init__.py'))
 
     def test_https_good_path(self):
         # The HTTPS server has a valid certificate (mocked so that its CA is
@@ -303,14 +150,12 @@ class TestHTTPSDownloads(unittest.TestCase):
             self.assertIn('daily', data)
             self.assertIn('stable', data)
 
-    @cached_pubkey('download')
     def test_get_files_https_good_path(self):
         # The HTTPS server has a valid certificate (mocked so that its CA is
         # in the system's trusted path), so downloading over https succeeds
         # (i.e. the good path).
         with ExitStack() as stack:
-            tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, tempdir)
+            tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
                 self._directory, 8943, 'cert.pem', 'key.pem',
                 # The following isn't strictly necessary, since its default.
@@ -336,8 +181,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # The self-signed certificate fails because it's not in the system's
         # CApath (no known-good CA).
         with ExitStack() as stack:
-            tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, tempdir)
+            tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
                 self._directory, 8943, 'cert.pem', 'key.pem',
                 selfsign=False))
@@ -359,8 +203,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # There's an HTTP server pretending to be an HTTPS server.  This
         # should fail to download over https URLs.
         with ExitStack() as stack:
-            tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, tempdir)
+            tempdir = stack.enter_context(temporary_directory())
             # By not providing an SSL context wrapped socket, this isn't
             # really an https server.
             stack.push(make_http_server(self._directory, 8943))
@@ -383,8 +226,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # The HTTPS server has an expired certificate (mocked so that its CA
         # is in the system's trusted path).
         with ExitStack() as stack:
-            tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, tempdir)
+            tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
                 self._directory, 8943, 'expired_cert.pem', 'expired_key.pem',
                 # The following isn't strictly necessary, since its default.
@@ -408,8 +250,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # The HTTPS server has a certificate with a non-matching hostname
         # (mocked so that its CA is in the system's trusted path).
         with ExitStack() as stack:
-            tempdir = tempfile.mkdtemp()
-            stack.callback(shutil.rmtree, tempdir)
+            tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
                 self._directory, 8943, 'nasty_cert.pem', 'nasty_key.pem',
                 # The following isn't strictly necessary, since its default.

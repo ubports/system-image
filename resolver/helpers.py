@@ -17,19 +17,23 @@
 
 __all__ = [
     'ExtendedEncoder',
+    'as_object',
     'as_timedelta',
     'as_utcdatetime',
     'atomic',
+    'temporary_directory',
     ]
 
 
 import os
 import re
 import json
+import shutil
 import tempfile
 
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from importlib import import_module
 from resolver.bag import Bag
 
 
@@ -73,6 +77,24 @@ def _sortkey(item):
         s=4,    # seconds
         )
     return order.get(item[-1])
+
+
+def as_object(value):
+    """Convert a Python dotted-path specification to an object.
+
+    :param value: A dotted-path specification,
+        e.g. the string `resolver.scores.WeightedScorer`
+    :raises ValueError: when `value` is not dotted.
+    :raises ImportError: if the named module (i.e. up to the right-most dot)
+        does not exist.
+    :raises AttributeError: if the name after the right-most dot doesn't exist
+        in the named module.
+    """
+    path, dot, name = value.rpartition('.')
+    if dot != '.':
+        raise ValueError
+    module = import_module(path)
+    return getattr(module, name)
 
 
 def as_timedelta(value):
@@ -130,3 +152,17 @@ class ExtendedEncoder(json.JSONEncoder):
         elif isinstance(obj, Bag):
             return obj.original
         return json.JSONEncoder.default(self, obj)
+
+
+@contextmanager
+def temporary_directory(*args, **kws):
+    """A context manager that creates a temporary directory.
+
+    The directory and all its contents are deleted when the context manager
+    exits.  All positional and keyword arguments are passed to mkdtemp().
+    """
+    try:
+        tempdir = tempfile.mkdtemp(*args, **kws)
+        yield tempdir
+    finally:
+        shutil.rmtree(tempdir)

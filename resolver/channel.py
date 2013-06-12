@@ -20,15 +20,9 @@ __all__ = [
     ]
 
 
-import os
 import json
 
-from contextlib import ExitStack
-from resolver.config import config
-from resolver.download import get_files
-from resolver.gpg import Context, get_pubkey
 from resolver.helpers import Bag
-from urllib.parse import urljoin
 
 
 class Channels(Bag):
@@ -36,44 +30,18 @@ class Channels(Bag):
     def from_json(cls, data):
         mapping = json.loads(data)
         channels = {}
-        for channel_name, device in mapping.items():
+        # e.g. keys: daily, stable
+        for channel_name, device_mapping in mapping.items():
             devices = {}
-            for name, data in device.items():
-                devices[name] = Bag(**data)
+            # e.g. keys: nexus7, nexus4
+            for device_name, detail_mapping in device_mapping.items():
+                # Most of the keys at this level (e.g. index) have flat
+                # values, however the keyring key is itself a mapping.
+                keyring = detail_mapping.pop('keyring', None)
+                if keyring is not None:
+                    detail_mapping['keyring'] = Bag(**keyring)
+                # e.g. nexus7 -> {index, keyring}
+                devices[device_name] = Bag(**detail_mapping)
+            # e.g. daily -> {nexus7, nexus4}
             channels[channel_name] = Bag(**devices)
         return cls(**channels)
-
-
-def load_channel():
-    """Load the channel data from the web service.
-
-    The channels.json.asc signature file is verified, and if it doesn't match,
-    a FileNotFoundError is raised.
-
-    :return: The current channel object.
-    :rtype: Channels
-    """
-    pubkey_path = get_pubkey()
-    # Download both the channels.json and signature file.  Store both data
-    # files as temporary files.  Then verify the signature.  If it matches,
-    # return a new Channels instance, otherwise raise a FileNotFound exception
-    # and remove all the temporary files.
-    channels_url = urljoin(config.service.https_base, 'channels.json')
-    asc_url = urljoin(config.service.https_base, 'channels.json.asc')
-    channels_path = os.path.join(config.system.tempdir, 'channels.json')
-    asc_path = os.path.join(config.system.tempdir, 'channels.json.asc')
-    get_files([
-        (channels_url, channels_path),
-        (asc_url, asc_path),
-        ])
-    with ExitStack() as stack:
-        ctx = stack.enter_context(Context(pubkey_path))
-        if not ctx.verify(asc_path, channels_path):
-            # The signature did not verify, so arrange for the .json and .asc
-            # files to be removed before we raise the exception.
-            stack.callback(os.remove, channels_path)
-            stack.callback(os.remove, asc_path)
-            raise FileNotFoundError
-    # The signature was good.
-    with open(channels_path, encoding='utf-8') as fp:
-        return Channels.from_json(fp.read())

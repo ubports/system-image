@@ -17,21 +17,14 @@
 
 __all__ = [
     'Index',
-    'load_current_index',
     ]
 
 
-import os
 import json
 
 from datetime import datetime, timezone
 from resolver.bag import Bag
-from resolver.channel import load_channel
-from resolver.config import config
-from resolver.download import get_files
-from resolver.helpers import ExtendedEncoder
 from resolver.image import Image
-from urllib.parse import urljoin
 
 
 IN_FMT = '%a %b %d %H:%M:%S %Z %Y'
@@ -60,43 +53,3 @@ class Index(Bag):
             bundles = [Bag(**bundle_data) for bundle_data in files]
             images.append(Image(files=bundles, **image_data))
         return cls(global_=global_, images=images)
-
-    def to_json(self):
-        index = {
-            'global': {
-                'generated_at': self.global_.generated_at.strftime(OUT_FMT),
-                },
-            'images': [image.__original__ for image in self.images],
-            }
-        return json.dumps(index,
-                          sort_keys=True, indent=4, separators=(',', ': '),
-                          cls=ExtendedEncoder)
-
-
-def load_current_index():
-    """Load the current index file.
-
-    Download the current index file by first reading the channels file and
-    chasing the index file link.
-
-    :return: The new `Index` object.
-    :rtype: Index
-    """
-    channel = load_channel()
-    device = getattr(getattr(channel, config.system.channel),
-                     config.system.device)
-    index_url = urljoin(config.service.https_base, device.index)
-    index_path = os.path.join(config.system.tempdir,
-                              os.path.basename(device.index))
-    downloads = [(index_url, index_path)]
-    # The index file might specify its own keyring.  If so, download that too.
-    keyring = getattr(device, 'keyring', None)
-    if keyring is not None:
-        keyring_url = urljoin(config.service.https_base, keyring)
-        keyring_path = os.path.join(config.system.tempdir,
-                                    os.path.basename(keyring))
-        downloads.append((keyring_url, keyring_path))
-    get_files(downloads)
-    # BAW 2013-05-03: validate the index using the keyring!
-    with open(index_path, encoding='utf-8') as fp:
-        return Index.from_json(fp.read())

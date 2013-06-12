@@ -18,12 +18,13 @@
 
 __all__ = [
     'TestBag',
+    'TestConverters',
     ]
 
 
 import unittest
 
-from resolver.helpers import Bag
+from resolver.helpers import Bag, as_object
 
 
 class TestBag(unittest.TestCase):
@@ -36,3 +37,18 @@ class TestBag(unittest.TestCase):
         # Python keywords get an underscore appended.
         bag = Bag(**{'global': 'yes'})
         self.assertEqual(bag.global_, 'yes')
+
+
+class TestConverters(unittest.TestCase):
+    def test_as_object_good_path(self):
+        self.assertEqual(as_object('resolver.helpers.Bag'), Bag)
+
+    def test_as_object_no_dot(self):
+        self.assertRaises(ValueError, as_object, 'foo')
+
+    def test_as_object_import_error(self):
+        self.assertRaises(ImportError, as_object, 'resolver.doesnotexist.Foo')
+
+    def test_as_object_attribute_error(self):
+        self.assertRaises(AttributeError, as_object,
+                          'resolver.tests.test_helpers.NoSuchTest')

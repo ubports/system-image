@@ -30,7 +30,7 @@ import os
 # roll our own.
 from configparser import ConfigParser
 from pkg_resources import resource_filename
-from resolver.helpers import Bag, as_timedelta
+from resolver.helpers import Bag, as_object, as_timedelta
 
 
 def expand_path(path):
@@ -66,8 +66,12 @@ class Configuration:
         self.system = Bag(converters=dict(build_file=expand_path,
                                           tempdir=expand_path),
                           **parser['system'])
+        self.gpg = Bag(**parser['gpg'])
+        self.score = Bag(converters=dict(scorer=as_object),
+                         **parser['score'])
 
-    def get_build_number(self):
+    @property
+    def build_number(self):
         try:
             with open(self.system.build_file, encoding='utf-8') as fp:
                 return int(fp.read().strip())
