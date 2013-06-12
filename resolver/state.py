@@ -67,6 +67,12 @@ class State:
             # I think it makes no sense to check the blacklist when we're
             # downloading a blacklist file.
             dst = get_keyring('blacklist', url, url + '.asc', 'image_master')
+        except SignatureError:
+            # The blacklist wasn't signed by the system image master.  Maybe
+            # there's a new system image master key?  Let's find out.
+            self._next.appendleft(
+                partial(self._get_master_key, self._get_blacklist))
+            return
         except FileNotFoundError:
             # There is no blacklist.
             pass
@@ -192,6 +198,25 @@ class State:
             # Everything is fine so nothing needs to be cleared.
             stack.pop_all()
         # There's nothing left to do, so don't push anything onto the deque.
+
+    def _get_master_key(self, next_step):
+        """Try to get and validate a new image master key.
+
+        If there isn't one, throw a SignatureError.
+        """
+        url = urljoin(config.service.https_base, 'gpg/system-image.tar.xz')
+        try:
+            # The image signing key must be signed by the archive master.
+            path = get_keyring(
+                'system-image', url, url + '.asc',
+                'archive_master', self.blacklist)
+        except (FileNotFoundError, SignatureError, KeyringError):
+            # No valid image master key could be found.  Don't chain this
+            # exception.
+            raise SignatureError from None
+        # Copy the new key into place, then retry the previous step.
+        os.rename(path, config.gpg.image_master)
+        self._next.append(next_step)
 
     def _get_signing_key(self, next_step):
         """Try to get and validate a new image signing key.
