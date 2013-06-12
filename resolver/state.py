@@ -56,7 +56,8 @@ class State:
         try:
             self._next.popleft()()
         except IndexError:
-            # Clean up our temporary resources.
+            # BAW 2013-06-12 FIXME.  These only get collected if the state
+            # machine runs to completion, so that is not correct.
             self._cleanup.pop_all().close()
             # Do not chain the exception.
             raise StopIteration from None
