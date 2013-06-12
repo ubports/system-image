@@ -40,6 +40,7 @@ class State:
         # Variables which manage state transitions.
         self._next = deque()
         self._next.append(self._get_blacklist)
+        self._cleanup = ExitStack()
         # Variables which represent things we've learned.
         self.blacklist = None
         self.channels = None
@@ -55,6 +56,8 @@ class State:
         try:
             self._next.popleft()()
         except IndexError:
+            # Clean up our temporary resources.
+            self._cleanup.pop_all().close()
             # Do not chain the exception.
             raise StopIteration from None
 
@@ -71,7 +74,12 @@ class State:
             # There is no blacklist.
             pass
         else:
-            self.blacklist = dst
+            # Move the keyring.gpg file to a safe place inside our temporary
+            # directory.  XXX We do need to delete it eventually.
+            head, tail = os.path.split(dst)
+            self.blacklist = os.path.join(head, 'blacklist.gpg')
+            os.rename(dst, self.blacklist)
+            self._cleanup.callback(os.remove, self.blacklist)
         self._next.append(self._get_channel)
 
     def _get_channel(self):

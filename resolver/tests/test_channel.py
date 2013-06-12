@@ -195,13 +195,22 @@ class TestChannelSignature(unittest.TestCase):
 
     @testable_configuration
     def test_first_signature_fails_get_new_image_signing_key(self):
-        # The first time we check the channels.json file, the signature fails.
-        # Everything works out in the end though because a new system image
-        # signing key is downloaded.
+        # The first time we check the channels.json file, the signature fails,
+        # because it's blacklisted.  Everything works out in the end though
+        # because a new system image signing key is downloaded.
         #
         # Start by signing the channels file with a blacklisted key.
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
+        # Make the spare keyring the image signing key, which would normally
+        # make the channels.json signature good, except that we're going to
+        # blacklist it.
+        head, tail = os.path.split(config.gpg.image_signing)
+        copy('spare.gpg', head, tail)
+        setup_remote_keyring(
+            'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        # Here's the new image signing key.
         setup_remote_keyring(
             'image-signing.gpg', 'image-master.gpg', dict(type='signing'),
             os.path.join(self._serverdir, 'gpg', 'signing.tar.xz'))
@@ -217,11 +226,11 @@ class TestChannelSignature(unittest.TestCase):
         # Just to prove that the image signing key is going to change, let's
         # calculate the current one's checksum.
         with open(config.gpg.image_signing, 'rb') as fp:
-            checksum = hashlib.md5(fp.read())
+            checksum = hashlib.md5(fp.read()).digest()
         next(state)
         # Now we have a new image signing key.
         with open(config.gpg.image_signing, 'rb') as fp:
-            self.assertNotEqual(checksum, hashlib.md5(fp.read()))
+            self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
         # Let's re-sign the channels.json file with the new image signing
         # key.  Then step the state machine once more and we should get a
         # valid channels object.
@@ -229,3 +238,36 @@ class TestChannelSignature(unittest.TestCase):
         next(state)
         self.assertEqual(state.channels.stable.nexus7.index,
                          '/stable/nexus7/index.json')
+
+    @testable_configuration
+    def test_first_signature_fails_get_bad_image_signing_key(self):
+        # The first time we check the channels.json file, the signature fails.
+        # We try to get the new image signing key, but it is bogus.
+        #
+        # Start by signing the channels file with a blacklisted key.
+        sign(self._channels_path, 'spare.gpg')
+        setup_keyrings()
+        # Make the new image signing key bogus by not signing it with the
+        # image master key.
+        setup_remote_keyring(
+            'image-signing.gpg', 'spare.gpg', dict(type='signing'),
+            os.path.join(self._serverdir, 'gpg', 'signing.tar.xz'))
+        # Run through the state machine twice so that we get the blacklist and
+        # the channels.json file.  Since the channels.json file will not be
+        # signed correctly, new state transitions will be added to re-aquire a
+        # new image signing key.
+        state = State()
+        next(state)
+        next(state)
+        # Where we would expect a channels object, there is none.
+        self.assertIsNone(state.channels)
+        # Just to prove that the image signing key is not going to change,
+        # let's calculate the current one's checksum.
+        with open(config.gpg.image_signing, 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).digest()
+        # The next state transition will attempt to get the new image signing
+        # key, but that will fail because it is not signed correctly.
+        self.assertRaises(SignatureError, next, state)
+        # And the old image signing key hasn't changed.
+        with open(config.gpg.image_signing, 'rb') as fp:
+            self.assertEqual(checksum, hashlib.md5(fp.read()).digest())
