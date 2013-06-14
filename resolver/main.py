@@ -18,14 +18,12 @@ __all__ = [
     ]
 
 
+import logging
 import argparse
 
 from pkg_resources import resource_string as resource_bytes
-from resolver.candidates import get_candidates, get_downloads
 from resolver.config import config
-from resolver.download import get_files
-from resolver.index import load_current_index
-from resolver.scores import WeightedScorer
+from resolver.state import State
 
 
 __version__ = resource_bytes('resolver', 'version.txt').decode('utf-8').strip()
@@ -46,24 +44,38 @@ def main():
     parser.add_argument('-u', '--upgrade',
                         default=None,
                         help='Upgrade from this build number')
+    parser.add_argument('-v', '--verbose',
+                        default=0, action='count',
+                        help='Increase verbosity')
 
     args = parser.parse_args()
     if args.config is not None:
         config.load(args.config)
 
-    build = (config.get_build_number()
-             if args.upgrade is None else int(args.upgrade))
+    build = (config.build_number
+             if args.upgrade is None
+             else int(args.upgrade))
     if args.build:
         print('build number:', build)
         return
 
-    index = load_current_index()
-    candidates = get_candidates(index)
-    winner = WeightedScorer().choose(candidates)
-    downloads = get_downloads(winner)
-    get_files(downloads)
-    for url, path in downloads:
-        print(path)
+    # Initialize the loggers.
+    level = {0: logging.ERROR,
+             1: logging.INFO,
+             2: logging.DEBUG}.get(args.verbose, logging.ERROR)
+    logging.basicConfig(level=level,
+                        datefmt='%b %d %H:%M:%S %Y',
+                        format='%(asctime)s (%(process)d) %(message)s')
+    log = logging.getLogger('resolver')
+    log.setLevel(level)
+
+    # Please be quiet gnupg.
+    gnupg_log = logging.getLogger('gnupg')
+    gnupg_log.propagate = False
+
+    # Run the state machine to conclusion.
+    log.info('running state machine')
+    list(State())
 
 
 if __name__ == '__main__':

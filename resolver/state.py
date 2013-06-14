@@ -21,6 +21,7 @@ __all__ = [
 
 
 import os
+import logging
 
 from collections import deque
 from contextlib import ExitStack
@@ -33,6 +34,10 @@ from resolver.gpg import Context, SignatureError
 from resolver.index import Index
 from resolver.keyring import KeyringError, get_keyring
 from urllib.parse import urljoin
+
+
+log = logging.getLogger('resolver')
+COMMASPACE = ', '
 
 
 class State:
@@ -57,6 +62,9 @@ class State:
         except IndexError:
             # Do not chain the exception.
             raise StopIteration from None
+        except:
+            log.exception('uncaught exception in state machine')
+            raise
 
     def _get_blacklist(self):
         """Get the blacklist keyring if there is one."""
@@ -66,8 +74,11 @@ class State:
         try:
             # I think it makes no sense to check the blacklist when we're
             # downloading a blacklist file.
+            log.info('Looking for blacklist: %s',
+                     urljoin(config.service.https_base, url))
             dst = get_keyring('blacklist', url, url + '.asc', 'image_master')
         except SignatureError:
+            log.info('No signed blacklist found')
             # The blacklist wasn't signed by the system image master.  Maybe
             # there's a new system image master key?  Let's find out.
             self._next.appendleft(
@@ -75,7 +86,7 @@ class State:
             return
         except FileNotFoundError:
             # There is no blacklist.
-            pass
+            log.info('No blacklist found')
         else:
             # Move the keyring.gpg file to a safe place inside our temporary
             # directory.  It is the responsibility of the code running the
@@ -83,6 +94,7 @@ class State:
             self.blacklist = os.path.join(
                 config.system.tempdir, 'blacklist.gpg')
             os.rename(dst, self.blacklist)
+            log.info('Local blacklist file: %s', self.blacklist)
         self._next.append(self._get_channel)
 
     def _get_channel(self):
@@ -91,6 +103,7 @@ class State:
         channels_path = os.path.join(config.system.tempdir, 'channels.json')
         asc_url = urljoin(config.service.https_base, 'channels.json.asc')
         asc_path = os.path.join(config.system.tempdir, 'channels.json.asc')
+        log.info('Looking for: %s', channels_url)
         with ExitStack() as stack:
             get_files([
                 (channels_url, channels_path),
@@ -109,8 +122,10 @@ class State:
                 # new key *is* found, retry the current step.
                 self._next.appendleft(
                     partial(self._get_signing_key, self._get_channel))
+                log.info('channels.json not properly signed')
                 return
             # The signature was good.
+            log.info('Local channels file: %s', channels_path)
             with open(channels_path, encoding='utf-8') as fp:
                 self.channels = Channels.from_json(fp.read())
         # The next step will depend on whether there is a device keyring
@@ -121,9 +136,13 @@ class State:
                 getattr(self.channels, config.system.channel),
                 config.system.device)
         except AttributeError:
+            log.info('no matching channel/device: %s/%s',
+                     config.system.channel, config.system.device)
             # Either our channel or device isn't described in the
             # channels.json file, so there's nothing more to do.
             return
+        log.info('found channel/device entry: %s/%s',
+                 config.system.channel, config.system.device)
         keyring = getattr(device, 'keyring', None)
         if keyring:
             self._next.append(partial(self._get_device_keyring, keyring))
@@ -132,6 +151,7 @@ class State:
     def _get_device_keyring(self, keyring):
         keyring_url = urljoin(config.service.https_base, keyring.path)
         asc_url = urljoin(config.service.https_base, keyring.signature)
+        log.info('getting device keyring: %s', keyring_url)
         self.device_keyring = get_keyring(
             'device', keyring_url, asc_url, 'image_signing', self.blacklist)
         # We don't need to set the next action because it's already been done.
@@ -176,6 +196,7 @@ class State:
         downloads = get_downloads(self.winner)
         local_files = set(dst for url, dst in downloads
                           if os.path.splitext(dst)[1] != '.asc')
+        log.info('Files to download: %s', COMMASPACE.join(sorted(local_files)))
         # Now, verify the signatures of all the downloaded files.  If there is
         # a device key, the files can be signed by that or the imaging signing
         # key.

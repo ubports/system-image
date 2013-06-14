@@ -7,3 +7,4 @@ _templates
 build
 trustdb.gpg
 resolver/tests/data/random_seed
+dist

@@ -1,9 +1,6 @@
 To do
 =====
 
- - logging/debugging
- - reading files from the file system (e.g. current version)
-   - build version
  - partial candidates, e.g. not enough disk space to get from where we are to
    where we want to be, so multiple download/reboots necessary
  - suspend/resume

@@ -22,6 +22,7 @@ __all__ = [
 
 
 import os
+import logging
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
@@ -36,6 +37,7 @@ from urllib.request import urlopen
 
 # Parameterized for testing purposes.
 CHUNK_SIZE = 4096
+log = logging.getLogger('resolver')
 
 
 class Downloader:
@@ -60,6 +62,7 @@ class Downloader:
 def _get_one_file(download, callback=None):
     url, dst = download
     bytes_read = 0
+    log.debug('download: %s -> %s', url, dst)
     with Downloader(url) as response, atomic(dst, encoding=None) as out:
         while True:
             chunk = response.read(CHUNK_SIZE)
