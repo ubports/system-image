@@ -153,7 +153,8 @@ class State:
         asc_url = urljoin(config.service.https_base, keyring.signature)
         log.info('getting device keyring: %s', keyring_url)
         self.device_keyring = get_keyring(
-            'device', keyring_url, asc_url, 'image_signing', self.blacklist)
+            'device', keyring_url, asc_url, 'image_signing',
+            self.blacklist)
         # We don't need to set the next action because it's already been done.
 
     def _get_index(self, index):
@@ -219,6 +220,7 @@ class State:
             # Everything is fine so nothing needs to be cleared.
             stack.pop_all()
         # There's nothing left to do, so don't push anything onto the deque.
+        log.info('all files available in %s', config.system.tempdir)
 
     def _get_master_key(self, next_step):
         """Try to get and validate a new image master key.
