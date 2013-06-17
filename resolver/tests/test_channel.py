@@ -147,14 +147,11 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
     """
     def setUp(self):
         self._stack = ExitStack()
-        self._state = State()
         try:
             self._serverdir = self._stack.enter_context(temporary_directory())
             copy('channels_01.json', self._serverdir, 'channels.json')
             sign(os.path.join(self._serverdir, 'channels.json'),
                  'image-signing.gpg')
-            # Get the blacklist.
-            next(self._state)
         except:
             self._stack.close()
             raise
@@ -164,7 +161,12 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
 
     @testable_configuration
     def test_load_channel_over_https_port_with_http_fails(self):
-        # We maliciously put an HTTP server on the HTTPS port.  This should
-        # still fail.
+        # We maliciously put an HTTP server on the HTTPS port.
+        setup_keyrings()
+        state = State()
+        # Try to get the blacklist.  This will fail silently since it's okay
+        # not to find a blacklist.
+        next(state)
+        # This will fail to get the channels.json file.
         with make_http_server(self._serverdir, 8943):
-            self.assertRaises(FileNotFoundError, next, self._state)
+            self.assertRaises(FileNotFoundError, next, state)

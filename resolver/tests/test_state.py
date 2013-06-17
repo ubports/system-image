@@ -183,7 +183,7 @@ class TestState(unittest.TestCase):
         state = State()
         next(state)
         self.assertIsNone(state.blacklist)
-        # Just to provde that the system image master key is going to change,
+        # Just to provide that the system image master key is going to change,
         # let's calculate the current one's checksum.
         with open(config.gpg.image_master, 'rb') as fp:
             checksum = hashlib.md5(fp.read()).digest()
@@ -193,3 +193,73 @@ class TestState(unittest.TestCase):
         # And the old system image master key hasn't changed.
         with open(config.gpg.image_master, 'rb') as fp:
             self.assertEqual(checksum, hashlib.md5(fp.read()).digest())
+
+    @testable_configuration
+    def test_image_master_is_missing(self):
+        # The system only comes pre-seeded with the archive master public
+        # keyring.  All others are downloaded.
+        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+        # Put a system image master key on the server.
+        setup_remote_keyring(
+            'image-master.gpg', 'archive-master.gpg',
+            dict(type='system-image'),
+            os.path.join(self._serverdir, 'gpg', 'system-image.tar.xz'))
+        # Run the state machine once to get the blacklist.  This should
+        # download the system image master key, which will be signed against
+        # the archive master.  Prove that the image master doesn't exist yet.
+        self.assertFalse(os.path.exists(config.gpg.image_master))
+        next(State())
+        # Now the image master key exists.
+        self.assertTrue(os.path.exists(config.gpg.image_master))
+
+    @testable_configuration
+    def test_image_master_is_missing_with_blacklist(self):
+        # The system only comes pre-seeded with the archive master public
+        # keyring.  All others are downloaded.  This time there is a
+        # blacklist and downloading that will also get the image master key.
+        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+        # Put a system image master key on the server.
+        setup_remote_keyring(
+            'image-master.gpg', 'archive-master.gpg',
+            dict(type='system-image'),
+            os.path.join(self._serverdir, 'gpg', 'system-image.tar.xz'))
+        setup_remote_keyring(
+            'spare.gpg', 'spare.gpg', dict(type='blacklist'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        # Run the state machine once to get the blacklist.  This should
+        # download the system image master key, which will be signed against
+        # the archive master.  Prove that the image master doesn't exist yet.
+        self.assertFalse(os.path.exists(config.gpg.image_master))
+        next(State())
+        # Now the image master key exists.
+        self.assertTrue(os.path.exists(config.gpg.image_master))
+
+    @testable_configuration
+    def test_image_signing_is_missing(self):
+        # The system only comes pre-seeded with the archive master public
+        # keyring.  All others are downloaded.
+        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+        # Put a system image master key on the server.
+        setup_remote_keyring(
+            'image-master.gpg', 'archive-master.gpg',
+            dict(type='system-image'),
+            os.path.join(self._serverdir, 'gpg', 'system-image.tar.xz'))
+        # Put an image signing key on the server.
+        setup_remote_keyring(
+            'image-signing.gpg', 'image-master.gpg',
+            dict(type='signing'),
+            os.path.join(self._serverdir, 'gpg', 'signing.tar.xz'))
+        sign(self._channels_path, 'image-signing.gpg')
+        # Run the state machine twice.  The first time downloads the
+        # blacklist, which triggers a download of the image master key.  The
+        # second one grabs the channels.json file which triggers a download of
+        # the image signing key.  Prove that the image master and signing keys
+        # dont exist yet.
+        self.assertFalse(os.path.exists(config.gpg.image_master))
+        self.assertFalse(os.path.exists(config.gpg.image_signing))
+        state = State()
+        next(state)
+        next(state)
+        # Now the image master and signing keys exist.
+        self.assertTrue(os.path.exists(config.gpg.image_master))
+        self.assertTrue(os.path.exists(config.gpg.image_signing))

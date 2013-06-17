@@ -68,6 +68,15 @@ class State:
 
     def _get_blacklist(self):
         """Get the blacklist keyring if there is one."""
+        # If there is no image master key, download one now.  Don't worry if
+        # we have an out of date key; that will be handled elsewhere.  The
+        # archive master key better be pre-installed (we cannot download it).
+        # Let any exceptions in grabbing the image master key percolate up.
+        if not os.path.exists(config.gpg.image_master):
+            url = 'gpg/system-image.tar.xz'
+            dst = get_keyring(
+                'system-image', url, url + '.asc', 'archive_master')
+            os.rename(dst, config.gpg.image_master)
         # The only way to know whether there is a blacklist or not is to try
         # to download it.  If it fails, there isn't one.
         url = 'gpg/blacklist.tar.xz'
@@ -99,6 +108,15 @@ class State:
 
     def _get_channel(self):
         """Get and verify the channels.json file."""
+        # If there is no image signing key, download one now.  Don't worry if
+        # we have an out of date key; that will be handled elsewhere.  The
+        # imaging signing must be signed by the image master key, which we
+        # better already have an up-to-date copy of.
+        if not os.path.exists(config.gpg.image_signing):
+            url = 'gpg/signing.tar.xz'
+            dst = get_keyring(
+                'signing', url, url + '.asc', 'image_master')
+            os.rename(dst, config.gpg.image_signing)
         channels_url = urljoin(config.service.https_base, 'channels.json')
         channels_path = os.path.join(config.system.tempdir, 'channels.json')
         asc_url = urljoin(config.service.https_base, 'channels.json.asc')
