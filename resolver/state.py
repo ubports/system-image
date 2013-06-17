@@ -73,6 +73,7 @@ class State:
         # archive master key better be pre-installed (we cannot download it).
         # Let any exceptions in grabbing the image master key percolate up.
         if not os.path.exists(config.gpg.image_master):
+            log.info('No image master key found, downloading')
             url = 'gpg/system-image.tar.xz'
             dst = get_keyring(
                 'system-image', url, url + '.asc', 'archive_master')
@@ -90,8 +91,7 @@ class State:
             log.info('No signed blacklist found')
             # The blacklist wasn't signed by the system image master.  Maybe
             # there's a new system image master key?  Let's find out.
-            self._next.appendleft(
-                partial(self._get_master_key, self._get_blacklist))
+            self._next.appendleft(self._get_master_key)
             return
         except FileNotFoundError:
             # There is no blacklist.
@@ -113,6 +113,7 @@ class State:
         # imaging signing must be signed by the image master key, which we
         # better already have an up-to-date copy of.
         if not os.path.exists(config.gpg.image_signing):
+            log.info('No image signing key found, downloading')
             url = 'gpg/signing.tar.xz'
             dst = get_keyring(
                 'signing', url, url + '.asc', 'image_master')
@@ -138,8 +139,7 @@ class State:
                 # The signature on the channels.json file did not match.
                 # Maybe there's a new image signing key on the server.  If a
                 # new key *is* found, retry the current step.
-                self._next.appendleft(
-                    partial(self._get_signing_key, self._get_channel))
+                self._next.appendleft(self._get_signing_key)
                 log.info('channels.json not properly signed')
                 return
             # The signature was good.
@@ -240,13 +240,14 @@ class State:
         # There's nothing left to do, so don't push anything onto the deque.
         log.info('all files available in %s', config.system.tempdir)
 
-    def _get_master_key(self, next_step):
+    def _get_master_key(self):
         """Try to get and validate a new image master key.
 
         If there isn't one, throw a SignatureError.
         """
         url = urljoin(config.service.https_base, 'gpg/system-image.tar.xz')
         try:
+            log.info('Getting the image master key')
             # The image signing key must be signed by the archive master.
             path = get_keyring(
                 'system-image', url, url + '.asc',
@@ -254,12 +255,15 @@ class State:
         except (FileNotFoundError, SignatureError, KeyringError):
             # No valid image master key could be found.  Don't chain this
             # exception.
+            log.error('No valid imaging master key found')
             raise SignatureError from None
         # Copy the new key into place, then retry the previous step.
+        log.info('Installing new image master key to: %s',
+                 config.gpg.image_master)
         os.rename(path, config.gpg.image_master)
-        self._next.append(next_step)
+        self._next.appendleft(self._get_blacklist)
 
-    def _get_signing_key(self, next_step):
+    def _get_signing_key(self):
         """Try to get and validate a new image signing key.
 
         If there isn't one, throw a SignatureError.
@@ -275,4 +279,4 @@ class State:
             raise SignatureError from None
         # Copy the new key into place, then retry the previous step.
         os.rename(path, config.gpg.image_signing)
-        self._next.append(next_step)
+        self._next.appendleft(self._get_channel)

@@ -13,6 +13,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""Main script entry point."""
+
+
 __all__ = [
     'main',
     ]
@@ -23,6 +26,7 @@ import argparse
 
 from pkg_resources import resource_string as resource_bytes
 from resolver.config import config
+from resolver.logging import initialize
 from resolver.state import State
 
 
@@ -60,18 +64,8 @@ def main():
         return
 
     # Initialize the loggers.
-    level = {0: logging.ERROR,
-             1: logging.INFO,
-             2: logging.DEBUG}.get(args.verbose, logging.ERROR)
-    logging.basicConfig(level=level,
-                        datefmt='%b %d %H:%M:%S %Y',
-                        format='%(asctime)s (%(process)d) %(message)s')
+    initialize(verbosity=args.verbose)
     log = logging.getLogger('resolver')
-    log.setLevel(level)
-
-    # Please be quiet gnupg.
-    gnupg_log = logging.getLogger('gnupg')
-    gnupg_log.propagate = False
 
     # Run the state machine to conclusion.
     log.info('running state machine')

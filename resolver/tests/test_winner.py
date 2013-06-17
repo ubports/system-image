@@ -29,11 +29,19 @@ from resolver.config import config
 from resolver.download import get_files
 from resolver.gpg import SignatureError
 from resolver.helpers import temporary_directory
+from resolver.logging import initialize
 from resolver.scores import WeightedScorer
 from resolver.state import State
 from resolver.tests.helpers import (
     copy, get_index, make_http_server, makedirs, setup_keyrings,
     setup_remote_keyring, sign, test_data_path, testable_configuration)
+
+
+def setUpModule():
+    # BAW 2013-06-17: For correctness, this really should be put in all
+    # test_*.py modules, or in a global test runner.  As it is, this only
+    # quiets the logging
+    initialize(verbosity=3)
 
 
 class TestWinnerDownloads(unittest.TestCase):
