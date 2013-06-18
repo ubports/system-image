@@ -103,7 +103,7 @@ def make_http_server(directory, port, certpem=None, keypem=None,
     # Wrap the socket in the SSL context if given.
     ssl_context = None
     if certpem is not None and keypem is not None:
-        data_dir = os.path.dirname(test_data_path('phablet.pubkey.asc'))
+        data_dir = os.path.dirname(test_data_path('__init__.py'))
         if not os.path.isabs(certpem):
             certpem = os.path.join(data_dir, certpem)
         if not os.path.isabs(keypem):
