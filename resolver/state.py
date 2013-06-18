@@ -44,7 +44,7 @@ class State:
     def __init__(self):
         # Variables which manage state transitions.
         self._next = deque()
-        self._next.append(self._get_blacklist)
+        self._next.append(self._get_blacklist_1)
         # Variables which represent things we've learned.
         self.blacklist = None
         self.channels = None
@@ -66,8 +66,8 @@ class State:
             log.exception('uncaught exception in state machine')
             raise
 
-    def _get_blacklist(self):
-        """Get the blacklist keyring if there is one."""
+    def _get_blacklist_1(self):
+        """First try to get the blacklist."""
         # If there is no image master key, download one now.  Don't worry if
         # we have an out of date key; that will be handled elsewhere.  The
         # archive master key better be pre-installed (we cannot download it).
@@ -96,6 +96,34 @@ class State:
         except FileNotFoundError:
             # There is no blacklist.
             log.info('No blacklist found')
+        else:
+            # Move the keyring.gpg file to a safe place inside our temporary
+            # directory.  It is the responsibility of the code running the
+            # state machine to clear out the temporary directory.
+            self.blacklist = os.path.join(
+                config.system.tempdir, 'blacklist.gpg')
+            os.rename(dst, self.blacklist)
+            log.info('Local blacklist file: %s', self.blacklist)
+        self._next.append(self._get_channel)
+
+    def _get_blacklist_2(self):
+        """Second try to get the blacklist."""
+        # Unlike the first attempt, if this one fails with a SignatureError,
+        # there's nothing more we can do, so we let those percolate up.  We
+        # still catch FileNotFoundErrors because of the small window of
+        # opportunity for the blacklist to have been removed between the first
+        # attempt and the second.  Since it doesn't cost us much, we might as
+        # well be thorough.
+        #
+        # The first attempt must already have gotten us an image master key if
+        # one was missing originally, so don't try that again.
+        url = 'gpg/blacklist.tar.xz'
+        try:
+            log.info('Looking for blacklist again: %s',
+                     urljoin(config.service.https_base, url))
+            dst = get_keyring('blacklist', url, url + '.asc', 'image_master')
+        except FileNotFoundError:
+            log.info('No blacklist found on second attempt')
         else:
             # Move the keyring.gpg file to a safe place inside our temporary
             # directory.  It is the responsibility of the code running the
@@ -261,7 +289,7 @@ class State:
         log.info('Installing new image master key to: %s',
                  config.gpg.image_master)
         os.rename(path, config.gpg.image_master)
-        self._next.appendleft(self._get_blacklist)
+        self._next.appendleft(self._get_blacklist_2)
 
     def _get_signing_key(self):
         """Try to get and validate a new image signing key.

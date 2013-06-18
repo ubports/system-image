@@ -263,3 +263,29 @@ class TestState(unittest.TestCase):
         # Now the image master and signing keys exist.
         self.assertTrue(os.path.exists(config.gpg.image_master))
         self.assertTrue(os.path.exists(config.gpg.image_signing))
+
+    @testable_configuration
+    def test_downloaded_image_signing_is_still_bad(self):
+        # LP: #1191979: Let's say there's a blacklist.tar.xz file but it is
+        # not signed with the system image master key.  The state machine will
+        # catch the SignatureError and re-download the system image master.
+        # But let's say that the signature still fails (perhaps because the
+        # blacklist was signed with the wrong key).  The client should log the
+        # second signature failure and quit.
+        setup_keyrings()
+        # Put a blacklist file up that is signed by a bogus key.  Also, put up
+        # the real image master key.  The blacklist verification check will
+        # never succeed.
+        setup_remote_keyring(
+            'spare.gpg', 'spare.gpg', dict(type='blacklist'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        setup_remote_keyring(
+            'image-master.gpg', 'archive-master.gpg',
+            dict(type='system-image'),
+            os.path.join(self._serverdir, 'gpg', 'system-image.tar.xz'))
+        # Run the state machine three times:
+        # blacklist -(sig fail)-> get master -> blacklist (sig fail)
+        state = State()
+        next(state)
+        next(state)
+        self.assertRaises(SignatureError, next, state)
