@@ -21,7 +21,6 @@ __all__ = [
     ]
 
 
-import os
 import logging
 
 from concurrent.futures import ThreadPoolExecutor
@@ -29,7 +28,7 @@ from contextlib import ExitStack
 from datetime import timedelta
 from functools import partial
 from resolver.config import config
-from resolver.helpers import atomic
+from resolver.helpers import atomic, safe_remove
 from ssl import CertificateError
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
@@ -108,7 +107,15 @@ def get_files(downloads, callback=None):
         timeout = None
     else:
         timeout = config.service.timeout.total_seconds()
-    try:
+    with ExitStack() as stack:
+        # Arrange for all the downloaded files to be remove when the stack
+        # exits due to an exception.  It's okay if some of the files don't
+        # exist.  If everything gets downloaded just fine, we'll clear the
+        # stack *without* calling the close() method so that the files won't
+        # be deleted.  This is why we run the ThreadPoolExecutor in its own
+        # context manager.
+        for url, path in downloads:
+            stack.callback(safe_remove, path)
         with ThreadPoolExecutor(max_workers=config.service.threads) as tpe:
             # All we need to do is iterate over the returned generator in
             # order to complete all the requests.  There's really nothing to
@@ -134,12 +141,5 @@ def get_files(downloads, callback=None):
                 raise FileNotFoundError
             # Check all the signed files.  First, grab the blacklists file if
             # there is one available.
-    except:
-        # If any exceptions occur, we want to delete files that downloaded
-        # successfully.  The ones that failed will already have been deleted.
-        for src, dst in downloads:
-            try:
-                os.remove(dst)
-            except FileNotFoundError:
-                pass
-        raise
+        # Everything's fine so do *not* delete the downloaded files.
+        stack.pop_all()

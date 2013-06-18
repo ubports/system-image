@@ -21,6 +21,7 @@ __all__ = [
     'as_timedelta',
     'as_utcdatetime',
     'atomic',
+    'safe_remove',
     'temporary_directory',
     ]
 
@@ -31,10 +32,18 @@ import json
 import shutil
 import tempfile
 
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timedelta, timezone
 from importlib import import_module
 from resolver.bag import Bag
+
+
+def safe_remove(path):
+    """Like os.remove() but don't complain if the file doesn't exist."""
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
 
 
 @contextmanager
@@ -52,17 +61,13 @@ def atomic(dst, encoding='utf-8'):
     """
     directory = os.path.dirname(dst)
     fd, temp = tempfile.mkstemp(dir=directory)
-    try:
+    with ExitStack() as stack:
+        stack.callback(safe_remove, temp)
         os.close(fd)
         mode = 'wb' if encoding is None else 'wt'
         with open(temp, mode, encoding=encoding) as fp:
             yield fp
         os.rename(temp, dst)
-    finally:
-        try:
-            os.remove(temp)
-        except FileNotFoundError:
-            pass
 
 
 # This is stolen directly out of lazr.config.  We can do that since we own

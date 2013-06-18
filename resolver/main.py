@@ -21,6 +21,7 @@ __all__ = [
     ]
 
 
+import sys
 import logging
 import argparse
 
@@ -67,10 +68,19 @@ def main():
     initialize(verbosity=args.verbose)
     log = logging.getLogger('resolver')
 
-    # Run the state machine to conclusion.
+    # Run the state machine to conclusion.  Suppress all exceptions, but note
+    # that the state machine will log them.  If an exception occurs, exit with
+    # a non-zero status.
     log.info('running state machine')
-    list(State())
+    try:
+        list(State())
+    except KeyboardInterrupt:
+        return 0
+    except:
+        return 1
+    else:
+        return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
