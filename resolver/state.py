@@ -40,6 +40,10 @@ log = logging.getLogger('resolver')
 COMMASPACE = ', '
 
 
+def _download_feedback(src, dst, bytes_read):
+    log.debug('read from %s: %s bytes', src, bytes_read)
+
+
 class State:
     def __init__(self):
         # Variables which manage state transitions.
@@ -250,7 +254,8 @@ class State:
         keyrings = [config.gpg.image_signing]
         if self.device_keyring is not None:
             keyrings.append(self.device_keyring)
-        get_files(downloads)
+        # As an added debugging aid, provide feedback for the download.
+        get_files(downloads, _download_feedback)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets
             # raised.  If the exception doesn't get raised, then everything's

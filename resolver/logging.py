@@ -25,11 +25,12 @@ import logging
 
 def initialize(*, verbosity=0):
     """Initialize the loggers."""
-    level = {0: logging.ERROR,
-             1: logging.INFO,
-             2: logging.DEBUG,
-             3: logging.CRITICAL,
-             }.get(verbosity, logging.ERROR)
+    level = {
+        0: logging.ERROR,
+        1: logging.INFO,
+        2: logging.DEBUG,
+        3: logging.CRITICAL,
+        }.get(verbosity, logging.ERROR)
     logging.basicConfig(level=level,
                         datefmt='%b %d %H:%M:%S %Y',
                         format='%(asctime)s (%(process)d) %(message)s')
