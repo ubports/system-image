@@ -289,3 +289,19 @@ class TestState(unittest.TestCase):
         next(state)
         next(state)
         self.assertRaises(SignatureError, next, state)
+
+    @testable_configuration
+    def test_keyrings_copied_to_upgrader_paths(self):
+        # The following keyrings get copied to system paths that the upgrader
+        # consults:
+        # * blacklist.tar.xz{,.asc}    - data partition (if one exists)
+        # * system-image.tar.xz{,.asc} - cache partition
+        # * signing.tar.xz{,.asc}      - cache partition
+        # * device.tar.xz{,.asc}       - cache partition (if one exists)
+        #
+        # In this case, only the archive-master key is pre-loaded.  All the
+        # other keys are downloaded and there will be both a blacklist and
+        # device keyring.  The four signed keyring tar.xz files and their
+        # signatures end up in the proper location after the state machine
+        # runs to completion.
+        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))

@@ -125,8 +125,8 @@ class TestKeyrings(unittest.TestCase):
 
     @testable_configuration
     def test_archive_image_masters_image_device_signing(self):
-        # In addition to the above, there is also a device/vendor signing key
-        # which downloaded files can also be signed with.  This key is also
+        # In addition to the above, there is also a device signing key which
+        # downloaded files can also be signed with.  This key is also
         # persistent, mandatory, and shipped.  It is optional, so doesn't need
         # to exist, but it is also updated regularly and expires after one
         # month.
@@ -135,7 +135,7 @@ class TestKeyrings(unittest.TestCase):
             config.gpg.archive_master,
             config.gpg.image_master,
             config.gpg.image_signing,
-            config.gpg.vendor_signing,
+            config.gpg.device_signing,
             ]
         with Context(*keyrings) as ctx:
             # The context now knows about two keys.
@@ -202,37 +202,37 @@ class TestSignature(unittest.TestCase):
             self.assertTrue(ctx.verify(channels_json + '.asc', channels_json))
 
     def test_bad_signature(self):
-        # In this case, the file is signed with the vendor key, so it will not
+        # In this case, the file is signed with the device key, so it will not
         # verify against the image signing key.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
         copy('channels_01.json', self._tmpdir, dst=channels_json)
-        sign(channels_json, 'vendor-signing.gpg')
+        sign(channels_json, 'device-signing.gpg')
         # Verify the signature with the pubkey.
         keyring = test_data_path('image-signing.gpg')
         with Context(keyring) as ctx:
             self.assertFalse(ctx.verify(channels_json + '.asc', channels_json))
 
     def test_good_signature_with_multiple_keyrings(self):
-        # Like above, the file is signed with the vendor key, but this time we
-        # include both the image signing and vendor signing pubkeys.
+        # Like above, the file is signed with the device key, but this time we
+        # include both the image signing and device signing pubkeys.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
         copy('channels_01.json', self._tmpdir, dst=channels_json)
-        sign(channels_json, 'vendor-signing.gpg')
+        sign(channels_json, 'device-signing.gpg')
         # Verify the signature with the pubkey.
         keyring_1 = test_data_path('image-signing.gpg')
-        keyring_2 = test_data_path('vendor-signing.gpg')
+        keyring_2 = test_data_path('device-signing.gpg')
         with Context(keyring_1, keyring_2) as ctx:
             self.assertTrue(ctx.verify(channels_json + '.asc', channels_json))
 
     def test_bad_signature_with_multiple_keyrings(self):
         # The file is signed with the image master key, but it won't verify
-        # against the image signing and vendor signing pubkeys.
+        # against the image signing and device signing pubkeys.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
         copy('channels_01.json', self._tmpdir, dst=channels_json)
         sign(channels_json, 'image-master.gpg')
         # Verify the signature with the pubkey.
         keyring_1 = test_data_path('image-signing.gpg')
-        keyring_2 = test_data_path('vendor-signing.gpg')
+        keyring_2 = test_data_path('device-signing.gpg')
         with Context(keyring_1, keyring_2) as ctx:
             self.assertFalse(ctx.verify(channels_json + '.asc', channels_json))
 
@@ -241,35 +241,35 @@ class TestSignature(unittest.TestCase):
         channels_json = os.path.join(self._tmpdir, 'channels.json')
         copy('channels_01.json', self._tmpdir, dst=channels_json)
         copy('channels_01.json', self._tmpdir, dst=channels_json + '.asc')
-        keyring = test_data_path('vendor-signing.gpg')
+        keyring = test_data_path('device-signing.gpg')
         with Context(keyring) as ctx:
             self.assertFalse(ctx.verify(channels_json + '.asc', channels_json))
 
     def test_good_signature_not_in_blacklist(self):
-        # We sign the file with the vendor signing key, and verify it against
-        # the imaging signing and vendor signing keyrings.  In this case
+        # We sign the file with the device signing key, and verify it against
+        # the imaging signing and device signing keyrings.  In this case
         # though, we also have a blacklist keyring, but none of the keyids in
         # the blacklist match the keyid that the file was signed with.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
         copy('channels_01.json', self._tmpdir, dst=channels_json)
-        sign(channels_json, 'vendor-signing.gpg')
+        sign(channels_json, 'device-signing.gpg')
         # Verify the signature with the pubkey.
         keyring_1 = test_data_path('image-signing.gpg')
-        keyring_2 = test_data_path('vendor-signing.gpg')
+        keyring_2 = test_data_path('device-signing.gpg')
         # We're letting the image master pubkey stand in for a blacklist.
         blacklist = test_data_path('image-master.gpg')
         with Context(keyring_1, keyring_2, blacklist=blacklist) as ctx:
             self.assertTrue(ctx.verify(channels_json + '.asc', channels_json))
 
     def test_bad_signature_in_blacklist(self):
-        # Like above, but we put the vendor signing key id in the blacklist.
+        # Like above, but we put the device signing key id in the blacklist.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
         copy('channels_01.json', self._tmpdir, dst=channels_json)
-        sign(channels_json, 'vendor-signing.gpg')
+        sign(channels_json, 'device-signing.gpg')
         # Verify the signature with the pubkey.
         keyring_1 = test_data_path('image-signing.gpg')
-        keyring_2 = test_data_path('vendor-signing.gpg')
-        # We're letting the vendor signing pubkey stand in for a blacklist.
-        blacklist = test_data_path('vendor-signing.gpg')
+        keyring_2 = test_data_path('device-signing.gpg')
+        # We're letting the device signing pubkey stand in for a blacklist.
+        blacklist = test_data_path('device-signing.gpg')
         with Context(keyring_1, keyring_2, blacklist=blacklist) as ctx:
             self.assertFalse(ctx.verify(channels_json + '.asc', channels_json))

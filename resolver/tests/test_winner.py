@@ -172,13 +172,13 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_remote_keyring(
-            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            'device-signing.gpg', 'image-signing.gpg', dict(type='device'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
         # The index.json file and all the downloadable files must now be
         # signed with the device key.
         sign(os.path.join(self._serverdir, self._indexpath),
-             'vendor-signing.gpg')
-        self._signfiles('vendor-signing.gpg')
+             'device-signing.gpg')
+        self._signfiles('device-signing.gpg')
         # Set the build number.
         with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
             print(20120100, file=fp)
@@ -217,10 +217,10 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_remote_keyring(
-            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            'device-signing.gpg', 'image-signing.gpg', dict(type='device'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
         sign(os.path.join(self._serverdir, self._indexpath),
-             'vendor-signing.gpg')
+             'device-signing.gpg')
         # All the downloadable files are now signed with the image signing key.
         self._signfiles('image-signing.gpg')
         # Set the build number.
@@ -261,10 +261,10 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_remote_keyring(
-            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            'device-signing.gpg', 'image-signing.gpg', dict(type='device'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
         sign(os.path.join(self._serverdir, self._indexpath),
-             'vendor-signing.gpg')
+             'device-signing.gpg')
         # All the downloadable files are now signed with a bogus key.
         self._signfiles('spare.gpg')
         # Set the build number.

@@ -48,8 +48,8 @@ class TestConfiguration(unittest.TestCase):
                          '/etc/phablet/image-master.gpg')
         self.assertEqual(config.gpg.image_signing,
                          '/var/lib/phablet/image-signing.gpg')
-        self.assertEqual(config.gpg.vendor_signing,
-                         '/var/lib/phablet/vendor-signing.gpg')
+        self.assertEqual(config.gpg.device_signing,
+                         '/var/lib/phablet/device-signing.gpg')
 
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
@@ -74,8 +74,8 @@ class TestConfiguration(unittest.TestCase):
                          '/etc/phablet/image-master.gpg')
         self.assertEqual(config.gpg.image_signing,
                          '/var/lib/phablet/image-signing.gpg')
-        self.assertEqual(config.gpg.vendor_signing,
-                         '/var/lib/phablet/vendor-signing.gpg')
+        self.assertEqual(config.gpg.device_signing,
+                         '/var/lib/phablet/device-signing.gpg')
 
     def test_nonstandard_ports(self):
         # config_02.ini has non-standard http and https ports.

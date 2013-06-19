@@ -135,10 +135,10 @@ class TestDownloadIndex(unittest.TestCase):
             'channels_03.json', 'channels.json', 'image-signing.gpg')
         # index_10.json path B will win, with no bootme flags.
         self._copysign(
-            'index_10.json', 'stable/nexus7/index.json', 'vendor-signing.gpg')
+            'index_10.json', 'stable/nexus7/index.json', 'device-signing.gpg')
         setup_keyrings()
         setup_remote_keyring(
-            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            'device-signing.gpg', 'image-signing.gpg', dict(type='device'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
         # Since there is a device keyring, four state changes are necessary to
         # get us an index (blacklist -> channels -> index).
@@ -162,7 +162,7 @@ class TestDownloadIndex(unittest.TestCase):
             'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
         setup_keyrings()
         setup_remote_keyring(
-            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            'device-signing.gpg', 'image-signing.gpg', dict(type='device'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
         # Since there is a device keyring, four state changes are necessary to
         # get us an index (blacklist -> channels -> index).
@@ -185,7 +185,7 @@ class TestDownloadIndex(unittest.TestCase):
             'index_10.json', 'stable/nexus7/index.json', 'spare.gpg')
         setup_keyrings()
         setup_remote_keyring(
-            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            'device-signing.gpg', 'image-signing.gpg', dict(type='device'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
         # Since there is a device keyring, four state changes are necessary to
         # get us an index (blacklist -> channels -> index).
@@ -201,13 +201,13 @@ class TestDownloadIndex(unittest.TestCase):
             'channels_03.json', 'channels.json', 'image-signing.gpg')
         # This will be signed by a keyring that is not the device keyring.
         self._copysign(
-            'index_10.json', 'stable/nexus7/index.json', 'vendor-signing.gpg')
+            'index_10.json', 'stable/nexus7/index.json', 'device-signing.gpg')
         setup_keyrings()
         setup_remote_keyring(
-            'vendor-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            'device-signing.gpg', 'image-signing.gpg', dict(type='device'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
         setup_remote_keyring(
-            'vendor-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
+            'device-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         # Since there is a device keyring, four state changes are necessary to
         # get us an index (blacklist -> channels -> index).

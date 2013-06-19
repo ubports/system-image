@@ -210,7 +210,7 @@ def setup_keyrings():
     copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
     copy('image-master.gpg', os.path.dirname(config.gpg.image_master))
     copy('image-signing.gpg', os.path.dirname(config.gpg.image_signing))
-    copy('vendor-signing.gpg', os.path.dirname(config.gpg.vendor_signing))
+    copy('device-signing.gpg', os.path.dirname(config.gpg.device_signing))
 
 
 def setup_remote_keyring(keyring_src, signing_keyring, json_data, dst):
