@@ -170,8 +170,8 @@ class TestCandidateDownloads(unittest.TestCase):
         self.assertEqual([image.description for image in winner],
                          ['Full B', 'Delta B.1', 'Delta B.2'])
         downloads = get_downloads(winner)
-        urls = set(url for url, path in downloads)
-        paths = set(path for url, path in downloads)
+        urls = set(url for url, path, size in downloads)
+        paths = set(path for url, path, size in downloads)
         self.maxDiff = None
         self.assertEqual({urlsplit(url).path for url in urls},
                          set([
@@ -227,8 +227,8 @@ class TestCandidateDownloads(unittest.TestCase):
         self.assertEqual([image.description for image in winner],
                          ['Full B', 'Delta B.1', 'Delta B.2'])
         downloads = get_downloads(winner)
-        urls = set(url for url, path in downloads)
-        paths = set(path for url, path in downloads)
+        urls = set(url for url, path, size in downloads)
+        paths = set(path for url, path, size in downloads)
         self.maxDiff = None
         self.assertEqual({urlsplit(url).path for url in urls},
                          set([
