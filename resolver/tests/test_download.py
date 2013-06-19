@@ -74,6 +74,7 @@ class TestDownloads(unittest.TestCase):
 
     @testable_configuration
     def test_download_with_callback(self):
+        # Downloading calls the callback with some arguments.
         results = []
         def callback(*args):
             results.append(args)
@@ -97,6 +98,25 @@ class TestDownloads(unittest.TestCase):
             urljoin(config.service.http_base, 'channels_01.json'): 456,
             urljoin(config.service.http_base, 'index_01.json'): 99,
             })
+
+    @testable_configuration
+    def test_download_with_callback_and_sizes(self):
+        # Now we're providing a sequence of expected sizes of the source
+        # files.  This will get passed to the callback so that more useful
+        # progress can be provided.
+        results = {}
+        def callback(src, dst, bytes_read, size):
+            # Record all the sizes here.  Later, we'll assert that they're all
+            # the same and of the right value.
+            results.setdefault(dst, []).append(size)
+        get_files(self._abspathify([
+            ('channels_01.json', 'channels.json'),
+            ('index_01.json', 'index.json'),
+            ]), callback=callback, sizes=(456, 99))
+        self.assertEqual(len(results), 2)
+        for dst, sizes in results.items():
+            first_size = sizes[0]
+            self.assertTrue(all(size == first_size for size in sizes))
 
     @testable_configuration
     @patch('resolver.download.CHUNK_SIZE', 10)

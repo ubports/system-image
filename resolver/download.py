@@ -26,7 +26,6 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from datetime import timedelta
-from functools import partial
 from resolver.config import config
 from resolver.helpers import atomic, safe_remove
 from ssl import CertificateError
@@ -58,10 +57,9 @@ class Downloader:
         return False
 
 
-def _get_one_file(download, callback=None):
-    url, dst = download
+def _get_one_file(args):
+    url, dst, size, callback = args
     bytes_read = 0
-    log.debug('download: %s -> %s', url, dst)
     with Downloader(url) as response, atomic(dst, encoding=None) as out:
         while True:
             chunk = response.read(CHUNK_SIZE)
@@ -70,10 +68,13 @@ def _get_one_file(download, callback=None):
             bytes_read += len(chunk)
             out.write(chunk)
             if callback is not None:
-                callback(url, dst, bytes_read)
+                args = [url, dst, bytes_read]
+                if size is not None:
+                    args.append(size)
+                callback(*args)
 
 
-def get_files(downloads, callback=None):
+def get_files(downloads, callback=None, sizes=None):
     """Download a bunch of files concurrently.
 
     The files named in `downloads` are downloaded in separate threads,
@@ -90,18 +91,37 @@ def get_files(downloads, callback=None):
 
     :param downloads: A list of 2-tuples where the first item is the url to
         download, and the second item is the destination file.
+    :type downloads: List of 2-tuples.
     :param callback: If given, a function that's called every so often in all
         the download threads - so it must be prepared to be called
         asynchronously.  You don't have to worry about thread safety though
         because of the GIL.
-    :type callback: A function that takes three arguments: the full source url
-        including the base, the absolute path of the destination, and the
-        total number of bytes read so far from this url.
+    :type callback: A function that takes three (optionally four) arguments:
+        the full source url including the base, the absolute path of the
+        destination, and the total number of bytes read so far from this url.
+        The optional fourth argument is the total size of the source file, and
+        is only present if the `sizes` argument was given (see below).
+    :param sizes: Optional sequence of sizes of the files being downloaded.
+        If given, then the callback is called with a fourth argument, which is
+        the size of the source file.  `sizes` is unused if there is no
+        callback; this option is primarily for better progress feedback.
+    :param sizes: Sequence of integers which must be the same length as the
+        number of arguments given in `download`.
     :raises: FileNotFoundError if any download error occurred.  In this case,
         all download files are deleted.
     """
+    # Sanity check arguments.
+    if sizes is not None:
+        assert len(sizes) == len(downloads), (
+            'sizes argument is different length than downloads')
+    else:
+        sizes = [None] * len(downloads)
+    # Repack the downloads so that the _get_one_file() function will be called
+    # with the proper set of arguments.
+    args = [(url, dst, size, callback)
+            for (url, dst), size
+            in zip(downloads, sizes)]
     # Download all the files, blocking until we get them all.
-    function = partial(_get_one_file, callback=callback)
     if config.service.timeout <= timedelta():
         # E.g. -1s or 0s or 0d etc.
         timeout = None
@@ -136,7 +156,7 @@ def get_files(downloads, callback=None):
             # stash any existing files away and restore them if the download
             # fails, rather than os.remove()'ing them.
             try:
-                list(tpe.map(function, downloads, timeout=timeout))
+                list(tpe.map(_get_one_file, args, timeout=timeout))
             except (HTTPError, URLError, CertificateError):
                 raise FileNotFoundError
             # Check all the signed files.  First, grab the blacklists file if

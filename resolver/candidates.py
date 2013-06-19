@@ -144,13 +144,15 @@ def get_downloads(winner):
             downloads.append((
                 urljoin(config.service.http_base, filerec.path),
                 os.path.join(config.system.tempdir,
-                             os.path.basename(filerec.path))
+                             os.path.basename(filerec.path)),
+                filerec.size,
                 ))
             # Add the signature file's url and local path.
             downloads.append((
                 urljoin(config.service.http_base, filerec.signature),
                 os.path.join(config.system.tempdir,
-                             os.path.basename(filerec.signature))
+                             os.path.basename(filerec.signature)),
+                filerec.size,
                 ))
         if getattr(image, 'bootme', False):
             break

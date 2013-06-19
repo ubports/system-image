@@ -21,6 +21,7 @@ __all__ = [
 
 
 import os
+import math
 import logging
 
 from collections import deque
@@ -40,8 +41,12 @@ log = logging.getLogger('resolver')
 COMMASPACE = ', '
 
 
-def _download_feedback(src, dst, bytes_read):
-    log.debug('read from %s: %s bytes', src, bytes_read)
+def _download_feedback(url, dst, bytes_read, size):
+    digits = 1 if not size else math.floor(math.log10(abs(size))) + 1
+    fmt = '[{{:{0}d}}/{{:>{0}}}]'.format(digits)
+    log.debug('download %s %s -> %s',
+              fmt.format(bytes_read, '?' if size is None else size),
+              url, dst)
 
 
 class State:
@@ -245,8 +250,15 @@ class State:
     def _download_files(self):
         """Download and verify all the winning upgrade path's files."""
         downloads = get_downloads(self.winner)
-        local_files = set(dst for url, dst in downloads
-                          if os.path.splitext(dst)[1] != '.asc')
+        # Re-pack for arguments to get_files.
+        sizes = []
+        args = []
+        local_files = set()
+        for url, dst, size in downloads:
+            sizes.append(size)
+            args.append((url, dst))
+            if os.path.splitext(dst)[1] != '.asc':
+                local_files.add(dst)
         log.info('Files to download: %s', COMMASPACE.join(sorted(local_files)))
         # Now, verify the signatures of all the downloaded files.  If there is
         # a device key, the files can be signed by that or the imaging signing
@@ -255,7 +267,7 @@ class State:
         if self.device_keyring is not None:
             keyrings.append(self.device_keyring)
         # As an added debugging aid, provide feedback for the download.
-        get_files(downloads, _download_feedback)
+        get_files(args, _download_feedback, sizes)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets
             # raised.  If the exception doesn't get raised, then everything's
