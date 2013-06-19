@@ -72,8 +72,9 @@ class TestState(unittest.TestCase):
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         # Here's the new image signing key.
         setup_remote_keyring(
-            'image-signing.gpg', 'image-master.gpg', dict(type='signing'),
-            os.path.join(self._serverdir, 'gpg', 'signing.tar.xz'))
+            'image-signing.gpg', 'image-master.gpg',
+            dict(type='image-signing'),
+            os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
         # Run through the state machine twice so that we get the blacklist and
         # the channels.json file.  Since the channels.json file will not be
         # signed correctly, new state transitions will be added to re-aquire a
@@ -109,8 +110,8 @@ class TestState(unittest.TestCase):
         # Make the new image signing key bogus by not signing it with the
         # image master key.
         setup_remote_keyring(
-            'image-signing.gpg', 'spare.gpg', dict(type='signing'),
-            os.path.join(self._serverdir, 'gpg', 'signing.tar.xz'))
+            'image-signing.gpg', 'spare.gpg', dict(type='image-signing'),
+            os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
         # Run through the state machine twice so that we get the blacklist and
         # the channels.json file.  Since the channels.json file will not be
         # signed correctly, new state transitions will be added to re-aquire a
@@ -143,8 +144,8 @@ class TestState(unittest.TestCase):
             'spare.gpg', 'spare.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         setup_remote_keyring(
-            'spare.gpg', 'archive-master.gpg', dict(type='system-image'),
-            os.path.join(self._serverdir, 'gpg', 'system-image.tar.xz'))
+            'spare.gpg', 'archive-master.gpg', dict(type='image-master'),
+            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
         # Run the state machine once to grab the blacklist.  This should fail
         # with a signature error (internally).  There will be no blacklist.
         state = State()
@@ -176,8 +177,8 @@ class TestState(unittest.TestCase):
             'spare.gpg', 'spare.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         setup_remote_keyring(
-            'spare.gpg', 'spare.gpg', dict(type='system-image'),
-            os.path.join(self._serverdir, 'gpg', 'system-image.tar.xz'))
+            'spare.gpg', 'spare.gpg', dict(type='image-master'),
+            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
         # Run the state machine once to grab the blacklist.  This should fail
         # with a signature error (internally).  There will be no blacklist.
         state = State()
@@ -202,8 +203,8 @@ class TestState(unittest.TestCase):
         # Put a system image master key on the server.
         setup_remote_keyring(
             'image-master.gpg', 'archive-master.gpg',
-            dict(type='system-image'),
-            os.path.join(self._serverdir, 'gpg', 'system-image.tar.xz'))
+            dict(type='image-master'),
+            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
         # Run the state machine once to get the blacklist.  This should
         # download the system image master key, which will be signed against
         # the archive master.  Prove that the image master doesn't exist yet.
@@ -221,8 +222,8 @@ class TestState(unittest.TestCase):
         # Put a system image master key on the server.
         setup_remote_keyring(
             'image-master.gpg', 'archive-master.gpg',
-            dict(type='system-image'),
-            os.path.join(self._serverdir, 'gpg', 'system-image.tar.xz'))
+            dict(type='image-master'),
+            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
         setup_remote_keyring(
             'spare.gpg', 'spare.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
@@ -242,13 +243,13 @@ class TestState(unittest.TestCase):
         # Put a system image master key on the server.
         setup_remote_keyring(
             'image-master.gpg', 'archive-master.gpg',
-            dict(type='system-image'),
-            os.path.join(self._serverdir, 'gpg', 'system-image.tar.xz'))
+            dict(type='image-master'),
+            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
         # Put an image signing key on the server.
         setup_remote_keyring(
             'image-signing.gpg', 'image-master.gpg',
-            dict(type='signing'),
-            os.path.join(self._serverdir, 'gpg', 'signing.tar.xz'))
+            dict(type='image-signing'),
+            os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
         sign(self._channels_path, 'image-signing.gpg')
         # Run the state machine twice.  The first time downloads the
         # blacklist, which triggers a download of the image master key.  The
@@ -281,8 +282,8 @@ class TestState(unittest.TestCase):
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         setup_remote_keyring(
             'image-master.gpg', 'archive-master.gpg',
-            dict(type='system-image'),
-            os.path.join(self._serverdir, 'gpg', 'system-image.tar.xz'))
+            dict(type='image-master'),
+            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
         # Run the state machine three times:
         # blacklist -(sig fail)-> get master -> blacklist (sig fail)
         state = State()
@@ -294,10 +295,10 @@ class TestState(unittest.TestCase):
     def test_keyrings_copied_to_upgrader_paths(self):
         # The following keyrings get copied to system paths that the upgrader
         # consults:
-        # * blacklist.tar.xz{,.asc}    - data partition (if one exists)
-        # * system-image.tar.xz{,.asc} - cache partition
-        # * signing.tar.xz{,.asc}      - cache partition
-        # * device.tar.xz{,.asc}       - cache partition (if one exists)
+        # * blacklist.tar.xz{,.asc}      - data partition (if one exists)
+        # * image-master.tar.xz{,.asc}   - cache partition
+        # * image-signing.tar.xz{,.asc}  - cache partition
+        # * device-signing.tar.xz{,.asc} - cache partition (if one exists)
         #
         # In this case, only the archive-master key is pre-loaded.  All the
         # other keys are downloaded and there will be both a blacklist and

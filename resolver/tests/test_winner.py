@@ -172,7 +172,8 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_remote_keyring(
-            'device-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            'device-signing.gpg', 'image-signing.gpg',
+            dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
         # The index.json file and all the downloadable files must now be
         # signed with the device key.
@@ -217,7 +218,8 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_remote_keyring(
-            'device-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            'device-signing.gpg', 'image-signing.gpg',
+            dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
         sign(os.path.join(self._serverdir, self._indexpath),
              'device-signing.gpg')
@@ -261,7 +263,8 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_remote_keyring(
-            'device-signing.gpg', 'image-signing.gpg', dict(type='device'),
+            'device-signing.gpg', 'image-signing.gpg',
+            dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
         sign(os.path.join(self._serverdir, self._indexpath),
              'device-signing.gpg')

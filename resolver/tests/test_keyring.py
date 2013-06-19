@@ -118,13 +118,12 @@ class TestKeyring(unittest.TestCase):
         # Make sure there are no hardcoded references to the blacklist keyring.
         setup_keyrings()
         setup_remote_keyring(
-            'spare.gpg', 'image-signing.gpg',
-            dict(type='device'),
+            'spare.gpg', 'image-signing.gpg', dict(type='device-signing'),
             os.path.join(
                 self._serverdir, 'gpg', 'stable', 'nexus7', 'device.tar.xz'))
         url = 'gpg/{}/{}/device.tar.xz'.format(
             config.system.channel, config.system.device)
-        dst = get_keyring('device', url, url + '.asc', 'image_signing')
+        dst = get_keyring('device-signing', url, url + '.asc', 'image_signing')
         with Context(dst) as ctx:
             self.assertEqual(ctx.fingerprints,
                              set(['94BE2CECF8A5AF9F3A10E2A6526B7016C3D2FB44']))

@@ -78,9 +78,9 @@ class State:
         # Let any exceptions in grabbing the image master key percolate up.
         if not os.path.exists(config.gpg.image_master):
             log.info('No image master key found, downloading')
-            url = 'gpg/system-image.tar.xz'
+            url = 'gpg/image-master.tar.xz'
             dst = get_keyring(
-                'system-image', url, url + '.asc', 'archive_master')
+                'image-master', url, url + '.asc', 'archive_master')
             os.rename(dst, config.gpg.image_master)
         # The only way to know whether there is a blacklist or not is to try
         # to download it.  If it fails, there isn't one.
@@ -146,9 +146,9 @@ class State:
         # better already have an up-to-date copy of.
         if not os.path.exists(config.gpg.image_signing):
             log.info('No image signing key found, downloading')
-            url = 'gpg/signing.tar.xz'
+            url = 'gpg/image-signing.tar.xz'
             dst = get_keyring(
-                'signing', url, url + '.asc', 'image_master')
+                'image-signing', url, url + '.asc', 'image_master')
             os.rename(dst, config.gpg.image_signing)
         channels_url = urljoin(config.service.https_base, 'channels.json')
         channels_path = os.path.join(config.system.tempdir, 'channels.json')
@@ -203,7 +203,7 @@ class State:
         asc_url = urljoin(config.service.https_base, keyring.signature)
         log.info('getting device keyring: %s', keyring_url)
         self.device_keyring = get_keyring(
-            'device', keyring_url, asc_url, 'image_signing',
+            'device-signing', keyring_url, asc_url, 'image_signing',
             self.blacklist)
         # We don't need to set the next action because it's already been done.
 
@@ -278,12 +278,12 @@ class State:
 
         If there isn't one, throw a SignatureError.
         """
-        url = urljoin(config.service.https_base, 'gpg/system-image.tar.xz')
+        url = urljoin(config.service.https_base, 'gpg/image-master.tar.xz')
         try:
             log.info('Getting the image master key')
             # The image signing key must be signed by the archive master.
             path = get_keyring(
-                'system-image', url, url + '.asc',
+                'image-master', url, url + '.asc',
                 'archive_master', self.blacklist)
         except (FileNotFoundError, SignatureError, KeyringError):
             # No valid image master key could be found.  Don't chain this
@@ -301,11 +301,12 @@ class State:
 
         If there isn't one, throw a SignatureError.
         """
-        url = urljoin(config.service.https_base, 'gpg/signing.tar.xz')
+        url = urljoin(config.service.https_base, 'gpg/image-signing.tar.xz')
         try:
             # The image signing key must be signed by the image master.
             path = get_keyring(
-                'signing', url, url + '.asc', 'image_master', self.blacklist)
+                'image-signing', url, url + '.asc', 'image_master',
+                self.blacklist)
         except (FileNotFoundError, SignatureError, KeyringError):
             # No valid image signing key could be found.  Don't chain this
             # exception.
