@@ -109,6 +109,8 @@ def get_files(downloads, callback=None, sizes=None):
         number of arguments given in `download`.
     :raises: FileNotFoundError if any download error occurred.  In this case,
         all download files are deleted.
+
+    The API is a little funky for backward compatibility reasons.
     """
     # Sanity check arguments.
     if sizes is not None:
