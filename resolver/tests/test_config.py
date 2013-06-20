@@ -32,16 +32,19 @@ from resolver.tests.helpers import test_data_path, testable_configuration
 class TestConfiguration(unittest.TestCase):
     def test_defaults(self):
         config = Configuration()
+        # [service]
         self.assertEqual(config.service.base, 'phablet.stgraber.org')
         self.assertEqual(config.service.http_base,
                          'http://phablet.stgraber.org')
         self.assertEqual(config.service.https_base,
                          'https://phablet.stgraber.org')
-        self.assertEqual(config.system.tempdir,
-                         os.path.expanduser('~/.cache/phablet'))
+        # [system]
+        self.assertEqual(config.system.tempdir, '/tmp/phablet')
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
+        # [score]
         self.assertEqual(config.score.scorer, WeightedScorer)
+        # [gpg]
         self.assertEqual(config.gpg.archive_master,
                          '/etc/phablet/archive-master.gpg')
         self.assertEqual(config.gpg.image_master,
@@ -50,6 +53,10 @@ class TestConfiguration(unittest.TestCase):
                          '/var/lib/phablet/image-signing.gpg')
         self.assertEqual(config.gpg.device_signing,
                          '/var/lib/phablet/device-signing.gpg')
+        # [updater]
+        self.assertEqual(config.updater.cache_partition, '/android/cache')
+        self.assertEqual(config.updater.data_partition,
+                         '/var/lib/phablet/updater')
 
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
@@ -57,6 +64,7 @@ class TestConfiguration(unittest.TestCase):
         ini_file = test_data_path('config_01.ini')
         config = Configuration()
         config.load(ini_file)
+        # [service]
         self.assertEqual(config.service.base, 'phablet.example.com')
         self.assertEqual(config.service.http_base,
                          'http://phablet.example.com')
@@ -64,10 +72,13 @@ class TestConfiguration(unittest.TestCase):
                          'https://phablet.example.com')
         self.assertEqual(config.service.threads, 5)
         self.assertEqual(config.service.timeout, timedelta(seconds=10))
+        # [system]
         self.assertEqual(config.system.tempdir, '/var/tmp/resolver')
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
+        # [score]
         self.assertEqual(config.score.scorer, WeightedScorer)
+        # [gpg]
         self.assertEqual(config.gpg.archive_master,
                          '/etc/phablet/archive-master.gpg')
         self.assertEqual(config.gpg.image_master,
@@ -76,6 +87,10 @@ class TestConfiguration(unittest.TestCase):
                          '/var/lib/phablet/image-signing.gpg')
         self.assertEqual(config.gpg.device_signing,
                          '/var/lib/phablet/device-signing.gpg')
+        # [updater]
+        self.assertEqual(config.updater.cache_partition, '/android/cache')
+        self.assertEqual(config.updater.data_partition,
+                         '/var/lib/phablet/updater')
 
     def test_nonstandard_ports(self):
         # config_02.ini has non-standard http and https ports.

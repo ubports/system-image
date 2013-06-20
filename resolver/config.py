@@ -67,6 +67,7 @@ class Configuration:
                                           tempdir=expand_path),
                           **parser['system'])
         self.gpg = Bag(**parser['gpg'])
+        self.updater = Bag(**parser['updater'])
         self.score = Bag(converters=dict(scorer=as_object),
                          **parser['score'])
 

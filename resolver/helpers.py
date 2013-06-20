@@ -21,6 +21,7 @@ __all__ = [
     'as_timedelta',
     'as_utcdatetime',
     'atomic',
+    'makedirs',
     'safe_remove',
     'temporary_directory',
     ]
@@ -171,3 +172,10 @@ def temporary_directory(*args, **kws):
         yield tempdir
     finally:
         shutil.rmtree(tempdir)
+
+
+def makedirs(dir):
+    try:
+        os.makedirs(dir, exist_ok=True)
+    except FileExistsError:
+        pass

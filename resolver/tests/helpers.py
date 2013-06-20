@@ -20,7 +20,6 @@ __all__ = [
     'get_channels',
     'get_index',
     'make_http_server',
-    'makedirs',
     'setup_keyrings',
     'setup_remote_keyring',
     'sign',
@@ -43,7 +42,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from resolver.channel import Channels
 from resolver.config import Configuration, config
-from resolver.helpers import atomic, temporary_directory
+from resolver.helpers import atomic, makedirs, temporary_directory
 from resolver.index import Index
 from threading import Thread
 from unittest.mock import patch
@@ -192,13 +191,6 @@ def sign(filename, pubkey_ring):
         sfp.write(signed_data.data)
 
 
-def makedirs(dir):
-    try:
-        os.makedirs(dir, exist_ok=True)
-    except FileExistsError:
-        pass
-
-
 def copy(filename, todir, dst=None):
     src = test_data_path(filename)
     dst = os.path.join(todir, filename if dst is None else dst)
@@ -206,11 +198,24 @@ def copy(filename, todir, dst=None):
     shutil.copy(src, dst)
 
 
-def setup_keyrings():
-    copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
-    copy('image-master.gpg', os.path.dirname(config.gpg.image_master))
-    copy('image-signing.gpg', os.path.dirname(config.gpg.image_signing))
-    copy('device-signing.gpg', os.path.dirname(config.gpg.device_signing))
+def setup_keyrings(*keyrings):
+    """Copy the named keyrings to the right place.
+
+    Also, set up the .xz.tar and .xz.tar.asc files which must exist in order
+    to be copied to the updater partitions.
+
+    :param keyrings: When given, names the keyrings to set up.  When not
+        given, all keyrings are set up.  Each entry should be the name of the
+        configuration variable inside the `config.gpg` namespace,
+        e.g. 'archive_master'.
+    """
+    if len(keyrings) == 0:
+        keyrings = ('archive_master', 'image_master', 'image_signing',
+                    'device_signing')
+    for keyring in keyrings:
+        path = getattr(config.gpg, keyring)
+        head, tail = os.path.split(path)
+        copy(tail, head)
 
 
 def setup_remote_keyring(keyring_src, signing_keyring, json_data, dst):
