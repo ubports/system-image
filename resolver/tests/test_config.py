@@ -37,8 +37,7 @@ class TestConfiguration(unittest.TestCase):
                          'http://phablet.stgraber.org')
         self.assertEqual(config.service.https_base,
                          'https://phablet.stgraber.org')
-        self.assertEqual(config.system.tempdir,
-                         os.path.expanduser('~/.cache/phablet'))
+        self.assertEqual(config.system.tempdir, '/tmp/phablet')
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
         self.assertEqual(config.score.scorer, WeightedScorer)

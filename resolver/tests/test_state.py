@@ -199,7 +199,7 @@ class TestState(unittest.TestCase):
     def test_image_master_is_missing(self):
         # The system only comes pre-seeded with the archive master public
         # keyring.  All others are downloaded.
-        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+        setup_keyrings('archive_master')
         # Put a system image master key on the server.
         setup_remote_keyring(
             'image-master.gpg', 'archive-master.gpg',
@@ -218,7 +218,7 @@ class TestState(unittest.TestCase):
         # The system only comes pre-seeded with the archive master public
         # keyring.  All others are downloaded.  This time there is a
         # blacklist and downloading that will also get the image master key.
-        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+        setup_keyrings('archive_master')
         # Put a system image master key on the server.
         setup_remote_keyring(
             'image-master.gpg', 'archive-master.gpg',
@@ -239,7 +239,7 @@ class TestState(unittest.TestCase):
     def test_image_signing_is_missing(self):
         # The system only comes pre-seeded with the archive master public
         # keyring.  All others are downloaded.
-        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+        setup_keyrings('archive_master')
         # Put a system image master key on the server.
         setup_remote_keyring(
             'image-master.gpg', 'archive-master.gpg',
@@ -305,4 +305,4 @@ class TestState(unittest.TestCase):
         # device keyring.  The four signed keyring tar.xz files and their
         # signatures end up in the proper location after the state machine
         # runs to completion.
-        copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
+        setup_keyrings('archive_master')

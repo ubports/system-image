@@ -206,11 +206,24 @@ def copy(filename, todir, dst=None):
     shutil.copy(src, dst)
 
 
-def setup_keyrings():
-    copy('archive-master.gpg', os.path.dirname(config.gpg.archive_master))
-    copy('image-master.gpg', os.path.dirname(config.gpg.image_master))
-    copy('image-signing.gpg', os.path.dirname(config.gpg.image_signing))
-    copy('device-signing.gpg', os.path.dirname(config.gpg.device_signing))
+def setup_keyrings(*keyrings):
+    """Copy the named keyrings to the right place.
+
+    Also, set up the .xz.tar and .xz.tar.asc files which must exist in order
+    to be copied to the updater partitions.
+
+    :param keyrings: When given, names the keyrings to set up.  When not
+        given, all keyrings are set up.  Each entry should be the name of the
+        configuration variable inside the `config.gpg` namespace,
+        e.g. 'archive_master'.
+    """
+    if len(keyrings) == 0:
+        keyrings = ('archive_master', 'image_master', 'image_signing',
+                    'device_signing')
+    for keyring in keyrings:
+        path = getattr(config.gpg, keyring)
+        head, tail = os.path.split(path)
+        copy(tail, head)
 
 
 def setup_remote_keyring(keyring_src, signing_keyring, json_data, dst):
