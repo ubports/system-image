@@ -40,7 +40,7 @@ from resolver.tests.helpers import (
 def setUpModule():
     # BAW 2013-06-17: For correctness, this really should be put in all
     # test_*.py modules, or in a global test runner.  As it is, this only
-    # quiets the logging
+    # quiets the logging output for tests in this module and later.
     initialize(verbosity=3)
 
 

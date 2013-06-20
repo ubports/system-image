@@ -28,10 +28,18 @@ import unittest
 from contextlib import ExitStack
 from resolver.gpg import SignatureError
 from resolver.helpers import temporary_directory
+from resolver.logging import initialize
 from resolver.state import State
 from resolver.tests.helpers import (
     copy, get_channels, make_http_server, setup_keyrings,
     setup_remote_keyring, sign, testable_configuration)
+
+
+def setUpModule():
+    # BAW 2013-06-17: For correctness, this really should be put in all
+    # test_*.py modules, or in a global test runner.  As it is, this only
+    # quiets the logging output for tests in this module and later.
+    initialize(verbosity=3)
 
 
 class TestChannels(unittest.TestCase):
