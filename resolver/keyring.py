@@ -43,12 +43,12 @@ class KeyringError(Exception):
         self.message = message
 
 
-def get_keyring(keyring_type, srcurl, ascurl, sigkr, blacklist=None):
+def get_keyring(keyring_type, urls, sigkr, blacklist=None):
     """Download, verify, and unpack a keyring.
 
-    The url to a keyring file and its signature file are downloaded.
-    The signature is verified against the keys in the signature keyring.
-    If this fails, a SignatureError is raised and the files are deleted.
+    The keyring file and its signature file are downloaded.  The
+    signature is verified against the keys in the signature keyring.  If
+    this fails, a SignatureError is raised and the files are deleted.
 
     If this succeeds, the tar.xz is unpacked, which should produce a
     keyring.gpg file containing the keyring, and a keyring.json file
@@ -62,14 +62,14 @@ def get_keyring(keyring_type, srcurl, ascurl, sigkr, blacklist=None):
     files are deleted.
 
     Assuming everything checks out, the path to the keyring.gpg file is
-    returned and all the other ancillary files are deleted.
+    returned, the downloaded .tar.xz and .tar.xz.asc files are moved into
+    place, and all the other ancillary files are deleted.
 
     :param keyring_type: The type of keyring file to download.  This can be
         one of 'master', 'system-image', 'signing', 'device', or 'blacklist'.
-    :param srcurl: The url to the source of the keyring file, i.e. the .tar.xz
-        file.
-    :param ascurl: The url to the source of the signature file, i.e. the
-        .tar.xz.asc file.
+    :param url: Either a string naming the url to the source of the keyring
+        .tar.xz file (in which case the url to the associated .asc file will
+        be calculated), or a 2-tuple naming the .tar.xz and .tar.xz.asc files.
     :param sigkr: The local keyring file that should be used to verify the
         downloaded signature.
     :param blacklist: When given, this is the signature blacklist file.
@@ -79,6 +79,11 @@ def get_keyring(keyring_type, srcurl, ascurl, sigkr, blacklist=None):
         downloaded keyring fails.
     """
     # Calculate the urls to the .tar.xz and .asc files.
+    if isinstance(urls, tuple):
+        srcurl, ascurl = urls
+    else:
+        srcurl = urls
+        ascurl = urls + '.asc'
     tarxz_src = urljoin(config.service.https_base, srcurl)
     ascxz_src = urljoin(config.service.https_base, ascurl)
     # Calculate the local paths to the temporary download files.
