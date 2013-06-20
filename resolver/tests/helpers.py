@@ -20,7 +20,6 @@ __all__ = [
     'get_channels',
     'get_index',
     'make_http_server',
-    'makedirs',
     'setup_keyrings',
     'setup_remote_keyring',
     'sign',
@@ -43,7 +42,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from resolver.channel import Channels
 from resolver.config import Configuration, config
-from resolver.helpers import atomic, temporary_directory
+from resolver.helpers import atomic, makedirs, temporary_directory
 from resolver.index import Index
 from threading import Thread
 from unittest.mock import patch
@@ -190,13 +189,6 @@ def sign(filename, pubkey_ring):
         signed_data = ctx.sign_file(dfp, keyid=key_id, detach=True)
         sfp = stack.enter_context(open(filename + '.asc', 'wb'))
         sfp.write(signed_data.data)
-
-
-def makedirs(dir):
-    try:
-        os.makedirs(dir, exist_ok=True)
-    except FileExistsError:
-        pass
 
 
 def copy(filename, todir, dst=None):

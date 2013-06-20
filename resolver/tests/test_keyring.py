@@ -229,3 +229,89 @@ class TestKeyring(unittest.TestCase):
             get_keyring('blacklist', url, url + '.asc', 'image_master')
         self.assertEqual(
             cm.exception.message, 'expired keyring timestamp')
+
+    @testable_configuration
+    def test_keyring_destination_image_master(self):
+        # When a keyring is downloaded, we preserve its .tar.xz and
+        # .tar.xz.asc files for access by the updater.
+        setup_keyrings('archive_master')
+        setup_remote_keyring(
+            'image-master.gpg', 'archive-master.gpg',
+            dict(type='image-master'),
+            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
+        get_keyring('image-master',
+                    'gpg/image-master.tar.xz', 'gpg/image-master.tar.xz.asc',
+                    'archive_master')
+        tarxz_path = os.path.join(
+            config.updater.cache_partition, 'image-master.tar.xz')
+        ascxz_path = os.path.join(
+            config.updater.cache_partition, 'image-master.tar.xz.asc')
+        self.assertTrue(os.path.exists(tarxz_path))
+        self.assertTrue(os.path.exists(ascxz_path))
+        with Context(config.gpg.archive_master) as ctx:
+            self.assertTrue(ctx.verify(ascxz_path, tarxz_path))
+
+    @testable_configuration
+    def test_keyring_destination_image_signing(self):
+        # When a keyring is downloaded, we preserve its .tar.xz and
+        # .tar.xz.asc files for access by the updater.
+        setup_keyrings('archive_master', 'image_master')
+        setup_remote_keyring(
+            'image-signing.gpg', 'image-master.gpg',
+            dict(type='image-signing'),
+            os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
+        get_keyring('image-signing',
+                    'gpg/image-signing.tar.xz', 'gpg/image-signing.tar.xz.asc',
+                    'image_master')
+        tarxz_path = os.path.join(
+            config.updater.cache_partition, 'image-signing.tar.xz')
+        ascxz_path = os.path.join(
+            config.updater.cache_partition, 'image-signing.tar.xz.asc')
+        self.assertTrue(os.path.exists(tarxz_path))
+        self.assertTrue(os.path.exists(ascxz_path))
+        with Context(config.gpg.image_master) as ctx:
+            self.assertTrue(ctx.verify(ascxz_path, tarxz_path))
+
+    @testable_configuration
+    def test_keyring_destination_device_signing(self):
+        # When a keyring is downloaded, we preserve its .tar.xz and
+        # .tar.xz.asc files for access by the updater.
+        setup_keyrings('archive_master', 'image_master', 'image_signing')
+        setup_remote_keyring(
+            'device-signing.gpg', 'image-signing.gpg',
+            dict(type='device-signing'),
+            os.path.join(self._serverdir, 'stable', 'nexus7',
+                         'device-signing.tar.xz'))
+        get_keyring('device-signing',
+                    'stable/nexus7/device-signing.tar.xz',
+                    'stable//nexus7/device-signing.tar.xz.asc',
+                    'image_signing')
+        tarxz_path = os.path.join(
+            config.updater.cache_partition, 'device-signing.tar.xz')
+        ascxz_path = os.path.join(
+            config.updater.cache_partition, 'device-signing.tar.xz.asc')
+        self.assertTrue(os.path.exists(tarxz_path))
+        self.assertTrue(os.path.exists(ascxz_path))
+        with Context(config.gpg.image_signing) as ctx:
+            self.assertTrue(ctx.verify(ascxz_path, tarxz_path))
+
+    @testable_configuration
+    def test_keyring_destination_blacklist(self):
+        # Like above, but the blacklist files end up in the data partition
+        # instead of the cache partition.
+        setup_keyrings('archive_master', 'image_master')
+        setup_remote_keyring(
+            'spare.gpg', 'image-master.gpg',
+            dict(type='blacklist'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        get_keyring('blacklist',
+                    'gpg/blacklist.tar.xz', 'gpg/blacklist.tar.xz.asc',
+                    'image_master')
+        tarxz_path = os.path.join(
+            config.updater.data_partition, 'blacklist.tar.xz')
+        ascxz_path = os.path.join(
+            config.updater.data_partition, 'blacklist.tar.xz.asc')
+        self.assertTrue(os.path.exists(tarxz_path))
+        self.assertTrue(os.path.exists(ascxz_path))
+        with Context(config.gpg.image_master) as ctx:
+            self.assertTrue(ctx.verify(ascxz_path, tarxz_path))
