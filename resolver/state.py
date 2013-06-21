@@ -240,7 +240,7 @@ class State:
             ctx = stack.enter_context(
                 Context(*keyrings, blacklist=self.blacklist))
             if not ctx.verify(asc_path, index_path):
-                raise SignatureError
+                raise SignatureError(index_path)
             # The signature was good.
             with open(index_path, encoding='utf-8') as fp:
                 self.index = Index.from_json(fp.read())
