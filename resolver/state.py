@@ -302,7 +302,6 @@ class State:
             for dst, checksum in checksums:
                 with open(dst, 'rb') as fp:
                     got = hashlib.sha256(fp.read()).hexdigest()
-                    #if hashlib.sha256(fp.read()).hexdigest() != checksum:
                     if got != checksum:
                         raise ChecksumError(dst, got, checksum)
             # Everything is fine so nothing needs to be cleared.
