@@ -31,10 +31,13 @@ from resolver.gpg import SignatureError
 from resolver.helpers import temporary_directory
 from resolver.logging import initialize
 from resolver.scores import WeightedScorer
-from resolver.state import State
+from resolver.state import ChecksumError, State
 from resolver.tests.helpers import (
     copy, get_index, make_http_server, makedirs, setup_keyrings,
     setup_remote_keyring, sign, test_data_path, testable_configuration)
+
+
+EMPTYSTRING = ''
 
 
 def setUpModule():
@@ -61,12 +64,11 @@ class TestWinnerDownloads(unittest.TestCase):
                  'image-signing.gpg')
             # index_10.json path B will win, with no bootme flags.
             self._indexpath = os.path.join('stable', 'nexus7', 'index.json')
-            copy('index_10.json', self._serverdir, self._indexpath)
+            copy('index_12.json', self._serverdir, self._indexpath)
             sign(os.path.join(self._serverdir, self._indexpath),
                  'image-signing.gpg')
             # Create every file in path B.  The file contents will be the
             # checksum value.  We need to create the signatures on the fly.
-            self._index = get_index('index_10.json')
             self._signfiles('image-signing.gpg')
             self._stack.push(
                 make_http_server(self._serverdir, 8943, 'cert.pem', 'key.pem'))
@@ -79,7 +81,7 @@ class TestWinnerDownloads(unittest.TestCase):
         self._stack.close()
 
     def _signfiles(self, keyring):
-        for image in self._index.images:
+        for image in get_index('index_12.json').images:
             if 'B' not in image.description:
                 continue
             for filerec in image.files:
@@ -88,8 +90,10 @@ class TestWinnerDownloads(unittest.TestCase):
                         else filerec.path)
                 dst = os.path.join(self._serverdir, path)
                 makedirs(os.path.dirname(dst))
+                contents = EMPTYSTRING.join(
+                    os.path.splitext(filerec.path)[0].split('/'))
                 with open(dst, 'w', encoding='utf-8') as fp:
-                    fp.write(filerec.checksum)
+                    fp.write(contents)
                 # Sign with the imaging signing key.  Some tests will
                 # re-sign all these files with the device key.
                 sign(dst, keyring)
@@ -250,6 +254,27 @@ class TestWinnerDownloads(unittest.TestCase):
         assert_file_contains('b.txt', '9ab')
         assert_file_contains('d.txt', 'fed')
         assert_file_contains('c.txt', 'edc')
+
+    @testable_configuration
+    def test_download_winners_bad_checksums(self):
+        # Similar to the various good paths, except because the checksums are
+        # wrong in index_10.json, we'll get a error when downloading.
+        copy('index_10.json', self._serverdir, self._indexpath)
+        sign(os.path.join(self._serverdir, self._indexpath),
+             'image-signing.gpg')
+        self._index = get_index('index_10.json')
+        self._signfiles('image-signing.gpg')
+        setup_keyrings()
+        state = State()
+        # Set the build number.
+        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
+            print(20120100, file=fp)
+        # Run the state machine 4 times to get prepped.
+        # (blacklist -> channel -> index -> calculate)
+        # Now try to download the files and get the error.
+        for i in range(4):
+            next(state)
+        self.assertRaises(ChecksumError, next, state)
 
     @testable_configuration
     def test_download_winners_signed_by_wrong_key(self):

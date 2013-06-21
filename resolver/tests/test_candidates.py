@@ -21,14 +21,12 @@ __all__ = [
     ]
 
 
-import os
 import unittest
 
 from operator import attrgetter
 from resolver.candidates import get_candidates, get_downloads
 from resolver.scores import WeightedScorer
 from resolver.tests.helpers import get_index, testable_configuration
-from urllib.parse import urlsplit
 
 
 class TestCandidates(unittest.TestCase):
@@ -159,6 +157,7 @@ class TestCandidates(unittest.TestCase):
 
 
 class TestCandidateDownloads(unittest.TestCase):
+    maxDiff = None
 
     @testable_configuration
     def test_get_downloads(self):
@@ -169,52 +168,30 @@ class TestCandidateDownloads(unittest.TestCase):
         winner = WeightedScorer().choose(candidates)
         self.assertEqual([image.description for image in winner],
                          ['Full B', 'Delta B.1', 'Delta B.2'])
-        downloads = get_downloads(winner)
-        urls = set(url for url, path, size in downloads)
-        paths = set(path for url, path, size in downloads)
-        self.maxDiff = None
-        self.assertEqual({urlsplit(url).path for url in urls},
-                         set([
+        downloads = list(get_downloads(winner))
+        paths = set(filerec.path for filerec in downloads)
+        self.assertEqual(paths, set([
             '/3/4/5.txt',
-            '/3/4/5.txt.asc',
             '/4/5/6.txt',
-            '/4/5/6.txt.asc',
             '/5/6/7.txt',
-            '/5/6/7.txt.asc',
             '/6/7/8.txt',
-            '/6/7/8.txt.asc',
             '/7/8/9.txt',
-            '/7/8/9.txt.asc',
             '/8/9/a.txt',
-            '/8/9/a.txt.asc',
             '/9/a/b.txt',
-            '/9/a/b.txt.asc',
             '/e/d/c.txt',
-            '/e/d/c.txt.asc',
             '/f/e/d.txt',
-            '/f/e/d.txt.asc',
             ]))
-        # Strip the temporary directory at the start of the local file path.
-        self.assertEqual(set(os.path.basename(path) for path in paths),
-                         set([
-            '5.txt',
-            '5.txt.asc',
-            '6.txt',
-            '6.txt.asc',
-            '7.txt',
-            '7.txt.asc',
-            '8.txt',
-            '8.txt.asc',
-            '9.txt',
-            '9.txt.asc',
-            'a.txt',
-            'a.txt.asc',
-            'b.txt',
-            'b.txt.asc',
-            'c.txt',
-            'c.txt.asc',
-            'd.txt',
-            'd.txt.asc',
+        signatures = set(filerec.signature for filerec in downloads)
+        self.assertEqual(signatures, set([
+            '/3/4/5.txt.asc',
+            '/4/5/6.txt.asc',
+            '/5/6/7.txt.asc',
+            '/6/7/8.txt.asc',
+            '/7/8/9.txt.asc',
+            '/8/9/a.txt.asc',
+            '/9/a/b.txt.asc',
+            '/e/d/c.txt.asc',
+            '/f/e/d.txt.asc',
             ]))
 
     @testable_configuration
@@ -227,37 +204,12 @@ class TestCandidateDownloads(unittest.TestCase):
         self.assertEqual([image.description for image in winner],
                          ['Full B', 'Delta B.1', 'Delta B.2'])
         downloads = get_downloads(winner)
-        urls = set(url for url, path, size in downloads)
-        paths = set(path for url, path, size in downloads)
-        self.maxDiff = None
-        self.assertEqual({urlsplit(url).path for url in urls},
-                         set([
+        paths = set(filerec.path for filerec in downloads)
+        self.assertEqual(paths, set([
             '/3/4/5.txt',
-            '/3/4/5.txt.asc',
             '/4/5/6.txt',
-            '/4/5/6.txt.asc',
             '/5/6/7.txt',
-            '/5/6/7.txt.asc',
             '/6/7/8.txt',
-            '/6/7/8.txt.asc',
             '/7/8/9.txt',
-            '/7/8/9.txt.asc',
             '/8/9/a.txt',
-            '/8/9/a.txt.asc',
-            ]))
-        # Strip the temporary directory at the start of the local file path.
-        self.assertEqual(set(os.path.basename(path) for path in paths),
-                         set([
-            '5.txt',
-            '5.txt.asc',
-            '6.txt',
-            '6.txt.asc',
-            '7.txt',
-            '7.txt.asc',
-            '8.txt',
-            '8.txt.asc',
-            '9.txt',
-            '9.txt.asc',
-            'a.txt',
-            'a.txt.asc',
             ]))

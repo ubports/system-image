@@ -130,30 +130,14 @@ def get_downloads(winner):
     list of files to download may not include all the files in the upgrade
     candidate.
 
-    The return value is of the appropriate type to pass directly to
-    `resolver.download.get_files()`.
-
     :param winner: The list of images for the winning candidate.
-    :return: List of 2-tuples where the first item is the url to download and
-        the second is the local path for the file.
+    :return: The list of file records describing the files to download.  Each
+        file record is a dictionary as described in the index.json file and
+        contains such information as the path to the signature file, the
+        file's checksum and size, and its order.
     """
-    downloads = []
     for image in winner:
         for filerec in image.files:
-            # Add the file's url and local path.
-            downloads.append((
-                urljoin(config.service.http_base, filerec.path),
-                os.path.join(config.system.tempdir,
-                             os.path.basename(filerec.path)),
-                filerec.size,
-                ))
-            # Add the signature file's url and local path.
-            downloads.append((
-                urljoin(config.service.http_base, filerec.signature),
-                os.path.join(config.system.tempdir,
-                             os.path.basename(filerec.signature)),
-                filerec.size,
-                ))
+            yield filerec
         if getattr(image, 'bootme', False):
             break
-    return downloads

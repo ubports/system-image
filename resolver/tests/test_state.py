@@ -291,6 +291,7 @@ class TestState(unittest.TestCase):
         next(state)
         self.assertRaises(SignatureError, next, state)
 
+    @unittest.skip('unfinished')
     @testable_configuration
     def test_keyrings_copied_to_upgrader_paths(self):
         # The following keyrings get copied to system paths that the upgrader

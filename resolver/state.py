@@ -16,12 +16,14 @@
 """Manage state transitions for updates."""
 
 __all__ = [
+    'ChecksumError',
     'State',
     ]
 
 
 import os
 import math
+import hashlib
 import logging
 
 from collections import deque
@@ -41,12 +43,18 @@ log = logging.getLogger('resolver')
 COMMASPACE = ', '
 
 
+class ChecksumError(Exception):
+    """Exception raised when a file's checksum does not match."""
+
+
 def _download_feedback(url, dst, bytes_read, size):
-    digits = 1 if not size else math.floor(math.log10(abs(size))) + 1
-    fmt = '[{{:{0}d}}/{{:>{0}}}]'.format(digits)
-    log.debug('download %s %s -> %s',
-              fmt.format(bytes_read, '?' if size is None else size),
-              url, dst)
+    if size:
+        digits = math.floor(math.log10(abs(size))) + 1
+        fmt = '[{{:{0}d}}/{{:>{0}}}]'.format(digits)
+        progress = fmt.format(bytes_read, size)
+    else:
+        progress = '[{}d bytes]'.format(bytes_read)
+    log.debug('download %s %s -> %s', progress, url, dst)
 
 
 class State:
@@ -247,40 +255,60 @@ class State:
 
     def _download_files(self):
         """Download and verify all the winning upgrade path's files."""
-        downloads = get_downloads(self.winner)
-        # Re-pack for arguments to get_files.
+        downloads = []
+        signatures = []
         sizes = []
-        args = []
-        local_files = set()
-        for url, dst, size in downloads:
-            sizes.append(size)
-            args.append((url, dst))
-            if os.path.splitext(dst)[1] != '.asc':
-                local_files.add(dst)
-        log.info('Files to download: %s', COMMASPACE.join(sorted(local_files)))
-        # Now, verify the signatures of all the downloaded files.  If there is
-        # a device key, the files can be signed by that or the imaging signing
-        # key.
+        checksums = []
+        for filerec in get_downloads(self.winner):
+            # Re-pack for arguments to get_files() and to collate the size,
+            # signature path, and checksum for the downloadable file.
+            dst = os.path.join(
+                config.system.tempdir, os.path.basename(filerec.path))
+            downloads.append((
+                urljoin(config.service.http_base, filerec.path),
+                dst,
+                ))
+            sizes.append(filerec.size)
+            # Add the signature file, and associate the two.
+            asc = os.path.join(
+                config.system.tempdir, os.path.basename(filerec.signature))
+            downloads.append((
+                urljoin(config.service.http_base, filerec.signature),
+                asc))
+            # There is no size available for the .asc file.
+            sizes.append(0)
+            signatures.append((dst, asc))
+            checksums.append((dst, filerec.checksum))
+        # If there is a device-signing key, the files can be signed by either
+        # that or the image-signing key.
         keyrings = [config.gpg.image_signing]
         if self.device_keyring is not None:
             keyrings.append(self.device_keyring)
-        # As an added debugging aid, provide feedback for the download.
-        get_files(args, _download_feedback, sizes)
+        # Now, download all the files, providing logging feedback on progress.
+        get_files(downloads, _download_feedback, sizes)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets
-            # raised.  If the exception doesn't get raised, then everything's
-            # okay and we'll clear the stack before the context manager exits
-            # so none of the files will get removed.
-            for path in local_files:
-                stack.callback(os.remove, path)
-                stack.callback(os.remove, path + '.asc')
+            # raised or if the checksums don't match.  If everything's okay,
+            # we'll clear the stack before the context manager exits so none
+            # of the files will get removed.
+            for url, dst in downloads:
+                stack.callback(os.remove, dst)
+            # Verify the signatures on all the downloaded files.
             with Context(*keyrings, blacklist=self.blacklist) as ctx:
-                for path in local_files:
-                    if not ctx.verify(path + '.asc', path):
-                        raise SignatureError
+                for dst, asc in signatures:
+                    if not ctx.verify(asc, dst):
+                        raise SignatureError(dst)
+            # Verify the checksums.
+            for dst, checksum in checksums:
+                with open(dst, 'rb') as fp:
+                    got = hashlib.sha256(fp.read()).hexdigest()
+                    #if hashlib.sha256(fp.read()).hexdigest() != checksum:
+                    if got != checksum:
+                        raise ChecksumError(dst, got, checksum)
             # Everything is fine so nothing needs to be cleared.
             stack.pop_all()
-        # There's nothing left to do, so don't push anything onto the deque.
+        # There's nothing left to do, so don't push anything onto the state
+        # machine's deque.
         log.info('all files available in %s', config.system.tempdir)
 
     def _get_master_key(self):
