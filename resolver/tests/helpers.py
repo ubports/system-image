@@ -21,7 +21,7 @@ __all__ = [
     'get_index',
     'make_http_server',
     'setup_keyrings',
-    'setup_remote_keyring',
+    'setup_keyring_txz',
     'sign',
     'test_data_path',
     'testable_configuration',
@@ -198,39 +198,23 @@ def copy(filename, todir, dst=None):
     shutil.copy(src, dst)
 
 
-def setup_keyrings(*keyrings):
-    """Copy the named keyrings to the right place.
+def setup_keyring_txz(keyring_src, signing_keyring, json_data, dst):
+    """Set up the <keyring>.tar.xz and .asc files.
 
-    Also, set up the .xz.tar and .xz.tar.asc files which must exist in order
-    to be copied to the updater partitions.
+    The source keyring and json data is used to create a .tar.xz file
+    and an associated .asc signature file.  These are then copied to the
+    given destination path name.
 
-    :param keyrings: When given, names the keyrings to set up.  When not
-        given, all keyrings are set up.  Each entry should be the name of the
-        configuration variable inside the `config.gpg` namespace,
-        e.g. 'archive_master'.
-    """
-    if len(keyrings) == 0:
-        keyrings = ('archive_master', 'image_master', 'image_signing',
-                    'device_signing')
-    for keyring in keyrings:
-        path = getattr(config.gpg, keyring)
-        head, tail = os.path.split(path)
-        copy(tail, head)
-
-
-def setup_remote_keyring(keyring_src, signing_keyring, json_data, dst):
-    """Set up remote keyrings, e.g. in a server's vending directory.
-
-    The source keyring and json data is used to create a .tar.xz file and an
-    associated .asc signature file.  These are then copied to the given
-    destination path name.
-
-    :param keyring_src: The source keyring (i.e. .gpg file).
+    :param keyring_src: The name of the source keyring (i.e. .gpg file), which
+        should be relative to the test data directory.  This will serve as the
+        keyring.gpg file inside the tarball.
     :param signing_keyring: The name of the keyring to sign the resulting
-        tarball with.
-    :param json_data: The JSON data dictionary.
+        tarball with, again, relative to the test data directory.
+    :param json_data: The JSON data dictionary, i.e. the contents of the
+        keyring.json file inside the tarball.
     :param dst: The destination path of the .tar.xz file.  For the resulting
-        signature file, the .asc suffix will be automatically appended.
+        signature file, the .asc suffix will be automatically appended and
+        copied next to the dst file.
     """
     with temporary_directory() as tmpdir:
         copy(keyring_src, tmpdir, 'keyring.gpg')
@@ -248,3 +232,36 @@ def setup_remote_keyring(keyring_src, signing_keyring, json_data, dst):
         makedirs(os.path.dirname(dst))
         shutil.copy(tarxz_path, dst)
         shutil.copy(tarxz_path + '.asc', dst + '.asc')
+
+
+def setup_keyrings(*keyrings):
+    """Copy the named keyrings to the right place.
+
+    Also, set up the .xz.tar and .xz.tar.asc files which must exist in order
+    to be copied to the updater partitions.
+
+    :param keyrings: When given, names the keyrings to set up.  When not
+        given, all keyrings are set up.  Each entry should be the name of the
+        configuration variable inside the `config.gpg` namespace,
+        e.g. 'archive_master'.
+    """
+    if len(keyrings) == 0:
+        keyrings = ('archive-master', 'image-master', 'image-signing',
+                    'device-signing')
+    for keyring in keyrings:
+        if keyring in ('archive-master', 'image-master'):
+            # Yes, the archive master is signed by itself.
+            signing_kr = 'archive-master.gpg'
+        elif keyring == 'image-signing':
+            signing_kr = 'image-master.gpg'
+        elif keyring == 'device-signing':
+            signing_kr = 'image-signing.gpg'
+        else:
+            raise AssertionError('unknown key type: {}'.format(keyring))
+        # The local keyrings life in the .gpg file with the same keyring name
+        # as the .tar.xz file, but cached in the temporary directory.
+        copy(keyring + '.gpg', config.system.tempdir)
+        # Now set up the .tar.xz and .tar.xz.asc files in the destination.
+        json_data = dict(type=keyring)
+        dst = getattr(config.gpg, keyring.replace('-', '_'))
+        setup_keyring_txz(keyring + '.gpg', signing_kr, json_data, dst)

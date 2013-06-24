@@ -24,9 +24,11 @@ __all__ = [
 import os
 import gnupg
 import shutil
+import tarfile
 import tempfile
 
 from contextlib import ExitStack
+from resolver.config import config
 from resolver.helpers import temporary_directory
 
 
@@ -43,12 +45,31 @@ class Context:
     def __init__(self, *keyrings, blacklist=None):
         self._ctx = None
         self._stack = ExitStack()
-        self._keyrings = keyrings
+        self._keyrings = []
+        # The keyrings must be .tar.xz files, which need to be unpacked and
+        # the keyring.gpg files inside them cached, using their actual name
+        # (based on the .tar.xz file name).  If we don't already have a cache
+        # of the .gpg file, do the unpackaging and use the contained .gpg file
+        # as the keyring.  Note that this class does *not* validate the
+        # .tar.xz files.  That must be done elsewhere.
+        for path in keyrings:
+            base, dot, tarxz = path.partition('.')
+            assert dot == '.' and tarxz == 'tar.xz', (
+                'Expected a .tar.xz path, got: {}'.format(path))
+            keyring_path = os.path.join(
+                config.system.tempdir, base + '.gpg')
+            if not os.path.exists(keyring_path):
+                with tarfile.open(path, 'r:xz') as tf:
+                    tf.extract('keyring.gpg', config.system.tempdir)
+                    os.rename(
+                        os.path.join(config.system.tempdir, 'keyring.gpg'),
+                        os.path.join(config.system.tempdir, keyring_path))
+            self._keyrings.append(keyring_path)
         # Since python-gnupg doesn't do this for us, verify that all the
         # keyrings and blacklist files exist.  Yes, this introduces a race
         # condition, but I don't see any good way to eliminate this given
         # python-gnupg's behavior.
-        for path in keyrings:
+        for path in self._keyrings:
             if not os.path.exists(path):
                 raise FileNotFoundError(path)
         if blacklist is not None:
