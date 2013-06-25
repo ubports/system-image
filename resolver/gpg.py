@@ -53,7 +53,7 @@ class Context:
         # as the keyring.  Note that this class does *not* validate the
         # .tar.xz files.  That must be done elsewhere.
         for path in keyrings:
-            base, dot, tarxz = path.partition('.')
+            base, dot, tarxz = os.path.basename(path).partition('.')
             assert dot == '.' and tarxz == 'tar.xz', (
                 'Expected a .tar.xz path, got: {}'.format(path))
             keyring_path = os.path.join(

@@ -66,7 +66,6 @@ class State:
         self.blacklist = None
         self.channels = None
         self.index = None
-        self.device_keyring = None
         self.candidates = None
         self.winner = None
 
@@ -91,9 +90,8 @@ class State:
         # Let any exceptions in grabbing the image master key percolate up.
         if not os.path.exists(config.gpg.image_master):
             log.info('No image master key found, downloading')
-            dst = get_keyring(
-                'image-master', 'gpg/image-master.tar.xz', 'archive_master')
-            os.rename(dst, config.gpg.image_master)
+            get_keyring(
+                'image-master', 'gpg/image-master.tar.xz', 'archive-master')
         # The only way to know whether there is a blacklist or not is to try
         # to download it.  If it fails, there isn't one.
         url = 'gpg/blacklist.tar.xz'
@@ -102,7 +100,7 @@ class State:
             # downloading a blacklist file.
             log.info('Looking for blacklist: %s',
                      urljoin(config.service.https_base, url))
-            dst = get_keyring('blacklist', url, 'image_master')
+            get_keyring('blacklist', url, 'image-master')
         except SignatureError:
             log.info('No signed blacklist found')
             # The blacklist wasn't signed by the system image master.  Maybe
@@ -117,8 +115,7 @@ class State:
             # directory.  It is the responsibility of the code running the
             # state machine to clear out the temporary directory.
             self.blacklist = os.path.join(
-                config.system.tempdir, 'blacklist.gpg')
-            os.rename(dst, self.blacklist)
+                config.system.tempdir, 'blacklist.tar.xz')
             log.info('Local blacklist file: %s', self.blacklist)
         self._next.append(self._get_channel)
 
@@ -137,7 +134,7 @@ class State:
         try:
             log.info('Looking for blacklist again: %s',
                      urljoin(config.service.https_base, url))
-            dst = get_keyring('blacklist', url, 'image_master')
+            get_keyring('blacklist', url, 'image-master')
         except FileNotFoundError:
             log.info('No blacklist found on second attempt')
         else:
@@ -145,8 +142,7 @@ class State:
             # directory.  It is the responsibility of the code running the
             # state machine to clear out the temporary directory.
             self.blacklist = os.path.join(
-                config.system.tempdir, 'blacklist.gpg')
-            os.rename(dst, self.blacklist)
+                config.system.tempdir, 'blacklist.tar.xz')
             log.info('Local blacklist file: %s', self.blacklist)
         self._next.append(self._get_channel)
 
@@ -158,9 +154,8 @@ class State:
         # better already have an up-to-date copy of.
         if not os.path.exists(config.gpg.image_signing):
             log.info('No image signing key found, downloading')
-            dst = get_keyring(
-                'image-signing', 'gpg/image-signing.tar.xz', 'image_master')
-            os.rename(dst, config.gpg.image_signing)
+            get_keyring(
+                'image-signing', 'gpg/image-signing.tar.xz', 'image-master')
         channels_url = urljoin(config.service.https_base, 'channels.json')
         channels_path = os.path.join(config.system.tempdir, 'channels.json')
         asc_url = urljoin(config.service.https_base, 'channels.json.asc')
@@ -213,8 +208,8 @@ class State:
         keyring_url = urljoin(config.service.https_base, keyring.path)
         asc_url = urljoin(config.service.https_base, keyring.signature)
         log.info('getting device keyring: %s', keyring_url)
-        self.device_keyring = get_keyring(
-            'device-signing', (keyring_url, asc_url), 'image_signing',
+        get_keyring(
+            'device-signing', (keyring_url, asc_url), 'image-signing',
             self.blacklist)
         # We don't need to set the next action because it's already been done.
 
@@ -235,8 +230,8 @@ class State:
             # either the device keyring (if one exists) or the image signing
             # key.
             keyrings = [config.gpg.image_signing]
-            if self.device_keyring is not None:
-                keyrings.append(self.device_keyring)
+            if os.path.exists(config.gpg.device_signing):
+                keyrings.append(config.gpg.device_signing)
             ctx = stack.enter_context(
                 Context(*keyrings, blacklist=self.blacklist))
             if not ctx.verify(asc_path, index_path):
@@ -282,8 +277,8 @@ class State:
         # If there is a device-signing key, the files can be signed by either
         # that or the image-signing key.
         keyrings = [config.gpg.image_signing]
-        if self.device_keyring is not None:
-            keyrings.append(self.device_keyring)
+        if os.path.exists(config.gpg.device_signing):
+            keyrings.append(config.gpg.device_signing)
         # Now, download all the files, providing logging feedback on progress.
         get_files(downloads, _download_feedback, sizes)
         with ExitStack() as stack:
@@ -319,18 +314,17 @@ class State:
         try:
             log.info('Getting the image master key')
             # The image signing key must be signed by the archive master.
-            path = get_keyring(
+            get_keyring(
                 'image-master', 'gpg/image-master.tar.xz',
-                'archive_master', self.blacklist)
+                'archive-master', self.blacklist)
         except (FileNotFoundError, SignatureError, KeyringError):
             # No valid image master key could be found.  Don't chain this
             # exception.
             log.error('No valid imaging master key found')
             raise SignatureError from None
-        # Copy the new key into place, then retry the previous step.
+        # Retry the previous step.
         log.info('Installing new image master key to: %s',
                  config.gpg.image_master)
-        os.rename(path, config.gpg.image_master)
         self._next.appendleft(self._get_blacklist_2)
 
     def _get_signing_key(self):
@@ -340,13 +334,12 @@ class State:
         """
         try:
             # The image signing key must be signed by the image master.
-            path = get_keyring(
-                'image-signing', 'gpg/image-signing.tar.xz', 'image_master',
+            get_keyring(
+                'image-signing', 'gpg/image-signing.tar.xz', 'image-master',
                 self.blacklist)
         except (FileNotFoundError, SignatureError, KeyringError):
             # No valid image signing key could be found.  Don't chain this
             # exception.
             raise SignatureError from None
-        # Copy the new key into place, then retry the previous step.
-        os.rename(path, config.gpg.image_signing)
+        # Retry the previous step.
         self._next.appendleft(self._get_channel)
