@@ -27,10 +27,18 @@ import unittest
 from contextlib import ExitStack
 from resolver.config import config
 from resolver.gpg import SignatureError
+from resolver.logging import initialize
 from resolver.state import State
 from resolver.tests.helpers import (
-    copy, make_http_server, setup_keyrings, setup_remote_keyring, sign,
+    copy, make_http_server, setup_keyring_txz, setup_keyrings, sign,
     temporary_directory, testable_configuration)
+
+
+def setUpModule():
+    # BAW 2013-06-17: For correctness, this really should be put in all
+    # test_*.py modules, or in a global test runner.  As it is, this only
+    # quiets the logging output for tests in this module and later.
+    initialize(verbosity=3)
 
 
 class TestState(unittest.TestCase):
@@ -65,13 +73,16 @@ class TestState(unittest.TestCase):
         # Make the spare keyring the image signing key, which would normally
         # make the channels.json signature good, except that we're going to
         # blacklist it.
-        head, tail = os.path.split(config.gpg.image_signing)
-        copy('spare.gpg', head, tail)
-        setup_remote_keyring(
+        setup_keyring_txz(
+            'spare.gpg', 'image-master.gpg',
+            dict(type='image-signing'),
+            os.path.join(config.gpg.image_signing))
+        # Blacklist the spare keyring.
+        setup_keyring_txz(
             'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         # Here's the new image signing key.
-        setup_remote_keyring(
+        setup_keyring_txz(
             'image-signing.gpg', 'image-master.gpg',
             dict(type='image-signing'),
             os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
@@ -109,7 +120,7 @@ class TestState(unittest.TestCase):
         sign(self._channels_path, 'spare.gpg')
         # Make the new image signing key bogus by not signing it with the
         # image master key.
-        setup_remote_keyring(
+        setup_keyring_txz(
             'image-signing.gpg', 'spare.gpg', dict(type='image-signing'),
             os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
         # Run through the state machine twice so that we get the blacklist and
@@ -134,16 +145,16 @@ class TestState(unittest.TestCase):
 
     @testable_configuration
     def test_bad_system_image_master_exposed_by_blacklist(self):
-        # The blacklist is signed by the system image master key.  If the
-        # blacklist's signature is bad, the state machine will attempt to
-        # download a new system image master key.
+        # The blacklist is signed by the image master key.  If the blacklist's
+        # signature is bad, the state machine will attempt to download a new
+        # image master key.
         setup_keyrings()
         # Start by creating a blacklist signed by a bogus key, along with a
         # new image master key.
-        setup_remote_keyring(
+        setup_keyring_txz(
             'spare.gpg', 'spare.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        setup_remote_keyring(
+        setup_keyring_txz(
             'spare.gpg', 'archive-master.gpg', dict(type='image-master'),
             os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
         # Run the state machine once to grab the blacklist.  This should fail
@@ -151,7 +162,7 @@ class TestState(unittest.TestCase):
         state = State()
         next(state)
         self.assertIsNone(state.blacklist)
-        # Just to provde that the system image master key is going to change,
+        # Just to prove that the system image master key is going to change,
         # let's calculate the current one's checksum.
         with open(config.gpg.image_master, 'rb') as fp:
             checksum = hashlib.md5(fp.read()).digest()
@@ -162,7 +173,7 @@ class TestState(unittest.TestCase):
             self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
         # Now the blacklist file's signature should be good.
         next(state)
-        self.assertEqual(os.path.basename(state.blacklist), 'blacklist.gpg')
+        self.assertEqual(os.path.basename(state.blacklist), 'blacklist.tar.xz')
 
     @testable_configuration
     def test_bad_system_image_master_new_one_is_no_better(self):
@@ -173,10 +184,10 @@ class TestState(unittest.TestCase):
         setup_keyrings()
         # Start by creating a blacklist signed by a bogus key, along with a
         # new image master key.
-        setup_remote_keyring(
+        setup_keyring_txz(
             'spare.gpg', 'spare.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        setup_remote_keyring(
+        setup_keyring_txz(
             'spare.gpg', 'spare.gpg', dict(type='image-master'),
             os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
         # Run the state machine once to grab the blacklist.  This should fail
@@ -199,9 +210,9 @@ class TestState(unittest.TestCase):
     def test_image_master_is_missing(self):
         # The system only comes pre-seeded with the archive master public
         # keyring.  All others are downloaded.
-        setup_keyrings('archive_master')
+        setup_keyrings('archive-master')
         # Put a system image master key on the server.
-        setup_remote_keyring(
+        setup_keyring_txz(
             'image-master.gpg', 'archive-master.gpg',
             dict(type='image-master'),
             os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
@@ -218,13 +229,13 @@ class TestState(unittest.TestCase):
         # The system only comes pre-seeded with the archive master public
         # keyring.  All others are downloaded.  This time there is a
         # blacklist and downloading that will also get the image master key.
-        setup_keyrings('archive_master')
+        setup_keyrings('archive-master')
         # Put a system image master key on the server.
-        setup_remote_keyring(
+        setup_keyring_txz(
             'image-master.gpg', 'archive-master.gpg',
             dict(type='image-master'),
             os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
-        setup_remote_keyring(
+        setup_keyring_txz(
             'spare.gpg', 'spare.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         # Run the state machine once to get the blacklist.  This should
@@ -239,14 +250,14 @@ class TestState(unittest.TestCase):
     def test_image_signing_is_missing(self):
         # The system only comes pre-seeded with the archive master public
         # keyring.  All others are downloaded.
-        setup_keyrings('archive_master')
+        setup_keyrings('archive-master')
         # Put a system image master key on the server.
-        setup_remote_keyring(
+        setup_keyring_txz(
             'image-master.gpg', 'archive-master.gpg',
             dict(type='image-master'),
             os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
         # Put an image signing key on the server.
-        setup_remote_keyring(
+        setup_keyring_txz(
             'image-signing.gpg', 'image-master.gpg',
             dict(type='image-signing'),
             os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
@@ -277,10 +288,10 @@ class TestState(unittest.TestCase):
         # Put a blacklist file up that is signed by a bogus key.  Also, put up
         # the real image master key.  The blacklist verification check will
         # never succeed.
-        setup_remote_keyring(
+        setup_keyring_txz(
             'spare.gpg', 'spare.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        setup_remote_keyring(
+        setup_keyring_txz(
             'image-master.gpg', 'archive-master.gpg',
             dict(type='image-master'),
             os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
@@ -306,4 +317,4 @@ class TestState(unittest.TestCase):
         # device keyring.  The four signed keyring tar.xz files and their
         # signatures end up in the proper location after the state machine
         # runs to completion.
-        setup_keyrings('archive_master')
+        setup_keyrings('archive-master')

@@ -31,8 +31,8 @@ from resolver.helpers import temporary_directory
 from resolver.logging import initialize
 from resolver.state import State
 from resolver.tests.helpers import (
-    copy, get_channels, make_http_server, setup_keyrings,
-    setup_remote_keyring, sign, testable_configuration)
+    copy, get_channels, make_http_server, setup_keyring_txz, setup_keyrings,
+    sign, testable_configuration)
 
 
 def setUpModule():
@@ -119,7 +119,7 @@ class TestLoadChannel(unittest.TestCase):
         # (blacklist -> channels -> signing_key)
         sign(self._channels_path, 'image-signing.gpg')
         setup_keyrings()
-        setup_remote_keyring(
+        setup_keyring_txz(
             'image-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         next(self._state)

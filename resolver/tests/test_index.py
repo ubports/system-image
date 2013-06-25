@@ -30,8 +30,8 @@ from resolver.gpg import SignatureError
 from resolver.helpers import temporary_directory
 from resolver.state import State
 from resolver.tests.helpers import (
-    copy, get_index, make_http_server, makedirs, setup_keyrings,
-    setup_remote_keyring, sign, testable_configuration)
+    copy, get_index, make_http_server, makedirs, setup_keyring_txz,
+    setup_keyrings, sign, testable_configuration)
 
 
 class TestIndex(unittest.TestCase):
@@ -137,7 +137,7 @@ class TestDownloadIndex(unittest.TestCase):
         self._copysign(
             'index_10.json', 'stable/nexus7/index.json', 'device-signing.gpg')
         setup_keyrings()
-        setup_remote_keyring(
+        setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
@@ -162,7 +162,7 @@ class TestDownloadIndex(unittest.TestCase):
         self._copysign(
             'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
         setup_keyrings()
-        setup_remote_keyring(
+        setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
@@ -186,7 +186,7 @@ class TestDownloadIndex(unittest.TestCase):
         self._copysign(
             'index_10.json', 'stable/nexus7/index.json', 'spare.gpg')
         setup_keyrings()
-        setup_remote_keyring(
+        setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
@@ -206,11 +206,11 @@ class TestDownloadIndex(unittest.TestCase):
         self._copysign(
             'index_10.json', 'stable/nexus7/index.json', 'device-signing.gpg')
         setup_keyrings()
-        setup_remote_keyring(
+        setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
-        setup_remote_keyring(
+        setup_keyring_txz(
             'device-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         # Since there is a device keyring, four state changes are necessary to

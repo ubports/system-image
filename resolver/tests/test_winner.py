@@ -33,8 +33,8 @@ from resolver.logging import initialize
 from resolver.scores import WeightedScorer
 from resolver.state import ChecksumError, State
 from resolver.tests.helpers import (
-    copy, get_index, make_http_server, makedirs, setup_keyrings,
-    setup_remote_keyring, sign, test_data_path, testable_configuration)
+    copy, get_index, make_http_server, makedirs, setup_keyring_txz,
+    setup_keyrings, sign, test_data_path, testable_configuration)
 
 
 EMPTYSTRING = ''
@@ -175,7 +175,7 @@ class TestWinnerDownloads(unittest.TestCase):
         copy('channels_03.json', self._serverdir, 'channels.json')
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
-        setup_remote_keyring(
+        setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
@@ -221,7 +221,7 @@ class TestWinnerDownloads(unittest.TestCase):
         copy('channels_03.json', self._serverdir, 'channels.json')
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
-        setup_remote_keyring(
+        setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
@@ -287,7 +287,7 @@ class TestWinnerDownloads(unittest.TestCase):
         copy('channels_03.json', self._serverdir, 'channels.json')
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
-        setup_remote_keyring(
+        setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))

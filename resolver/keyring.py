@@ -32,8 +32,7 @@ from datetime import datetime, timezone
 from resolver.config import config
 from resolver.download import get_files
 from resolver.gpg import Context, SignatureError
-from resolver.helpers import makedirs
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 
 class KeyringError(Exception):
@@ -46,9 +45,10 @@ class KeyringError(Exception):
 def get_keyring(keyring_type, urls, sigkr, blacklist=None):
     """Download, verify, and unpack a keyring.
 
-    The keyring file and its signature file are downloaded.  The
-    signature is verified against the keys in the signature keyring.  If
-    this fails, a SignatureError is raised and the files are deleted.
+    The keyring .tar.xz file and its signature file are downloaded.  The
+    signature is verified against the keys in the signature keyring gpg
+    file.  If this fails, a SignatureError is raised and the files are
+    deleted.
 
     If this succeeds, the tar.xz is unpacked, which should produce a
     keyring.gpg file containing the keyring, and a keyring.json file
@@ -61,19 +61,20 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
     If any of these condition occurred, a KeyringError is raised and the
     files are deleted.
 
-    Assuming everything checks out, the path to the keyring.gpg file is
-    returned, the downloaded .tar.xz and .tar.xz.asc files are moved into
-    place, and all the other ancillary files are deleted.
+    Assuming everything checks out, the .gpg file is copied to the cache
+    location for the unpacked keyring, and the downloaded .tar.xz and
+    .tar.xz.asc files are moved into place.  All the other ancillary
+    files are deleted.
 
     :param keyring_type: The type of keyring file to download.  This can be
-        one of 'master', 'system-image', 'signing', 'device', or 'blacklist'.
+        one of 'archive-master', 'image-master', 'image-signing',
+        'device-signing', or 'blacklist'.
     :param url: Either a string naming the url to the source of the keyring
         .tar.xz file (in which case the url to the associated .asc file will
         be calculated), or a 2-tuple naming the .tar.xz and .tar.xz.asc files.
     :param sigkr: The local keyring file that should be used to verify the
         downloaded signature.
     :param blacklist: When given, this is the signature blacklist file.
-    :return: The path to the downloaded and verified keyring file.
     :raises SignatureError: when the keyring signature does not match.
     :raises KeyringError: when any of the other verifying attributes of the
         downloaded keyring fails.
@@ -95,7 +96,7 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
                    (ascxz_src, ascxz_dst)])
         stack.callback(os.remove, tarxz_dst)
         stack.callback(os.remove, ascxz_dst)
-        signing_keyring = getattr(config.gpg, sigkr)
+        signing_keyring = getattr(config.gpg, sigkr.replace('-', '_'))
         with Context(signing_keyring, blacklist=blacklist) as ctx:
             if not ctx.verify(ascxz_dst, tarxz_dst):
                 raise SignatureError
@@ -105,8 +106,7 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
         keyring_json = os.path.join(config.system.tempdir, 'keyring.json')
         with tarfile.open(tarxz_dst, 'r:xz') as tf:
             tf.extractall(config.system.tempdir)
-        # Don't remove the keyring_gpg file.  The caller is responsible for
-        # deleting this file when they are done with it.
+        stack.callback(os.remove, keyring_gpg)
         stack.callback(os.remove, keyring_json)
         with open(keyring_json, 'r', encoding='utf-8') as fp:
             data = json.load(fp)
@@ -129,14 +129,17 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
             if expiry < timestamp:
                 # We've passed the expiration date for this keyring.
                 raise KeyringError('expired keyring timestamp')
-        # Everything succeeded, so don't delete the .tar.xz and .tar.xz.asc
-        # files.  Instead, move them to their final destination.
-        partition = (config.updater.data_partition
-                     if keyring_type == 'blacklist'
-                     else config.updater.cache_partition)
-        makedirs(partition)
-        tarxz_base = os.path.basename(urlparse(srcurl).path)
-        ascxz_base = os.path.basename(urlparse(ascurl).path)
-        shutil.copy(tarxz_dst, os.path.join(partition, tarxz_base))
-        shutil.copy(ascxz_dst, os.path.join(partition, ascxz_base))
-        return keyring_gpg
+        # Everything checks out.  Move the .tar.xz and .tar.xz.asc files to
+        # their final destination and copy the .gpg file to its temporary
+        # cache location.
+        if keyring_type == 'blacklist':
+            # This one is always temporary.
+            tarxz_path = os.path.join(
+                config.system.tempdir, 'blacklist.tar.xz')
+        else:
+            tarxz_path = getattr(config.gpg, keyring_type.replace('-', '_'))
+        ascxz_path = tarxz_path + '.asc'
+        gpg_path = os.path.join(config.system.tempdir, keyring_type + '.gpg')
+        shutil.copy(tarxz_dst, tarxz_path)
+        shutil.copy(ascxz_dst, ascxz_path)
+        shutil.copy(keyring_gpg, gpg_path)
