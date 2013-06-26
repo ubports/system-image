@@ -17,6 +17,7 @@
 
 __all__ = [
     'TestState',
+    'TestRebootingState',
     ]
 
 
@@ -302,18 +303,41 @@ class TestState(unittest.TestCase):
         next(state)
         self.assertRaises(SignatureError, next, state)
 
-    @testable_configuration
-    def test_keyrings_copied_to_upgrader_paths(self):
-        # The following keyrings get copied to system paths that the upgrader
-        # consults:
-        # * blacklist.tar.xz{,.asc}      - data partition (if one exists)
-        # * image-master.tar.xz{,.asc}   - cache partition
-        # * image-signing.tar.xz{,.asc}  - cache partition
-        # * device-signing.tar.xz{,.asc} - cache partition (if one exists)
-        #
-        # In this case, only the archive-master key is pre-loaded.  All the
-        # other keys are downloaded and there will be both a blacklist and
-        # device keyring.  The four signed keyring tar.xz files and their
+
+class TestRebooting(unittest.TestCase):
+    """Test various state transitions leading to a reboot."""
+
+    def setUp(self):
+        self._stack = ExitStack()
+        self._state = State()
+        try:
+            self._serverdir = self._stack.enter_context(temporary_directory())
+            # Start up both an HTTPS and HTTP server.  The data files are
+            # vended over the latter, everything else, over the former.
+            self._stack.push(make_http_server(
+                self._serverdir, 8943, 'cert.pem', 'key.pem'))
+            self._stack.push(make_http_server(self._serverdir, 8980))
+            # Set up the server files.
+            copy('channels_06.json', self._serverdir, 'channels.json')
+            sign(os.path.join(self._serverdir, 'channels.json'),
+                 'image-signing.gpg')
+            index_path = os.path.join(
+                self._serverdir, 'stable', 'nexus7', 'index.json')
+            head, tail = os.path.split(index_path)
+            copy('index_13.json', head, tail)
+            sign(index_path, 'device-signing.gpg')
+            setup_index('index_13.json', self._serverdir, 'device-signing.gpg')
+        except:
+            self._stack.close()
+            raise
+
+    def tearDown(self):
+        self._stack.close()
+
+    def _setup_keyrings(self):
+        # Only the archive-master key is pre-loaded.  All the other keys
+        # are downloaded and there will be both a blacklist and device
+        # keyring.  The four signed keyring tar.xz files and their
         # signatures end up in the proper location after the state machine
         # runs to completion.
         setup_keyrings('archive-master')
@@ -331,21 +355,18 @@ class TestState(unittest.TestCase):
         setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
-            os.path.join(
-                self._serverdir, 'stable', 'nexus7', 'device-signing.tar.xz'))
-        # Set up the server files.
-        head, tail = os.path.split(self._channels_path)
-        copy('channels_06.json', head, tail)
-        sign(self._channels_path, 'image-signing.gpg')
-        index_path = os.path.join(
-            self._serverdir, 'stable', 'nexus7', 'index.json')
-        head, tail = os.path.split(index_path)
-        copy('index_13.json', head, tail)
-        sign(index_path, 'device-signing.gpg')
-        setup_index('index_13.json', self._serverdir, 'device-signing.gpg')
-        # We also have to start up an plain HTTP server to vend the individual
-        # tarballs from.  This will get cleaned up automatically by tearDown().
-        self._stack.push(make_http_server(self._serverdir, 8980))
+            os.path.join(self._serverdir, 'stable', 'nexus7',
+                         'device-signing.tar.xz'))
+
+    @testable_configuration
+    def test_keyrings_copied_to_upgrader_paths(self):
+        # The following keyrings get copied to system paths that the upgrader
+        # consults:
+        # * blacklist.tar.xz{,.asc}      - data partition (if one exists)
+        # * image-master.tar.xz{,.asc}   - cache partition
+        # * image-signing.tar.xz{,.asc}  - cache partition
+        # * device-signing.tar.xz{,.asc} - cache partition (if one exists)
+        self._setup_keyrings()
         # Run the state machine enough times to download all the keyrings and
         # data files, then to move the files into place just before a reboot
         # is issued.  Steps preceded by * are steps that fail.
@@ -395,3 +416,31 @@ class TestState(unittest.TestCase):
                     cache_dir, os.path.basename(filerec.signature))
                 self.assertTrue(os.path.exists(path))
                 self.assertTrue(os.path.exists(asc))
+
+    @testable_configuration
+    def test_reboot_issued(self):
+        # The reboot gets issued.
+        self._setup_keyrings()
+        got_reboot = False
+        def reboot_mock(self):
+            nonlocal got_reboot
+            got_reboot = True
+        with unittest.mock.patch(
+                'resolver.tests.reboot.TestableReboot.reboot', reboot_mock):
+            list(State())
+
+    @testable_configuration
+    def test_reboot_command_file(self):
+        self._setup_keyrings()
+        list(State())
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+""")

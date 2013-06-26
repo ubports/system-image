@@ -26,3 +26,6 @@ from resolver.reboot import BaseReboot
 
 class TestableReboot(BaseReboot):
     """A testable reboot."""
+
+    def reboot(self):
+        pass
