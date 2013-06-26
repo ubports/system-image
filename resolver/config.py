@@ -68,8 +68,9 @@ class Configuration:
                           **parser['system'])
         self.gpg = Bag(**parser['gpg'])
         self.updater = Bag(**parser['updater'])
-        self.score = Bag(converters=dict(scorer=as_object),
-                         **parser['score'])
+        self.hooks = Bag(converters=dict(scorer=as_object,
+                                         reboot=as_object),
+                         **parser['hooks'])
 
     @property
     def build_number(self):

@@ -25,8 +25,10 @@ import unittest
 
 from datetime import timedelta
 from resolver.config import Configuration, config
+from resolver.reboot import Reboot
 from resolver.scores import WeightedScorer
 from resolver.tests.helpers import test_data_path, testable_configuration
+from resolver.tests.reboot import TestableReboot
 
 
 class TestConfiguration(unittest.TestCase):
@@ -43,7 +45,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
         # [score]
-        self.assertEqual(config.score.scorer, WeightedScorer)
+        self.assertEqual(config.hooks.scorer, WeightedScorer)
+        self.assertEqual(config.hooks.reboot, Reboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
                          '/etc/phablet/archive-master.tar.xz')
@@ -76,8 +79,9 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.tempdir, '/var/tmp/resolver')
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
-        # [score]
-        self.assertEqual(config.score.scorer, WeightedScorer)
+        # [hooks]
+        self.assertEqual(config.hooks.scorer, WeightedScorer)
+        self.assertEqual(config.hooks.reboot, TestableReboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
                          '/etc/phablet/archive-master.tar.xz')

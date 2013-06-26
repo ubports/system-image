@@ -254,7 +254,7 @@ class State:
         """Given an index, calculate the paths and score a winner."""
         # Store these as attributes for debugging and testing.
         self.candidates = get_candidates(self.index, config.build_number)
-        self.winner = config.score.scorer().choose(self.candidates)
+        self.winner = config.hooks.scorer().choose(self.candidates)
         self._next.append(self._download_files)
 
     def _download_files(self):
