@@ -20,8 +20,9 @@ __all__ = [
     'get_channels',
     'get_index',
     'make_http_server',
-    'setup_keyrings',
+    'setup_index',
     'setup_keyring_txz',
+    'setup_keyrings',
     'sign',
     'test_data_path',
     'testable_configuration',
@@ -47,6 +48,9 @@ from resolver.index import Index
 from threading import Thread
 from unittest.mock import patch
 from urllib.request import urlopen
+
+
+EMPTYSTRING = ''
 
 
 def get_index(filename):
@@ -272,3 +276,22 @@ def setup_keyrings(*keyrings):
         json_data = dict(type=keyring)
         dst = getattr(config.gpg, keyring.replace('-', '_'))
         setup_keyring_txz(keyring + '.gpg', signing_kr, json_data, dst)
+
+
+def setup_index(index, todir, keyring):
+    for image in get_index(index).images:
+        ## if 'B' not in image.description:
+        ##     continue
+        for filerec in image.files:
+            path = (filerec.path[1:]
+                    if filerec.path.startswith('/')
+                    else filerec.path)
+            dst = os.path.join(todir, path)
+            makedirs(os.path.dirname(dst))
+            contents = EMPTYSTRING.join(
+                os.path.splitext(filerec.path)[0].split('/'))
+            with open(dst, 'w', encoding='utf-8') as fp:
+                fp.write(contents)
+            # Sign with the imaging signing key.  Some tests will
+            # re-sign all these files with the device key.
+            sign(dst, keyring)

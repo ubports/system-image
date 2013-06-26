@@ -1,0 +1,23 @@
+{
+    "global": {
+        "generated_at": "Mon Apr 29 18:45:27 UTC 2013"
+    },
+    "images": [
+        {
+            "base": 20130600,
+            "description": "Full",
+            "files": [
+                {
+                    "checksum": "da70dfa4d9f95ac979f921e8e623358236313f334afcd06cddf8a5621cf6a1e9",
+                    "order": 1,
+                    "path": "/3/4/5.txt",
+                    "signature": "/3/4/5.txt.asc",
+                    "size": 104857600
+                }
+            ],
+            "type": "full",
+            "version": 20130600,
+            "bootme": true
+        }
+    ]
+}

@@ -23,6 +23,7 @@ __all__ = [
 
 import os
 import math
+import shutil
 import hashlib
 import logging
 
@@ -34,6 +35,7 @@ from resolver.channel import Channels
 from resolver.config import config
 from resolver.download import get_files
 from resolver.gpg import Context, SignatureError
+from resolver.helpers import makedirs
 from resolver.index import Index
 from resolver.keyring import KeyringError, get_keyring
 from urllib.parse import urljoin
@@ -62,6 +64,7 @@ class State:
         # Variables which manage state transitions.
         self._next = deque()
         self._next.append(self._get_blacklist_1)
+        self._debug_step = 1
         # Variables which represent things we've learned.
         self.blacklist = None
         self.channels = None
@@ -74,7 +77,12 @@ class State:
 
     def __next__(self):
         try:
-            self._next.popleft()()
+            step = self._next.popleft()
+            # step could be a partial or a method.
+            name = getattr(step, 'func', step).__name__
+            log.debug('-> [{:2}] {}'.format(self._debug_step, name))
+            step()
+            self._debug_step += 1
         except IndexError:
             # Do not chain the exception.
             raise StopIteration from None
@@ -301,9 +309,10 @@ class State:
                         raise ChecksumError(dst, got, checksum)
             # Everything is fine so nothing needs to be cleared.
             stack.pop_all()
-        # There's nothing left to do, so don't push anything onto the state
-        # machine's deque.
         log.info('all files available in %s', config.system.tempdir)
+        # Now, copy the files from the temporary directory into the location
+        # for the upgrader.
+        self._next.append(self._move_files)
 
     def _get_master_key(self):
         """Try to get and validate a new image master key.
@@ -342,3 +351,26 @@ class State:
             raise SignatureError from None
         # Retry the previous step.
         self._next.appendleft(self._get_channel)
+
+    def _move_files(self):
+        # The upgrader already has the archive-master, so we don't need to
+        # copy it.  The image-master, image-signing, and device-signing (if
+        # there is one) keys go to the cache partition.
+        cache_dir = config.updater.cache_partition
+        data_dir = config.updater.data_partition
+        makedirs(cache_dir)
+        makedirs(data_dir)
+        # Copy the keyring.tar.xz and .asc files.
+        shutil.copy(config.gpg.image_master, cache_dir)
+        shutil.copy(config.gpg.image_master + '.asc', cache_dir)
+        shutil.copy(config.gpg.image_signing, cache_dir)
+        shutil.copy(config.gpg.image_signing + '.asc', cache_dir)
+        if os.path.exists(config.gpg.device_signing):
+            shutil.copy(config.gpg.device_signing, cache_dir)
+            shutil.copy(config.gpg.device_signing + '.asc', cache_dir)
+        # The blacklist file (if there is one) gets copied to the data
+        # partition.
+        if self.blacklist is not None:
+            shutil.copy(self.blacklist, data_dir)
+            shutil.copy(self.blacklist + '.asc', data_dir)
+        # Nothing more to do.

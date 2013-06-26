@@ -16,11 +16,14 @@
 """Set up logging, both for main script execution and the test suite."""
 
 __all__ = [
+    'debug_logging',
     'initialize',
     ]
 
 
 import logging
+
+from contextlib import contextmanager
 
 
 def initialize(*, verbosity=0):
@@ -40,3 +43,16 @@ def initialize(*, verbosity=0):
     # Please be quiet gnupg.
     gnupg_log = logging.getLogger('gnupg')
     gnupg_log.propagate = False
+
+
+@contextmanager
+def debug_logging():
+    # getEffectiveLevel() is the best we can do, but it's good enough because
+    # we always set the level of the logger.
+    log = logging.getLogger('resolver')
+    old_level = log.getEffectiveLevel()
+    try:
+        log.setLevel(logging.DEBUG)
+        yield
+    finally:
+        log.setLevel(old_level)
