@@ -28,6 +28,7 @@ import unittest
 
 from collections import defaultdict
 from contextlib import ExitStack
+from functools import partial
 from resolver.config import config
 from resolver.download import Downloader, get_files
 from resolver.helpers import temporary_directory
@@ -36,6 +37,7 @@ from resolver.tests.helpers import (
 from unittest.mock import patch
 from urllib.error import URLError
 from urllib.parse import urljoin
+from urllib.request import Request
 
 
 class TestDownloads(unittest.TestCase):
@@ -60,6 +62,19 @@ class TestDownloads(unittest.TestCase):
             (urljoin(config.service.http_base, url),
              os.path.join(config.system.tempdir, filename)
             ) for url, filename in downloads]
+
+    @testable_configuration
+    def test_user_agent(self):
+        # The User-Agent contains the build number.
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print('20130100', file=fp)
+        EchoRequest = partial(Request, method='ECHO')
+        with patch('resolver.download.Request', EchoRequest), \
+                Downloader('http://localhost:8980/ignore.txt') as response:
+             response.read()
+             self.assertEqual(
+                 response.headers['User-Agent-Echo'],
+                 'Ubuntu System Image Upgrade Client; Build 20130100')
 
     @testable_configuration
     def test_download_good_path(self):

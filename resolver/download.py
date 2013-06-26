@@ -30,11 +30,12 @@ from resolver.config import config
 from resolver.helpers import atomic, safe_remove
 from ssl import CertificateError
 from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 
 # Parameterized for testing purposes.
 CHUNK_SIZE = 4096
+USER_AGENT = 'Ubuntu System Image Upgrade Client; Build {}'
 log = logging.getLogger('resolver')
 
 
@@ -44,9 +45,12 @@ class Downloader:
         self._stack = ExitStack()
 
     def __enter__(self):
-        # Make sure to fallback to the system certificate store.
         try:
-            return self._stack.enter_context(urlopen(self.url, cadefault=True))
+            # Set a custom User-Agent which includes the system build number.
+            headers = {'User-Agent': USER_AGENT.format(config.build_number)}
+            request = Request(self.url, headers=headers)
+            # Make sure to fallback to the system certificate store.
+            return self._stack.enter_context(urlopen(request, cadefault=True))
         except:
             self._stack.close()
             raise

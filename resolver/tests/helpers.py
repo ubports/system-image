@@ -95,6 +95,13 @@ def make_http_server(directory, port, certpem=None, keypem=None,
         def log_message(self, *args, **kws):
             # Please shut up.
             pass
+
+        def do_ECHO(self):
+            # This is a little hack for testing the User-Agent header.
+            self.send_response(200)
+            self.send_header('User-Agent-Echo',
+                             self.headers.get('User-Agent', 'No-User-Agent'))
+            self.end_headers()
     # Create the server in the main thread, but start it in the sub-thread.
     # This lets the main thread call .shutdown() to stop everything.  Return
     # just the shutdown method to the caller.
