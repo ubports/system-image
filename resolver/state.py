@@ -71,6 +71,7 @@ class State:
         self.index = None
         self.candidates = None
         self.winner = None
+        self.files = []
 
     def __iter__(self):
         return self
@@ -272,6 +273,7 @@ class State:
                 dst,
                 ))
             sizes.append(filerec.size)
+            self.files.append(dst)
             # Add the signature file, and associate the two.
             asc = os.path.join(
                 config.system.tempdir, os.path.basename(filerec.signature))
@@ -280,6 +282,7 @@ class State:
                 asc))
             # There is no size available for the .asc file.
             sizes.append(0)
+            self.files.append(asc)
             signatures.append((dst, asc))
             checksums.append((dst, filerec.checksum))
         # If there is a device-signing key, the files can be signed by either
@@ -296,6 +299,10 @@ class State:
             # of the files will get removed.
             for url, dst in downloads:
                 stack.callback(os.remove, dst)
+            # Although we should never get there, if the downloading step
+            # fails, clear out the self.files list so there's no possibilty
+            # we'll try to move them later.
+            stack.callback(setattr, self.files, [])
             # Verify the signatures on all the downloaded files.
             with Context(*keyrings, blacklist=self.blacklist) as ctx:
                 for dst, asc in signatures:
@@ -373,4 +380,8 @@ class State:
         if self.blacklist is not None:
             shutil.copy(self.blacklist, data_dir)
             shutil.copy(self.blacklist + '.asc', data_dir)
+        # Now move all the downloaded data files to the cache.
+        for src in self.files:
+            dst = os.path.join(cache_dir, os.path.basename(src))
+            shutil.copy(src, dst)
         # Nothing more to do.

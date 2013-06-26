@@ -30,8 +30,8 @@ from resolver.gpg import SignatureError
 from resolver.logging import initialize
 from resolver.state import State
 from resolver.tests.helpers import (
-    copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
-    sign, temporary_directory, testable_configuration)
+    copy, get_index, make_http_server, setup_index, setup_keyring_txz,
+    setup_keyrings, sign, temporary_directory, testable_configuration)
 
 
 def setUpModule():
@@ -352,14 +352,13 @@ class TestState(unittest.TestCase):
         # *get blacklist/get master -> get channels/signing
         # -> get device signing -> get index -> calculate winner
         # -> download files -> move files
-        blacklist_path = os.path.join(
-            config.updater.data_partition, 'blacklist.tar.xz')
-        master_path = os.path.join(
-            config.updater.cache_partition, 'image-master.tar.xz')
-        signing_path = os.path.join(
-            config.updater.cache_partition, 'image-signing.tar.xz')
-        device_path = os.path.join(
-            config.updater.cache_partition, 'device-signing.tar.xz')
+        cache_dir = config.updater.cache_partition
+        data_dir = config.updater.data_partition
+        blacklist_path = os.path.join(data_dir, 'blacklist.tar.xz')
+        master_path = os.path.join(cache_dir, 'image-master.tar.xz')
+        signing_path = os.path.join(cache_dir, 'image-signing.tar.xz')
+        device_path = os.path.join(cache_dir, 'device-signing.tar.xz')
+        # None of the keyrings or .asc files are found yet.
         self.assertFalse(os.path.exists(blacklist_path))
         self.assertFalse(os.path.exists(master_path))
         self.assertFalse(os.path.exists(signing_path))
@@ -368,9 +367,18 @@ class TestState(unittest.TestCase):
         self.assertFalse(os.path.exists(master_path + '.asc'))
         self.assertFalse(os.path.exists(signing_path + '.asc'))
         self.assertFalse(os.path.exists(device_path + '.asc'))
+        # None of the data files are found yet.
+        for image in get_index('index_13.json').images:
+            for filerec in image.files:
+                path = os.path.join(cache_dir, os.path.basename(filerec.path))
+                asc = os.path.join(
+                    cache_dir, os.path.basename(filerec.signature))
+                self.assertFalse(os.path.exists(path))
+                self.assertFalse(os.path.exists(asc))
         state = State()
         for i in range(7):
             next(state)
+        # All of the keyrings and .asc files are found.
         self.assertTrue(os.path.exists(blacklist_path))
         self.assertTrue(os.path.exists(master_path))
         self.assertTrue(os.path.exists(signing_path))
@@ -379,3 +387,11 @@ class TestState(unittest.TestCase):
         self.assertTrue(os.path.exists(master_path + '.asc'))
         self.assertTrue(os.path.exists(signing_path + '.asc'))
         self.assertTrue(os.path.exists(device_path + '.asc'))
+        # All of the data files are found.
+        for image in get_index('index_13.json').images:
+            for filerec in image.files:
+                path = os.path.join(cache_dir, os.path.basename(filerec.path))
+                asc = os.path.join(
+                    cache_dir, os.path.basename(filerec.signature))
+                self.assertTrue(os.path.exists(path))
+                self.assertTrue(os.path.exists(asc))
