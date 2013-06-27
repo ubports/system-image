@@ -1,4 +1,6 @@
-include *.py
-global-include *.txt *.rst *.json *.ini
+include *.py MANIFEST.in
+global-include *.txt *.rst *.json *.ini *.gpg *.pem
 prune build
-exclude MANIFEST.in .bzrignore
+prune dist
+prune .tox
+exclude .bzrignore *.egg

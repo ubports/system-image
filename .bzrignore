@@ -6,5 +6,5 @@ _static
 _templates
 build
 trustdb.gpg
-resolver/tests/data/random_seed
+systemimage/tests/data/random_seed
 dist

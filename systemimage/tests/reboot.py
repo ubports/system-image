@@ -13,23 +13,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from setuptools import find_packages, setup
-
-with open('systemimage/version.txt') as fp:
-    __version__ = fp.read().strip()
+"""A testable rebooter."""
 
 
-setup(
-    name='systemimage',
-    version=__version__,
-    description='Ubuntu System Image Based Upgrades',
-    author='Barry Warsaw',
-    author_email='barry@ubuntu.com',
-    license='GNU GPLv3',
-    packages=find_packages(),
-    entry_points={
-        'console_scripts': ['system-image-cli = systemimage.main:main'],
-    },
-    include_package_data=True,
-    test_suite="systemimage.tests",
-    )
+__all__ = [
+    'TestableReboot',
+    ]
+
+
+from systemimage.reboot import BaseReboot
+
+
+class TestableReboot(BaseReboot):
+    """A testable reboot."""
+
+    def reboot(self):
+        pass

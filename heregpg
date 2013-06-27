@@ -1,7 +1,7 @@
 #! /bin/sh
 
 gpg --homedir `pwd` \
-    --keyring ./resolver/tests/data/pubring_01.gpg \
-    --secret-keyring ./resolver/tests/data/secring_01.gpg \
+    --keyring ./systemimage/tests/data/pubring_01.gpg \
+    --secret-keyring ./systemimage/tests/data/secring_01.gpg \
     --no-default-keyring \
     $*
