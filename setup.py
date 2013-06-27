@@ -20,7 +20,7 @@ with open('systemimage/version.txt') as fp:
 
 
 setup(
-    name='systemimage',
+    name='system-image',
     version=__version__,
     description='Ubuntu System Image Based Upgrades',
     author='Barry Warsaw',
