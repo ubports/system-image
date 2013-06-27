@@ -49,17 +49,21 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.hooks.reboot, Reboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
-                         '/etc/phablet/archive-master.tar.xz')
-        self.assertEqual(config.gpg.image_master,
-                         '/etc/phablet/image-master.tar.xz')
-        self.assertEqual(config.gpg.image_signing,
-                         '/var/lib/phablet/image-signing.tar.xz')
-        self.assertEqual(config.gpg.device_signing,
-                         '/var/lib/phablet/device-signing.tar.xz')
+                         '/etc/image-upgrades-resolver/archive-master.tar.xz')
+        self.assertEqual(
+            config.gpg.image_master,
+            '/var/lib/image-upgrades-resolver/keyrings/image-master.tar.xz')
+        self.assertEqual(
+            config.gpg.image_signing,
+            '/var/lib/image-upgrades-resolver/keyrings/image-signing.tar.xz')
+        self.assertEqual(
+            config.gpg.device_signing,
+            '/var/lib/image-upgrades-resolver/keyrings/device-signing.tar.xz')
         # [updater]
-        self.assertEqual(config.updater.cache_partition, '/android/cache')
+        self.assertEqual(config.updater.cache_partition,
+                         '/android/cache/recovery')
         self.assertEqual(config.updater.data_partition,
-                         '/var/lib/phablet/updater')
+                         '/var/lib/image-upgrades-resolver/')
 
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
