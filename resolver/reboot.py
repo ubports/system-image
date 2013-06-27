@@ -24,6 +24,10 @@ __all__ = [
 class BaseReboot:
     """Common reboot actions."""
 
+    def reboot(self):
+        """Subclasses must override this."""
+        raise NotImplementedError
+
 
 class Reboot(BaseReboot):
     """Issue a standard reboot."""
