@@ -25,8 +25,10 @@ import unittest
 
 from datetime import timedelta
 from resolver.config import Configuration, config
+from resolver.reboot import Reboot
 from resolver.scores import WeightedScorer
 from resolver.tests.helpers import test_data_path, testable_configuration
+from resolver.tests.reboot import TestableReboot
 
 
 class TestConfiguration(unittest.TestCase):
@@ -43,20 +45,25 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
         # [score]
-        self.assertEqual(config.score.scorer, WeightedScorer)
+        self.assertEqual(config.hooks.scorer, WeightedScorer)
+        self.assertEqual(config.hooks.reboot, Reboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
-                         '/etc/phablet/archive-master.tar.xz')
-        self.assertEqual(config.gpg.image_master,
-                         '/etc/phablet/image-master.tar.xz')
-        self.assertEqual(config.gpg.image_signing,
-                         '/var/lib/phablet/image-signing.tar.xz')
-        self.assertEqual(config.gpg.device_signing,
-                         '/var/lib/phablet/device-signing.tar.xz')
+                         '/etc/image-upgrades-resolver/archive-master.tar.xz')
+        self.assertEqual(
+            config.gpg.image_master,
+            '/var/lib/image-upgrades-resolver/keyrings/image-master.tar.xz')
+        self.assertEqual(
+            config.gpg.image_signing,
+            '/var/lib/image-upgrades-resolver/keyrings/image-signing.tar.xz')
+        self.assertEqual(
+            config.gpg.device_signing,
+            '/var/lib/image-upgrades-resolver/keyrings/device-signing.tar.xz')
         # [updater]
-        self.assertEqual(config.updater.cache_partition, '/android/cache')
+        self.assertEqual(config.updater.cache_partition,
+                         '/android/cache/recovery')
         self.assertEqual(config.updater.data_partition,
-                         '/var/lib/phablet/updater')
+                         '/var/lib/image-upgrades-resolver/')
 
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
@@ -76,8 +83,9 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.tempdir, '/var/tmp/resolver')
         self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.device, 'nexus7')
-        # [score]
-        self.assertEqual(config.score.scorer, WeightedScorer)
+        # [hooks]
+        self.assertEqual(config.hooks.scorer, WeightedScorer)
+        self.assertEqual(config.hooks.reboot, TestableReboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
                          '/etc/phablet/archive-master.tar.xz')

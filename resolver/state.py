@@ -23,17 +23,21 @@ __all__ = [
 
 import os
 import math
+import shutil
 import hashlib
 import logging
 
 from collections import deque
 from contextlib import ExitStack
 from functools import partial
+from itertools import islice
+from operator import itemgetter
 from resolver.candidates import get_candidates, get_downloads
 from resolver.channel import Channels
 from resolver.config import config
 from resolver.download import get_files
 from resolver.gpg import Context, SignatureError
+from resolver.helpers import makedirs
 from resolver.index import Index
 from resolver.keyring import KeyringError, get_keyring
 from urllib.parse import urljoin
@@ -62,19 +66,26 @@ class State:
         # Variables which manage state transitions.
         self._next = deque()
         self._next.append(self._get_blacklist_1)
+        self._debug_step = 1
         # Variables which represent things we've learned.
         self.blacklist = None
         self.channels = None
         self.index = None
         self.candidates = None
         self.winner = None
+        self.files = []
 
     def __iter__(self):
         return self
 
     def __next__(self):
         try:
-            self._next.popleft()()
+            step = self._next.popleft()
+            # step could be a partial or a method.
+            name = getattr(step, 'func', step).__name__
+            log.debug('-> [{:2}] {}'.format(self._debug_step, name))
+            step()
+            self._debug_step += 1
         except IndexError:
             # Do not chain the exception.
             raise StopIteration from None
@@ -245,7 +256,7 @@ class State:
         """Given an index, calculate the paths and score a winner."""
         # Store these as attributes for debugging and testing.
         self.candidates = get_candidates(self.index, config.build_number)
-        self.winner = config.score.scorer().choose(self.candidates)
+        self.winner = config.hooks.scorer().choose(self.candidates)
         self._next.append(self._download_files)
 
     def _download_files(self):
@@ -264,6 +275,7 @@ class State:
                 dst,
                 ))
             sizes.append(filerec.size)
+            self.files.append((dst, filerec.order))
             # Add the signature file, and associate the two.
             asc = os.path.join(
                 config.system.tempdir, os.path.basename(filerec.signature))
@@ -272,6 +284,7 @@ class State:
                 asc))
             # There is no size available for the .asc file.
             sizes.append(0)
+            self.files.append((asc, filerec.order))
             signatures.append((dst, asc))
             checksums.append((dst, filerec.checksum))
         # If there is a device-signing key, the files can be signed by either
@@ -288,6 +301,10 @@ class State:
             # of the files will get removed.
             for url, dst in downloads:
                 stack.callback(os.remove, dst)
+            # Although we should never get there, if the downloading step
+            # fails, clear out the self.files list so there's no possibilty
+            # we'll try to move them later.
+            stack.callback(setattr, self.files, [])
             # Verify the signatures on all the downloaded files.
             with Context(*keyrings, blacklist=self.blacklist) as ctx:
                 for dst, asc in signatures:
@@ -301,9 +318,10 @@ class State:
                         raise ChecksumError(dst, got, checksum)
             # Everything is fine so nothing needs to be cleared.
             stack.pop_all()
-        # There's nothing left to do, so don't push anything onto the state
-        # machine's deque.
         log.info('all files available in %s', config.system.tempdir)
+        # Now, copy the files from the temporary directory into the location
+        # for the upgrader.
+        self._next.append(self._move_files)
 
     def _get_master_key(self):
         """Try to get and validate a new image master key.
@@ -342,3 +360,77 @@ class State:
             raise SignatureError from None
         # Retry the previous step.
         self._next.appendleft(self._get_channel)
+
+    def _move_files(self):
+        # The upgrader already has the archive-master, so we don't need to
+        # copy it.  The image-master, image-signing, and device-signing (if
+        # there is one) keys go to the cache partition.
+        cache_dir = config.updater.cache_partition
+        data_dir = config.updater.data_partition
+        makedirs(cache_dir)
+        makedirs(data_dir)
+        # Copy the keyring.tar.xz and .asc files.
+        shutil.copy(config.gpg.image_master, cache_dir)
+        shutil.copy(config.gpg.image_master + '.asc', cache_dir)
+        shutil.copy(config.gpg.image_signing, cache_dir)
+        shutil.copy(config.gpg.image_signing + '.asc', cache_dir)
+        if os.path.exists(config.gpg.device_signing):
+            shutil.copy(config.gpg.device_signing, cache_dir)
+            shutil.copy(config.gpg.device_signing + '.asc', cache_dir)
+        # The blacklist file (if there is one) gets copied to the data
+        # partition.
+        if self.blacklist is not None:
+            shutil.copy(self.blacklist, data_dir)
+            shutil.copy(self.blacklist + '.asc', data_dir)
+        # Now move all the downloaded data files to the cache.
+        for src, order in self.files:
+            dst = os.path.join(cache_dir, os.path.basename(src))
+            shutil.copy(src, dst)
+        # Issue the reboot.
+        self._next.append(self._reboot)
+
+    def _reboot(self):
+        # Issue the reboot.
+        #
+        # First we have to create the ubuntu_command file, which will tell the
+        # updater which files to apply and in which order.  Right now,
+        # self.files contains a sequence of the following contents:
+        #
+        # [(file_1, order_1), (file_1.asc, order_1), ...]
+        #
+        # The order of the .asc file is redundant.  Rearrange this sequence so
+        # that we have the following:
+        #
+        # [(order_1, file_1, file_1.asc), ...]
+        collated = []
+        zipper = zip(
+            # items # 0, 2, 4, ...
+            islice(self.files, 0, None, 2),
+            # items # 1, 3, 5, ...
+            islice(self.files, 1, None, 2))
+        for (txz, txz_order), (asc, asc_order) in zipper:
+            assert txz_order == asc_order, 'Mismatched tar.xz/.asc files'
+            collated.append((txz_order, txz, asc))
+        ordered = sorted(collated)
+        # Open command file and first write the load_keyring commands.
+        command_file = os.path.join(
+            config.updater.cache_partition, 'ubuntu_command')
+        with open(command_file, 'w', encoding='utf-8') as fp:
+            print('load_keyring {0} {0}.asc'.format(
+                os.path.basename(config.gpg.image_master)),
+                file=fp)
+            print('load_keyring {0} {0}.asc'.format(
+                os.path.basename(config.gpg.image_signing)),
+                file=fp)
+            if os.path.exists(config.gpg.device_signing):
+                print('load_keyring {0} {0}.asc'.format(
+                    os.path.basename(config.gpg.device_signing)),
+                    file=fp)
+            # Now write all the update commands for the tar.xz files.
+            for order, txz, asc in ordered:
+                print('update {} {}'.format(
+                    os.path.basename(txz),
+                    os.path.basename(asc)),
+                    file=fp)
+        # Ready to reboot.
+        config.hooks.reboot().reboot()

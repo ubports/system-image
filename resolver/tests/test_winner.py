@@ -33,11 +33,9 @@ from resolver.logging import initialize
 from resolver.scores import WeightedScorer
 from resolver.state import ChecksumError, State
 from resolver.tests.helpers import (
-    copy, get_index, make_http_server, makedirs, setup_keyring_txz,
-    setup_keyrings, sign, test_data_path, testable_configuration)
-
-
-EMPTYSTRING = ''
+    copy, get_index, make_http_server, makedirs, setup_index,
+    setup_keyring_txz, setup_keyrings, sign, test_data_path,
+    testable_configuration)
 
 
 def setUpModule():
@@ -69,7 +67,7 @@ class TestWinnerDownloads(unittest.TestCase):
                  'image-signing.gpg')
             # Create every file in path B.  The file contents will be the
             # checksum value.  We need to create the signatures on the fly.
-            self._signfiles('image-signing.gpg')
+            setup_index('index_12.json', self._serverdir, 'image-signing.gpg')
             self._stack.push(
                 make_http_server(self._serverdir, 8943, 'cert.pem', 'key.pem'))
             self._stack.push(make_http_server(self._serverdir, 8980))
@@ -79,24 +77,6 @@ class TestWinnerDownloads(unittest.TestCase):
 
     def tearDown(self):
         self._stack.close()
-
-    def _signfiles(self, keyring):
-        for image in get_index('index_12.json').images:
-            if 'B' not in image.description:
-                continue
-            for filerec in image.files:
-                path = (filerec.path[1:]
-                        if filerec.path.startswith('/')
-                        else filerec.path)
-                dst = os.path.join(self._serverdir, path)
-                makedirs(os.path.dirname(dst))
-                contents = EMPTYSTRING.join(
-                    os.path.splitext(filerec.path)[0].split('/'))
-                with open(dst, 'w', encoding='utf-8') as fp:
-                    fp.write(contents)
-                # Sign with the imaging signing key.  Some tests will
-                # re-sign all these files with the device key.
-                sign(dst, keyring)
 
     @testable_configuration
     def test_calculate_candidates(self):
@@ -183,7 +163,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # signed with the device key.
         sign(os.path.join(self._serverdir, self._indexpath),
              'device-signing.gpg')
-        self._signfiles('device-signing.gpg')
+        setup_index('index_12.json', self._serverdir, 'device-signing.gpg')
         # Set the build number.
         with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
             print(20120100, file=fp)
@@ -228,7 +208,7 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, self._indexpath),
              'device-signing.gpg')
         # All the downloadable files are now signed with the image signing key.
-        self._signfiles('image-signing.gpg')
+        setup_index('index_12.json', self._serverdir, 'image-signing.gpg')
         # Set the build number.
         with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
             print(20120100, file=fp)
@@ -262,8 +242,7 @@ class TestWinnerDownloads(unittest.TestCase):
         copy('index_10.json', self._serverdir, self._indexpath)
         sign(os.path.join(self._serverdir, self._indexpath),
              'image-signing.gpg')
-        self._index = get_index('index_10.json')
-        self._signfiles('image-signing.gpg')
+        setup_index('index_10.json', self._serverdir, 'image-signing.gpg')
         setup_keyrings()
         state = State()
         # Set the build number.
@@ -294,7 +273,7 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, self._indexpath),
              'device-signing.gpg')
         # All the downloadable files are now signed with a bogus key.
-        self._signfiles('spare.gpg')
+        setup_index('index_12.json', self._serverdir, 'spare.gpg')
         # Set the build number.
         with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
             print(20120100, file=fp)

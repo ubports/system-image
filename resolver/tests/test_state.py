@@ -17,6 +17,7 @@
 
 __all__ = [
     'TestState',
+    'TestRebootingState',
     ]
 
 
@@ -30,8 +31,8 @@ from resolver.gpg import SignatureError
 from resolver.logging import initialize
 from resolver.state import State
 from resolver.tests.helpers import (
-    copy, make_http_server, setup_keyring_txz, setup_keyrings, sign,
-    temporary_directory, testable_configuration)
+    copy, get_index, make_http_server, setup_index, setup_keyring_txz,
+    setup_keyrings, sign, temporary_directory, testable_configuration)
 
 
 def setUpModule():
@@ -302,7 +303,61 @@ class TestState(unittest.TestCase):
         next(state)
         self.assertRaises(SignatureError, next, state)
 
-    @unittest.skip('unfinished')
+
+class TestRebooting(unittest.TestCase):
+    """Test various state transitions leading to a reboot."""
+
+    def setUp(self):
+        self._stack = ExitStack()
+        self._state = State()
+        try:
+            self._serverdir = self._stack.enter_context(temporary_directory())
+            # Start up both an HTTPS and HTTP server.  The data files are
+            # vended over the latter, everything else, over the former.
+            self._stack.push(make_http_server(
+                self._serverdir, 8943, 'cert.pem', 'key.pem'))
+            self._stack.push(make_http_server(self._serverdir, 8980))
+            # Set up the server files.
+            copy('channels_06.json', self._serverdir, 'channels.json')
+            sign(os.path.join(self._serverdir, 'channels.json'),
+                 'image-signing.gpg')
+            index_path = os.path.join(
+                self._serverdir, 'stable', 'nexus7', 'index.json')
+            head, tail = os.path.split(index_path)
+            copy('index_13.json', head, tail)
+            sign(index_path, 'device-signing.gpg')
+            setup_index('index_13.json', self._serverdir, 'device-signing.gpg')
+        except:
+            self._stack.close()
+            raise
+
+    def tearDown(self):
+        self._stack.close()
+
+    def _setup_keyrings(self):
+        # Only the archive-master key is pre-loaded.  All the other keys
+        # are downloaded and there will be both a blacklist and device
+        # keyring.  The four signed keyring tar.xz files and their
+        # signatures end up in the proper location after the state machine
+        # runs to completion.
+        setup_keyrings('archive-master')
+        setup_keyring_txz(
+            'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        setup_keyring_txz(
+            'image-master.gpg', 'archive-master.gpg',
+            dict(type='image-master'),
+            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
+        setup_keyring_txz(
+            'image-signing.gpg', 'image-master.gpg',
+            dict(type='image-signing'),
+            os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
+        setup_keyring_txz(
+            'device-signing.gpg', 'image-signing.gpg',
+            dict(type='device-signing'),
+            os.path.join(self._serverdir, 'stable', 'nexus7',
+                         'device-signing.tar.xz'))
+
     @testable_configuration
     def test_keyrings_copied_to_upgrader_paths(self):
         # The following keyrings get copied to system paths that the upgrader
@@ -311,10 +366,81 @@ class TestState(unittest.TestCase):
         # * image-master.tar.xz{,.asc}   - cache partition
         # * image-signing.tar.xz{,.asc}  - cache partition
         # * device-signing.tar.xz{,.asc} - cache partition (if one exists)
-        #
-        # In this case, only the archive-master key is pre-loaded.  All the
-        # other keys are downloaded and there will be both a blacklist and
-        # device keyring.  The four signed keyring tar.xz files and their
-        # signatures end up in the proper location after the state machine
-        # runs to completion.
-        setup_keyrings('archive-master')
+        self._setup_keyrings()
+        # Run the state machine enough times to download all the keyrings and
+        # data files, then to move the files into place just before a reboot
+        # is issued.  Steps preceded by * are steps that fail.
+        # *get blacklist/get master -> get channels/signing
+        # -> get device signing -> get index -> calculate winner
+        # -> download files -> move files
+        cache_dir = config.updater.cache_partition
+        data_dir = config.updater.data_partition
+        blacklist_path = os.path.join(data_dir, 'blacklist.tar.xz')
+        master_path = os.path.join(cache_dir, 'image-master.tar.xz')
+        signing_path = os.path.join(cache_dir, 'image-signing.tar.xz')
+        device_path = os.path.join(cache_dir, 'device-signing.tar.xz')
+        # None of the keyrings or .asc files are found yet.
+        self.assertFalse(os.path.exists(blacklist_path))
+        self.assertFalse(os.path.exists(master_path))
+        self.assertFalse(os.path.exists(signing_path))
+        self.assertFalse(os.path.exists(device_path))
+        self.assertFalse(os.path.exists(blacklist_path + '.asc'))
+        self.assertFalse(os.path.exists(master_path + '.asc'))
+        self.assertFalse(os.path.exists(signing_path + '.asc'))
+        self.assertFalse(os.path.exists(device_path + '.asc'))
+        # None of the data files are found yet.
+        for image in get_index('index_13.json').images:
+            for filerec in image.files:
+                path = os.path.join(cache_dir, os.path.basename(filerec.path))
+                asc = os.path.join(
+                    cache_dir, os.path.basename(filerec.signature))
+                self.assertFalse(os.path.exists(path))
+                self.assertFalse(os.path.exists(asc))
+        state = State()
+        for i in range(7):
+            next(state)
+        # All of the keyrings and .asc files are found.
+        self.assertTrue(os.path.exists(blacklist_path))
+        self.assertTrue(os.path.exists(master_path))
+        self.assertTrue(os.path.exists(signing_path))
+        self.assertTrue(os.path.exists(device_path))
+        self.assertTrue(os.path.exists(blacklist_path + '.asc'))
+        self.assertTrue(os.path.exists(master_path + '.asc'))
+        self.assertTrue(os.path.exists(signing_path + '.asc'))
+        self.assertTrue(os.path.exists(device_path + '.asc'))
+        # All of the data files are found.
+        for image in get_index('index_13.json').images:
+            for filerec in image.files:
+                path = os.path.join(cache_dir, os.path.basename(filerec.path))
+                asc = os.path.join(
+                    cache_dir, os.path.basename(filerec.signature))
+                self.assertTrue(os.path.exists(path))
+                self.assertTrue(os.path.exists(asc))
+
+    @testable_configuration
+    def test_reboot_issued(self):
+        # The reboot gets issued.
+        self._setup_keyrings()
+        got_reboot = False
+        def reboot_mock(self):
+            nonlocal got_reboot
+            got_reboot = True
+        with unittest.mock.patch(
+                'resolver.tests.reboot.TestableReboot.reboot', reboot_mock):
+            list(State())
+
+    @testable_configuration
+    def test_reboot_command_file(self):
+        self._setup_keyrings()
+        list(State())
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+""")
