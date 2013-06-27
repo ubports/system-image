@@ -3,4 +3,4 @@ global-include *.txt *.rst *.json *.ini *.gpg *.pem
 prune build
 prune dist
 prune .tox
-exclude .bzrignore *.egg
+exclude .bzrignore

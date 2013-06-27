@@ -2,6 +2,10 @@
 NEWS for system-image updater
 =============================
 
+0.3 (2013-XX-XX)
+================
+
+
 0.2 (2013-06-27)
 ================
  * Fix distutils packaging bugs exposed by Debian packaging work.
