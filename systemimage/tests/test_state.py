@@ -431,6 +431,7 @@ class TestRebooting(unittest.TestCase):
 
     @testable_configuration
     def test_reboot_command_file(self):
+        # The command file gets properly filled.
         self._setup_keyrings()
         list(State())
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
@@ -444,3 +445,26 @@ update 6.txt 6.txt.asc
 update 7.txt 7.txt.asc
 update 5.txt 5.txt.asc
 """)
+
+    @testable_configuration
+    def test_run_until(self):
+        # It is possible to run the state machine either until some specific
+        # state is completed, or it runs to the end.
+        self._setup_keyrings()
+        state = State()
+        self.assertIsNone(state.channels)
+        state.run_thru('get_channel')
+        self.assertIsNotNone(state.channels)
+        # But there is no index file yet.
+        self.assertIsNone(state.index)
+        # Run it some more.
+        state.run_thru('get_index')
+        self.assertIsNotNone(state.index)
+        # Run until just before the reboot.
+        state.run_until('reboot')
+        command_path = os.path.join(
+            config.updater.cache_partition, 'ubuntu_command')
+        self.assertFalse(os.path.exists(command_path))
+        # Finish it off.
+        list(state)
+        self.assertTrue(os.path.exists(command_path))
