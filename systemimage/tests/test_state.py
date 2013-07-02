@@ -468,3 +468,31 @@ update 5.txt 5.txt.asc
         # Finish it off.
         list(state)
         self.assertTrue(os.path.exists(command_path))
+
+    @testable_configuration
+    def test_update_available(self):
+        # Because our build number is lower than the latest available in the
+        # index file, there is an update available.
+        self._setup_keyrings()
+        state = State()
+        self.assertTrue(state.check_for_update())
+
+    @testable_configuration
+    def test_no_update_available_at_latest(self):
+        # Because our build number is equal to the latest available in the
+        # index file, there is no update available.
+        self._setup_keyrings()
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130600, file=fp)
+        state = State()
+        self.assertFalse(state.check_for_update())
+
+    @testable_configuration
+    def test_no_update_available_newer(self):
+        # Because our build number is higher than the latest available in the
+        # index file, there is no update available.
+        self._setup_keyrings()
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130700, file=fp)
+        state = State()
+        self.assertFalse(state.check_for_update())

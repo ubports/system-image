@@ -137,6 +137,12 @@ class State:
             step()
             self._debug_step += 1
 
+    def check_for_update(self):
+        # Run the state machine until we know whether an update is available
+        # or not.
+        self.run_thru('calculate_winner')
+        return bool(self.winner)
+
     def _get_blacklist_1(self):
         """First try to get the blacklist."""
         # If there is no image master key, download one now.  Don't worry if
