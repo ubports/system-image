@@ -16,6 +16,7 @@
 """Test asynchronous downloads."""
 
 __all__ = [
+    'TestCancel',
     'TestDownloads',
     'TestHTTPSDownloads',
     ]
@@ -30,10 +31,11 @@ from collections import defaultdict
 from contextlib import ExitStack
 from functools import partial
 from systemimage.config import config
-from systemimage.download import Downloader, get_files
+from systemimage.download import CHUNK_SIZE, Downloader, get_files
 from systemimage.helpers import temporary_directory
 from systemimage.tests.helpers import (
     make_http_server, test_data_path, testable_configuration)
+from threading import Event
 from unittest.mock import patch
 from urllib.error import URLError
 from urllib.parse import urljoin
@@ -176,9 +178,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # (i.e. the good path).
         with ExitStack() as stack:
             stack.push(make_http_server(
-                self._directory, 8943, 'cert.pem', 'key.pem',
-                # The following isn't strictly necessary, since its default.
-                selfsign=True))
+                self._directory, 8943, 'cert.pem', 'key.pem'))
             response = stack.enter_context(Downloader(
                 'https://localhost:8943/channels_01.json'))
             data = json.loads(response.read().decode('utf-8'))
@@ -192,9 +192,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         with ExitStack() as stack:
             tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
-                self._directory, 8943, 'cert.pem', 'key.pem',
-                # The following isn't strictly necessary, since its default.
-                selfsign=True))
+                self._directory, 8943, 'cert.pem', 'key.pem'))
             channels_path = os.path.join(tempdir, 'channels.json')
             get_files([('https://localhost:8943/channels_01.json',
                         channels_path)])
@@ -251,9 +249,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # The HTTPS server has an expired certificate (mocked so that its CA
         # is in the system's trusted path).
         with make_http_server(
-                self._directory, 8943, 'expired_cert.pem', 'expired_key.pem',
-                # The following isn't strictly necessary, since its default.
-                selfsign=True):
+                self._directory, 8943, 'expired_cert.pem', 'expired_key.pem'):
             dl = Downloader('https://localhost:8943/channels_01.json')
             self.assertRaises(URLError, dl.__enter__)
 
@@ -263,9 +259,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         with ExitStack() as stack:
             tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
-                self._directory, 8943, 'expired_cert.pem', 'expired_key.pem',
-                # The following isn't strictly necessary, since its default.
-                selfsign=True))
+                self._directory, 8943, 'expired_cert.pem', 'expired_key.pem'))
             self.assertRaises(
                 FileNotFoundError,
                 get_files, [('https://localhost:8943/channels_01.json',
@@ -275,9 +269,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         # The HTTPS server has a certificate with a non-matching hostname
         # (mocked so that its CA is in the system's trusted path).
         with make_http_server(
-                self._directory, 8943, 'nasty_cert.pem', 'nasty_key.pem',
-                # The following isn't strictly necessary, since its default.
-                selfsign=True):
+                self._directory, 8943, 'nasty_cert.pem', 'nasty_key.pem'):
             dl = Downloader('https://localhost:8943/channels_01.json')
             self.assertRaises(ssl.CertificateError, dl.__enter__)
 
@@ -287,10 +279,52 @@ class TestHTTPSDownloads(unittest.TestCase):
         with ExitStack() as stack:
             tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
-                self._directory, 8943, 'nasty_cert.pem', 'nasty_key.pem',
-                # The following isn't strictly necessary, since its default.
-                selfsign=True))
+                self._directory, 8943, 'nasty_cert.pem', 'nasty_key.pem'))
             self.assertRaises(
                 FileNotFoundError,
                 get_files, [('https://localhost:8943/channels_01.json',
                              os.path.join(tempdir, 'channels.json'))])
+
+    def test_cancel(self):
+        # Try to cancel the download of a big file.
+        with ExitStack() as stack:
+            serverdir = stack.enter_context(temporary_directory())
+            dstdir = stack.enter_context(temporary_directory())
+            stack.push(make_http_server(serverdir, 8980, selfsign=False))
+            # Create a couple of big files to download.
+            with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
+                fp.write(b'x' * CHUNK_SIZE * 10)
+            with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
+                fp.write(b'x' * CHUNK_SIZE * 10)
+            # Here's an exception class we'll raise to cancel the download.
+            class Cancel(BaseException):
+                pass
+            # Here's the event that will be used to cancel the download.
+            event = Event()
+            # Here's the callback that checks the event.
+            seen = {}
+            def callback(url, dst, bytes_read, *ignore):
+                seen[url] = bytes_read
+                if event.is_set():
+                    raise Cancel
+                elif bytes_read >= CHUNK_SIZE:
+                    event.set()
+            # Do the download.
+            downloads = [
+                ('http://localhost:8980/bigfile_1.dat',
+                 os.path.join(dstdir, 'bigfile_1.dat')),
+                ('http://localhost:8980/bigfile_2.dat',
+                 os.path.join(dstdir, 'bigfile_2.dat')),
+                ]
+            self.assertRaises(Cancel, get_files, downloads, callback)
+            # The event got fired.
+            self.assertTrue(event.is_set())
+            # No file will have read more than 2x CHUNK_SIZE.  Why?  Let's say
+            # we read only one file.  The first read will give us CHUNK_SIZE
+            # bytes and set the event.  The second read won't call the
+            # callback until the second chunk is fully read.  The the callback
+            # will see the set event and raise the cancel.
+            for url, bytes_read in seen.items():
+                self.assertLessEqual(bytes_read, CHUNK_SIZE * 2)
+            # But because the exception got raised, no download files exist.
+            self.assertEqual(os.listdir(dstdir), [])
