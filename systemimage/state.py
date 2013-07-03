@@ -431,11 +431,9 @@ class State:
             dst = os.path.join(cache_dir, os.path.basename(src))
             shutil.copy(src, dst)
         # Issue the reboot.
-        self._next.append(self._reboot)
+        self._next.append(self._prepare_recovery)
 
-    def _reboot(self):
-        # Issue the reboot.
-        #
+    def _prepare_recovery(self):
         # First we have to create the ubuntu_command file, which will tell the
         # updater which files to apply and in which order.  Right now,
         # self.files contains a sequence of the following contents:
@@ -476,5 +474,8 @@ class State:
                     os.path.basename(txz),
                     os.path.basename(asc)),
                     file=fp)
-        # Ready to reboot.
+        self._next.append(self._reboot)
+
+    def _reboot(self):
         config.hooks.reboot().reboot()
+        # Nothing more to do.

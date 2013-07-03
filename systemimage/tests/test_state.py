@@ -428,6 +428,7 @@ class TestRebooting(unittest.TestCase):
         with unittest.mock.patch(
                 'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
             list(State())
+        self.assertTrue(got_reboot)
 
     @testable_configuration
     def test_reboot_command_file(self):
@@ -461,10 +462,19 @@ update 5.txt 5.txt.asc
         state.run_thru('get_index')
         self.assertIsNotNone(state.index)
         # Run until just before the reboot.
-        state.run_until('reboot')
-        command_path = os.path.join(
-            config.updater.cache_partition, 'ubuntu_command')
-        self.assertFalse(os.path.exists(command_path))
+        #
+        # Mock the reboot to make sure a reboot did not get issued.
+        got_reboot = False
+        def reboot_mock(self):
+            nonlocal got_reboot
+            got_reboot = True
+        with unittest.mock.patch(
+                'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
+            state.run_until('reboot')
+        # No reboot got issued.
+        self.assertFalse(got_reboot)
         # Finish it off.
-        list(state)
-        self.assertTrue(os.path.exists(command_path))
+        with unittest.mock.patch(
+                'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
+            list(state)
+        self.assertTrue(got_reboot)

@@ -65,3 +65,7 @@ class Mediator:
         """
         self._state.run_thru('calculate_winner')
         return Update(self._state.winner)
+
+    def complete_update(self):
+        """Complete the update."""
+        self._state.run_until('reboot')

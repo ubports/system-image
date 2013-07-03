@@ -146,3 +146,53 @@ class TestAPI(unittest.TestCase):
             'description-xx': 'Oh delta, my delta',
             'description-xx_CC': 'This hyar is the delta B.2',
             })
+
+    @testable_configuration
+    def test_complete_update(self):
+        # After checking that an update is available, complete the update, but
+        # don't reboot.
+        self._setup_keyrings()
+        mediator = Mediator()
+        self.assertTrue(mediator.check_for_update())
+        # Make sure a reboot did not get issued.
+        got_reboot = False
+        def reboot_mock(self):
+            nonlocal got_reboot
+            got_reboot = True
+        with unittest.mock.patch(
+                'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
+            mediator.complete_update()
+        # No reboot got issued.
+        self.assertFalse(got_reboot)
+        # But the command file did get written, and all the files are present.
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+""")
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)), set([
+            '5.txt',
+            '5.txt.asc',
+            '6.txt',
+            '6.txt.asc',
+            '7.txt',
+            '7.txt.asc',
+            'device-signing.tar.xz',
+            'device-signing.tar.xz.asc',
+            'image-master.tar.xz',
+            'image-master.tar.xz.asc',
+            'image-signing.tar.xz',
+            'image-signing.tar.xz.asc',
+            'ubuntu_command',
+            ]))
+        # And the blacklist keyring is available too.
+        self.assertEqual(set(os.listdir(config.updater.data_partition)), set([
+            'blacklist.tar.xz',
+            'blacklist.tar.xz.asc',
+            ]))
