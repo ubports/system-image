@@ -196,3 +196,21 @@ update 5.txt 5.txt.asc
             'blacklist.tar.xz',
             'blacklist.tar.xz.asc',
             ]))
+
+    @testable_configuration
+    def test_reboot(self):
+        # Run the intermediate steps, and finish with a reboot.
+        self._setup_keyrings()
+        mediator = Mediator()
+        # Mock to check the state of reboot.
+        got_reboot = False
+        def reboot_mock(self):
+            nonlocal got_reboot
+            got_reboot = True
+        with unittest.mock.patch(
+                'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
+            mediator.check_for_update()
+            mediator.complete_update()
+            self.assertFalse(got_reboot)
+            mediator.reboot()
+            self.assertTrue(got_reboot)

@@ -69,3 +69,7 @@ class Mediator:
     def complete_update(self):
         """Complete the update."""
         self._state.run_until('reboot')
+
+    def reboot(self):
+        """Issue the reboot."""
+        list(self._state)
