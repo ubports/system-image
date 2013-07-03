@@ -46,11 +46,11 @@ class TestAPI(unittest.TestCase):
             copy('channels_06.json', self._serverdir, 'channels.json')
             sign(os.path.join(self._serverdir, 'channels.json'),
                  'image-signing.gpg')
-            index_path = os.path.join(
+            self.index_path = os.path.join(
                 self._serverdir, 'stable', 'nexus7', 'index.json')
-            head, tail = os.path.split(index_path)
+            head, tail = os.path.split(self.index_path)
             copy('index_13.json', head, tail)
-            sign(index_path, 'device-signing.gpg')
+            sign(self.index_path, 'device-signing.gpg')
             setup_index('index_13.json', self._serverdir, 'device-signing.gpg')
         except:
             self._stack.close()
@@ -110,3 +110,39 @@ class TestAPI(unittest.TestCase):
             print(20130700, file=fp)
         mediator = Mediator()
         self.assertFalse(mediator.check_for_update())
+
+    @testable_configuration
+    def test_get_details(self):
+        # Get the details of an available update.
+        self._setup_keyrings()
+        # Index 14 has a more interesting upgrade path, and will yield a
+        # richer description set.
+        head, tail = os.path.split(self.index_path)
+        copy('index_14.json', head, tail)
+        sign(self.index_path, 'device-signing.gpg')
+        setup_index('index_14.json', self._serverdir, 'device-signing.gpg')
+        # Get the descriptions.
+        mediator = Mediator()
+        update = mediator.check_for_update()
+        self.assertTrue(update)
+        self.assertEqual(update.size, 180009)
+        self.assertEqual(len(update.descriptions), 3)
+        # The first contains the descriptions for the full update.
+        self.assertEqual(update.descriptions[0], {
+            'description': 'Full B',
+            'description-en': 'The full B',
+            })
+        # The first delta.
+        self.assertEqual(update.descriptions[1], {
+            'description': 'Delta B.1',
+            'description-en_US': 'This is the delta B.1',
+            'description-xx': 'XX This is the delta B.1',
+            'description-yy': 'YY This is the delta B.1',
+            'description-yy_ZZ': 'YY-ZZ This is the delta B.1',
+            })
+        # The second delta.
+        self.assertEqual(update.descriptions[2], {
+            'description': 'Delta B.2',
+            'description-xx': 'Oh delta, my delta',
+            'description-xx_CC': 'This hyar is the delta B.2',
+            })

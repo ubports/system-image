@@ -18,10 +18,32 @@
 
 __all__ = [
     'Mediator',
+    'Update',
     ]
 
 
 from systemimage.state import State
+
+
+class Update:
+    """A representation of the available update."""
+
+    def __init__(self, winners):
+        self._winners = winners
+
+    def __bool__(self):
+        return len(self._winners) > 0
+
+    @property
+    def size(self):
+        total_size = 0
+        for image in self._winners:
+            total_size += sum(filerec.size for filerec in image.files)
+        return total_size
+
+    @property
+    def descriptions(self):
+        return [image.descriptions for image in self._winners]
 
 
 class Mediator:
@@ -42,4 +64,4 @@ class Mediator:
         :rtype: bool
         """
         self._state.run_thru('calculate_winner')
-        return bool(self._state.winner)
+        return Update(self._state.winner)

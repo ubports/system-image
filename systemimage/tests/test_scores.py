@@ -71,5 +71,8 @@ class TestWeightedScorer(unittest.TestCase):
         self.assertEqual(len(winner), 3)
         self.assertEqual([image.version for image in winner],
                          [20130200, 20130201, 20130304])
-        self.assertEqual([image.description for image in winner],
-                         ['Full B', 'Delta B.1', 'Delta B.2'])
+        descriptions = []
+        for image in winner:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])

@@ -92,12 +92,21 @@ class TestWinnerDownloads(unittest.TestCase):
             print(20120100, file=fp)
         # There are three candidate upgrade paths.
         self.assertEqual(len(state.candidates), 3)
-        self.assertEqual([c.description for c in state.candidates[0]],
-                         ['Full A', 'Delta A.1', 'Delta A.2'])
-        self.assertEqual([c.description for c in state.candidates[1]],
-                         ['Full B', 'Delta B.1', 'Delta B.2'])
-        self.assertEqual([c.description for c in state.candidates[2]],
-                         ['Full C', 'Delta C.1'])
+        descriptions = []
+        for image in state.candidates[0]:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Full A', 'Delta A.1', 'Delta A.2'])
+        descriptions = []
+        for image in state.candidates[1]:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
+        descriptions = []
+        for image in state.candidates[2]:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Full C', 'Delta C.1'])
 
     @testable_configuration
     def test_calculate_winner(self):
@@ -112,8 +121,11 @@ class TestWinnerDownloads(unittest.TestCase):
         for i in range(4):
             next(state)
         # There are three candidate upgrade paths.
-        self.assertEqual([w.description for w in state.winner],
-                         ['Full B', 'Delta B.1', 'Delta B.2'])
+        descriptions = []
+        for image in state.winner:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
 
     @testable_configuration
     def test_download_winners(self):

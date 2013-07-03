@@ -1,0 +1,251 @@
+{
+    "global": {
+        "generated_at": "Mon Apr 29 18:45:27 UTC 2013"
+    },
+    "images": [
+        {
+            "bootme": true,
+            "description": "Full A",
+            "files": [
+                {
+                    "checksum": "abc",
+                    "order": 1,
+                    "path": "/a/b/c.txt",
+                    "signature": "/a/b/c.txt.asc",
+                    "size": 104857600
+
+                },
+                {
+                    "checksum": "bcd",
+                    "order": 1,
+                    "path": "/b/c/d.txt",
+                    "signature": "/b/c/d.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "cde",
+                    "order": 1,
+                    "path": "/c/d/e.txt",
+                    "signature": "/c/d/e.txt.asc",
+                    "size": 104857600
+                }
+            ],
+            "type": "full",
+            "version": 20130300
+        },
+        {
+            "base": 20130300,
+            "bootme": true,
+            "description": "Delta A.1",
+            "files": [
+                {
+                    "checksum": "def",
+                    "order": 1,
+                    "path": "/d/e/f.txt",
+                    "signature": "/d/e/f.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "ef0",
+                    "order": 1,
+                    "path": "/e/f/0.txt",
+                    "signature": "/e/f/0.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "f01",
+                    "order": 1,
+                    "path": "/f/e/1.txt",
+                    "signature": "/f/e/1.txt.asc",
+                    "size": 104857600
+                }
+            ],
+            "type": "delta",
+            "version": 20130301
+        },
+        {
+            "base": 20130301,
+            "bootme": true,
+            "description": "Delta A.2",
+            "files": [
+                {
+                    "checksum": "012",
+                    "order": 1,
+                    "path": "/0/1/2.txt",
+                    "signature": "/0/1/2.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "123",
+                    "order": 1,
+                    "path": "/1/2/3.txt",
+                    "signature": "/1/2/3.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "234",
+                    "order": 1,
+                    "path": "/2/3/4.txt",
+                    "signature": "/2/3/4.txt.asc",
+                    "size": 104857600
+                }
+            ],
+            "type": "delta",
+            "version": 20130304
+        },
+
+        {
+            "description": "Full B",
+            "description-en": "The full B",
+            "files": [
+                {
+                    "checksum": "da70dfa4d9f95ac979f921e8e623358236313f334afcd06cddf8a5621cf6a1e9",
+                    "order": 1,
+                    "path": "/3/4/5.txt",
+                    "signature": "/3/4/5.txt.asc",
+                    "size": 10000
+                },
+                {
+                    "checksum": "b3a8e0e1f9ab1bfe3a36f231f676f78bb30a519d2b21e6c530c0eee8ebb4a5d0",
+                    "order": 1,
+                    "path": "/4/5/6.txt",
+                    "signature": "/4/5/6.txt.asc",
+                    "size": 10001
+                },
+                {
+                    "checksum": "97a6d21df7c51e8289ac1a8c026aaac143e15aa1957f54f42e30d8f8a85c3a55",
+                    "order": 1,
+                    "path": "/5/6/7.txt",
+                    "signature": "/5/6/7.txt.asc",
+                    "size": 10002
+                }
+            ],
+            "type": "full",
+            "version": 20130200
+        },
+        {
+            "base": 20130200,
+            "description": "Delta B.1",
+            "description-en_US": "This is the delta B.1",
+            "description-xx": "XX This is the delta B.1",
+            "description-yy": "YY This is the delta B.1",
+            "description-yy_ZZ": "YY-ZZ This is the delta B.1",
+            "files": [
+                {
+                    "checksum": "cebe3d9d614ba5c19f633566104315854a11353a333bf96f16b5afa0e90abdc4",
+                    "order": 1,
+                    "path": "/6/7/8.txt",
+                    "signature": "/6/7/8.txt.asc",
+                    "size": 20000
+                },
+                {
+                    "checksum": "35a9e381b1a27567549b5f8a6f783c167ebf809f1c4d6a9e367240484d8ce281",
+                    "order": 1,
+                    "path": "/7/8/9.txt",
+                    "signature": "/7/8/9.txt.asc",
+                    "size": 20001
+                },
+                {
+                    "checksum": "6bd6c3f7808391e8b74f5c2d58810809eda5c134aaa7f1b27ddf4b445c421ac5",
+                    "order": 1,
+                    "path": "/8/9/a.txt",
+                    "signature": "/8/9/a.txt.asc",
+                    "size": 20002
+                }
+            ],
+            "type": "delta",
+            "version": 20130201
+        },
+        {
+            "base": 20130201,
+            "description": "Delta B.2",
+            "description-xx": "Oh delta, my delta",
+            "description-xx_CC": "This hyar is the delta B.2",
+            "files": [
+                {
+                    "checksum": "8c43d75d5b9f1aa9fc3fabb6b60b6c06553324352399a33febce95a1b588d1d6",
+                    "order": 1,
+                    "path": "/9/a/b.txt",
+                    "signature": "/9/a/b.txt.asc",
+                    "size": 30000
+                },
+                {
+                    "checksum": "20e796c128096d229ba89bf412a53c3151d170a409c2c8c1dd8e414087b7ffae",
+                    "order": 1,
+                    "path": "/f/e/d.txt",
+                    "signature": "/f/e/d.txt.asc",
+                    "size": 30001
+                },
+                {
+                    "checksum": "278238e8bafa4709c77aa723e168101acd6ee1fb9fcc1b6eca4762e5c7dad768",
+                    "order": 1,
+                    "path": "/e/d/c.txt",
+                    "signature": "/e/d/c.txt.asc",
+                    "size": 30002
+
+                }
+            ],
+            "type": "delta",
+            "version": 20130304
+        },
+
+        {
+            "description": "Full C",
+            "files": [
+                {
+                    "checksum": "dcb",
+                    "order": 1,
+                    "path": "/d/c/b.txt",
+                    "signature": "/d/c/b.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "cba",
+                    "order": 1,
+                    "path": "/c/b/a.txt",
+                    "signature": "/c/b/a.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "ba9",
+                    "order": 1,
+                    "path": "/b/a/9.txt",
+                    "signature": "/b/a/9.txt.asc",
+                    "size": 104857600
+                }
+            ],
+            "type": "full",
+            "version": 20130100
+        },
+        {
+            "base": 20130100,
+            "description": "Delta C.1",
+            "files": [
+                {
+                    "checksum": "a98",
+                    "order": 1,
+                    "path": "/a/9/8.txt",
+                    "signature": "/a/9/8.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "987",
+                    "order": 1,
+                    "path": "/9/8/7.txt",
+                    "signature": "/9/8/7.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "876",
+                    "order": 1,
+                    "path": "/8/7/6.txt",
+                    "signature": "/8/7/6.txt.asc",
+                    "size": 838860800
+
+                }
+            ],
+            "type": "delta",
+            "version": 20130303
+        }
+    ]
+}
