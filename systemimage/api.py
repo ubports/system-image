@@ -17,12 +17,18 @@
 
 
 __all__ = [
+    'Cancel',
     'Mediator',
     'Update',
     ]
 
 
 from systemimage.state import State
+from threading import Event
+
+
+class Cancel(BaseException):
+    """Raised to cancel the big download."""
 
 
 class Update:
@@ -55,7 +61,15 @@ class Mediator:
     """
 
     def __init__(self):
-        self._state = State()
+        self._state = State(self._check_canceled)
+        self._cancel = Event()
+
+    def _check_canceled(self, url, dst, bytes_read, size):
+        if self._cancel.is_set():
+            raise Cancel
+
+    def cancel(self):
+        self._cancel.set()
 
     def check_for_update(self):
         """Is there an update available for this machine?

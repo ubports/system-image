@@ -62,11 +62,12 @@ def _download_feedback(url, dst, bytes_read, size):
 
 
 class State:
-    def __init__(self):
+    def __init__(self, callback=None):
         # Variables which manage state transitions.
         self._next = deque()
         self._next.append(self._get_blacklist_1)
         self._debug_step = 1
+        self._callback = (_download_feedback if callback is None else callback)
         # Variables which represent things we've learned.
         self.blacklist = None
         self.channels = None
@@ -337,7 +338,7 @@ class State:
         if os.path.exists(config.gpg.device_signing):
             keyrings.append(config.gpg.device_signing)
         # Now, download all the files, providing logging feedback on progress.
-        get_files(downloads, _download_feedback, sizes)
+        get_files(downloads, self._callback, sizes)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets
             # raised or if the checksums don't match.  If everything's okay,

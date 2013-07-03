@@ -25,14 +25,14 @@ import os
 import unittest
 
 from contextlib import ExitStack
-from systemimage.api import Mediator
+from systemimage.api import Cancel, Mediator
 from systemimage.config import config
 from systemimage.tests.helpers import (
     copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
     sign, temporary_directory, testable_configuration)
 
-class TestAPI(unittest.TestCase):
 
+class TestAPI(unittest.TestCase):
     def setUp(self):
         self._stack = ExitStack()
         try:
@@ -214,3 +214,12 @@ update 5.txt 5.txt.asc
             self.assertFalse(got_reboot)
             mediator.reboot()
             self.assertTrue(got_reboot)
+
+    @testable_configuration
+    def test_cancel(self):
+        # When we get to the step of downloading the files, cancel it.
+        self._setup_keyrings()
+        mediator = Mediator()
+        mediator.check_for_update()
+        mediator.cancel()
+        self.assertRaises(Cancel, mediator.complete_update)
