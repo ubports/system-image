@@ -22,7 +22,7 @@ import unittest
 
 from systemimage.candidates import get_candidates
 from systemimage.scores import WeightedScorer
-from systemimage.tests.helpers import get_index
+from systemimage.testing.helpers import get_index
 
 
 class TestWeightedScorer(unittest.TestCase):

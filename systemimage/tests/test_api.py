@@ -27,7 +27,7 @@ import unittest
 from contextlib import ExitStack
 from systemimage.api import Cancel, Mediator
 from systemimage.config import config
-from systemimage.tests.helpers import (
+from systemimage.testing.helpers import (
     copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
     sign, temporary_directory, testable_configuration)
 

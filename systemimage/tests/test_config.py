@@ -27,7 +27,7 @@ from datetime import timedelta
 from systemimage.config import Configuration, config
 from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
-from systemimage.tests.helpers import test_data_path, testable_configuration
+from systemimage.testing.helpers import test_data_path, testable_configuration
 from systemimage.tests.reboot import TestableReboot
 
 

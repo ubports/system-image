@@ -33,7 +33,7 @@ from functools import partial
 from systemimage.config import config
 from systemimage.download import CHUNK_SIZE, Downloader, get_files
 from systemimage.helpers import temporary_directory
-from systemimage.tests.helpers import (
+from systemimage.testing.helpers import (
     make_http_server, test_data_path, testable_configuration)
 from threading import Event
 from unittest.mock import patch

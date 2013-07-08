@@ -30,7 +30,7 @@ from systemimage.config import config
 from systemimage.gpg import SignatureError
 from systemimage.logging import initialize
 from systemimage.state import State
-from systemimage.tests.helpers import (
+from systemimage.testing.helpers import (
     copy, get_index, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, temporary_directory, testable_configuration)
 

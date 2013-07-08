@@ -26,7 +26,7 @@ import unittest
 from operator import attrgetter
 from systemimage.candidates import get_candidates, get_downloads
 from systemimage.scores import WeightedScorer
-from systemimage.tests.helpers import get_index, testable_configuration
+from systemimage.testing.helpers import get_index, testable_configuration
 
 
 class TestCandidates(unittest.TestCase):
