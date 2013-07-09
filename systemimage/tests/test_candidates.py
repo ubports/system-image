@@ -26,7 +26,7 @@ import unittest
 from operator import attrgetter
 from systemimage.candidates import get_candidates, get_downloads
 from systemimage.scores import WeightedScorer
-from systemimage.tests.helpers import get_index, testable_configuration
+from systemimage.testing.helpers import get_index, testable_configuration
 
 
 class TestCandidates(unittest.TestCase):
@@ -54,7 +54,8 @@ class TestCandidates(unittest.TestCase):
         # The path has exactly one image.
         self.assertEqual(len(path), 1)
         image = path[0]
-        self.assertEqual(image.description, 'New full build 1')
+        self.assertEqual(list(image.descriptions.values()),
+                         ['New full build 1'])
 
     def test_fulls_with_no_minversion(self):
         # Like the previous test, there are two full upgrades, but because
@@ -69,8 +70,10 @@ class TestCandidates(unittest.TestCase):
         self.assertEqual(len(path1), 1)
         # One path gets us to version 20130300 and the other 20130400.
         images = sorted([path0[0], path1[0]], key=attrgetter('version'))
-        self.assertEqual(images[0].description, 'New full build 1')
-        self.assertEqual(images[1].description, 'New full build 2')
+        self.assertEqual(list(images[0].descriptions.values()),
+                         ['New full build 1'])
+        self.assertEqual(list(images[1].descriptions.values()),
+                         ['New full build 2'])
 
     def test_no_deltas_based_on_us(self):
         # There are deltas in the test data, but no fulls.  None of the deltas
@@ -88,7 +91,7 @@ class TestCandidates(unittest.TestCase):
         # The path has exactly one image.
         self.assertEqual(len(path), 1)
         image = path[0]
-        self.assertEqual(image.description, 'Delta 2')
+        self.assertEqual(list(image.descriptions.values()), ['Delta 2'])
 
     def test_two_deltas_based_on_us(self):
         # There are two deltas that are based on us, so both are candidates.
@@ -103,8 +106,11 @@ class TestCandidates(unittest.TestCase):
         self.assertEqual(len(path1), 1)
         # One path gets us to version 20130300 and the other 20130400.
         images = sorted([path0[0], path1[0]], key=attrgetter('version'))
-        self.assertEqual([image.description for image in images],
-                         ['Delta 2', 'Delta 1'])
+        descriptions = []
+        for image in images:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Delta 2', 'Delta 1'])
 
     def test_one_path_with_full_and_deltas(self):
         # There's one path to upgrade from our version to the final version.
@@ -116,8 +122,11 @@ class TestCandidates(unittest.TestCase):
         self.assertEqual(len(path), 3)
         self.assertEqual([image.version for image in path],
                          [20130300, 20130301, 20130302])
-        self.assertEqual([image.description for image in path],
-                         ['Full 1', 'Delta 1', 'Delta 2'])
+        descriptions = []
+        for image in path:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Full 1', 'Delta 1', 'Delta 2'])
 
     def test_one_path_with_deltas(self):
         # Similar to above, except that because we're upgrading from the
@@ -130,8 +139,11 @@ class TestCandidates(unittest.TestCase):
         self.assertEqual(len(path), 2)
         self.assertEqual([image.version for image in path],
                          [20130301, 20130302])
-        self.assertEqual([image.description for image in path],
-                         ['Delta 1', 'Delta 2'])
+        descriptions = []
+        for image in path:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Delta 1', 'Delta 2'])
 
     def test_forked_paths(self):
         # We have a fork in the road.  There is a full update, but two deltas
@@ -146,14 +158,20 @@ class TestCandidates(unittest.TestCase):
         self.assertEqual(len(paths[0]), 2)
         self.assertEqual([image.version for image in paths[0]],
                          [20130300, 20130302])
-        self.assertEqual([image.description for image in paths[0]],
-                         ['Full 1', 'Delta 2'])
+        descriptions = []
+        for image in paths[0]:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Full 1', 'Delta 2'])
         # The longer path gets us to 20130302 in three steps.
         self.assertEqual(len(paths[1]), 3)
         self.assertEqual([image.version for image in paths[1]],
                          [20130300, 20130301, 20130302])
-        self.assertEqual([image.description for image in paths[1]],
-                         ['Full 1', 'Delta 1', 'Delta 3'])
+        descriptions = []
+        for image in paths[1]:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Full 1', 'Delta 1', 'Delta 3'])
 
 
 class TestCandidateDownloads(unittest.TestCase):
@@ -166,8 +184,11 @@ class TestCandidateDownloads(unittest.TestCase):
         index = get_index('index_10.json')
         candidates = get_candidates(index, 20120600)
         winner = WeightedScorer().choose(candidates)
-        self.assertEqual([image.description for image in winner],
-                         ['Full B', 'Delta B.1', 'Delta B.2'])
+        descriptions = []
+        for image in winner:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
         downloads = list(get_downloads(winner))
         paths = set(filerec.path for filerec in downloads)
         self.assertEqual(paths, set([
@@ -201,8 +222,11 @@ class TestCandidateDownloads(unittest.TestCase):
         index = get_index('index_11.json')
         candidates = get_candidates(index, 20120600)
         winner = WeightedScorer().choose(candidates)
-        self.assertEqual([image.description for image in winner],
-                         ['Full B', 'Delta B.1', 'Delta B.2'])
+        descriptions = []
+        for image in winner:
+            # There's only one description per image so order doesn't matter.
+            descriptions.extend(image.descriptions.values())
+        self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
         downloads = get_downloads(winner)
         paths = set(filerec.path for filerec in downloads)
         self.assertEqual(paths, set([

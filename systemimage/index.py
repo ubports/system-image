@@ -49,7 +49,23 @@ class Index(Bag):
         # Parse the images.
         images = []
         for image_data in mapping['images']:
+            # Descriptions can be any of:
+            #
+            # * description
+            # * description-xx (e.g. description-en)
+            # * description-xx_CC (e.g. description-en_US)
+            #
+            # We want to preserve the keys exactly as given, and because the
+            # extended forms are not Python identifiers, we'll pull these out
+            # into a separate, non-Bag dictionary.
+            descriptions = {}
+            # We're going to mutate the dictionary during iteration.
+            for key in list(image_data):
+                if key.startswith('description'):
+                    descriptions[key] = image_data.pop(key)
             files = image_data.pop('files', [])
             bundles = [Bag(**bundle_data) for bundle_data in files]
-            images.append(Image(files=bundles, **image_data))
+            images.append(Image(files=bundles,
+                                descriptions=descriptions,
+                                **image_data))
         return cls(global_=global_, images=images)

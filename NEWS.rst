@@ -11,6 +11,12 @@ NEWS for system-image updater
    exist. (LP: #1199177)
  * Fix timeout error when downloading more files than the number of threads.
    (LP: #1199361)
+ * Preserve all descriptions in all languages from the index.json file.
+ * State machine changes:
+   - Allow the passing of a callback which is used in the big download call.
+     This will be used to implement a cancel operation.
+   - Add .run_thru() and .run_until() methods used for better step control.
+   - Split the "prepare command file" and reboot steps.
 
 0.2 (2013-06-27)
 ================

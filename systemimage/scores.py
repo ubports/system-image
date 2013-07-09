@@ -101,7 +101,7 @@ class WeightedScorer(Scorer):
             build = path[-1].version
             size = 0
             for image in path:
-                image_size = sum(filename.size for filename in image.files)
+                image_size = sum(filerec.size for filerec in image.files)
                 size += image_size
             reboots = sum(1 for image in path
                           if getattr(image, 'bootme', False))

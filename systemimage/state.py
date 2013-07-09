@@ -62,11 +62,12 @@ def _download_feedback(url, dst, bytes_read, size):
 
 
 class State:
-    def __init__(self):
+    def __init__(self, callback=None):
         # Variables which manage state transitions.
         self._next = deque()
         self._next.append(self._get_blacklist_1)
         self._debug_step = 1
+        self._callback = (_download_feedback if callback is None else callback)
         # Variables which represent things we've learned.
         self.blacklist = None
         self.channels = None
@@ -78,12 +79,16 @@ class State:
     def __iter__(self):
         return self
 
+    def _pop(self):
+        step = self._next.popleft()
+        # step could be a partial or a method.
+        name = getattr(step, 'func', step).__name__
+        log.debug('-> [{:2}] {}'.format(self._debug_step, name))
+        return step, name
+
     def __next__(self):
         try:
-            step = self._next.popleft()
-            # step could be a partial or a method.
-            name = getattr(step, 'func', step).__name__
-            log.debug('-> [{:2}] {}'.format(self._debug_step, name))
+            step, name = self._pop()
             step()
             self._debug_step += 1
         except IndexError:
@@ -92,6 +97,46 @@ class State:
         except:
             log.exception('uncaught exception in state machine')
             raise
+
+    def run_thru(self, stop_after):
+        """Total hack to partially run the state machine.
+
+        :param stop_after: Name of method, sans leading underscore to run the
+            state machine through.  In other words, the state machine runs
+            until the named method completes.
+        """
+        while True:
+            try:
+                step, name = self._pop()
+            except StopIteration:
+                # We're done.
+                break
+            step()
+            self._debug_step += 1
+            if name[1:] == stop_after:
+                break
+
+    def run_until(self, stop_before):
+        """Total hack to partially run the state machine.
+
+        :param stop_before: Name of method, sans leading underscore that the
+            state machine is run until the method is reached.  Unlike
+            `run_thru()` the named method is not run.
+        """
+        while True:
+            try:
+                step, name = self._pop()
+            except StopIteration:
+                # We're done.
+                break
+            if name[1:] == stop_before:
+                # Stop executing, but not before we push the last state back
+                # onto the deque.  Otherwise, resuming the state machine would
+                # skip this step.
+                self._next.appendleft(step)
+                break
+            step()
+            self._debug_step += 1
 
     def _get_blacklist_1(self):
         """First try to get the blacklist."""
@@ -293,7 +338,7 @@ class State:
         if os.path.exists(config.gpg.device_signing):
             keyrings.append(config.gpg.device_signing)
         # Now, download all the files, providing logging feedback on progress.
-        get_files(downloads, _download_feedback, sizes)
+        get_files(downloads, self._callback, sizes)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets
             # raised or if the checksums don't match.  If everything's okay,
@@ -387,11 +432,9 @@ class State:
             dst = os.path.join(cache_dir, os.path.basename(src))
             shutil.copy(src, dst)
         # Issue the reboot.
-        self._next.append(self._reboot)
+        self._next.append(self._prepare_recovery)
 
-    def _reboot(self):
-        # Issue the reboot.
-        #
+    def _prepare_recovery(self):
         # First we have to create the ubuntu_command file, which will tell the
         # updater which files to apply and in which order.  Right now,
         # self.files contains a sequence of the following contents:
@@ -432,5 +475,8 @@ class State:
                     os.path.basename(txz),
                     os.path.basename(asc)),
                     file=fp)
-        # Ready to reboot.
+        self._next.append(self._reboot)
+
+    def _reboot(self):
         config.hooks.reboot().reboot()
+        # Nothing more to do.

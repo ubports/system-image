@@ -24,7 +24,7 @@ from io import StringIO
 from pkg_resources import resource_filename
 from systemimage.config import config
 from systemimage.main import main
-from systemimage.tests.helpers import temporary_directory, test_data_path
+from systemimage.testing.helpers import temporary_directory, test_data_path
 from unittest.mock import patch
 
 

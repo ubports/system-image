@@ -30,7 +30,7 @@ from systemimage.gpg import SignatureError
 from systemimage.helpers import temporary_directory
 from systemimage.logging import initialize
 from systemimage.state import State
-from systemimage.tests.helpers import (
+from systemimage.testing.helpers import (
     copy, get_index, make_http_server, makedirs, setup_keyring_txz,
     setup_keyrings, sign, testable_configuration)
 
@@ -60,7 +60,9 @@ class TestIndex(unittest.TestCase):
     def test_image_20130300_full(self):
         index = get_index('sprint_nexus7_index_01.json')
         image = index.images[0]
-        self.assertEqual(image.description, 'Some kind of daily build')
+        self.assertEqual(
+            image.descriptions,
+            {'description': 'Some kind of daily build'})
         self.assertEqual(image.type, 'full')
         self.assertEqual(image.version, 20130300)
         self.assertTrue(image.bootme)
@@ -89,6 +91,29 @@ class TestIndex(unittest.TestCase):
         self.assertEqual(image.version, 20130500)
         self.assertTrue(image.bootme)
         self.assertEqual(image.minversion, 20130100)
+
+    def test_image_descriptions(self):
+        # Image descriptions can come in a variety of locales.
+        index = get_index('index_14.json')
+        self.assertEqual(index.images[0].descriptions, {
+            'description': 'Full A'})
+        self.assertEqual(index.images[3].descriptions, {
+            'description': 'Full B',
+            'description-en': 'The full B',
+            })
+        self.assertEqual(index.images[4].descriptions, {
+            'description': 'Delta B.1',
+            'description-en_US': 'This is the delta B.1',
+            'description-xx': 'XX This is the delta B.1',
+            'description-yy': 'YY This is the delta B.1',
+            'description-yy_ZZ': 'YY-ZZ This is the delta B.1',
+            })
+        # The second delta.
+        self.assertEqual(index.images[5].descriptions, {
+            'description': 'Delta B.2',
+            'description-xx': 'Oh delta, my delta',
+            'description-xx_CC': 'This hyar is the delta B.2',
+            })
 
 
 class TestDownloadIndex(unittest.TestCase):

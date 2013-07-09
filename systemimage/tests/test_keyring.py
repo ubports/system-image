@@ -30,7 +30,7 @@ from systemimage.config import config
 from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import temporary_directory
 from systemimage.keyring import KeyringError, get_keyring
-from systemimage.tests.helpers import (
+from systemimage.testing.helpers import (
     make_http_server, setup_keyring_txz, setup_keyrings,
     testable_configuration)
 
