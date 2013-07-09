@@ -40,12 +40,16 @@ def expand_path(path):
 class Configuration:
     def __init__(self):
         # Defaults.
-        defaults_ini = resource_filename('systemimage.data', 'defaults.ini')
-        self.load(defaults_ini)
+        self.config_file = None
+        ini_path = resource_filename('systemimage.data', 'client.ini')
+        self.load(ini_path)
 
     def load(self, path):
         parser = ConfigParser()
-        parser.read(path)
+        files_read = parser.read(path)
+        if files_read != [path]:
+            raise FileNotFoundError(path)
+        self.config_file = path
         self.service = Bag(converters=dict(timeout=as_timedelta,
                                            threads=int,
                                            http_port=int,

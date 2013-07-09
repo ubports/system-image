@@ -34,6 +34,8 @@ from systemimage.state import State
 __version__ = resource_bytes(
     'systemimage', 'version.txt').decode('utf-8').strip()
 
+DEFAULT_CONFIG_FILE = '/etc/system-image/client.ini'
+
 
 def main():
     global config
@@ -43,7 +45,8 @@ def main():
     parser.add_argument('--version',
                         action='version',
                         version='system-image-cli {}'.format(__version__))
-    parser.add_argument('-C', '--config', default=None)
+    parser.add_argument('-C', '--config',
+                        default=DEFAULT_CONFIG_FILE, action='store')
     parser.add_argument('-b', '--build',
                         default=False, action='store_true',
                         help='Show the current build number and exit')
@@ -54,9 +57,12 @@ def main():
                         default=0, action='count',
                         help='Increase verbosity')
 
-    args = parser.parse_args()
-    if args.config is not None:
+    args = parser.parse_args(sys.argv)
+    try:
         config.load(args.config)
+    except FileNotFoundError as error:
+        parser.error('\nConfiguration file not found: {}'.format(error))
+        assert 'parser.error() does not return'
 
     build = (config.build_number
              if args.upgrade is None

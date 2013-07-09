@@ -24,6 +24,7 @@ import os
 import unittest
 
 from datetime import timedelta
+from pkg_resources import resource_filename
 from systemimage.config import Configuration, config
 from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
@@ -33,37 +34,39 @@ from systemimage.tests.reboot import TestableReboot
 
 class TestConfiguration(unittest.TestCase):
     def test_defaults(self):
+        default_ini = resource_filename('systemimage.data', 'client.ini')
         config = Configuration()
+        config.load(default_ini)
         # [service]
-        self.assertEqual(config.service.base, 'phablet.stgraber.org')
+        self.assertEqual(config.service.base, 'system-image.ubuntu.com')
         self.assertEqual(config.service.http_base,
-                         'http://phablet.stgraber.org')
+                         'http://system-image.ubuntu.com')
         self.assertEqual(config.service.https_base,
-                         'https://phablet.stgraber.org')
+                         'https://system-image.ubuntu.com')
         # [system]
-        self.assertEqual(config.system.tempdir, '/tmp/phablet')
-        self.assertEqual(config.system.channel, 'stable')
-        self.assertEqual(config.system.device, 'nexus7')
+        self.assertEqual(config.system.tempdir, '/tmp/system-image')
+        self.assertEqual(config.system.channel, 'daily')
+        self.assertEqual(config.system.device, 'mako')
         # [score]
         self.assertEqual(config.hooks.scorer, WeightedScorer)
         self.assertEqual(config.hooks.reboot, Reboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
-                         '/etc/image-upgrades-resolver/archive-master.tar.xz')
+                         '/etc/system-image/archive-master.tar.xz')
         self.assertEqual(
             config.gpg.image_master,
-            '/var/lib/image-upgrades-resolver/keyrings/image-master.tar.xz')
+            '/var/lib/system-image/keyrings/image-master.tar.xz')
         self.assertEqual(
             config.gpg.image_signing,
-            '/var/lib/image-upgrades-resolver/keyrings/image-signing.tar.xz')
+            '/var/lib/system-image/keyrings/image-signing.tar.xz')
         self.assertEqual(
             config.gpg.device_signing,
-            '/var/lib/image-upgrades-resolver/keyrings/device-signing.tar.xz')
+            '/var/lib/system-image/keyrings/device-signing.tar.xz')
         # [updater]
         self.assertEqual(config.updater.cache_partition,
                          '/android/cache/recovery')
         self.assertEqual(config.updater.data_partition,
-                         '/var/lib/image-upgrades-resolver/')
+                         '/var/lib/system-image/')
 
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
