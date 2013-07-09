@@ -21,12 +21,14 @@ __all__ = [
     ]
 
 
+import os
 import sys
 import logging
 import argparse
 
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import config
+from systemimage.helpers import makedirs
 from systemimage.logging import initialize
 from systemimage.state import State
 
@@ -64,16 +66,24 @@ def main():
         parser.error('\nConfiguration file not found: {}'.format(error))
         assert 'parser.error() does not return'
 
+    # Initialize the loggers.
+    initialize(verbosity=args.verbose)
+    log = logging.getLogger('systemimage')
+    # Create the directories if they don't exist.  This assumes that all the
+    # downloadable keys (i.e. all but the archive-master) live in the same
+    # directory.
+    makedirs(config.system.tempdir)
+    makedirs(os.path.dirname(config.gpg.image_master))
+    makedirs(config.updater.data_partition)
+    # We assume the cache_partition already exists, as does the /etc directory
+    # (i.e. where the archive master key lives).
+
     build = (config.build_number
              if args.upgrade is None
              else int(args.upgrade))
     if args.build:
         print('build number:', build)
         return
-
-    # Initialize the loggers.
-    initialize(verbosity=args.verbose)
-    log = logging.getLogger('systemimage')
 
     # Run the state machine to conclusion.  Suppress all exceptions, but note
     # that the state machine will log them.  If an exception occurs, exit with

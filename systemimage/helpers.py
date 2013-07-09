@@ -177,5 +177,5 @@ def temporary_directory(*args, **kws):
 def makedirs(dir):
     try:
         os.makedirs(dir, exist_ok=True)
-    except FileExistsError:
+    except (FileExistsError, PermissionError):
         pass

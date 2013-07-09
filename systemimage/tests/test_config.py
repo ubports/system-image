@@ -66,7 +66,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.updater.cache_partition,
                          '/android/cache/recovery')
         self.assertEqual(config.updater.data_partition,
-                         '/var/lib/system-image/')
+                         '/var/lib/system-image')
 
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and

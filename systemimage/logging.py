@@ -39,7 +39,6 @@ def initialize(*, verbosity=0):
                         format='%(asctime)s (%(process)d) %(message)s')
     log = logging.getLogger('systemimage')
     log.setLevel(level)
-
     # Please be quiet gnupg.
     gnupg_log = logging.getLogger('gnupg')
     gnupg_log.propagate = False

@@ -2,12 +2,13 @@
 NEWS for system-image updater
 =============================
 
-0.3 (2013-XX-XX)
+0.3 (2013-07-09)
 ================
  * Update the client.ini file to reflect the actual update service (which is
    now deployed) and the system partitioning on the actual device.
- * By default, search for client.ini in /etc/system-image/client.ini
-   (LP: #1199177)
+ * By default, search for client.ini in /etc/system-image/client.ini.  Also,
+   create the /tmp and /var/lib directories if possible and they don't yet
+   exist. (LP: #1199177)
 
 0.2 (2013-06-27)
 ================

@@ -24,7 +24,7 @@ from io import StringIO
 from pkg_resources import resource_filename
 from systemimage.config import config
 from systemimage.main import main
-from systemimage.tests.helpers import temporary_directory
+from systemimage.tests.helpers import temporary_directory, test_data_path
 from unittest.mock import patch
 
 
@@ -90,3 +90,31 @@ usage: system-image-cli [-h] [--version] [-C CONFIG] [-b] [-u UPGRADE] [-v]
 system-image-cli: error:\x20
 Configuration file not found: /does/not/exist.ini
 """)
+
+    def test_ensure_directories_exist(self):
+        # The temporary and var directories are created if they don't exist.
+        with ExitStack() as stack:
+            dir_1 = stack.enter_context(temporary_directory())
+            dir_2 = stack.enter_context(temporary_directory())
+            # Create a configuration file with directories that point to
+            # non-existent locations.
+            config_ini = os.path.join(dir_1, 'client.ini')
+            with open(test_data_path('config_00.ini'), encoding='utf-8') as fp:
+                template = fp.read()
+            # These paths look something like they would on the real system.
+            tmpdir = os.path.join(dir_2, 'tmp', 'system-image')
+            vardir = os.path.join(dir_2, 'var', 'lib', 'system-image')
+            configuration = template.format(tmpdir=tmpdir, vardir=vardir)
+            with open(config_ini, 'wt', encoding='utf-8') as fp:
+                fp.write(configuration)
+            # Invoke main() in such a way that the directories will be
+            # created.  We don't care about the output.
+            stack.enter_context(patch('builtins.print'))
+            # Patch arguments to something harmless.
+            stack.enter_context(patch(
+                'systemimage.main.sys.argv', ['-C', config_ini, '--build']))
+            main()
+            keyring_dir = os.path.dirname(config.gpg.image_master)
+            systemp_dir = config.system.tempdir
+            self.assertTrue(os.path.exists(keyring_dir))
+            self.assertTrue(os.path.exists(systemp_dir))
