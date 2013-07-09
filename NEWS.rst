@@ -9,6 +9,8 @@ NEWS for system-image updater
  * By default, search for client.ini in /etc/system-image/client.ini.  Also,
    create the /tmp and /var/lib directories if possible and they don't yet
    exist. (LP: #1199177)
+ * Fix timeout error when downloading more files than the number of threads.
+   (LP: #1199361)
 
 0.2 (2013-06-27)
 ================

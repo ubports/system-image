@@ -21,6 +21,7 @@ __all__ = [
     ]
 
 
+import socket
 import logging
 
 from concurrent.futures import ThreadPoolExecutor
@@ -40,8 +41,11 @@ log = logging.getLogger('systemimage')
 
 
 class Downloader:
-    def __init__(self, url):
+    def __init__(self, url, timeout=None):
         self.url = url
+        # This is the hidden default for urlopen().
+        self.timeout = (socket.getdefaulttimeout()
+                        if timeout is None else timeout)
         self._stack = ExitStack()
 
     def __enter__(self):
@@ -50,7 +54,8 @@ class Downloader:
             headers = {'User-Agent': USER_AGENT.format(config.build_number)}
             request = Request(self.url, headers=headers)
             # Make sure to fallback to the system certificate store.
-            return self._stack.enter_context(urlopen(request, cadefault=True))
+            return self._stack.enter_context(
+                urlopen(request, timeout=self.timeout, cadefault=True))
         except:
             self._stack.close()
             raise
@@ -62,9 +67,11 @@ class Downloader:
 
 
 def _get_one_file(args):
-    url, dst, size, callback = args
+    timeout, url, dst, size, callback = args
     bytes_read = 0
-    with Downloader(url) as response, atomic(dst, encoding=None) as out:
+    with ExitStack() as stack:
+        response = stack.enter_context(Downloader(url, timeout))
+        out = stack.enter_context(atomic(dst, encoding=None))
         while True:
             chunk = response.read(CHUNK_SIZE)
             if len(chunk) == 0:
@@ -122,17 +129,17 @@ def get_files(downloads, callback=None, sizes=None):
             'sizes argument is different length than downloads')
     else:
         sizes = [None] * len(downloads)
-    # Repack the downloads so that the _get_one_file() function will be called
-    # with the proper set of arguments.
-    args = [(url, dst, size, callback)
-            for (url, dst), size
-            in zip(downloads, sizes)]
     # Download all the files, blocking until we get them all.
     if config.service.timeout <= timedelta():
         # E.g. -1s or 0s or 0d etc.
         timeout = None
     else:
         timeout = config.service.timeout.total_seconds()
+    # Repack the downloads so that the _get_one_file() function will be called
+    # with the proper set of arguments.
+    args = [(timeout, url, dst, size, callback)
+            for (url, dst), size
+            in zip(downloads, sizes)]
     with ExitStack() as stack:
         # Arrange for all the downloaded files to be remove when the stack
         # exits due to an exception.  It's okay if some of the files don't
@@ -162,7 +169,7 @@ def get_files(downloads, callback=None, sizes=None):
             # stash any existing files away and restore them if the download
             # fails, rather than os.remove()'ing them.
             try:
-                list(tpe.map(_get_one_file, args, timeout=timeout))
+                list(tpe.map(_get_one_file, args))
             except (HTTPError, URLError, CertificateError):
                 raise FileNotFoundError
             # Check all the signed files.  First, grab the blacklists file if
