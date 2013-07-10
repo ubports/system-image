@@ -32,7 +32,7 @@ from contextlib import ExitStack
 from functools import partial
 from itertools import islice
 from operator import itemgetter
-from systemimage.candidates import get_candidates, get_downloads
+from systemimage.candidates import get_candidates, iter_path
 from systemimage.channel import Channels
 from systemimage.config import config
 from systemimage.download import get_files
@@ -310,7 +310,7 @@ class State:
         signatures = []
         sizes = []
         checksums = []
-        for filerec in get_downloads(self.winner):
+        for filerec in iter_path(self.winner):
             # Re-pack for arguments to get_files() and to collate the size,
             # signature path, and checksum for the downloadable file.
             dst = os.path.join(

@@ -24,7 +24,7 @@ __all__ = [
 import unittest
 
 from operator import attrgetter
-from systemimage.candidates import get_candidates, get_downloads
+from systemimage.candidates import get_candidates, iter_path
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import get_index, testable_configuration
 
@@ -189,7 +189,7 @@ class TestCandidateDownloads(unittest.TestCase):
             # There's only one description per image so order doesn't matter.
             descriptions.extend(image.descriptions.values())
         self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
-        downloads = list(get_downloads(winner))
+        downloads = list(iter_path(winner))
         paths = set(filerec.path for filerec in downloads)
         self.assertEqual(paths, set([
             '/3/4/5.txt',
@@ -227,7 +227,7 @@ class TestCandidateDownloads(unittest.TestCase):
             # There's only one description per image so order doesn't matter.
             descriptions.extend(image.descriptions.values())
         self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
-        downloads = get_downloads(winner)
+        downloads = iter_path(winner)
         paths = set(filerec.path for filerec in downloads)
         self.assertEqual(paths, set([
             '/3/4/5.txt',

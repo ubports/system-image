@@ -17,7 +17,7 @@
 
 __all__ = [
     'get_candidates',
-    'get_downloads',
+    'iter_path',
     ]
 
 
@@ -119,8 +119,8 @@ def get_candidates(index, build):
     return paths
 
 
-def get_downloads(winner):
-    """Return the list of files to download given the upgrade winner.
+def iter_path(winner):
+    """Iterate over all the file records for a given upgrade path.
 
     Image traversal will stop after the first `bootme` flag is seen, so the
     list of files to download may not include all the files in the upgrade
