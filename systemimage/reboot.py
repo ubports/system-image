@@ -21,6 +21,11 @@ __all__ = [
     ]
 
 
+import logging
+
+from subprocess import CalledProcessError, check_call
+
+
 class BaseReboot:
     """Common reboot actions."""
 
@@ -31,3 +36,11 @@ class BaseReboot:
 
 class Reboot(BaseReboot):
     """Issue a standard reboot."""
+
+    def reboot(self):
+        log = logging.getLogger('systemimage')
+        try:
+            check_call('reboot -f recovery'.split(), universal_newlines=True)
+        except CalledProcessError as error:
+            log.exception('reboot exit status: {}'.format(error.returncode))
+            raise

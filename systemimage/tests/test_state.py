@@ -28,6 +28,7 @@ import hashlib
 import unittest
 
 from contextlib import ExitStack
+from subprocess import CalledProcessError
 from systemimage.config import config
 from systemimage.gpg import SignatureError
 from systemimage.logging import initialize
@@ -35,6 +36,7 @@ from systemimage.state import State
 from systemimage.testing.helpers import (
     copy, get_index, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, temporary_directory, testable_configuration)
+from unittest.mock import patch
 
 
 def setUpModule():
@@ -433,14 +435,16 @@ class TestRebooting(_StateTestsBase):
     def test_reboot_issued(self):
         # The reboot gets issued.
         self._setup_keyrings()
-        got_reboot = False
-        def reboot_mock(self):
-            nonlocal got_reboot
-            got_reboot = True
-        with unittest.mock.patch(
-                'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
+        with patch('systemimage.reboot.check_call') as mock:
             list(State())
-        self.assertTrue(got_reboot)
+        self.assertEqual(mock.call_args[0][0], ['reboot', '-f', 'recovery'])
+
+    @unittest.skipIf(os.getuid() == 0, 'This test would actually reboot!')
+    @testable_configuration
+    def test_reboot_fails(self):
+        # The reboot fails, e.g. because we are not root.
+        self._setup_keyrings()
+        self.assertRaises(CalledProcessError, list, State())
 
     @testable_configuration
     def test_run_until(self):
@@ -463,14 +467,12 @@ class TestRebooting(_StateTestsBase):
         def reboot_mock(self):
             nonlocal got_reboot
             got_reboot = True
-        with unittest.mock.patch(
-                'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
+        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
             state.run_until('reboot')
         # No reboot got issued.
         self.assertFalse(got_reboot)
         # Finish it off.
-        with unittest.mock.patch(
-                'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
+        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
             list(state)
         self.assertTrue(got_reboot)
 

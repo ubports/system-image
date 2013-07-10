@@ -29,7 +29,7 @@ from systemimage.config import Configuration, config
 from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import test_data_path, testable_configuration
-from systemimage.tests.reboot import TestableReboot
+from systemimage.reboot import Reboot
 
 
 class TestConfiguration(unittest.TestCase):
@@ -88,7 +88,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.device, 'nexus7')
         # [hooks]
         self.assertEqual(config.hooks.scorer, WeightedScorer)
-        self.assertEqual(config.hooks.reboot, TestableReboot)
+        self.assertEqual(config.hooks.reboot, Reboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
                          '/etc/phablet/archive-master.tar.xz')

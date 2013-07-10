@@ -2,6 +2,10 @@
 NEWS for system-image updater
 =============================
 
+0.4 (2013-07-10)
+================
+ * Fix reboot bug.  (LP: #1199981)
+
 0.3 (2013-07-09)
 ================
  * Update the client.ini file to reflect the actual update service (which is
