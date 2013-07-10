@@ -59,7 +59,7 @@ def main():
                         default=0, action='count',
                         help='Increase verbosity')
 
-    args = parser.parse_args(sys.argv)
+    args = parser.parse_args(sys.argv[1:])
     try:
         config.load(args.config)
     except FileNotFoundError as error:

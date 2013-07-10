@@ -38,7 +38,7 @@ class TestMain(unittest.TestCase):
             stack.enter_context(patch('builtins.print'))
             # Patch arguments to something harmless.
             stack.enter_context(
-                patch('systemimage.main.sys.argv', ['--build']))
+                patch('systemimage.main.sys.argv', ['argv0', '--build']))
             # Patch default configuration file.
             tempdir = stack.enter_context(temporary_directory())
             ini_path = os.path.join(tempdir, 'client.ini')
@@ -58,7 +58,7 @@ class TestMain(unittest.TestCase):
             stack.enter_context(patch('argparse._sys.stderr', stderr))
             # Patch arguments to be empty, otherwise the unittest arguments
             # will leak through.
-            stack.enter_context(patch('systemimage.main.sys.argv', []))
+            stack.enter_context(patch('systemimage.main.sys.argv', ['argv0']))
             # Patch default configuration file.
             stack.enter_context(
                 patch('systemimage.main.DEFAULT_CONFIG_FILE',
@@ -81,7 +81,7 @@ Configuration file not found: /does/not/exist/client.ini
             # Patch arguments.
             stack.enter_context(
                 patch('systemimage.main.sys.argv',
-                      ['-C', '/does/not/exist.ini']))
+                      ['argv0', '-C', '/does/not/exist.ini']))
             with self.assertRaises(SystemExit) as cm:
                 main()
             self.assertEqual(cm.exception.code, 2)
@@ -112,7 +112,8 @@ Configuration file not found: /does/not/exist.ini
             stack.enter_context(patch('builtins.print'))
             # Patch arguments to something harmless.
             stack.enter_context(patch(
-                'systemimage.main.sys.argv', ['-C', config_ini, '--build']))
+                'systemimage.main.sys.argv',
+                ['argv0', '-C', config_ini, '--build']))
             main()
             keyring_dir = os.path.dirname(config.gpg.image_master)
             systemp_dir = config.system.tempdir
