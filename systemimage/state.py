@@ -469,12 +469,21 @@ class State:
                 print('load_keyring {0} {0}.asc'.format(
                     os.path.basename(config.gpg.device_signing)),
                     file=fp)
+            # If there is a full update, the file system must be formated.
+            for image in self.winner:
+                if image.type == 'full':
+                    print('format system', file=fp)
+                    break
+            # The filesystem must be mounted.
+            print('mount system', file=fp)
             # Now write all the update commands for the tar.xz files.
             for order, txz, asc in ordered:
                 print('update {} {}'.format(
                     os.path.basename(txz),
                     os.path.basename(asc)),
                     file=fp)
+            # The filesystem must be unmounted.
+            print('unmount system', file=fp)
         self._next.append(self._reboot)
 
     def _reboot(self):

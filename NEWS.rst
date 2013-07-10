@@ -17,6 +17,8 @@ NEWS for system-image updater
      This will be used to implement a cancel operation.
    - Add .run_thru() and .run_until() methods used for better step control.
    - Split the "prepare command file" and reboot steps.
+ * The ubuntu_command file written to the recovery partition now supports the
+   currently specified format. (LP: #1199498)
 
 0.2 (2013-06-27)
 ================
