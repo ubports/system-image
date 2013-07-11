@@ -6,6 +6,8 @@ NEWS for system-image updater
 ================
  * Fix reboot bug.  (LP: #1199981)
  * Fix ubuntu_command file ordering.  (LP: #1199986)
+ * Ensure the /var/lib target directory for cached .tar.xz keyring files
+   exists before copying them. (LP: #1199982)
 
 0.3 (2013-07-09)
 ================
