@@ -69,12 +69,8 @@ def main():
     # Initialize the loggers.
     initialize(verbosity=args.verbose)
     log = logging.getLogger('systemimage')
-    # Create the directories if they don't exist.  This assumes that all the
-    # downloadable keys (i.e. all but the archive-master) live in the same
-    # directory.
+    # Create the temporary directory if it doesn't exist.
     makedirs(config.system.tempdir)
-    makedirs(os.path.dirname(config.gpg.image_master))
-    makedirs(config.updater.data_partition)
     # We assume the cache_partition already exists, as does the /etc directory
     # (i.e. where the archive master key lives).
 

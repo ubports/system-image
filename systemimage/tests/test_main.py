@@ -114,8 +114,6 @@ Configuration file not found: /does/not/exist.ini
             stack.enter_context(patch(
                 'systemimage.main.sys.argv',
                 ['argv0', '-C', config_ini, '--build']))
+            self.assertFalse(os.path.exists(tmpdir))
             main()
-            keyring_dir = os.path.dirname(config.gpg.image_master)
-            systemp_dir = config.system.tempdir
-            self.assertTrue(os.path.exists(keyring_dir))
-            self.assertTrue(os.path.exists(systemp_dir))
+            self.assertTrue(os.path.exists(tmpdir))
