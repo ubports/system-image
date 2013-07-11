@@ -5,6 +5,7 @@ NEWS for system-image updater
 0.4 (2013-07-10)
 ================
  * Fix reboot bug.  (LP: #1199981)
+ * Fix ubuntu_command file ordering.  (LP: #1199986)
 
 0.3 (2013-07-09)
 ================

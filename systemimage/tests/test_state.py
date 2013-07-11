@@ -18,6 +18,7 @@
 __all__ = [
     'TestCommandFileDelta',
     'TestCommandFileFull',
+    'TestFileOrder',
     'TestRebootingState',
     'TestState',
     ]
@@ -523,5 +524,39 @@ mount system
 update 6.txt 6.txt.asc
 update 7.txt 7.txt.asc
 update 5.txt 5.txt.asc
+unmount system
+""")
+
+
+class TestFileOrder(_StateTestsBase):
+    INDEX_FILE = 'index_16.json'
+
+    @testable_configuration
+    def test_file_order(self):
+        # Updates are applied sorted first by image positional order, then
+        # within the image by the 'order' key.
+        self._setup_keyrings()
+        # Set the current build number so a delta update will work.
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20120100, file=fp)
+        State().run_until('reboot')
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update a.txt a.txt.asc
+update b.txt b.txt.asc
+update c.txt c.txt.asc
+update d.txt d.txt.asc
+update e.txt e.txt.asc
+update f.txt f.txt.asc
+update g.txt g.txt.asc
+update h.txt h.txt.asc
+update i.txt i.txt.asc
 unmount system
 """)

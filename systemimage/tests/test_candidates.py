@@ -190,7 +190,7 @@ class TestCandidateDownloads(unittest.TestCase):
             descriptions.extend(image.descriptions.values())
         self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
         downloads = list(iter_path(winner))
-        paths = set(filerec.path for filerec in downloads)
+        paths = set(filerec.path for (n, filerec) in downloads)
         self.assertEqual(paths, set([
             '/3/4/5.txt',
             '/4/5/6.txt',
@@ -202,7 +202,7 @@ class TestCandidateDownloads(unittest.TestCase):
             '/e/d/c.txt',
             '/f/e/d.txt',
             ]))
-        signatures = set(filerec.signature for filerec in downloads)
+        signatures = set(filerec.signature for (n, filerec) in downloads)
         self.assertEqual(signatures, set([
             '/3/4/5.txt.asc',
             '/4/5/6.txt.asc',
@@ -228,7 +228,7 @@ class TestCandidateDownloads(unittest.TestCase):
             descriptions.extend(image.descriptions.values())
         self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
         downloads = iter_path(winner)
-        paths = set(filerec.path for filerec in downloads)
+        paths = set(filerec.path for (n, filerec) in downloads)
         self.assertEqual(paths, set([
             '/3/4/5.txt',
             '/4/5/6.txt',

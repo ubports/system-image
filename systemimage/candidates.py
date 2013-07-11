@@ -127,13 +127,12 @@ def iter_path(winner):
     candidate.
 
     :param winner: The list of images for the winning candidate.
-    :return: The list of file records describing the files to download.  Each
-        file record is a dictionary as described in the index.json file and
-        contains such information as the path to the signature file, the
-        file's checksum and size, and its order.
+    :return: A sequence of 2-tuples, where the first item is a "image
+        number", i.e. which image in the path of winning images this file
+        record belongs to, and the second item is the file record.
     """
-    for image in winner:
+    for n, image in enumerate(winner):
         for filerec in image.files:
-            yield filerec
+            yield (n, filerec)
         if getattr(image, 'bootme', False):
             break
