@@ -67,7 +67,7 @@ class TestMain(unittest.TestCase):
                 main()
             self.assertEqual(cm.exception.code, 2)
             self.assertEqual(stderr.getvalue(), """\
-usage: system-image-cli [-h] [--version] [-C CONFIG] [-b] [-u UPGRADE] [-v]
+usage: system-image-cli [-h] [--version] [-C FILE] [-b] [-u NUMBER] [-v]
 system-image-cli: error:\x20
 Configuration file not found: /does/not/exist/client.ini
 """)
@@ -86,7 +86,7 @@ Configuration file not found: /does/not/exist/client.ini
                 main()
             self.assertEqual(cm.exception.code, 2)
             self.assertEqual(stderr.getvalue(), """\
-usage: system-image-cli [-h] [--version] [-C CONFIG] [-b] [-u UPGRADE] [-v]
+usage: system-image-cli [-h] [--version] [-C FILE] [-b] [-u NUMBER] [-v]
 system-image-cli: error:\x20
 Configuration file not found: /does/not/exist.ini
 """)
