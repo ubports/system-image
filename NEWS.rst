@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+0.6 (2013-XX-XX)
+================
+
 0.5 (2013-07-12)
 ================
  * Add manpages for system-image-cli and client.ini. (LP: #1195497)
