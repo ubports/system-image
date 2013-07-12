@@ -2,6 +2,10 @@
 NEWS for system-image updater
 =============================
 
+0.5 (2013-07-12)
+================
+ * Add manpages for system-image-cli and client.ini. (LP: #1195497)
+
 0.4 (2013-07-10)
 ================
  * Fix reboot bug.  (LP: #1199981)
