@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+0.7 (2013-XX-XX)
+================
+
 0.6 (2013-07-15)
 ================
  * Fix Image hashes to fit in 32 bites, fixing FTBFS on i386 and for better
