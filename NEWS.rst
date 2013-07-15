@@ -2,8 +2,10 @@
 NEWS for system-image updater
 =============================
 
-0.6 (2013-XX-XX)
+0.6 (2013-07-15)
 ================
+ * Fix Image hashes to fit in 32 bites, fixing FTBFS on i386 and for better
+   compatibility with actual phone hardware. (LP: #1200981)
 
 0.5 (2013-07-12)
 ================
