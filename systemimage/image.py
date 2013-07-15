@@ -32,7 +32,7 @@ def _hash(version):
     if version == 0:
         return 0
     # Split the version number up into years-since-era, month, and
-    # build-per-month.  BpM is 0-99.
+    # builds-per-month.  BpM is 0-99.
     remainder, bpm = divmod(version, 100)
     year, month = divmod(remainder, 100)
     yse = year - ERA
