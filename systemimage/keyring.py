@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 from systemimage.config import config
 from systemimage.download import get_files
 from systemimage.gpg import Context, SignatureError
+from systemimage.helpers import makedirs
 from urllib.parse import urljoin
 
 
@@ -140,6 +141,8 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
             tarxz_path = getattr(config.gpg, keyring_type.replace('-', '_'))
         ascxz_path = tarxz_path + '.asc'
         gpg_path = os.path.join(config.system.tempdir, keyring_type + '.gpg')
+        # Ensure the target directory exists.
+        makedirs(os.path.dirname(tarxz_path))
         shutil.copy(tarxz_dst, tarxz_path)
         shutil.copy(ascxz_dst, ascxz_path)
         shutil.copy(keyring_gpg, gpg_path)

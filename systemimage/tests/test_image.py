@@ -28,17 +28,19 @@ from systemimage.image import Image
 class TestImage(unittest.TestCase):
     def test_full_hash(self):
         image = Image(type='full', version=20130400)
-        # hex(20130400) == 0x1332a60
-        self.assertEqual(hash(image), 0x1332a6000000000)
+        self.assertEqual(hash(image), 0b00000100000000000000000000000000)
 
     def test_full_hash_ignores_base(self):
         image = Image(type='full', version=20130400, base=20130300)
-        self.assertEqual(hash(image), 0x1332a6000000000)
+        self.assertEqual(hash(image), 0b00000100000000000000000000000000)
 
     def test_delta_includes_base(self):
         image = Image(type='delta', version=20130400, base=20130300)
-        # hex(20130300) == 0x13329fc
-        self.assertEqual(hash(image), 0x1332a60013329fc)
+        self.assertEqual(hash(image), 0b00000100000000000000001100000000)
+
+    def test_delta_with_more_info(self):
+        image = Image(type='delta', version=20151299, base=20151212)
+        self.assertEqual(hash(image), 0b00101100110001100010110000011000)
 
     def test_full_equal(self):
         image_1 = Image(type='full', version=20130400)

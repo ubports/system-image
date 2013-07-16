@@ -27,12 +27,15 @@ import argparse
 
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import config
+from systemimage.helpers import makedirs
 from systemimage.logging import initialize
 from systemimage.state import State
 
 
 __version__ = resource_bytes(
     'systemimage', 'version.txt').decode('utf-8').strip()
+
+DEFAULT_CONFIG_FILE = '/etc/system-image/client.ini'
 
 
 def main():
@@ -43,20 +46,36 @@ def main():
     parser.add_argument('--version',
                         action='version',
                         version='system-image-cli {}'.format(__version__))
-    parser.add_argument('-C', '--config', default=None)
+    parser.add_argument('-C', '--config',
+                        default=DEFAULT_CONFIG_FILE, action='store',
+                        metavar='FILE',
+                        help="""Use the given configuration file instead of
+                                the default""")
     parser.add_argument('-b', '--build',
                         default=False, action='store_true',
                         help='Show the current build number and exit')
     parser.add_argument('-u', '--upgrade',
-                        default=None,
-                        help='Upgrade from this build number')
+                        default=None, metavar='NUMBER',
+                        help="""Upgrade from this build number instead of the
+                                system's current build number""")
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
 
-    args = parser.parse_args()
-    if args.config is not None:
+    args = parser.parse_args(sys.argv[1:])
+    try:
         config.load(args.config)
+    except FileNotFoundError as error:
+        parser.error('\nConfiguration file not found: {}'.format(error))
+        assert 'parser.error() does not return'
+
+    # Initialize the loggers.
+    initialize(verbosity=args.verbose)
+    log = logging.getLogger('systemimage')
+    # Create the temporary directory if it doesn't exist.
+    makedirs(config.system.tempdir)
+    # We assume the cache_partition already exists, as does the /etc directory
+    # (i.e. where the archive master key lives).
 
     build = (config.build_number
              if args.upgrade is None
@@ -64,10 +83,6 @@ def main():
     if args.build:
         print('build number:', build)
         return
-
-    # Initialize the loggers.
-    initialize(verbosity=args.verbose)
-    log = logging.getLogger('systemimage')
 
     # Run the state machine to conclusion.  Suppress all exceptions, but note
     # that the state machine will log them.  If an exception occurs, exit with

@@ -32,7 +32,7 @@ from contextlib import ExitStack
 from functools import partial
 from itertools import islice
 from operator import itemgetter
-from systemimage.candidates import get_candidates, get_downloads
+from systemimage.candidates import get_candidates, iter_path
 from systemimage.channel import Channels
 from systemimage.config import config
 from systemimage.download import get_files
@@ -310,7 +310,7 @@ class State:
         signatures = []
         sizes = []
         checksums = []
-        for filerec in get_downloads(self.winner):
+        for image_number, filerec in iter_path(self.winner):
             # Re-pack for arguments to get_files() and to collate the size,
             # signature path, and checksum for the downloadable file.
             dst = os.path.join(
@@ -320,7 +320,7 @@ class State:
                 dst,
                 ))
             sizes.append(filerec.size)
-            self.files.append((dst, filerec.order))
+            self.files.append((dst, (image_number, filerec.order)))
             # Add the signature file, and associate the two.
             asc = os.path.join(
                 config.system.tempdir, os.path.basename(filerec.signature))
@@ -329,7 +329,7 @@ class State:
                 asc))
             # There is no size available for the .asc file.
             sizes.append(0)
-            self.files.append((asc, filerec.order))
+            self.files.append((asc, (image_number, filerec.order)))
             signatures.append((dst, asc))
             checksums.append((dst, filerec.checksum))
         # If there is a device-signing key, the files can be signed by either
@@ -428,7 +428,7 @@ class State:
             shutil.copy(self.blacklist, data_dir)
             shutil.copy(self.blacklist + '.asc', data_dir)
         # Now move all the downloaded data files to the cache.
-        for src, order in self.files:
+        for src, (image_number, order) in self.files:
             dst = os.path.join(cache_dir, os.path.basename(src))
             shutil.copy(src, dst)
         # Issue the reboot.
@@ -439,12 +439,22 @@ class State:
         # updater which files to apply and in which order.  Right now,
         # self.files contains a sequence of the following contents:
         #
-        # [(file_1, order_1), (file_1.asc, order_1), ...]
+        # [
+        #   (file_1,     (image_number, order)),
+        #   (file_1.asc, (image_number, order)),
+        #   (file_2,     (image_number, order)),
+        #   (file_2.asc, (image_number, order)),
+        #   ...
+        # ]
         #
         # The order of the .asc file is redundant.  Rearrange this sequence so
         # that we have the following:
         #
-        # [(order_1, file_1, file_1.asc), ...]
+        # [
+        #   ((image_number, order), file_1, file_1.asc),
+        #   ((image_number, order), file_2, file_2.asc),
+        #   ...
+        # ]
         collated = []
         zipper = zip(
             # items # 0, 2, 4, ...
@@ -469,12 +479,21 @@ class State:
                 print('load_keyring {0} {0}.asc'.format(
                     os.path.basename(config.gpg.device_signing)),
                     file=fp)
+            # If there is a full update, the file system must be formated.
+            for image in self.winner:
+                if image.type == 'full':
+                    print('format system', file=fp)
+                    break
+            # The filesystem must be mounted.
+            print('mount system', file=fp)
             # Now write all the update commands for the tar.xz files.
             for order, txz, asc in ordered:
                 print('update {} {}'.format(
                     os.path.basename(txz),
                     os.path.basename(asc)),
                     file=fp)
+            # The filesystem must be unmounted.
+            print('unmount system', file=fp)
         self._next.append(self._reboot)
 
     def _reboot(self):

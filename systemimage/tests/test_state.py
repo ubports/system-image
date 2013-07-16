@@ -16,8 +16,11 @@
 """Test the state machine."""
 
 __all__ = [
-    'TestState',
+    'TestCommandFileDelta',
+    'TestCommandFileFull',
+    'TestFileOrder',
     'TestRebootingState',
+    'TestState',
     ]
 
 
@@ -26,6 +29,7 @@ import hashlib
 import unittest
 
 from contextlib import ExitStack
+from subprocess import CalledProcessError
 from systemimage.config import config
 from systemimage.gpg import SignatureError
 from systemimage.logging import initialize
@@ -33,6 +37,7 @@ from systemimage.state import State
 from systemimage.testing.helpers import (
     copy, get_index, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, temporary_directory, testable_configuration)
+from unittest.mock import patch
 
 
 def setUpModule():
@@ -304,8 +309,12 @@ class TestState(unittest.TestCase):
         self.assertRaises(SignatureError, next, state)
 
 
-class TestRebooting(unittest.TestCase):
-    """Test various state transitions leading to a reboot."""
+class _StateTestsBase(unittest.TestCase):
+    # Must override in base classes.
+    INDEX_FILE = None
+
+    # For more detailed output.
+    maxDiff = None
 
     def setUp(self):
         self._stack = ExitStack()
@@ -324,9 +333,9 @@ class TestRebooting(unittest.TestCase):
             index_path = os.path.join(
                 self._serverdir, 'stable', 'nexus7', 'index.json')
             head, tail = os.path.split(index_path)
-            copy('index_13.json', head, tail)
+            copy(self.INDEX_FILE, head, tail)
             sign(index_path, 'device-signing.gpg')
-            setup_index('index_13.json', self._serverdir, 'device-signing.gpg')
+            setup_index(self.INDEX_FILE, self._serverdir, 'device-signing.gpg')
         except:
             self._stack.close()
             raise
@@ -357,6 +366,12 @@ class TestRebooting(unittest.TestCase):
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7',
                          'device-signing.tar.xz'))
+
+
+class TestRebooting(_StateTestsBase):
+    """Test various state transitions leading to a reboot."""
+
+    INDEX_FILE = 'index_13.json'
 
     @testable_configuration
     def test_keyrings_copied_to_upgrader_paths(self):
@@ -421,31 +436,16 @@ class TestRebooting(unittest.TestCase):
     def test_reboot_issued(self):
         # The reboot gets issued.
         self._setup_keyrings()
-        got_reboot = False
-        def reboot_mock(self):
-            nonlocal got_reboot
-            got_reboot = True
-        with unittest.mock.patch(
-                'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
+        with patch('systemimage.reboot.check_call') as mock:
             list(State())
-        self.assertTrue(got_reboot)
+        self.assertEqual(mock.call_args[0][0], ['reboot', '-f', 'recovery'])
 
+    @unittest.skipIf(os.getuid() == 0, 'This test would actually reboot!')
     @testable_configuration
-    def test_reboot_command_file(self):
-        # The command file gets properly filled.
+    def test_reboot_fails(self):
+        # The reboot fails, e.g. because we are not root.
         self._setup_keyrings()
-        list(State())
-        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
-        with open(path, 'r', encoding='utf-8') as fp:
-            command = fp.read()
-        self.assertMultiLineEqual(command, """\
-load_keyring image-master.tar.xz image-master.tar.xz.asc
-load_keyring image-signing.tar.xz image-signing.tar.xz.asc
-load_keyring device-signing.tar.xz device-signing.tar.xz.asc
-update 6.txt 6.txt.asc
-update 7.txt 7.txt.asc
-update 5.txt 5.txt.asc
-""")
+        self.assertRaises(CalledProcessError, list, State())
 
     @testable_configuration
     def test_run_until(self):
@@ -468,13 +468,95 @@ update 5.txt 5.txt.asc
         def reboot_mock(self):
             nonlocal got_reboot
             got_reboot = True
-        with unittest.mock.patch(
-                'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
+        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
             state.run_until('reboot')
         # No reboot got issued.
         self.assertFalse(got_reboot)
         # Finish it off.
-        with unittest.mock.patch(
-                'systemimage.tests.reboot.TestableReboot.reboot', reboot_mock):
+        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
             list(state)
         self.assertTrue(got_reboot)
+
+
+class TestCommandFileFull(_StateTestsBase):
+    INDEX_FILE = 'index_13.json'
+
+    @testable_configuration
+    def test_full_command_file(self):
+        # A full update's command file gets properly filled.
+        self._setup_keyrings()
+        State().run_until('reboot')
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
+
+
+class TestCommandFileDelta(_StateTestsBase):
+    INDEX_FILE = 'index_15.json'
+
+    @testable_configuration
+    def test_delta_command_file(self):
+        # A delta update's command file gets properly filled.
+        self._setup_keyrings()
+        # Set the current build number so a delta update will work.
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20120100, file=fp)
+        State().run_until('reboot')
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
+
+
+class TestFileOrder(_StateTestsBase):
+    INDEX_FILE = 'index_16.json'
+
+    @testable_configuration
+    def test_file_order(self):
+        # Updates are applied sorted first by image positional order, then
+        # within the image by the 'order' key.
+        self._setup_keyrings()
+        # Set the current build number so a delta update will work.
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20120100, file=fp)
+        State().run_until('reboot')
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update a.txt a.txt.asc
+update b.txt b.txt.asc
+update c.txt c.txt.asc
+update d.txt d.txt.asc
+update e.txt e.txt.asc
+update f.txt f.txt.asc
+update g.txt g.txt.asc
+update h.txt h.txt.asc
+update i.txt i.txt.asc
+unmount system
+""")

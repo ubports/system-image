@@ -19,6 +19,7 @@ __all__ = [
     'TestCancel',
     'TestDownloads',
     'TestHTTPSDownloads',
+    'TestRegressions',
     ]
 
 
@@ -34,12 +35,15 @@ from systemimage.config import config
 from systemimage.download import CHUNK_SIZE, Downloader, get_files
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
-    make_http_server, test_data_path, testable_configuration)
+    make_http_server, temporary_directory, test_data_path,
+    testable_configuration)
 from threading import Event
 from unittest.mock import patch
 from urllib.error import URLError
 from urllib.parse import urljoin
 from urllib.request import Request
+
+MiB = 1024 * 1024
 
 
 class TestDownloads(unittest.TestCase):
@@ -328,3 +332,38 @@ class TestHTTPSDownloads(unittest.TestCase):
                 self.assertLessEqual(bytes_read, CHUNK_SIZE * 2)
             # But because the exception got raised, no download files exist.
             self.assertEqual(os.listdir(dstdir), [])
+
+
+class TestRegressions(unittest.TestCase):
+    maxDiff = None
+
+    def setUp(self):
+        self._stack = ExitStack()
+        try:
+            # Start the HTTP server running, vending files out of a temporary
+            # directory.
+            self._serverdir = self._stack.enter_context(temporary_directory())
+            self._stack.push(make_http_server(self._serverdir, 8980))
+        except:
+            self._stack.close()
+            raise
+
+    def tearDown(self):
+        self._stack.close()
+
+    @testable_configuration
+    def test_lp1199361(self):
+        # Downloading more files than there are threads causes a timeout error.
+        downloads = []
+        for i in range(config.service.threads * 2):
+            file_name = '{:02d}.dat'.format(i)
+            server_path = os.path.join(self._serverdir, file_name)
+            with open(server_path, 'wb') as fp:
+                fp.write(b'x' * 20 * MiB)
+            url = urljoin(config.service.http_base, file_name)
+            dst = os.path.join(config.system.tempdir, file_name)
+            downloads.append((url, dst))
+        self.assertEqual(len(os.listdir(config.system.tempdir)), 0)
+        get_files(downloads)
+        self.assertEqual(len(os.listdir(config.system.tempdir)),
+                         len(downloads))
