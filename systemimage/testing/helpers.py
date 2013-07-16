@@ -20,6 +20,7 @@ __all__ = [
     'get_channels',
     'get_index',
     'make_http_server',
+    'reset_envar',
     'setup_index',
     'setup_keyring_txz',
     'setup_keyrings',
@@ -296,3 +297,19 @@ def setup_index(index, todir, keyring):
             # Sign with the imaging signing key.  Some tests will
             # re-sign all these files with the device key.
             sign(dst, keyring)
+
+
+@contextmanager
+def reset_envar(name):
+    missing = object()
+    old_value = os.environ.get(name, missing)
+    try:
+        yield
+    finally:
+        if old_value is missing:
+            try:
+                del os.environ[name]
+            except KeyError:
+                pass
+        else:
+            os.environ[name] = old_value
