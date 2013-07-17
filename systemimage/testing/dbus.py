@@ -113,7 +113,6 @@ class Controller:
         # Set the service's address into the environment for rendezvous.
         self._stack.enter_context(reset_envar('DBUS_SESSION_BUS_ADDRESS'))
         os.environ['DBUS_SESSION_BUS_ADDRESS'] = dbus_address
-        import time; time.sleep(5)
 
     def shutdown(self):
         self._stack.close()

@@ -30,7 +30,7 @@ setup(
     entry_points={
         'console_scripts': [
             'system-image-cli = systemimage.main:main',
-            'system-image-dbus = systeimage.service:main',
+            'system-image-dbus = systemimage.service:main',
             ],
     },
     include_package_data=True,
