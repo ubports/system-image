@@ -226,3 +226,10 @@ unmount system
         mediator.check_for_update()
         mediator.cancel()
         self.assertRaises(Cancel, mediator.complete_update)
+
+    @testable_configuration
+    def test_get_build_number(self):
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        mediator = Mediator()
+        self.assertEqual(mediator.get_build_number(), 20130701)

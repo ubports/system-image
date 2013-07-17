@@ -28,7 +28,10 @@ setup(
     license='GNU GPLv3',
     packages=find_packages(),
     entry_points={
-        'console_scripts': ['system-image-cli = systemimage.main:main'],
+        'console_scripts': [
+            'system-image-cli = systemimage.main:main',
+            'system-image-dbus = systeimage.service:main',
+            ],
     },
     include_package_data=True,
     test_suite="systemimage.tests",

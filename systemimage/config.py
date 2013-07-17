@@ -75,6 +75,8 @@ class Configuration:
         self.hooks = Bag(converters=dict(scorer=as_object,
                                          reboot=as_object),
                          **parser['hooks'])
+        self.dbus = Bag(converters=dict(lifetime=as_timedelta),
+                        **parser['dbus'])
 
     @property
     def build_number(self):

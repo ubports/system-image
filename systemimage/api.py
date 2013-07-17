@@ -23,6 +23,7 @@ __all__ = [
     ]
 
 
+from systemimage.config import config
 from systemimage.state import State
 from threading import Event
 
@@ -67,6 +68,9 @@ class Mediator:
     def _check_canceled(self, url, dst, bytes_read, size):
         if self._cancel.is_set():
             raise Cancel
+
+    def get_build_number(self):
+        return config.build_number
 
     def cancel(self):
         self._cancel.set()

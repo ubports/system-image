@@ -15,20 +15,30 @@
 
 """Test the main entry point."""
 
+__all__ = [
+    'TestCLIMain',
+    'TestDBusMain',
+    ]
+
+
 import os
+import sys
+import time
 import shutil
 import unittest
+import subprocess
 
 from contextlib import ExitStack
 from io import StringIO
 from pkg_resources import resource_filename
 from systemimage.config import config
-from systemimage.main import main
-from systemimage.testing.helpers import temporary_directory, test_data_path
+from systemimage.main import main as cli_main
+from systemimage.testing.helpers import (
+    copy, temporary_directory, test_data_path)
 from unittest.mock import patch
 
 
-class TestMain(unittest.TestCase):
+class TestCLIMain(unittest.TestCase):
     maxDiff = None
 
     def test_config_file_good_path(self):
@@ -46,7 +56,7 @@ class TestMain(unittest.TestCase):
                 resource_filename('systemimage.data', 'client.ini'), tempdir)
             stack.enter_context(
                 patch('systemimage.main.DEFAULT_CONFIG_FILE', ini_path))
-            main()
+            cli_main()
             self.assertEqual(config.config_file, ini_path)
             self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
 
@@ -64,7 +74,7 @@ class TestMain(unittest.TestCase):
                 patch('systemimage.main.DEFAULT_CONFIG_FILE',
                       '/does/not/exist/client.ini'))
             with self.assertRaises(SystemExit) as cm:
-                main()
+                cli_main()
             self.assertEqual(cm.exception.code, 2)
             self.assertEqual(stderr.getvalue(), """\
 usage: system-image-cli [-h] [--version] [-C FILE] [-b] [-u NUMBER] [-v]
@@ -83,7 +93,7 @@ Configuration file not found: /does/not/exist/client.ini
                 patch('systemimage.main.sys.argv',
                       ['argv0', '-C', '/does/not/exist.ini']))
             with self.assertRaises(SystemExit) as cm:
-                main()
+                cli_main()
             self.assertEqual(cm.exception.code, 2)
             self.assertEqual(stderr.getvalue(), """\
 usage: system-image-cli [-h] [--version] [-C FILE] [-b] [-u NUMBER] [-v]
@@ -115,5 +125,20 @@ Configuration file not found: /does/not/exist.ini
                 'systemimage.main.sys.argv',
                 ['argv0', '-C', config_ini, '--build']))
             self.assertFalse(os.path.exists(tmpdir))
-            main()
+            cli_main()
             self.assertTrue(os.path.exists(tmpdir))
+
+
+class TestDBusMain(unittest.TestCase):
+    def test_service_exits(self):
+        # The dbus service automatically exits after a set amount of time.
+        with temporary_directory() as tmpdir:
+            # This has a timeout of 3 seconds.
+            copy('config_02.ini', tmpdir, 'client.ini')
+            start = time.time()
+            subprocess.check_call(
+                [sys.executable, '-m' 'systemimage.service', '-C',
+                 os.path.join(tmpdir, 'client.ini')
+                 ], timeout=6)
+            end = time.time()
+            self.assertLess(end - start, 6)

@@ -29,10 +29,12 @@ import subprocess
 
 from contextlib import ExitStack
 from distutils.spawn import find_executable
+from pkg_resources import resource_string as resource_bytes
 from systemimage.helpers import temporary_directory
-from systemimage.testing.helpers import test_data_path
+from systemimage.testing.helpers import reset_envar, test_data_path
 
 
+SPACE = ' '
 SERVICES = [
     'com.canonical.SystemImage',
     ]
@@ -45,7 +47,7 @@ class Controller:
         self._stack = ExitStack()
         self.tmpdir = self._stack.enter_context(temporary_directory())
         self.config_path = os.path.join(self.tmpdir, 'dbus-session.conf')
-        self.is_runnable = False
+        self.ini_path = None
 
     def _setup(self):
         # Set up the dbus-daemon session configuration file.
@@ -55,16 +57,27 @@ class Controller:
         config = template.format(tmpdir=self.tmpdir)
         with open(self.config_path, 'w', encoding='utf-8') as fp:
             fp.write(config)
+        # We need a client.ini file for the subprocess.
+        ini_tmpdir = self._stack.enter_context(temporary_directory())
+        ini_vardir = self._stack.enter_context(temporary_directory())
+        self.ini_path = os.path.join(self.tmpdir, 'client.ini')
+        template = resource_bytes(
+            'systemimage.tests.data', 'config_00.ini').decode('utf-8')
+        with open(self.ini_path, 'w', encoding='utf-8') as fp:
+            print(template.format(tmpdir=ini_tmpdir, vardir=ini_vardir),
+                  file=fp)
         # Now we have to set up the .service files.  We use the Python
         # executable used to run the tests, executing the entry point as would
         # happen in a deployed script or virtualenv.
-        command = [sys.executable, '-m', 'systemimage.service']
+        command = [sys.executable,
+                   '-m', 'systemimage.service',
+                   '-C', self.ini_path]
         for service in SERVICES:
             service_file = service + '.service'
             with open(test_data_path(service_file + '.in'),
                       'r', encoding='utf-8') as fp:
                 template = fp.read()
-            config = template.format(command=command)
+            config = template.format(command=SPACE.join(command))
             service_path = os.path.join(self.tmpdir, service_file)
             with open(service_path, 'w', encoding='utf-8') as fp:
                 fp.write(config)
@@ -96,11 +109,11 @@ class Controller:
         dbus_address = lines[0].strip()
         daemon_pid = int(lines[1].strip())
         self._stack.callback(os.kill, daemon_pid, signal.SIGTERM)
-        print('address:', dbus_address, 'pid:', daemon_pid)
+        #print('address:', dbus_address, 'pid:', daemon_pid)
         # Set the service's address into the environment for rendezvous.
         self._stack.enter_context(reset_envar('DBUS_SESSION_BUS_ADDRESS'))
         os.environ['DBUS_SESSION_BUS_ADDRESS'] = dbus_address
-        self.is_runnable = True
+        import time; time.sleep(5)
 
     def shutdown(self):
         self._stack.close()
