@@ -68,6 +68,7 @@ class Mediator:
     def __init__(self):
         self._state = State(self._check_canceled)
         self._cancel = Event()
+        self._update = None
 
     def _check_canceled(self, url, dst, bytes_read, size):
         if self._cancel.is_set():
@@ -85,8 +86,10 @@ class Mediator:
         :return: Flag indicating whether an update is available or not.
         :rtype: bool
         """
-        self._state.run_thru('calculate_winner')
-        return Update(self._state.winner)
+        if self._update is None:
+            self._state.run_thru('calculate_winner')
+            self._update = Update(self._state.winner)
+        return self._update
 
     def complete_update(self):
         """Complete the update."""

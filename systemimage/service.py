@@ -59,6 +59,10 @@ class Service(Object):
     def IsUpdateAvailable(self):
         return bool(self.api.check_for_update())
 
+    @method('com.canonical.SystemImage', out_signature='x')
+    def GetUpdateSize(self):
+        return self.api.check_for_update().size
+
 
 class TestableService(Service):
     """For testing purposes only."""

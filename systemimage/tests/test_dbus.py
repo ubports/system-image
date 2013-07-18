@@ -76,3 +76,25 @@ class TestDBus(unittest.TestCase):
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130701, file=fp)
         self.assertFalse(self.iface.IsUpdateAvailable())
+
+    def test_get_update_size(self):
+        # Check for an update and if one is available, get the size.
+        self.assertTrue(self.iface.IsUpdateAvailable())
+        self.assertEqual(self.iface.GetUpdateSize(), 314572800)
+
+    def test_get_no_update_size(self):
+        # No update is available, but the client still asks for the size.
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        self.assertFalse(self.iface.IsUpdateAvailable())
+        self.assertEqual(self.iface.GetUpdateSize(), 0)
+
+    def test_get_update_size_without_check(self):
+        # Getting the update size implies a check.
+        self.assertEqual(self.iface.GetUpdateSize(), 314572800)
+
+    def test_get_update_size_without_check_none_available(self):
+        # No explicit check for update, and none is available.
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        self.assertEqual(self.iface.GetUpdateSize(), 0)
