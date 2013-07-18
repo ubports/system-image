@@ -54,7 +54,11 @@ class Update:
 
     @property
     def version(self):
-        return self._winners[-1].version
+        try:
+            return self._winners[-1].version
+        except IndexError:
+            # No winners.
+            return 0
 
 
 class Mediator:

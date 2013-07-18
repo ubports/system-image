@@ -98,3 +98,25 @@ class TestDBus(unittest.TestCase):
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130701, file=fp)
         self.assertEqual(self.iface.GetUpdateSize(), 0)
+
+    def test_get_available_version(self):
+        # An update is available, so get the target version.
+        self.assertTrue(self.iface.IsUpdateAvailable())
+        self.assertEqual(self.iface.GetUpdateVersion(), 20130600)
+
+    def test_get_available_version_without_check(self):
+        # Getting the target version implies a check.
+        self.assertEqual(self.iface.GetUpdateVersion(), 20130600)
+
+    def test_get_no_available_version(self):
+        # No update is available, but the client still asks for the version.
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        self.assertFalse(self.iface.IsUpdateAvailable())
+        self.assertEqual(self.iface.GetUpdateVersion(), 0)
+
+    def test_get_available_version_without_check_none_available(self):
+        # No explicit check for update, none is available.
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        self.assertEqual(self.iface.GetUpdateVersion(), 0)

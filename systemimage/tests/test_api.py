@@ -100,6 +100,16 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(updates.version, 20130600)
 
     @testable_configuration
+    def test_no_update_available_version(self):
+        # No update is available, so the target version number is zero.
+        self._setup_keyrings()
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130600, file=fp)
+        mediator = Mediator()
+        updates = mediator.check_for_update()
+        self.assertEqual(updates.version, 0)
+
+    @testable_configuration
     def test_no_update_available_at_latest(self):
         # Because our build number is equal to the latest available in the
         # index file, there is no update available.
