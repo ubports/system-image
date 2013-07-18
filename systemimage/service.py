@@ -116,6 +116,9 @@ def main():
             from systemimage.testing.helpers import test_data_path
             from unittest.mock import patch
             from urllib.request import urlopen
+            # The testing infrastructure requires that the built-in downloader
+            # accept self-signed certificates.  We have to invoke the context
+            # manager here so that the function actually gets patched.
             stack.enter_context(
                 patch('systemimage.download.urlopen',
                       partial(urlopen, cafile=test_data_path('cert.pem'))))
