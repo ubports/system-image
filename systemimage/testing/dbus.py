@@ -30,8 +30,11 @@ import subprocess
 from contextlib import ExitStack
 from distutils.spawn import find_executable
 from pkg_resources import resource_string as resource_bytes
+from systemimage.config import Configuration
 from systemimage.helpers import temporary_directory
-from systemimage.testing.helpers import reset_envar, test_data_path
+from systemimage.testing.helpers import (
+    copy, make_http_server, reset_envar, setup_index, setup_keyring_txz,
+    setup_keyrings, sign, test_data_path)
 
 
 SPACE = ' '
@@ -71,7 +74,9 @@ class Controller:
         # happen in a deployed script or virtualenv.
         command = [sys.executable,
                    '-m', 'systemimage.service',
-                   '-C', self.ini_path]
+                   '-C', self.ini_path,
+                   '--testing',
+                   ]
         for service in SERVICES:
             service_file = service + '.service'
             with open(test_data_path(service_file + '.in'),
@@ -81,8 +86,48 @@ class Controller:
             service_path = os.path.join(self.tmpdir, service_file)
             with open(service_path, 'w', encoding='utf-8') as fp:
                 fp.write(config)
+        # Next piece of the puzzle is to set up the http/https servers that
+        # the dbus client will talk to.
+        serverdir = self._stack.enter_context(temporary_directory())
+        # Start up both an HTTPS and HTTP server.  The data files are
+        # vended over the latter, everything else, over the former.
+        self._stack.push(make_http_server(
+            serverdir, 8943, 'cert.pem', 'key.pem'))
+        self._stack.push(make_http_server(serverdir, 8980))
+        # Set up the server files.
+        copy('channels_06.json', serverdir, 'channels.json')
+        sign(os.path.join(serverdir, 'channels.json'), 'image-signing.gpg')
+        index_path = os.path.join(serverdir, 'stable', 'nexus7', 'index.json')
+        head, tail = os.path.split(index_path)
+        copy('index_13.json', head, tail)
+        sign(index_path, 'device-signing.gpg')
+        setup_index('index_13.json', serverdir, 'device-signing.gpg')
+        # Only the archive-master key is pre-loaded.  All the other keys
+        # are downloaded and there will be both a blacklist and device
+        # keyring.  The four signed keyring tar.xz files and their
+        # signatures end up in the proper location after the state machine
+        # runs to completion.
+        config = Configuration()
+        config.load(self.ini_path)
+        setup_keyrings('archive-master', use_config=config)
+        setup_keyring_txz(
+            'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
+            os.path.join(serverdir, 'gpg', 'blacklist.tar.xz'))
+        setup_keyring_txz(
+            'image-master.gpg', 'archive-master.gpg',
+            dict(type='image-master'),
+            os.path.join(serverdir, 'gpg', 'image-master.tar.xz'))
+        setup_keyring_txz(
+            'image-signing.gpg', 'image-master.gpg',
+            dict(type='image-signing'),
+            os.path.join(serverdir, 'gpg', 'image-signing.tar.xz'))
+        setup_keyring_txz(
+            'device-signing.gpg', 'image-signing.gpg',
+            dict(type='device-signing'),
+            os.path.join(serverdir, 'stable', 'nexus7',
+                         'device-signing.tar.xz'))
 
-    def start(self):
+    def _start(self):
         """Start the SystemImage service in a subprocess.
 
         Use the output from dbus-daemon to gather the address and pid of the
@@ -113,6 +158,13 @@ class Controller:
         # Set the service's address into the environment for rendezvous.
         self._stack.enter_context(reset_envar('DBUS_SESSION_BUS_ADDRESS'))
         os.environ['DBUS_SESSION_BUS_ADDRESS'] = dbus_address
+
+    def start(self):
+        try:
+            self._start()
+        except:
+            self._stack.close()
+            raise
 
     def shutdown(self):
         self._stack.close()

@@ -25,6 +25,7 @@ import dbus
 import logging
 import argparse
 
+from contextlib import ExitStack
 from dbus.mainloop.glib import DBusGMainLoop
 from dbus.service import BusName, Object, method
 from gi.repository import GLib
@@ -44,11 +45,30 @@ class Service(Object):
 
     def __init__(self, bus, object_path):
         super().__init__(bus, object_path)
-        self.api = Mediator()
+        self._api = Mediator()
+
+    @property
+    def api(self):
+        return self._api
 
     @method('com.canonical.SystemImage', out_signature='i')
     def BuildNumber(self):
         return self.api.get_build_number()
+
+    @method('com.canonical.SystemImage', out_signature='b')
+    def IsUpdateAvailable(self):
+        return bool(self.api.check_for_update())
+
+
+class TestableService(Service):
+    """For testing purposes only."""
+
+    @property
+    def api(self):
+        # Reset the api object so that the tests have isolated state.
+        current_api = self._api
+        self._api = Mediator()
+        return current_api
 
 
 def main():
@@ -67,6 +87,10 @@ def main():
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
+    # Hidden argument for special setup required by test environment.
+    parser.add_argument('--testing',
+                        default=False, action='store_true',
+                        help=argparse.SUPPRESS)
 
     args = parser.parse_args(sys.argv[1:])
     try:
@@ -85,13 +109,26 @@ def main():
 
     session_bus = dbus.SessionBus()
     bus_name = BusName('com.canonical.SystemImage', session_bus)
-    service = Service(session_bus, '/Service')
 
-    loop = GLib.MainLoop()
-    try:
-        loop.run()
-    except KeyboardInterrupt:
-        log.info('SystemImage dbus main loop interrupted')
+    with ExitStack() as stack:
+        if args.testing:
+            from functools import partial
+            from systemimage.testing.helpers import test_data_path
+            from unittest.mock import patch
+            from urllib.request import urlopen
+            stack.enter_context(
+                patch('systemimage.download.urlopen',
+                      partial(urlopen, cafile=test_data_path('cert.pem'))))
+            ServiceClass = TestableService
+        else:
+            ServiceClass = Service
+        # Create the dbus service and enter the main loop.
+        service = ServiceClass(session_bus, '/Service')
+        loop = GLib.MainLoop()
+        try:
+            loop.run()
+        except KeyboardInterrupt:
+            log.info('SystemImage dbus main loop interrupted')
 
 
 if __name__ == '__main__':

@@ -25,6 +25,7 @@ import unittest
 
 from contextlib import ExitStack
 from systemimage.config import Configuration
+from systemimage.helpers import safe_remove
 from systemimage.testing.dbus import Controller
 
 
@@ -49,14 +50,29 @@ class TestDBus(unittest.TestCase):
     """Test the SystemImage dbus service."""
 
     def setUp(self):
-        self.session_bus = dbus.SessionBus()
+        session_bus = dbus.SessionBus()
+        service = session_bus.get_object(
+            'com.canonical.SystemImage', '/Service')
+        self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        # We need a configuration file that agrees with the dbus client.
+        self.config = Configuration()
+        self.config.load(_controller.ini_path)
+
+    def tearDown(self):
+        safe_remove(self.config.system.build_file)
 
     def test_check_build_number(self):
-        config = Configuration()
-        config.load(_controller.ini_path)
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+        # Get the build number.
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130701, file=fp)
-        service = self.session_bus.get_object(
-            'com.canonical.SystemImage', '/Service')
-        iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        self.assertEqual(iface.BuildNumber(), 20130701)
+        self.assertEqual(self.iface.BuildNumber(), 20130701)
+
+    def test_update_available(self):
+        # There is an update available.
+        self.assertTrue(self.iface.IsUpdateAvailable())
+
+    def test_no_update_available(self):
+        # Our device is newer than the version that's available.
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        self.assertFalse(self.iface.IsUpdateAvailable())

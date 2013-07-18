@@ -36,7 +36,7 @@ class Update:
     """A representation of the available update."""
 
     def __init__(self, winners):
-        self._winners = winners
+        self._winners = [] if winners is None else winners
 
     def __bool__(self):
         return len(self._winners) > 0
@@ -51,6 +51,10 @@ class Update:
     @property
     def descriptions(self):
         return [image.descriptions for image in self._winners]
+
+    @property
+    def version(self):
+        return self._winners[-1].version
 
 
 class Mediator:

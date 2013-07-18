@@ -92,6 +92,14 @@ class TestAPI(unittest.TestCase):
         self.assertTrue(mediator.check_for_update())
 
     @testable_configuration
+    def test_update_available_version(self):
+        # An update is available.  What's the target version number?
+        self._setup_keyrings()
+        mediator = Mediator()
+        updates = mediator.check_for_update()
+        self.assertEqual(updates.version, 20130600)
+
+    @testable_configuration
     def test_no_update_available_at_latest(self):
         # Because our build number is equal to the latest available in the
         # index file, there is no update available.

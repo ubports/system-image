@@ -108,7 +108,7 @@ class State:
         while True:
             try:
                 step, name = self._pop()
-            except StopIteration:
+            except (StopIteration, IndexError):
                 # We're done.
                 break
             step()
@@ -126,7 +126,7 @@ class State:
         while True:
             try:
                 step, name = self._pop()
-            except StopIteration:
+            except (StopIteration, IndexError):
                 # We're done.
                 break
             if name[1:] == stop_before:

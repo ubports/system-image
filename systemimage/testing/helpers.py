@@ -247,7 +247,7 @@ def setup_keyring_txz(keyring_src, signing_keyring, json_data, dst):
         shutil.copy(tarxz_path + '.asc', dst + '.asc')
 
 
-def setup_keyrings(*keyrings):
+def setup_keyrings(*keyrings, use_config=None):
     """Copy the named keyrings to the right place.
 
     Also, set up the .xz.tar and .xz.tar.asc files which must exist in order
@@ -257,6 +257,8 @@ def setup_keyrings(*keyrings):
         given, all keyrings are set up.  Each entry should be the name of the
         configuration variable inside the `config.gpg` namespace,
         e.g. 'archive_master'.
+    :param use_config: If given, use this as the config object, otherwise use
+        the global config object.
     """
     if len(keyrings) == 0:
         keyrings = ('archive-master', 'image-master', 'image-signing',
@@ -273,17 +275,18 @@ def setup_keyrings(*keyrings):
             raise AssertionError('unknown key type: {}'.format(keyring))
         # The local keyrings life in the .gpg file with the same keyring name
         # as the .tar.xz file, but cached in the temporary directory.
-        copy(keyring + '.gpg', config.system.tempdir)
+        copy(keyring + '.gpg', (config.system.tempdir if use_config is None
+                                else use_config.system.tempdir))
         # Now set up the .tar.xz and .tar.xz.asc files in the destination.
         json_data = dict(type=keyring)
-        dst = getattr(config.gpg, keyring.replace('-', '_'))
+        dst = getattr((config.gpg if use_config is None
+                       else use_config.gpg),
+                      keyring.replace('-', '_'))
         setup_keyring_txz(keyring + '.gpg', signing_kr, json_data, dst)
 
 
 def setup_index(index, todir, keyring):
     for image in get_index(index).images:
-        ## if 'B' not in image.description:
-        ##     continue
         for filerec in image.files:
             path = (filerec.path[1:]
                     if filerec.path.startswith('/')
