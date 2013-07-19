@@ -27,56 +27,17 @@ import argparse
 
 from contextlib import ExitStack
 from dbus.mainloop.glib import DBusGMainLoop
-from dbus.service import BusName, Object, method
+from dbus.service import BusName
 from gi.repository import GLib
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import config
-from systemimage.api import Mediator
+from systemimage.dbus import Service, TestableService
 from systemimage.logging import initialize
 from systemimage.main import DEFAULT_CONFIG_FILE
 
 
 __version__ = resource_bytes(
     'systemimage', 'version.txt').decode('utf-8').strip()
-
-
-class Service(Object):
-    """Main dbus service."""
-
-    def __init__(self, bus, object_path):
-        super().__init__(bus, object_path)
-        self._api = Mediator()
-
-    @property
-    def api(self):
-        return self._api
-
-    @method('com.canonical.SystemImage', out_signature='i')
-    def BuildNumber(self):
-        return self.api.get_build_number()
-
-    @method('com.canonical.SystemImage', out_signature='b')
-    def IsUpdateAvailable(self):
-        return bool(self.api.check_for_update())
-
-    @method('com.canonical.SystemImage', out_signature='x')
-    def GetUpdateSize(self):
-        return self.api.check_for_update().size
-
-    @method('com.canonical.SystemImage', out_signature='i')
-    def GetUpdateVersion(self):
-        return self.api.check_for_update().version
-
-
-class TestableService(Service):
-    """For testing purposes only."""
-
-    @property
-    def api(self):
-        # Reset the api object so that the tests have isolated state.
-        current_api = self._api
-        self._api = Mediator()
-        return current_api
 
 
 def main():

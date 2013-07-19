@@ -23,8 +23,10 @@ __all__ = [
 
 import os
 import sys
+import time
 import shutil
 import signal
+import datetime
 import subprocess
 
 from contextlib import ExitStack
@@ -46,8 +48,9 @@ SERVICES = [
 class Controller:
     """Start and stop the SystemImage dbus service under test."""
 
-    def __init__(self):
+    def __init__(self, index_file):
         self._stack = ExitStack()
+        self.index_file = index_file
         self.tmpdir = self._stack.enter_context(temporary_directory())
         self.config_path = os.path.join(self.tmpdir, 'dbus-session.conf')
         self.ini_path = None
@@ -99,9 +102,9 @@ class Controller:
         sign(os.path.join(serverdir, 'channels.json'), 'image-signing.gpg')
         index_path = os.path.join(serverdir, 'stable', 'nexus7', 'index.json')
         head, tail = os.path.split(index_path)
-        copy('index_13.json', head, tail)
+        copy(self.index_file, head, tail)
         sign(index_path, 'device-signing.gpg')
-        setup_index('index_13.json', serverdir, 'device-signing.gpg')
+        setup_index(self.index_file, serverdir, 'device-signing.gpg')
         # Only the archive-master key is pre-loaded.  All the other keys
         # are downloaded and there will be both a blacklist and device
         # keyring.  The four signed keyring tar.xz files and their
@@ -140,8 +143,10 @@ class Controller:
             print('Cannot find the `dbus-daemon` executable', file=sys.stderr)
             return
         self._setup()
+        os.environ['DBUS_VERBOSE'] = '1'
         dbus_args = [
             daemon_exe,
+            #'/usr/lib/x86_64-linux-gnu/dbus-1.0/debug-build/bin/dbus-daemon',
             '--fork',
             '--config-file=' + self.config_path,
             # Return the address and pid on stdout.
@@ -153,7 +158,7 @@ class Controller:
         lines = stdout.splitlines()
         dbus_address = lines[0].strip()
         daemon_pid = int(lines[1].strip())
-        self._stack.callback(os.kill, daemon_pid, signal.SIGTERM)
+        self._stack.callback(self._kill, daemon_pid)
         #print('address:', dbus_address, 'pid:', daemon_pid)
         # Set the service's address into the environment for rendezvous.
         self._stack.enter_context(reset_envar('DBUS_SESSION_BUS_ADDRESS'))
@@ -165,6 +170,17 @@ class Controller:
         except:
             self._stack.close()
             raise
+
+    def _kill(self, pid):
+        os.kill(pid, signal.SIGTERM)
+        # Wait for it to die.
+        until = datetime.datetime.now() + datetime.timedelta(seconds=10)
+        while datetime.datetime.now() < until:
+            time.sleep(0.1)
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
 
     def shutdown(self):
         self._stack.close()

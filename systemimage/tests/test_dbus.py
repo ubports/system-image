@@ -17,6 +17,7 @@
 
 __all__ = [
     'TestDBus',
+    'TestDBusDescriptions',
     ]
 
 
@@ -26,28 +27,23 @@ import unittest
 from contextlib import ExitStack
 from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
-from systemimage.testing.dbus import Controller
-
-
-_controller = None
-_stack = ExitStack()
-
-
-def setUpModule():
-    global _controller
-    _controller = Controller()
-    _stack.callback(_controller.shutdown)
-    _controller.start()
-
-
-def tearDownModule():
-    global _controller
-    _stack.close()
-    _controller = None
+from systemimage.testing.controller import Controller
 
 
 class TestDBus(unittest.TestCase):
     """Test the SystemImage dbus service."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._stack = ExitStack()
+        cls._controller = Controller('index_13.json')
+        cls._stack.callback(cls._controller.shutdown)
+        cls._controller.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._stack.close()
+        cls._controller = None
 
     def setUp(self):
         session_bus = dbus.SessionBus()
@@ -56,7 +52,7 @@ class TestDBus(unittest.TestCase):
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
         # We need a configuration file that agrees with the dbus client.
         self.config = Configuration()
-        self.config.load(_controller.ini_path)
+        self.config.load(self._controller.ini_path)
 
     def tearDown(self):
         safe_remove(self.config.system.build_file)
@@ -120,3 +116,71 @@ class TestDBus(unittest.TestCase):
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130701, file=fp)
         self.assertEqual(self.iface.GetUpdateVersion(), 0)
+
+    def test_get_descriptions(self):
+        # An update is available, with descriptions.
+        self.assertTrue(self.iface.IsUpdateAvailable())
+        self.assertEqual(self.iface.GetDescriptions(),
+                         [{'description': 'Full'}])
+
+    def test_get_descriptions_no_check(self):
+        # Getting the descriptions implies a check.
+        self.assertEqual(self.iface.GetDescriptions(),
+                         [{'description': 'Full'}])
+
+    def test_get_no_available_descriptions(self):
+        # No update is available, so there are no descriptions.
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        self.assertFalse(self.iface.IsUpdateAvailable())
+        self.assertEqual(len(self.iface.GetDescriptions()), 0)
+
+    def test_get_no_available_descriptions_without_check(self):
+        # No explicit check for update, none is available.
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        self.assertEqual(len(self.iface.GetDescriptions()), 0)
+
+
+@unittest.skip('broken')
+class TestDBusDescriptions(unittest.TestCase):
+    """Test the descriptions for a more complicated update."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._stack = ExitStack()
+        # index_14.json has some multilingual descriptions.
+        cls._controller = Controller('index_14.json')
+        cls._stack.callback(cls._controller.shutdown)
+        cls._controller.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._stack.close()
+        cls._controller = None
+
+    def setUp(self):
+        session_bus = dbus.SessionBus()
+        service = session_bus.get_object(
+            'com.canonical.SystemImage', '/Service')
+        self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        # We need a configuration file that agrees with the dbus client.
+        self.config = Configuration()
+        self.config.load(self._controller.ini_path)
+
+    def test_get_multilingual_descriptions(self):
+        # The descriptions are multilingual.
+        self.assertEqual(self.iface.GetDescriptions(), [
+            {'description': 'Full B',
+             'description-en': 'The full B',
+            },
+            {'description': 'Delta B.1',
+             'description-en_US': 'This is the delta B.1',
+             'description-xx': 'XX This is the delta B.1',
+             'description-yy': 'YY This is the delta B.1',
+             'description-yy_ZZ': 'YY-ZZ This is the delta B.1',
+            },
+            {'description': 'Delta B.2',
+             'description-xx': 'Oh delta, my delta',
+             'description-xx_CC': 'This hyar is the delta B.2',
+            }])
