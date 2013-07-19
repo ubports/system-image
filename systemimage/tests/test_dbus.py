@@ -166,9 +166,10 @@ class TestDBus(unittest.TestCase):
     def test_complete_update(self):
         # Complete the update; up until the reboot call.
         self.assertTrue(self.iface.IsUpdateAvailable())
-        self.iface.GetUpdate()
         command_file = os.path.join(
             self.config.updater.cache_partition, 'ubuntu_command')
+        self.assertFalse(os.path.exists(command_file))
+        self.iface.GetUpdate()
         with open(command_file, 'r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, """\
