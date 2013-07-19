@@ -57,9 +57,17 @@ class TestDBus(unittest.TestCase):
         # We need a configuration file that agrees with the dbus client.
         self.config = Configuration()
         self.config.load(self._controller.ini_path)
+        # For testing reboot preparation.
+        self.command_file = os.path.join(
+            self.config.updater.cache_partition, 'ubuntu_command')
+        # For testing the reboot command without actually rebooting.
+        self.reboot_log = os.path.join(
+            self.config.updater.cache_partition, 'reboot.log')
 
     def tearDown(self):
         safe_remove(self.config.system.build_file)
+        safe_remove(self.command_file)
+        safe_remove(self.reboot_log)
 
     def test_check_build_number(self):
         # Get the build number.
@@ -166,11 +174,9 @@ class TestDBus(unittest.TestCase):
     def test_complete_update(self):
         # Complete the update; up until the reboot call.
         self.assertTrue(self.iface.IsUpdateAvailable())
-        command_file = os.path.join(
-            self.config.updater.cache_partition, 'ubuntu_command')
-        self.assertFalse(os.path.exists(command_file))
+        self.assertFalse(os.path.exists(self.command_file))
         self.iface.GetUpdate()
-        with open(command_file, 'r', encoding='utf-8') as fp:
+        with open(self.command_file, 'r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, """\
 load_keyring image-master.tar.xz image-master.tar.xz.asc
@@ -183,3 +189,31 @@ update 7.txt 7.txt.asc
 update 5.txt 5.txt.asc
 unmount system
 """)
+
+    @unittest.skip('broken')
+    def test_no_update_to_complete(self):
+        # Complete the update; up until the reboot call.
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        self.assertFalse(os.path.exists(self.command_file))
+        self.iface.GetUpdate()
+        self.assertFalse(os.path.exists(self.command_file))
+
+    def test_reboot(self):
+        # Do the reboot.
+        self.assertFalse(os.path.exists(self.reboot_log))
+        self.assertTrue(self.iface.IsUpdateAvailable())
+        self.iface.Reboot()
+        with open(self.reboot_log, encoding='utf-8') as fp:
+            reboot = fp.read()
+        self.assertEqual(reboot, 'reboot -f recovery')
+
+    @unittest.skip('broken')
+    def test_reboot_no_update(self):
+        # There's no update to reboot to.
+        self.assertFalse(os.path.exists(self.reboot_log))
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        self.assertFalse(self.iface.IsUpdateAvailable())
+        self.iface.Reboot()
+        self.assertFalse(os.path.exists(self.reboot_log))

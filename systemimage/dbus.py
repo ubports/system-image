@@ -60,6 +60,10 @@ class Service(Object):
     def GetUpdate(self):
         self.api.complete_update()
 
+    @method('com.canonical.SystemImage')
+    def Reboot(self):
+        self.api.reboot()
+
 
 class TestableService(Service):
     """For testing purposes only."""

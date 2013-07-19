@@ -35,6 +35,8 @@ from systemimage.dbus import Service, TestableService
 from systemimage.logging import initialize
 from systemimage.main import DEFAULT_CONFIG_FILE
 
+SPACE = ' '
+
 
 __version__ = resource_bytes(
     'systemimage', 'version.txt').decode('utf-8').strip()
@@ -81,6 +83,7 @@ def main():
 
     with ExitStack() as stack:
         if args.testing:
+            import os
             from functools import partial
             from systemimage.testing.helpers import test_data_path
             from unittest.mock import patch
@@ -91,6 +94,15 @@ def main():
             stack.enter_context(
                 patch('systemimage.download.urlopen',
                       partial(urlopen, cafile=test_data_path('cert.pem'))))
+            # Patch the subprocess call to write the reboot command to a log
+            # file which the testing parent process can open and read.
+            def safe_reboot(*args, **kws):
+                path = os.path.join(
+                    config.updater.cache_partition, 'reboot.log')
+                with open(path, 'w', encoding='utf-8') as fp:
+                    fp.write(SPACE.join(args[0]).strip())
+            stack.enter_context(
+                patch('systemimage.reboot.check_call', safe_reboot))
             ServiceClass = TestableService
         else:
             ServiceClass = Service
