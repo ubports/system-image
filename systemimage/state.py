@@ -302,7 +302,11 @@ class State:
         # Store these as attributes for debugging and testing.
         self.candidates = get_candidates(self.index, config.build_number)
         self.winner = config.hooks.scorer().choose(self.candidates)
-        self._next.append(self._download_files)
+        # If there is no winning upgrade candidate, then there's nothing more
+        # to do.  We can skip everything between downloading the files and
+        # doing the reboot.
+        if len(self.winner) > 0:
+            self._next.append(self._download_files)
 
     def _download_files(self):
         """Download and verify all the winning upgrade path's files."""

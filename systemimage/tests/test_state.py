@@ -440,6 +440,19 @@ class TestRebooting(_StateTestsBase):
             list(State())
         self.assertEqual(mock.call_args[0][0], ['reboot', '-f', 'recovery'])
 
+
+    @testable_configuration
+    def test_no_update_available_no_reboot(self):
+        # LP: #1202915.  If there's no update available, running the state
+        # machine to completion should not result in a reboot.
+        self._setup_keyrings()
+        # Hack the current build number so that no update is available.
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20250000, file=fp)
+        with patch('systemimage.reboot.Reboot.reboot') as mock:
+            list(State())
+        self.assertEqual(mock.call_count, 0)
+
     @unittest.skipIf(os.getuid() == 0, 'This test would actually reboot!')
     @testable_configuration
     def test_reboot_fails(self):
