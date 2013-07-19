@@ -56,6 +56,10 @@ class Service(Object):
     def GetDescriptions(self):
         return self.api.check_for_update().descriptions
 
+    @method('com.canonical.SystemImage')
+    def GetUpdate(self):
+        self.api.complete_update()
+
 
 class TestableService(Service):
     """For testing purposes only."""

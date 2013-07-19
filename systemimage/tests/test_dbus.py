@@ -21,6 +21,7 @@ __all__ = [
     ]
 
 
+import os
 import dbus
 import unittest
 
@@ -32,6 +33,8 @@ from systemimage.testing.controller import Controller
 
 class TestDBus(unittest.TestCase):
     """Test the SystemImage dbus service."""
+
+    maxDiff = None
 
     @classmethod
     def setUpClass(cls):
@@ -159,3 +162,23 @@ class TestDBus(unittest.TestCase):
              'description-xx': 'Oh delta, my delta',
              'description-xx_CC': 'This hyar is the delta B.2',
             }])
+
+    def test_complete_update(self):
+        # Complete the update; up until the reboot call.
+        self.assertTrue(self.iface.IsUpdateAvailable())
+        self.iface.GetUpdate()
+        command_file = os.path.join(
+            self.config.updater.cache_partition, 'ubuntu_command')
+        with open(command_file, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
