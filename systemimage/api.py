@@ -69,12 +69,14 @@ class Mediator:
     DBus layer to satisfy that interface.
     """
 
-    def __init__(self, *, pending_cb=None):
+    def __init__(self, *, pending_cb=None, ready_cb=None):
         self._state = State(self._check_canceled)
         self._cancel = Event()
         self._update = None
         # Callback called when check_for_update() finds an update available.
         self._pending_cb = pending_cb
+        # Callback called when complete_update() is done.
+        self._ready_cb = ready_cb
 
     def _check_canceled(self, url, dst, bytes_read, size):
         if self._cancel.is_set():
@@ -102,6 +104,8 @@ class Mediator:
     def complete_update(self):
         """Complete the update."""
         self._state.run_until('reboot')
+        if self._ready_cb is not None:
+            self._ready_cb()
 
     def reboot(self):
         """Issue the reboot."""

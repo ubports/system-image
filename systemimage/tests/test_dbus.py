@@ -237,3 +237,16 @@ unmount system
             dbus_interface='com.canonical.SystemImage')
         self._run_loop(self.iface.IsUpdateAvailable)
         self.assertTrue(called)
+
+    def test_ready_to_reboot_signal(self):
+        called = False
+        def callback():
+            nonlocal called
+            called = True
+            self.loop.quit()
+        self.session_bus.add_signal_receiver(
+            callback,
+            signal_name='ReadyToReboot',
+            dbus_interface='com.canonical.SystemImage')
+        self._run_loop(self.iface.GetUpdate)
+        self.assertTrue(called)

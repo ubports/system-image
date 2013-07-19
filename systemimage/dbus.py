@@ -33,7 +33,8 @@ class Service(Object):
         self._api = self._new_mediator()
 
     def _new_mediator(self):
-        return Mediator(pending_cb=self.UpdatePending)
+        return Mediator(pending_cb=self.UpdatePending,
+                        ready_cb=self.ReadyToReboot)
 
     @property
     def api(self):
@@ -69,6 +70,10 @@ class Service(Object):
 
     @signal('com.canonical.SystemImage')
     def UpdatePending(self):
+        pass
+
+    @signal('com.canonical.SystemImage')
+    def ReadyToReboot(self):
         pass
 
 
