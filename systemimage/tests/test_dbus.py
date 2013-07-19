@@ -190,7 +190,6 @@ update 5.txt 5.txt.asc
 unmount system
 """)
 
-    @unittest.skip('broken')
     def test_no_update_to_complete(self):
         # Complete the update; up until the reboot call.
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
@@ -208,7 +207,6 @@ unmount system
             reboot = fp.read()
         self.assertEqual(reboot, 'reboot -f recovery')
 
-    @unittest.skip('broken')
     def test_reboot_no_update(self):
         # There's no update to reboot to.
         self.assertFalse(os.path.exists(self.reboot_log))
