@@ -36,7 +36,7 @@ class TestDBus(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._stack = ExitStack()
-        cls._controller = Controller('index_13.json')
+        cls._controller = Controller()
         cls._stack.callback(cls._controller.shutdown)
         cls._controller.start()
 
@@ -46,6 +46,7 @@ class TestDBus(unittest.TestCase):
         cls._controller = None
 
     def setUp(self):
+        self._controller.prepare_index('index_13.json')
         session_bus = dbus.SessionBus()
         service = session_bus.get_object(
             'com.canonical.SystemImage', '/Service')
@@ -141,35 +142,9 @@ class TestDBus(unittest.TestCase):
             print(20130701, file=fp)
         self.assertEqual(len(self.iface.GetDescriptions()), 0)
 
-
-@unittest.skip('broken')
-class TestDBusDescriptions(unittest.TestCase):
-    """Test the descriptions for a more complicated update."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls._stack = ExitStack()
-        # index_14.json has some multilingual descriptions.
-        cls._controller = Controller('index_14.json')
-        cls._stack.callback(cls._controller.shutdown)
-        cls._controller.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._stack.close()
-        cls._controller = None
-
-    def setUp(self):
-        session_bus = dbus.SessionBus()
-        service = session_bus.get_object(
-            'com.canonical.SystemImage', '/Service')
-        self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        # We need a configuration file that agrees with the dbus client.
-        self.config = Configuration()
-        self.config.load(self._controller.ini_path)
-
     def test_get_multilingual_descriptions(self):
         # The descriptions are multilingual.
+        self._controller.prepare_index('index_14.json')
         self.assertEqual(self.iface.GetDescriptions(), [
             {'description': 'Full B',
              'description-en': 'The full B',

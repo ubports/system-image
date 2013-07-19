@@ -48,12 +48,20 @@ SERVICES = [
 class Controller:
     """Start and stop the SystemImage dbus service under test."""
 
-    def __init__(self, index_file):
+    def __init__(self):
         self._stack = ExitStack()
-        self.index_file = index_file
         self.tmpdir = self._stack.enter_context(temporary_directory())
         self.config_path = os.path.join(self.tmpdir, 'dbus-session.conf')
         self.ini_path = None
+        self.serverdir = self._stack.enter_context(temporary_directory())
+
+    def prepare_index(self, index_file):
+        index_path = os.path.join(
+            self.serverdir, 'stable', 'nexus7', 'index.json')
+        head, tail = os.path.split(index_path)
+        copy(index_file, head, tail)
+        sign(index_path, 'device-signing.gpg')
+        setup_index(index_file, self.serverdir, 'device-signing.gpg')
 
     def _setup(self):
         # Set up the dbus-daemon session configuration file.
@@ -90,21 +98,16 @@ class Controller:
             with open(service_path, 'w', encoding='utf-8') as fp:
                 fp.write(config)
         # Next piece of the puzzle is to set up the http/https servers that
-        # the dbus client will talk to.
-        serverdir = self._stack.enter_context(temporary_directory())
-        # Start up both an HTTPS and HTTP server.  The data files are
-        # vended over the latter, everything else, over the former.
+        # the dbus client will talk to.  Start up both an HTTPS and HTTP
+        # server.  The data files are vended over the latter, everything else,
+        # over the former.
         self._stack.push(make_http_server(
-            serverdir, 8943, 'cert.pem', 'key.pem'))
-        self._stack.push(make_http_server(serverdir, 8980))
+            self.serverdir, 8943, 'cert.pem', 'key.pem'))
+        self._stack.push(make_http_server(self.serverdir, 8980))
         # Set up the server files.
-        copy('channels_06.json', serverdir, 'channels.json')
-        sign(os.path.join(serverdir, 'channels.json'), 'image-signing.gpg')
-        index_path = os.path.join(serverdir, 'stable', 'nexus7', 'index.json')
-        head, tail = os.path.split(index_path)
-        copy(self.index_file, head, tail)
-        sign(index_path, 'device-signing.gpg')
-        setup_index(self.index_file, serverdir, 'device-signing.gpg')
+        copy('channels_06.json', self.serverdir, 'channels.json')
+        sign(os.path.join(self.serverdir, 'channels.json'),
+             'image-signing.gpg')
         # Only the archive-master key is pre-loaded.  All the other keys
         # are downloaded and there will be both a blacklist and device
         # keyring.  The four signed keyring tar.xz files and their
@@ -115,19 +118,19 @@ class Controller:
         setup_keyrings('archive-master', use_config=config)
         setup_keyring_txz(
             'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
-            os.path.join(serverdir, 'gpg', 'blacklist.tar.xz'))
+            os.path.join(self.serverdir, 'gpg', 'blacklist.tar.xz'))
         setup_keyring_txz(
             'image-master.gpg', 'archive-master.gpg',
             dict(type='image-master'),
-            os.path.join(serverdir, 'gpg', 'image-master.tar.xz'))
+            os.path.join(self.serverdir, 'gpg', 'image-master.tar.xz'))
         setup_keyring_txz(
             'image-signing.gpg', 'image-master.gpg',
             dict(type='image-signing'),
-            os.path.join(serverdir, 'gpg', 'image-signing.tar.xz'))
+            os.path.join(self.serverdir, 'gpg', 'image-signing.tar.xz'))
         setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
-            os.path.join(serverdir, 'stable', 'nexus7',
+            os.path.join(self.serverdir, 'stable', 'nexus7',
                          'device-signing.tar.xz'))
 
     def _start(self):
