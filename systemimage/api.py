@@ -69,10 +69,12 @@ class Mediator:
     DBus layer to satisfy that interface.
     """
 
-    def __init__(self):
+    def __init__(self, *, pending_cb=None):
         self._state = State(self._check_canceled)
         self._cancel = Event()
         self._update = None
+        # Callback called when check_for_update() finds an update available.
+        self._pending_cb = pending_cb
 
     def _check_canceled(self, url, dst, bytes_read, size):
         if self._cancel.is_set():
@@ -93,6 +95,8 @@ class Mediator:
         if self._update is None:
             self._state.run_thru('calculate_winner')
             self._update = Update(self._state.winner)
+            if self._update and self._pending_cb is not None:
+                self._pending_cb()
         return self._update
 
     def complete_update(self):

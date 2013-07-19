@@ -21,7 +21,7 @@ __all__ = [
     ]
 
 
-from dbus.service import Object, method
+from dbus.service import Object, method, signal
 from systemimage.api import Mediator
 
 
@@ -30,7 +30,10 @@ class Service(Object):
 
     def __init__(self, bus, object_path):
         super().__init__(bus, object_path)
-        self._api = Mediator()
+        self._api = self._new_mediator()
+
+    def _new_mediator(self):
+        return Mediator(pending_cb=self.UpdatePending)
 
     @property
     def api(self):
@@ -64,6 +67,10 @@ class Service(Object):
     def Reboot(self):
         self.api.reboot()
 
+    @signal('com.canonical.SystemImage')
+    def UpdatePending(self):
+        pass
+
 
 class TestableService(Service):
     """For testing purposes only."""
@@ -72,5 +79,5 @@ class TestableService(Service):
     def api(self):
         # Reset the api object so that the tests have isolated state.
         current_api = self._api
-        self._api = Mediator()
+        self._api = self._new_mediator()
         return current_api

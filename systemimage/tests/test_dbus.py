@@ -26,6 +26,8 @@ import dbus
 import unittest
 
 from contextlib import ExitStack
+from dbus.mainloop.glib import DBusGMainLoop
+from gi.repository import GLib
 from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
 from systemimage.testing.controller import Controller
@@ -42,6 +44,7 @@ class TestDBus(unittest.TestCase):
         cls._controller = Controller()
         cls._stack.callback(cls._controller.shutdown)
         cls._controller.start()
+        DBusGMainLoop(set_as_default=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -50,8 +53,8 @@ class TestDBus(unittest.TestCase):
 
     def setUp(self):
         self._controller.prepare_index('index_13.json')
-        session_bus = dbus.SessionBus()
-        service = session_bus.get_object(
+        self.session_bus = dbus.SessionBus()
+        service = self.session_bus.get_object(
             'com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
         # We need a configuration file that agrees with the dbus client.
@@ -68,6 +71,12 @@ class TestDBus(unittest.TestCase):
         safe_remove(self.config.system.build_file)
         safe_remove(self.command_file)
         safe_remove(self.reboot_log)
+
+    def _run_loop(self, method):
+        self.loop = GLib.MainLoop()
+        GLib.timeout_add(100, method)
+        GLib.timeout_add_seconds(10, self.loop.quit)
+        self.loop.run()
 
     def test_check_build_number(self):
         # Get the build number.
@@ -215,3 +224,16 @@ unmount system
         self.assertFalse(self.iface.IsUpdateAvailable())
         self.iface.Reboot()
         self.assertFalse(os.path.exists(self.reboot_log))
+
+    def test_update_pending_signal(self):
+        called = False
+        def callback():
+            nonlocal called
+            called = True
+            self.loop.quit()
+        self.session_bus.add_signal_receiver(
+            callback,
+            signal_name='UpdatePending',
+            dbus_interface='com.canonical.SystemImage')
+        self._run_loop(self.iface.IsUpdateAvailable)
+        self.assertTrue(called)

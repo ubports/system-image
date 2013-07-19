@@ -251,3 +251,31 @@ unmount system
             print(20130701, file=fp)
         mediator = Mediator()
         self.assertEqual(mediator.get_build_number(), 20130701)
+
+    @testable_configuration
+    def test_pending_update_callback(self):
+        # When check_for_update() finds an update available, a callback is
+        # optionally called.
+        self._setup_keyrings()
+        called = False
+        def callback():
+            nonlocal called
+            called = True
+        mediator = Mediator(pending_cb=callback)
+        mediator.check_for_update()
+        self.assertTrue(called)
+
+    @testable_configuration
+    def test_pending_update_callback_no_update(self):
+        # When check_for_update() does not find an update available, the
+        # callback is not called.
+        self._setup_keyrings()
+        called = False
+        def callback():
+            nonlocal called
+            called = True
+        mediator = Mediator(pending_cb=callback)
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20130701, file=fp)
+        mediator.check_for_update()
+        self.assertFalse(called)
