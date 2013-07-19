@@ -35,7 +35,13 @@ from systemimage.dbus import Service, TestableService
 from systemimage.logging import initialize
 from systemimage.main import DEFAULT_CONFIG_FILE
 
-SPACE = ' '
+# --testing is only enabled when the systemimage.testing package is
+# available.  This will be the case for the upstream source package, and when
+# the systemimage-dev binary package is installed in Ubuntu.
+try:
+    from systemimage.testing.dbus import instrument
+except ImportError:
+    insrument = None
 
 
 __version__ = resource_bytes(
@@ -59,9 +65,10 @@ def main():
                         default=0, action='count',
                         help='Increase verbosity')
     # Hidden argument for special setup required by test environment.
-    parser.add_argument('--testing',
-                        default=False, action='store_true',
-                        help=argparse.SUPPRESS)
+    if instrument is not None:
+        parser.add_argument('--testing',
+                            default=False, action='store_true',
+                            help=argparse.SUPPRESS)
 
     args = parser.parse_args(sys.argv[1:])
     try:
@@ -83,26 +90,7 @@ def main():
 
     with ExitStack() as stack:
         if args.testing:
-            import os
-            from functools import partial
-            from systemimage.testing.helpers import test_data_path
-            from unittest.mock import patch
-            from urllib.request import urlopen
-            # The testing infrastructure requires that the built-in downloader
-            # accept self-signed certificates.  We have to invoke the context
-            # manager here so that the function actually gets patched.
-            stack.enter_context(
-                patch('systemimage.download.urlopen',
-                      partial(urlopen, cafile=test_data_path('cert.pem'))))
-            # Patch the subprocess call to write the reboot command to a log
-            # file which the testing parent process can open and read.
-            def safe_reboot(*args, **kws):
-                path = os.path.join(
-                    config.updater.cache_partition, 'reboot.log')
-                with open(path, 'w', encoding='utf-8') as fp:
-                    fp.write(SPACE.join(args[0]).strip())
-            stack.enter_context(
-                patch('systemimage.reboot.check_call', safe_reboot))
+            instrument(config, stack)
             ServiceClass = TestableService
         else:
             ServiceClass = Service
