@@ -226,6 +226,7 @@ unmount system
         self.assertFalse(os.path.exists(self.reboot_log))
 
     def test_update_pending_signal(self):
+        # A signal is issued when there is an update pending.
         called = False
         def callback():
             nonlocal called
@@ -239,6 +240,7 @@ unmount system
         self.assertTrue(called)
 
     def test_ready_to_reboot_signal(self):
+        # A signal is issued when the client is ready to reboot.
         called = False
         def callback():
             nonlocal called
@@ -250,3 +252,45 @@ unmount system
             dbus_interface='com.canonical.SystemImage')
         self._run_loop(self.iface.GetUpdate)
         self.assertTrue(called)
+
+    def test_cancel(self):
+        # The downloads can be canceled when there is an update available.
+        # Upon cancelation, a signal is issued.
+        called = False
+        def callback():
+            nonlocal called
+            called = True
+            self.loop.quit()
+        self.session_bus.add_signal_receiver(
+            callback,
+            signal_name='Canceled',
+            dbus_interface='com.canonical.SystemImage')
+        # Get prepared to download.
+        self.assertTrue(self.iface.IsUpdateAvailable())
+        # Pre-cancel the download.
+        self.iface.Cancel()
+        # Do the download.
+        self._run_loop(self.iface.GetUpdate)
+        self.assertTrue(called)
+
+    def test_reboot_after_cancel(self):
+        # The downloads can be canceled when there is an update available.
+        # If the reboot is subsequently attempted, a Canceled signal is issued
+        # and no reboot occurs.
+        called = False
+        def callback():
+            nonlocal called
+            called = True
+            self.loop.quit()
+        self.session_bus.add_signal_receiver(
+            callback,
+            signal_name='Canceled',
+            dbus_interface='com.canonical.SystemImage')
+        # Get the download.
+        self.iface.GetUpdate()
+        # Cancel the reboot.
+        self.iface.Cancel()
+        # The reboot gets canceled.
+        self._run_loop(self.iface.Reboot)
+        self.assertTrue(called)
+        self.assertFalse(os.path.exists(self.reboot_log))

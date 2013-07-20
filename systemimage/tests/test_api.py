@@ -246,6 +246,19 @@ unmount system
         self.assertRaises(Cancel, mediator.complete_update)
 
     @testable_configuration
+    def test_reboot_after_cancel(self):
+        # Trying to reboot after the download has been canceled raises the
+        # Cancel exception.
+        self._setup_keyrings()
+        mediator = Mediator()
+        mediator.check_for_update()
+        # Let's say that the update got canceled after all the files were
+        # downloaded.
+        mediator.complete_update()
+        mediator.cancel()
+        self.assertRaises(Cancel, mediator.reboot)
+
+    @testable_configuration
     def test_get_build_number(self):
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130701, file=fp)
@@ -279,3 +292,15 @@ unmount system
             print(20130701, file=fp)
         mediator.check_for_update()
         self.assertFalse(called)
+
+    @testable_configuration
+    def test_ready_callback(self):
+        # When we're ready to reboot, a callback gets called.
+        self._setup_keyrings()
+        called = False
+        def callback():
+            nonlocal called
+            called = True
+        mediator = Mediator(ready_cb=callback)
+        mediator.complete_update()
+        self.assertTrue(called)

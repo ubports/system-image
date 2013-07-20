@@ -109,4 +109,6 @@ class Mediator:
 
     def reboot(self):
         """Issue the reboot."""
+        if self._cancel.is_set():
+            raise Cancel
         list(self._state)

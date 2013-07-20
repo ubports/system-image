@@ -22,7 +22,7 @@ __all__ = [
 
 
 from dbus.service import Object, method, signal
-from systemimage.api import Mediator
+from systemimage.api import Cancel, Mediator
 
 
 class Service(Object):
@@ -62,11 +62,21 @@ class Service(Object):
 
     @method('com.canonical.SystemImage')
     def GetUpdate(self):
-        self.api.complete_update()
+        try:
+            self.api.complete_update()
+        except Cancel:
+            self.Canceled()
+
+    @method('com.canonical.SystemImage')
+    def Cancel(self):
+        self.api.cancel()
 
     @method('com.canonical.SystemImage')
     def Reboot(self):
-        self.api.reboot()
+        try:
+            self.api.reboot()
+        except Cancel:
+            self.Canceled()
 
     @signal('com.canonical.SystemImage')
     def UpdatePending(self):
@@ -74,6 +84,10 @@ class Service(Object):
 
     @signal('com.canonical.SystemImage')
     def ReadyToReboot(self):
+        pass
+
+    @signal('com.canonical.SystemImage')
+    def Canceled(self):
         pass
 
 
@@ -86,3 +100,8 @@ class TestableService(Service):
         current_api = self._api
         self._api = self._new_mediator()
         return current_api
+
+    # The Cancel method cannot cause a new mediator to be created.
+    @method('com.canonical.SystemImage')
+    def Cancel(self):
+        self._api.cancel()
