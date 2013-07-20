@@ -67,6 +67,8 @@ class TestConfiguration(unittest.TestCase):
                          '/android/cache/recovery')
         self.assertEqual(config.updater.data_partition,
                          '/var/lib/system-image')
+        # [dbus]
+        self.assertEqual(config.dbus.lifetime.total_seconds(), 120)
 
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
@@ -102,6 +104,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.updater.cache_partition, '/android/cache')
         self.assertEqual(config.updater.data_partition,
                          '/var/lib/phablet/updater')
+        # [dbus]
+        self.assertEqual(config.dbus.lifetime.total_seconds(), 120)
 
     def test_nonstandard_ports(self):
         # config_02.ini has non-standard http and https ports.
