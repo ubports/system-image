@@ -41,7 +41,7 @@ from systemimage.main import DEFAULT_CONFIG_FILE
 try:
     from systemimage.testing.dbus import instrument
 except ImportError:
-    insrument = None
+    instrument = None
 
 
 __version__ = resource_bytes(
@@ -89,7 +89,7 @@ def main():
     bus_name = BusName('com.canonical.SystemImage', session_bus)
 
     with ExitStack() as stack:
-        if args.testing:
+        if getattr(args, 'testing', False):
             instrument(config, stack)
             ServiceClass = TestableService
         else:
