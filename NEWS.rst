@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+0.8 (2013-XX-XX)
+================
+
 0.7 (2013-07-22)
 ================
  * No reboot should be issued if there is no update available.  (LP: #1202915)
