@@ -29,6 +29,7 @@ import unittest
 import subprocess
 
 from contextlib import ExitStack
+from distutils.spawn import find_executable
 from io import StringIO
 from pkg_resources import resource_filename
 from systemimage.config import config
@@ -132,12 +133,17 @@ Configuration file not found: /does/not/exist.ini
 class TestDBusMain(unittest.TestCase):
     def test_service_exits(self):
         # The dbus service automatically exits after a set amount of time.
+        launch_exe = find_executable('dbus-launch')
+        if launch_exe is None:
+            print('Cannot find the `dbus-launch` executable', file=sys.stderr)
+            return
         with temporary_directory() as tmpdir:
             # This has a timeout of 3 seconds.
             copy('config_02.ini', tmpdir, 'client.ini')
             start = time.time()
             subprocess.check_call(
-                [sys.executable, '-m', 'systemimage.service', '-C',
+                [launch_exe,
+                 sys.executable, '-m', 'systemimage.service', '-C',
                  os.path.join(tmpdir, 'client.ini')
                  ], timeout=6)
             end = time.time()
