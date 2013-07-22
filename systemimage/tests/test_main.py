@@ -137,7 +137,7 @@ class TestDBusMain(unittest.TestCase):
             copy('config_02.ini', tmpdir, 'client.ini')
             start = time.time()
             subprocess.check_call(
-                [sys.executable, '-m' 'systemimage.service', '-C',
+                [sys.executable, '-m', 'systemimage.service', '-C',
                  os.path.join(tmpdir, 'client.ini')
                  ], timeout=6)
             end = time.time()
