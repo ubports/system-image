@@ -81,9 +81,8 @@ def main():
     initialize(verbosity=args.verbose)
     log = logging.getLogger('systemimage')
 
-    log.info('starting the SystemImage dbus main loop')
+    log.info('SystemImage dbus main loop started')
     DBusGMainLoop(set_as_default=True)
-    GLib.timeout_add_seconds(config.dbus.lifetime.total_seconds(), sys.exit, 0)
 
     session_bus = dbus.SessionBus()
     bus_name = BusName('com.canonical.SystemImage', session_bus)
@@ -97,10 +96,14 @@ def main():
         # Create the dbus service and enter the main loop.
         service = ServiceClass(session_bus, '/Service')
         loop = GLib.MainLoop()
+        GLib.timeout_add_seconds(
+            config.dbus.lifetime.total_seconds(), loop.quit)
         try:
             loop.run()
         except KeyboardInterrupt:
             log.info('SystemImage dbus main loop interrupted')
+        else:
+            log.info('SystemImage dbus main loop exited')
 
 
 if __name__ == '__main__':
