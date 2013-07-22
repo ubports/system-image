@@ -6,6 +6,8 @@ NEWS for system-image updater
 ================
  * No reboot should be issued if there is no update available.  (LP: #1202915)
  * DBus API implemented.  (LP: #1192585)
+ * system-image-cli -v displays the files being downloaded, but not their
+   progress (use -vv for that).  (LP: #1202283)
 
 0.6 (2013-07-15)
 ================
