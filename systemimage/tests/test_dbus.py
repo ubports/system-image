@@ -253,6 +253,39 @@ unmount system
         self._run_loop(self.iface.GetUpdate)
         self.assertTrue(called)
 
+    def test_update_failed_signal(self):
+        # A signal is issued when the update failed.
+        called = False
+        def callback():
+            nonlocal called
+            called = True
+            self.loop.quit()
+        self.session_bus.add_signal_receiver(
+            callback,
+            signal_name='UpdateFailed',
+            dbus_interface='com.canonical.SystemImage')
+        # Cause the update to fail by deleting a file from the server.
+        os.remove(os.path.join(self._controller.serverdir, '4/5/6.txt.asc'))
+        self._run_loop(self.iface.GetUpdate)
+        self.assertTrue(called)
+
+    def test_reboot_after_update_failed(self):
+        # Cause the update to fail by deleting a file from the server.
+        called = 0
+        def callback():
+            nonlocal called
+            called += 1
+            self.loop.quit()
+        self.session_bus.add_signal_receiver(
+            callback,
+            signal_name='UpdateFailed',
+            dbus_interface='com.canonical.SystemImage')
+        os.remove(os.path.join(self._controller.serverdir, '4/5/6.txt.asc'))
+        self._run_loop(self.iface.GetUpdate)
+        self.assertEqual(called, 1)
+        self._run_loop(self.iface.Reboot)
+        self.assertEqual(called, 2)
+
     def test_cancel(self):
         # The downloads can be canceled when there is an update available.
         # Upon cancelation, a signal is issued.
