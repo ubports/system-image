@@ -4,6 +4,10 @@ NEWS for system-image updater
 
 0.8 (2013-XX-XX)
 ================
+ * Calculate the device name by querying the system, rather than defining it
+   as a key in the client.ini file.  (LP: #1204090)
+ * Add -c/--channel option to system-image-cli; this prints the channel/device
+   name being used.
 
 0.7 (2013-07-22)
 ================

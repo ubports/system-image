@@ -48,3 +48,5 @@ def instrument(config, stack):
             fp.write(SPACE.join(args[0]).strip())
     stack.enter_context(
         patch('systemimage.reboot.check_call', safe_reboot))
+    stack.enter_context(
+        patch('systemimage.device.check_output', return_value='nexus7'))

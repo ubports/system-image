@@ -54,6 +54,9 @@ def main():
     parser.add_argument('-b', '--build',
                         default=False, action='store_true',
                         help='Show the current build number and exit')
+    parser.add_argument('-c', '--channel',
+                        default=False, action='store_true',
+                        help='Show the current channel/device name and exit')
     parser.add_argument('-u', '--upgrade',
                         default=None, metavar='NUMBER',
                         help="""Upgrade from this build number instead of the
@@ -82,6 +85,10 @@ def main():
              else int(args.upgrade))
     if args.build:
         print('build number:', build)
+        return
+    if args.channel:
+        print('channel/device: {}/{}'.format(
+            config.system.channel, config.device))
         return
 
     # Run the state machine to conclusion.  Suppress all exceptions, but note

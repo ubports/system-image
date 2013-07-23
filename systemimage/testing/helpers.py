@@ -35,6 +35,7 @@ import ssl
 import json
 import gnupg
 import shutil
+import inspect
 import tarfile
 import tempfile
 
@@ -175,6 +176,15 @@ def testable_configuration(function):
             config = Configuration()
             config.load(ini_file)
             stack.enter_context(patch('systemimage.config._config', config))
+            stack.enter_context(patch('systemimage.device.check_output',
+                                      return_value='nexus7'))
+            # 2013-07-23 BAW: Okay, this is wicked.  If the test method takes
+            # an 'ini_file' argument, pass the temporary ini file path to it
+            # as a keyword argument.  Mostly I do this so that I don't have to
+            # change the signature of every existing test method.
+            signature = inspect.signature(function)
+            if 'ini_file' in signature.parameters:
+                kws['ini_file'] = ini_file
             return function(*args, **kws)
     return wrapper
 

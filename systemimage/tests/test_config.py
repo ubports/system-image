@@ -30,6 +30,7 @@ from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import test_data_path, testable_configuration
 from systemimage.reboot import Reboot
+from unittest.mock import patch
 
 
 class TestConfiguration(unittest.TestCase):
@@ -46,7 +47,6 @@ class TestConfiguration(unittest.TestCase):
         # [system]
         self.assertEqual(config.system.tempdir, '/tmp/system-image')
         self.assertEqual(config.system.channel, 'daily')
-        self.assertEqual(config.system.device, 'mako')
         # [score]
         self.assertEqual(config.hooks.scorer, WeightedScorer)
         self.assertEqual(config.hooks.reboot, Reboot)
@@ -87,7 +87,6 @@ class TestConfiguration(unittest.TestCase):
         # [system]
         self.assertEqual(config.system.tempdir, '/var/tmp/system-image-update')
         self.assertEqual(config.system.channel, 'stable')
-        self.assertEqual(config.system.device, 'nexus7')
         # [hooks]
         self.assertEqual(config.hooks.scorer, WeightedScorer)
         self.assertEqual(config.hooks.reboot, Reboot)
@@ -119,13 +118,33 @@ class TestConfiguration(unittest.TestCase):
                          'https://phablet.example.com:80443')
 
     @testable_configuration
-    def test_get_build_number(self):
+    def test_get_build_number(self, ini_file):
         # The current build number is stored in a file specified in the
         # configuration file.
+        config = Configuration()
+        config.load(ini_file)
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130500, file=fp)
         self.assertEqual(config.build_number, 20130500)
 
-    def test_get_build_number_missing(self):
+    @testable_configuration
+    def test_get_build_number_missing(self, ini_file):
         # The build file is missing, so the build number defaults to 0.
+        config = Configuration()
+        config.load(ini_file)
         self.assertEqual(config.build_number, 0)
+
+    @testable_configuration
+    def test_get_device_name(self, ini_file):
+        config = Configuration()
+        config.load(ini_file)
+        # The device name as we'd expect it to work on a real image.
+        with patch('systemimage.device.check_output', return_value='nexus7'):
+            self.assertEqual(config.device, 'nexus7')
+            # Get it again to test out the cache.
+            self.assertEqual(config.device, 'nexus7')
+
+    def test_get_device_name_fallback(self):
+        config = Configuration()
+        # Fallback for testing on non-images.
+        self.assertEqual(config.device, '?')

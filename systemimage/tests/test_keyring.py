@@ -121,7 +121,7 @@ class TestKeyring(unittest.TestCase):
             os.path.join(self._serverdir, 'gpg',
                          'stable', 'nexus7', 'device-signing.tar.xz'))
         url = 'gpg/{}/{}/device-signing.tar.xz'.format(
-            config.system.channel, config.system.device)
+            config.system.channel, config.device)
         get_keyring('device-signing', url, 'image-signing')
         with Context(config.gpg.device_signing) as ctx:
             self.assertEqual(ctx.fingerprints,
@@ -135,7 +135,7 @@ class TestKeyring(unittest.TestCase):
             'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg/blacklist.tar.xz'))
         url = 'gpg/blacklist.tar.xz'.format(
-            config.system.channel, config.system.device)
+            config.system.channel, config.device)
         get_keyring('blacklist', url, 'image-master')
         blacklist_path = os.path.join(
             config.system.tempdir, 'blacklist.tar.xz')

@@ -30,13 +30,17 @@ import subprocess
 
 from contextlib import ExitStack
 from distutils.spawn import find_executable
+from functools import partial
 from io import StringIO
 from pkg_resources import resource_filename
-from systemimage.config import config
+from systemimage.config import Configuration, config
 from systemimage.main import main as cli_main
 from systemimage.testing.helpers import (
-    copy, temporary_directory, test_data_path)
+    copy, temporary_directory, test_data_path, testable_configuration)
 from unittest.mock import patch
+
+
+DBUS_LAUNCH = find_executable('dbus-launch')
 
 
 class TestCLIMain(unittest.TestCase):
@@ -78,7 +82,7 @@ class TestCLIMain(unittest.TestCase):
                 cli_main()
             self.assertEqual(cm.exception.code, 2)
             self.assertEqual(stderr.getvalue(), """\
-usage: system-image-cli [-h] [--version] [-C FILE] [-b] [-u NUMBER] [-v]
+usage: system-image-cli [-h] [--version] [-C FILE] [-b] [-c] [-u NUMBER] [-v]
 system-image-cli: error:\x20
 Configuration file not found: /does/not/exist/client.ini
 """)
@@ -97,7 +101,7 @@ Configuration file not found: /does/not/exist/client.ini
                 cli_main()
             self.assertEqual(cm.exception.code, 2)
             self.assertEqual(stderr.getvalue(), """\
-usage: system-image-cli [-h] [--version] [-C FILE] [-b] [-u NUMBER] [-v]
+usage: system-image-cli [-h] [--version] [-C FILE] [-b] [-c] [-u NUMBER] [-v]
 system-image-cli: error:\x20
 Configuration file not found: /does/not/exist.ini
 """)
@@ -129,20 +133,60 @@ Configuration file not found: /does/not/exist.ini
             cli_main()
             self.assertTrue(os.path.exists(tmpdir))
 
+    @testable_configuration
+    def test_build_number(self, ini_file):
+        # -b gives the build number.
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv', ['argv0', '-b']))
+            # Set up the build number.
+            config = Configuration()
+            config.load(ini_file)
+            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+                print(20130701, file=fp)
+            stack.enter_context(
+                patch('systemimage.main.DEFAULT_CONFIG_FILE', ini_file))
+            cli_main()
+            self.assertEqual(capture.getvalue(), 'build number: 20130701\n')
 
+    @testable_configuration
+    def test_channel_device(self, ini_file):
+        # -c gives the channel/device name.
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv', ['argv0', '-c']))
+            stack.enter_context(
+                patch('systemimage.device.check_output',
+                      return_value='nexus7'))
+            stack.enter_context(
+                patch('systemimage.main.DEFAULT_CONFIG_FILE', ini_file))
+            cli_main()
+            self.assertEqual(capture.getvalue(),
+                             'channel/device: stable/nexus7\n')
+
+
+@unittest.skipUnless(DBUS_LAUNCH is not None, 'dbus-launch not found')
 class TestDBusMain(unittest.TestCase):
     def test_service_exits(self):
         # The dbus service automatically exits after a set amount of time.
-        launch_exe = find_executable('dbus-launch')
-        if launch_exe is None:
-            print('Cannot find the `dbus-launch` executable', file=sys.stderr)
-            return
         with temporary_directory() as tmpdir:
             # This has a timeout of 3 seconds.
             copy('config_02.ini', tmpdir, 'client.ini')
             start = time.time()
             subprocess.check_call(
-                [launch_exe,
+                [DBUS_LAUNCH,
                  sys.executable, '-m', 'systemimage.service', '-C',
                  os.path.join(tmpdir, 'client.ini')
                  ], timeout=6)

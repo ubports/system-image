@@ -119,10 +119,10 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
                     keyring_type, json_type))
         # Check the optional keys next.
         json_model = data.get('model')
-        if json_model not in (config.system.device, None):
+        if json_model not in (config.device, None):
             raise KeyringError(
                 'keyring model mismatch; wanted: {}, got: {}'.format(
-                    config.system.device, json_model))
+                    config.device, json_model))
         expiry = data.get('expiry')
         if expiry is not None:
             # Get our current timestamp in UTC.

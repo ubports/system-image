@@ -43,6 +43,7 @@ class Configuration:
         self.config_file = None
         ini_path = resource_filename('systemimage.data', 'client.ini')
         self.load(ini_path)
+        self._device = None
 
     def load(self, path):
         parser = ConfigParser()
@@ -72,7 +73,8 @@ class Configuration:
                           **parser['system'])
         self.gpg = Bag(**parser['gpg'])
         self.updater = Bag(**parser['updater'])
-        self.hooks = Bag(converters=dict(scorer=as_object,
+        self.hooks = Bag(converters=dict(device=as_object,
+                                         scorer=as_object,
                                          reboot=as_object),
                          **parser['hooks'])
         self.dbus = Bag(converters=dict(lifetime=as_timedelta),
@@ -85,6 +87,13 @@ class Configuration:
                 return int(fp.read().strip())
         except FileNotFoundError:
             return 0
+
+    @property
+    def device(self):
+        # It's safe to cache this.
+        if self._device is None:
+            self._device = self.hooks.device().get_device()
+        return self._device
 
 
 # Define the global configuration object.  Normal use can be as simple as:
