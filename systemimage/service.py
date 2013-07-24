@@ -55,7 +55,7 @@ def main():
         description='Ubuntu System Image Upgrader DBus service')
     parser.add_argument('--version',
                         action='version',
-                        version='system-image-cli {}'.format(__version__))
+                        version='system-image-dbus {}'.format(__version__))
     parser.add_argument('-C', '--config',
                         default=DEFAULT_CONFIG_FILE, action='store',
                         metavar='FILE',
