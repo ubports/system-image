@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-0.8 (2013-XX-XX)
+0.8 (2013-07-24)
 ================
  * Calculate the device name by querying the system, rather than defining it
    as a key in the client.ini file.  (LP: #1204090)
