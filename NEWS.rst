@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+0.9 (2013-XX-XX)
+================
+
 0.8 (2013-07-24)
 ================
  * Calculate the device name by querying the system, rather than defining it
