@@ -86,7 +86,7 @@ class Controller:
         command = [sys.executable,
                    '-m', 'systemimage.service',
                    '-C', self.ini_path,
-                   '--testing',
+                   '--testing', 'dynamic',
                    ]
         for service in SERVICES:
             service_file = service + '.service'

@@ -17,12 +17,10 @@
 
 __all__ = [
     'Service',
-    'TestableService',
     ]
 
 
 import logging
-import traceback
 
 from dbus.service import Object, method, signal
 from systemimage.api import Cancel, Mediator
@@ -204,19 +202,3 @@ class Service(Object):
         issued.
         """
         pass
-
-
-class TestableService(Service):
-    """For testing purposes only."""
-
-    @property
-    def api(self):
-        # Reset the api object so that the tests have isolated state.
-        current_api = self._api
-        self._api = self._new_mediator()
-        return current_api
-
-    # The Cancel method cannot cause a new mediator to be created.
-    @method('com.canonical.SystemImage')
-    def Cancel(self):
-        self._api.cancel()

@@ -31,7 +31,7 @@ from dbus.service import BusName
 from gi.repository import GLib
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import config
-from systemimage.dbus import Service, TestableService
+from systemimage.dbus import Service
 from systemimage.logging import initialize
 from systemimage.main import DEFAULT_CONFIG_FILE
 
@@ -67,7 +67,7 @@ def main():
     # Hidden argument for special setup required by test environment.
     if instrument is not None:
         parser.add_argument('--testing',
-                            default=False, action='store_true',
+                            default=False, action='store',
                             help=argparse.SUPPRESS)
 
     args = parser.parse_args(sys.argv[1:])
@@ -88,9 +88,11 @@ def main():
     bus_name = BusName('com.canonical.SystemImage', session_bus)
 
     with ExitStack() as stack:
-        if getattr(args, 'testing', False):
+        testing_mode = getattr(args, 'testing', None)
+        if testing_mode:
             instrument(config, stack)
-            ServiceClass = TestableService
+            from systemimage.testing.dbus import (
+                TestableService as ServiceClass)
         else:
             ServiceClass = Service
         # Create the dbus service and enter the main loop.

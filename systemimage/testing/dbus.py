@@ -16,13 +16,16 @@
 """Helpers for the DBus service when run with --testing."""
 
 __all__ = [
+    'TestableService',
     'instrument',
     ]
 
 
 import os
 
+from dbus.service import method
 from functools import partial
+from systemimage.dbus import Service
 from systemimage.testing.helpers import test_data_path
 from unittest.mock import patch
 from urllib.request import urlopen
@@ -50,3 +53,21 @@ def instrument(config, stack):
         patch('systemimage.reboot.check_call', safe_reboot))
     stack.enter_context(
         patch('systemimage.device.check_output', return_value='nexus7'))
+
+
+
+
+class TestableService(Service):
+    """For testing purposes only."""
+
+    @property
+    def api(self):
+        # Reset the api object so that the tests have isolated state.
+        current_api = self._api
+        self._api = self._new_mediator()
+        return current_api
+
+    # The Cancel method cannot cause a new mediator to be created.
+    @method('com.canonical.SystemImage')
+    def Cancel(self):
+        self._api.cancel()
