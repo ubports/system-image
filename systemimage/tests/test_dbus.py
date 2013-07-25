@@ -17,7 +17,7 @@
 
 __all__ = [
     'TestDBus',
-    'TestDBusDescriptions',
+    'TestDBusMocksNoUpdate',
     ]
 
 
@@ -31,17 +31,19 @@ from gi.repository import GLib
 from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
 from systemimage.testing.controller import Controller
+from systemimage.testing.helpers import copy, setup_index, sign
 
 
-class TestDBus(unittest.TestCase):
-    """Test the SystemImage dbus service."""
+class _TestBase(unittest.TestCase):
+    """Base class for all DBus testing."""
 
-    maxDiff = None
+    # Override this to start the DBus server in a different testing mode.
+    mode = 'live'
 
     @classmethod
     def setUpClass(cls):
         cls._stack = ExitStack()
-        cls._controller = Controller()
+        cls._controller = Controller(cls.mode)
         cls._stack.callback(cls._controller.shutdown)
         cls._controller.start()
         DBusGMainLoop(set_as_default=True)
@@ -52,26 +54,13 @@ class TestDBus(unittest.TestCase):
         cls._controller = None
 
     def setUp(self):
-        self._controller.prepare_index('index_13.json')
         self.session_bus = dbus.SessionBus()
         service = self.session_bus.get_object(
             'com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        # We need a configuration file that agrees with the dbus client.
-        self.config = Configuration()
-        self.config.load(self._controller.ini_path)
-        # For testing reboot preparation.
-        self.command_file = os.path.join(
-            self.config.updater.cache_partition, 'ubuntu_command')
-        # For testing the reboot command without actually rebooting.
-        self.reboot_log = os.path.join(
-            self.config.updater.cache_partition, 'reboot.log')
 
     def tearDown(self):
         self.iface.Reset()
-        safe_remove(self.config.system.build_file)
-        safe_remove(self.command_file)
-        safe_remove(self.reboot_log)
 
     def _run_loop(self, method, signal):
         loop = GLib.MainLoop()
@@ -87,6 +76,51 @@ class TestDBus(unittest.TestCase):
         GLib.timeout_add_seconds(10, loop.quit)
         loop.run()
         return signals
+
+
+class TestDBus(_TestBase):
+    """Test the SystemImage dbus service."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._stack = ExitStack()
+        cls._controller = Controller()
+        cls._stack.callback(cls._controller.shutdown)
+        cls._controller.start()
+        DBusGMainLoop(set_as_default=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._stack.close()
+        cls._controller = None
+
+    def setUp(self):
+        super().setUp()
+        self._prepare_index('index_13.json')
+        # We need a configuration file that agrees with the dbus client.
+        self.config = Configuration()
+        self.config.load(self._controller.ini_path)
+        # For testing reboot preparation.
+        self.command_file = os.path.join(
+            self.config.updater.cache_partition, 'ubuntu_command')
+        # For testing the reboot command without actually rebooting.
+        self.reboot_log = os.path.join(
+            self.config.updater.cache_partition, 'reboot.log')
+
+    def tearDown(self):
+        super().tearDown()
+        safe_remove(self.config.system.build_file)
+        safe_remove(self.command_file)
+        safe_remove(self.reboot_log)
+
+    def _prepare_index(self, index_file):
+        index_path = os.path.join(
+            self._controller.serverdir, 'stable', 'nexus7', 'index.json')
+        head, tail = os.path.split(index_path)
+        copy(index_file, head, tail)
+        sign(index_path, 'device-signing.gpg')
+        setup_index(
+            index_file, self._controller.serverdir, 'device-signing.gpg')
 
     def _set_build(self, version):
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
@@ -177,7 +211,7 @@ class TestDBus(unittest.TestCase):
 
     def test_get_multilingual_descriptions(self):
         # The descriptions are multilingual.
-        self._controller.prepare_index('index_14.json')
+        self._prepare_index('index_14.json')
         self.assertEqual(self.iface.GetDescriptions(), [
             {'description': 'Full B',
              'description-en': 'The full B',
@@ -281,3 +315,12 @@ unmount system
         signals = self._run_loop(self.iface.Reboot, 'Canceled')
         self.assertEqual(len(signals), 1)
         self.assertFalse(os.path.exists(self.reboot_log))
+
+
+## class TestDBusMocksNoUpdate(_TestBase):
+##     """Test the mocked results used by the UI tests."""
+
+##     mode = 'no-update'
+
+##     def test_XXX(self):
+##         self.assertEqual(self.iface.BuildNumber(), 0)

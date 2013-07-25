@@ -39,9 +39,10 @@ from systemimage.main import DEFAULT_CONFIG_FILE
 # available.  This will be the case for the upstream source package, and when
 # the systemimage-dev binary package is installed in Ubuntu.
 try:
-    from systemimage.testing.dbus import instrument
+    from systemimage.testing.dbus import instrument, get_service
 except ImportError:
     instrument = None
+    get_service = None
 
 
 __version__ = resource_bytes(
@@ -94,16 +95,21 @@ def main():
         testing_mode = getattr(args, 'testing', None)
         if testing_mode:
             instrument(config, stack)
-            from systemimage.testing.dbus import TestableService
-            service = TestableService(session_bus, '/Service', loop)
+            service = get_service(testing_mode, session_bus, '/Service', loop)
+            with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+                print('MODE:', testing_mode, service, file=fp)
         else:
             service = Service(session_bus, '/Service')
         try:
+            with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+                print('RUN', file=fp)
             loop.run()
         except KeyboardInterrupt:
             log.info('SystemImage dbus main loop interrupted')
         else:
             log.info('SystemImage dbus main loop exited')
+        with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+            print('DONE', file=fp)
 
 
 if __name__ == '__main__':

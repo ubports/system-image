@@ -24,6 +24,7 @@ __all__ = [
 import os
 import sys
 import time
+import dbus
 import shutil
 import signal
 import datetime
@@ -35,8 +36,8 @@ from pkg_resources import resource_string as resource_bytes
 from systemimage.config import Configuration
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
-    copy, make_http_server, reset_envar, setup_index, setup_keyring_txz,
-    setup_keyrings, sign, test_data_path)
+    copy, make_http_server, reset_envar, setup_keyring_txz, setup_keyrings,
+    sign, test_data_path)
 
 
 SPACE = ' '
@@ -48,20 +49,13 @@ SERVICES = [
 class Controller:
     """Start and stop the SystemImage dbus service under test."""
 
-    def __init__(self):
+    def __init__(self, testing_mode='live'):
         self._stack = ExitStack()
         self.tmpdir = self._stack.enter_context(temporary_directory())
         self.config_path = os.path.join(self.tmpdir, 'dbus-session.conf')
         self.ini_path = None
         self.serverdir = self._stack.enter_context(temporary_directory())
-
-    def prepare_index(self, index_file):
-        index_path = os.path.join(
-            self.serverdir, 'stable', 'nexus7', 'index.json')
-        head, tail = os.path.split(index_path)
-        copy(index_file, head, tail)
-        sign(index_path, 'device-signing.gpg')
-        setup_index(index_file, self.serverdir, 'device-signing.gpg')
+        self._testing_mode = testing_mode
 
     def _setup(self):
         # Set up the dbus-daemon session configuration file.
@@ -86,7 +80,7 @@ class Controller:
         command = [sys.executable,
                    '-m', 'systemimage.service',
                    '-C', self.ini_path,
-                   '--testing', 'dynamic',
+                   '--testing', self._testing_mode,
                    ]
         for service in SERVICES:
             service_file = service + '.service'
@@ -162,7 +156,7 @@ class Controller:
         dbus_address = lines[0].strip()
         daemon_pid = int(lines[1].strip())
         self._stack.callback(self._kill, daemon_pid)
-        #print('address:', dbus_address, 'pid:', daemon_pid)
+        print('DBUS_SESSION_BUS_ADDRESS={}'.format(dbus_address))
         # Set the service's address into the environment for rendezvous.
         self._stack.enter_context(reset_envar('DBUS_SESSION_BUS_ADDRESS'))
         os.environ['DBUS_SESSION_BUS_ADDRESS'] = dbus_address
@@ -175,6 +169,8 @@ class Controller:
             raise
 
     def _kill(self, pid):
+        with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+            print('FORCE', pid, file=fp)
         os.kill(pid, signal.SIGTERM)
         # Wait for it to die.
         until = datetime.datetime.now() + datetime.timedelta(seconds=10)
@@ -184,6 +180,8 @@ class Controller:
                 os.kill(pid, 0)
             except ProcessLookupError:
                 break
+        with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+            print('GONE', pid, file=fp)
 
     def shutdown(self):
         self._stack.close()

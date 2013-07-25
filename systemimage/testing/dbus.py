@@ -17,6 +17,7 @@
 
 __all__ = [
     'TestableService',
+    'get_service',
     'instrument',
     ]
 
@@ -56,9 +57,7 @@ def instrument(config, stack):
         patch('systemimage.device.check_output', return_value='nexus7'))
 
 
-
-
-class TestableService(Service):
+class _LiveTestableService(Service):
     """For testing purposes only."""
 
     def __init__(self, bus, object_path, loop):
@@ -72,6 +71,10 @@ class TestableService(Service):
         self._completing = False
         self._rebootable = True
 
-    @method('com.canonical.SystemImage')
-    def Exit(self):
-        self._loop.quit()
+
+def get_service(testing_mode, session_bus, object_path, loop):
+    """Return the appropriate service class for the testing mode."""
+    if testing_mode == 'live':
+        return _LiveTestableService(session_bus, object_path, loop)
+    else:
+        raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
