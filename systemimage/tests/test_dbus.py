@@ -72,11 +72,21 @@ class TestDBus(unittest.TestCase):
         safe_remove(self.command_file)
         safe_remove(self.reboot_log)
 
-    def _run_loop(self, method):
-        self.loop = GLib.MainLoop()
+    def _run_loop(self, method, signal):
+        loop = GLib.MainLoop()
+        # Here's the callback for when dbus receives the signal.
+        signals = []
+        def callback(*args):
+            signals.append(args)
+            loop.quit()
+        self.session_bus.add_signal_receiver(
+            callback, signal_name=signal,
+            dbus_interface='com.canonical.SystemImage')
         GLib.timeout_add(100, method)
-        GLib.timeout_add_seconds(10, self.loop.quit)
-        self.loop.run()
+        GLib.timeout_add_seconds(10, loop.quit)
+        import sys; print('RUN', file=sys.stderr)
+        loop.run()
+        return signals
 
     def test_check_build_number(self):
         # Get the build number.
@@ -227,103 +237,51 @@ unmount system
 
     def test_update_pending_signal(self):
         # A signal is issued when there is an update pending.
-        called = False
-        def callback():
-            nonlocal called
-            called = True
-            self.loop.quit()
-        self.session_bus.add_signal_receiver(
-            callback,
-            signal_name='UpdatePending',
-            dbus_interface='com.canonical.SystemImage')
-        self._run_loop(self.iface.IsUpdateAvailable)
-        self.assertTrue(called)
+        signals = self._run_loop(self.iface.IsUpdateAvailable, 'UpdatePending')
+        self.assertEqual(len(signals), 1)
 
     def test_ready_to_reboot_signal(self):
         # A signal is issued when the client is ready to reboot.
-        called = False
-        def callback():
-            nonlocal called
-            called = True
-            self.loop.quit()
-        self.session_bus.add_signal_receiver(
-            callback,
-            signal_name='ReadyToReboot',
-            dbus_interface='com.canonical.SystemImage')
-        self._run_loop(self.iface.GetUpdate)
-        self.assertTrue(called)
+        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
+        self.assertEqual(len(signals), 1)
 
     def test_update_failed_signal(self):
         # A signal is issued when the update failed.
-        called = False
-        def callback():
-            nonlocal called
-            called = True
-            self.loop.quit()
-        self.session_bus.add_signal_receiver(
-            callback,
-            signal_name='UpdateFailed',
-            dbus_interface='com.canonical.SystemImage')
+        #
         # Cause the update to fail by deleting a file from the server.
         os.remove(os.path.join(self._controller.serverdir, '4/5/6.txt.asc'))
-        self._run_loop(self.iface.GetUpdate)
-        self.assertTrue(called)
+        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)
 
     def test_reboot_after_update_failed(self):
         # Cause the update to fail by deleting a file from the server.
-        called = 0
-        def callback():
-            nonlocal called
-            called += 1
-            self.loop.quit()
-        self.session_bus.add_signal_receiver(
-            callback,
-            signal_name='UpdateFailed',
-            dbus_interface='com.canonical.SystemImage')
+        #
+        # Cause the update to fail by deleting a file from the server.
         os.remove(os.path.join(self._controller.serverdir, '4/5/6.txt.asc'))
-        self._run_loop(self.iface.GetUpdate)
-        self.assertEqual(called, 1)
-        self._run_loop(self.iface.Reboot)
-        self.assertEqual(called, 2)
+        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)
+        signals = self._run_loop(self.iface.Reboot, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)
 
     def test_cancel(self):
         # The downloads can be canceled when there is an update available.
-        # Upon cancelation, a signal is issued.
-        called = False
-        def callback():
-            nonlocal called
-            called = True
-            self.loop.quit()
-        self.session_bus.add_signal_receiver(
-            callback,
-            signal_name='Canceled',
-            dbus_interface='com.canonical.SystemImage')
-        # Get prepared to download.
         self.assertTrue(self.iface.IsUpdateAvailable())
         # Pre-cancel the download.
         self.iface.Cancel()
         # Do the download.
-        self._run_loop(self.iface.GetUpdate)
-        self.assertTrue(called)
+        signals = self._run_loop(self.iface.GetUpdate, 'Canceled')
+        self.assertEqual(len(signals), 1)
 
     def test_reboot_after_cancel(self):
-        # The downloads can be canceled when there is an update available.
-        # If the reboot is subsequently attempted, a Canceled signal is issued
+        # The downloads can be canceled when there is an update available.  If
+        # the reboot is subsequently attempted, a Canceled signal is issued
         # and no reboot occurs.
-        called = False
-        def callback():
-            nonlocal called
-            called = True
-            self.loop.quit()
-        self.session_bus.add_signal_receiver(
-            callback,
-            signal_name='Canceled',
-            dbus_interface='com.canonical.SystemImage')
+        #
         # Get the download.
         self.iface.GetUpdate()
         # Cancel the reboot.
         self.iface.Cancel()
         # The reboot gets canceled.
-        self._run_loop(self.iface.Reboot)
-        self.assertTrue(called)
+        signals = self._run_loop(self.iface.Reboot, 'Canceled')
+        self.assertEqual(len(signals), 1)
         self.assertFalse(os.path.exists(self.reboot_log))

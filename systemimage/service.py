@@ -88,18 +88,16 @@ def main():
     bus_name = BusName('com.canonical.SystemImage', session_bus)
 
     with ExitStack() as stack:
-        testing_mode = getattr(args, 'testing', None)
-        if testing_mode:
-            instrument(config, stack)
-            from systemimage.testing.dbus import (
-                TestableService as ServiceClass)
-        else:
-            ServiceClass = Service
-        # Create the dbus service and enter the main loop.
-        service = ServiceClass(session_bus, '/Service')
         loop = GLib.MainLoop()
         GLib.timeout_add_seconds(
             config.dbus.lifetime.total_seconds(), loop.quit)
+        testing_mode = getattr(args, 'testing', None)
+        if testing_mode:
+            instrument(config, stack)
+            from systemimage.testing.dbus import TestableService
+            service = TestableService(session_bus, '/Service', loop)
+        else:
+            service = Service(session_bus, '/Service')
         try:
             loop.run()
         except KeyboardInterrupt:

@@ -60,6 +60,10 @@ def instrument(config, stack):
 class TestableService(Service):
     """For testing purposes only."""
 
+    def __init__(self, bus, object_path, loop):
+        self._loop = loop
+        super().__init__(bus, object_path)
+
     @property
     def api(self):
         # Reset the api object so that the tests have isolated state.
@@ -71,3 +75,7 @@ class TestableService(Service):
     @method('com.canonical.SystemImage')
     def Cancel(self):
         self._api.cancel()
+
+    @method('com.canonical.SystemImage')
+    def Exit(self):
+        self._loop.quit()
