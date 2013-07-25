@@ -31,7 +31,9 @@ from gi.repository import GLib
 from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
 from systemimage.testing.controller import Controller
-from systemimage.testing.helpers import copy, setup_index, sign
+from systemimage.testing.helpers import (
+    copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
+    sign)
 
 
 class _TestBase(unittest.TestCase):
@@ -83,16 +85,40 @@ class TestDBus(_TestBase):
 
     @classmethod
     def setUpClass(cls):
-        cls._stack = ExitStack()
-        cls._controller = Controller()
-        cls._stack.callback(cls._controller.shutdown)
-        cls._controller.start()
-        DBusGMainLoop(set_as_default=True)
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._stack.close()
-        cls._controller = None
+        super().setUpClass()
+        # Set up the http/https servers that the dbus client will talk to.
+        # Start up both an HTTPS and HTTP server.  The data files are vended
+        # over the latter, everything else, over the former.
+        serverdir = cls._controller.serverdir
+        cls._stack.push(make_http_server(
+            serverdir, 8943, 'cert.pem', 'key.pem'))
+        cls._stack.push(make_http_server(serverdir, 8980))
+        # Set up the server files.
+        copy('channels_06.json', serverdir, 'channels.json')
+        sign(os.path.join(serverdir, 'channels.json'), 'image-signing.gpg')
+        # Only the archive-master key is pre-loaded.  All the other keys are
+        # downloaded and there will be both a blacklist and device keyring.
+        # The four signed keyring tar.xz files and their signatures end up in
+        # the proper location after the state machine runs to completion.
+        config = Configuration()
+        config.load(cls._controller.ini_path)
+        setup_keyrings('archive-master', use_config=config)
+        setup_keyring_txz(
+            'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
+            os.path.join(serverdir, 'gpg', 'blacklist.tar.xz'))
+        setup_keyring_txz(
+            'image-master.gpg', 'archive-master.gpg',
+            dict(type='image-master'),
+            os.path.join(serverdir, 'gpg', 'image-master.tar.xz'))
+        setup_keyring_txz(
+            'image-signing.gpg', 'image-master.gpg',
+            dict(type='image-signing'),
+            os.path.join(serverdir, 'gpg', 'image-signing.tar.xz'))
+        setup_keyring_txz(
+            'device-signing.gpg', 'image-signing.gpg',
+            dict(type='device-signing'),
+            os.path.join(serverdir, 'stable', 'nexus7',
+                         'device-signing.tar.xz'))
 
     def setUp(self):
         super().setUp()

@@ -35,9 +35,7 @@ from distutils.spawn import find_executable
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import Configuration
 from systemimage.helpers import temporary_directory
-from systemimage.testing.helpers import (
-    copy, make_http_server, reset_envar, setup_keyring_txz, setup_keyrings,
-    sign, test_data_path)
+from systemimage.testing.helpers import reset_envar, test_data_path
 
 
 SPACE = ' '
@@ -91,41 +89,6 @@ class Controller:
             service_path = os.path.join(self.tmpdir, service_file)
             with open(service_path, 'w', encoding='utf-8') as fp:
                 fp.write(config)
-        # Next piece of the puzzle is to set up the http/https servers that
-        # the dbus client will talk to.  Start up both an HTTPS and HTTP
-        # server.  The data files are vended over the latter, everything else,
-        # over the former.
-        self._stack.push(make_http_server(
-            self.serverdir, 8943, 'cert.pem', 'key.pem'))
-        self._stack.push(make_http_server(self.serverdir, 8980))
-        # Set up the server files.
-        copy('channels_06.json', self.serverdir, 'channels.json')
-        sign(os.path.join(self.serverdir, 'channels.json'),
-             'image-signing.gpg')
-        # Only the archive-master key is pre-loaded.  All the other keys
-        # are downloaded and there will be both a blacklist and device
-        # keyring.  The four signed keyring tar.xz files and their
-        # signatures end up in the proper location after the state machine
-        # runs to completion.
-        config = Configuration()
-        config.load(self.ini_path)
-        setup_keyrings('archive-master', use_config=config)
-        setup_keyring_txz(
-            'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
-            os.path.join(self.serverdir, 'gpg', 'blacklist.tar.xz'))
-        setup_keyring_txz(
-            'image-master.gpg', 'archive-master.gpg',
-            dict(type='image-master'),
-            os.path.join(self.serverdir, 'gpg', 'image-master.tar.xz'))
-        setup_keyring_txz(
-            'image-signing.gpg', 'image-master.gpg',
-            dict(type='image-signing'),
-            os.path.join(self.serverdir, 'gpg', 'image-signing.tar.xz'))
-        setup_keyring_txz(
-            'device-signing.gpg', 'image-signing.gpg',
-            dict(type='device-signing'),
-            os.path.join(self.serverdir, 'stable', 'nexus7',
-                         'device-signing.tar.xz'))
 
     def _start(self):
         """Start the SystemImage service in a subprocess.
