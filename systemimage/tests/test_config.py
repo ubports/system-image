@@ -145,6 +145,8 @@ class TestConfiguration(unittest.TestCase):
             self.assertEqual(config.device, 'nexus7')
 
     def test_get_device_name_fallback(self):
-        config = Configuration()
         # Fallback for testing on non-images.
-        self.assertEqual(config.device, '?')
+        config = Configuration()
+        # Silence the log exceptions this will provoke.
+        with patch('systemimage.device.logging.getLogger'):
+            self.assertEqual(config.device, '?')

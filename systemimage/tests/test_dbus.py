@@ -68,6 +68,7 @@ class TestDBus(unittest.TestCase):
             self.config.updater.cache_partition, 'reboot.log')
 
     def tearDown(self):
+        self.iface.Reset()
         safe_remove(self.config.system.build_file)
         safe_remove(self.command_file)
         safe_remove(self.reboot_log)
@@ -84,36 +85,43 @@ class TestDBus(unittest.TestCase):
             dbus_interface='com.canonical.SystemImage')
         GLib.timeout_add(100, method)
         GLib.timeout_add_seconds(10, loop.quit)
-        import sys; print('RUN', file=sys.stderr)
         loop.run()
         return signals
 
+    def _set_build(self, version):
+        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(version, file=fp)
+
     def test_check_build_number(self):
         # Get the build number.
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
+        self._set_build(20130701)
         self.assertEqual(self.iface.BuildNumber(), 20130701)
 
     def test_update_available(self):
         # There is an update available.
-        self.assertTrue(self.iface.IsUpdateAvailable())
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        self.assertTrue(signals[0][0])
 
     def test_no_update_available(self):
         # Our device is newer than the version that's available.
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
-        self.assertFalse(self.iface.IsUpdateAvailable())
+        self._set_build(20130701)
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        self.assertFalse(signals[0][0])
 
     def test_get_update_size(self):
         # Check for an update and if one is available, get the size.
-        self.assertTrue(self.iface.IsUpdateAvailable())
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(self.iface.GetUpdateSize(), 314572800)
 
     def test_get_no_update_size(self):
         # No update is available, but the client still asks for the size.
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
-        self.assertFalse(self.iface.IsUpdateAvailable())
+        self._set_build(20130701)
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(self.iface.GetUpdateSize(), 0)
 
     def test_get_update_size_without_check(self):
@@ -122,13 +130,12 @@ class TestDBus(unittest.TestCase):
 
     def test_get_update_size_without_check_none_available(self):
         # No explicit check for update, and none is available.
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
+        self._set_build(20130701)
         self.assertEqual(self.iface.GetUpdateSize(), 0)
 
     def test_get_available_version(self):
         # An update is available, so get the target version.
-        self.assertTrue(self.iface.IsUpdateAvailable())
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(self.iface.GetUpdateVersion(), 20130600)
 
     def test_get_available_version_without_check(self):
@@ -137,20 +144,18 @@ class TestDBus(unittest.TestCase):
 
     def test_get_no_available_version(self):
         # No update is available, but the client still asks for the version.
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
-        self.assertFalse(self.iface.IsUpdateAvailable())
+        self._set_build(20130701)
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(self.iface.GetUpdateVersion(), 0)
 
     def test_get_available_version_without_check_none_available(self):
         # No explicit check for update, none is available.
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
+        self._set_build(20130701)
         self.assertEqual(self.iface.GetUpdateVersion(), 0)
 
     def test_get_descriptions(self):
         # An update is available, with descriptions.
-        self.assertTrue(self.iface.IsUpdateAvailable())
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(self.iface.GetDescriptions(),
                          [{'description': 'Full'}])
 
@@ -161,15 +166,13 @@ class TestDBus(unittest.TestCase):
 
     def test_get_no_available_descriptions(self):
         # No update is available, so there are no descriptions.
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
-        self.assertFalse(self.iface.IsUpdateAvailable())
+        self._set_build(20130701)
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(self.iface.GetDescriptions()), 0)
 
     def test_get_no_available_descriptions_without_check(self):
         # No explicit check for update, none is available.
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
+        self._set_build(20130701)
         self.assertEqual(len(self.iface.GetDescriptions()), 0)
 
     def test_get_multilingual_descriptions(self):
@@ -192,9 +195,9 @@ class TestDBus(unittest.TestCase):
 
     def test_complete_update(self):
         # Complete the update; up until the reboot call.
-        self.assertTrue(self.iface.IsUpdateAvailable())
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertFalse(os.path.exists(self.command_file))
-        self.iface.GetUpdate()
+        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
         with open(self.command_file, 'r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, """\
@@ -211,16 +214,15 @@ unmount system
 
     def test_no_update_to_complete(self):
         # Complete the update; up until the reboot call.
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
+        self._set_build(20130701)
         self.assertFalse(os.path.exists(self.command_file))
-        self.iface.GetUpdate()
+        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
         self.assertFalse(os.path.exists(self.command_file))
 
     def test_reboot(self):
         # Do the reboot.
         self.assertFalse(os.path.exists(self.reboot_log))
-        self.assertTrue(self.iface.IsUpdateAvailable())
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.iface.Reboot()
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
@@ -229,16 +231,10 @@ unmount system
     def test_reboot_no_update(self):
         # There's no update to reboot to.
         self.assertFalse(os.path.exists(self.reboot_log))
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
-        self.assertFalse(self.iface.IsUpdateAvailable())
+        self._set_build(20130701)
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.iface.Reboot()
         self.assertFalse(os.path.exists(self.reboot_log))
-
-    def test_update_pending_signal(self):
-        # A signal is issued when there is an update pending.
-        signals = self._run_loop(self.iface.IsUpdateAvailable, 'UpdatePending')
-        self.assertEqual(len(signals), 1)
 
     def test_ready_to_reboot_signal(self):
         # A signal is issued when the client is ready to reboot.
@@ -265,7 +261,7 @@ unmount system
 
     def test_cancel(self):
         # The downloads can be canceled when there is an update available.
-        self.assertTrue(self.iface.IsUpdateAvailable())
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         # Pre-cancel the download.
         self.iface.Cancel()
         # Do the download.
@@ -278,7 +274,7 @@ unmount system
         # and no reboot occurs.
         #
         # Get the download.
-        self.iface.GetUpdate()
+        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
         # Cancel the reboot.
         self.iface.Cancel()
         # The reboot gets canceled.

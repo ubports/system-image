@@ -25,6 +25,7 @@ import os
 
 from dbus.service import method
 from functools import partial
+from systemimage.api import Mediator
 from systemimage.dbus import Service
 from systemimage.testing.helpers import test_data_path
 from unittest.mock import patch
@@ -64,17 +65,12 @@ class TestableService(Service):
         self._loop = loop
         super().__init__(bus, object_path)
 
-    @property
-    def api(self):
-        # Reset the api object so that the tests have isolated state.
-        current_api = self._api
-        self._api = self._new_mediator()
-        return current_api
-
-    # The Cancel method cannot cause a new mediator to be created.
     @method('com.canonical.SystemImage')
-    def Cancel(self):
-        self._api.cancel()
+    def Reset(self):
+        self._api = Mediator()
+        self._checking = False
+        self._completing = False
+        self._rebootable = True
 
     @method('com.canonical.SystemImage')
     def Exit(self):
