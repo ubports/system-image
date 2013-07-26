@@ -28,6 +28,7 @@ import dbus
 import unittest
 
 from contextlib import ExitStack
+from dbus.exceptions import DBusException
 from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 from systemimage.config import Configuration
@@ -140,14 +141,11 @@ class TestDBus(_TestBase):
         # For testing the reboot command without actually rebooting.
         self.reboot_log = os.path.join(
             self.config.updater.cache_partition, 'reboot.log')
-        self.exit_log = os.path.join(
-            self.config.updater.cache_partition, 'exit.log')
 
     def tearDown(self):
         safe_remove(self.config.system.build_file)
         safe_remove(self.command_file)
         safe_remove(self.reboot_log)
-        safe_remove(self.exit_log)
         super().tearDown()
 
     def _prepare_index(self, index_file):
@@ -354,11 +352,13 @@ unmount system
         self.assertFalse(os.path.exists(self.reboot_log))
 
     def test_exit(self):
-        self.assertFalse(os.path.exists(self.exit_log))
         self.iface.Exit()
-        with open(self.exit_log, encoding='utf-8') as fp:
-            exit = fp.read()
-        self.assertEqual(exit, 'exiting')
+        self.assertRaises(DBusException, self.iface.BuildNumber)
+        # Re-establish a new connection.
+        bus = dbus.SessionBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        self.assertEqual(self.iface.BuildNumber(), 0)
 
 
 @unittest.skipUnless(_WHICH == 2, 'TEST 2 - LP: #1205163')

@@ -75,10 +75,6 @@ class _LiveTestableService(Service):
         self._completing = False
         self._rebootable = True
 
-    @method('com.canonical.SystemImage')
-    def Exit(self):
-        _ActionLog('exit.log').write(('exiting',))
-
 
 class _NoUpdateService(Service):
     """A static, 'no update is available' service."""
