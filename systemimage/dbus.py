@@ -30,8 +30,9 @@ from systemimage.api import Cancel, Mediator
 class Service(Object):
     """Main dbus service."""
 
-    def __init__(self, bus, object_path):
+    def __init__(self, bus, object_path, loop):
         super().__init__(bus, object_path)
+        self._loop = loop
         self._api = Mediator()
         self._checking = False
         self._completing = False
@@ -175,6 +176,11 @@ class Service(Object):
         period of time.
         """
         self._api.cancel()
+
+    @method('com.canonical.SystemImage')
+    def Exit(self):
+        """Quit the daemon immediately."""
+        self._loop.quit()
 
     @method('com.canonical.SystemImage')
     def Reboot(self):

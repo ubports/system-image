@@ -95,11 +95,11 @@ def main():
         testing_mode = getattr(args, 'testing', None)
         if testing_mode:
             instrument(config, stack)
-            service = get_service(testing_mode, session_bus, '/Service')
+            service = get_service(testing_mode, session_bus, '/Service', loop)
             with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
                 print('MODE:', testing_mode, service, file=fp)
         else:
-            service = Service(session_bus, '/Service')
+            service = Service(session_bus, '/Service', loop)
         try:
             with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
                 print('RUN', file=fp)

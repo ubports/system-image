@@ -22,6 +22,7 @@ __all__ = [
 
 
 import os
+import time
 
 from dbus.service import method
 from functools import partial
@@ -37,6 +38,16 @@ from urllib.request import urlopen
 SPACE = ' '
 
 
+class _ActionLog:
+    def __init__(self, filename):
+        makedirs(config.updater.cache_partition)
+        self._path = os.path.join(config.updater.cache_partition, filename)
+
+    def write(self, *args, **kws):
+        with open(self._path, 'w', encoding='utf-8') as fp:
+            fp.write(SPACE.join(args[0]).strip())
+
+
 def instrument(config, stack):
     """Instrument the system for testing."""
     # The testing infrastructure requires that the built-in downloader
@@ -47,14 +58,9 @@ def instrument(config, stack):
               partial(urlopen, cafile=test_data_path('cert.pem'))))
     # Patch the subprocess call to write the reboot command to a log
     # file which the testing parent process can open and read.
-    def safe_reboot(*args, **kws):
-        makedirs(config.updater.cache_partition)
-        path = os.path.join(
-            config.updater.cache_partition, 'reboot.log')
-        with open(path, 'w', encoding='utf-8') as fp:
-            fp.write(SPACE.join(args[0]).strip())
+    safe_reboot = _ActionLog('reboot.log')
     stack.enter_context(
-        patch('systemimage.reboot.check_call', safe_reboot))
+        patch('systemimage.reboot.check_call', safe_reboot.write))
     stack.enter_context(
         patch('systemimage.device.check_output', return_value='nexus7'))
 
@@ -69,6 +75,10 @@ class _LiveTestableService(Service):
         self._completing = False
         self._rebootable = True
 
+    @method('com.canonical.SystemImage')
+    def Exit(self):
+        _ActionLog('exit.log').write(('exiting',))
+
 
 class _NoUpdateService(Service):
     """A static, 'no update is available' service."""
@@ -78,6 +88,7 @@ class _NoUpdateService(Service):
         return 42
 
     def _check_for_update(self):
+        time.sleep(5)
         self.UpdateAvailableStatus(False)
 
     @method('com.canonical.SystemImage')
@@ -88,14 +99,14 @@ class _NoUpdateService(Service):
 class _UpdateSuccessService(Service):
     """A static, 'update available' service."""
 
-    def __init__(self, bus, object_path):
-        super().__init__(bus, object_path)
+    def __init__(self, bus, object_path, loop):
+        super().__init__(bus, object_path, loop)
         self._canceled = False
 
     @method('com.canonical.SystemImage', out_signature='i')
     def BuildNumber(self):
         return 42
-    
+
     def _check_for_update(self):
         self.UpdateAvailableStatus(True)
         return False
@@ -160,15 +171,16 @@ class _UpdateFailedService(_UpdateSuccessService):
         self.UpdateFailed()
 
 
-def get_service(testing_mode, session_bus, object_path):
+def get_service(testing_mode, session_bus, object_path, loop):
     """Return the appropriate service class for the testing mode."""
     if testing_mode == 'live':
-        return _LiveTestableService(session_bus, object_path)
+        ServiceClass = _LiveTestableService
     elif testing_mode == 'no-update':
-        return _NoUpdateService(session_bus, object_path)
+        ServiceClass = _NoUpdateService
     elif testing_mode == 'update-success':
-        return _UpdateSuccessService(session_bus, object_path)
+        ServiceClass = _UpdateSuccessService
     elif testing_mode == 'update-failed':
-        return _UpdateFailedService(session_bus, object_path)
+        ServiceClass = _UpdateFailedService
     else:
         raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
+    return ServiceClass(session_bus, object_path, loop)
