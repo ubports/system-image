@@ -86,6 +86,7 @@ class _NoUpdateService(Service):
     def _check_for_update(self):
         time.sleep(5)
         self.UpdateAvailableStatus(False)
+        return False
 
     @method('com.canonical.SystemImage')
     def Reset(self):
@@ -104,6 +105,7 @@ class _UpdateSuccessService(Service):
         return 42
 
     def _check_for_update(self):
+        time.sleep(5)
         self.UpdateAvailableStatus(True)
         return False
 
@@ -131,6 +133,7 @@ class _UpdateSuccessService(Service):
             ]
 
     def _complete_update(self):
+        time.sleep(5)
         if self._canceled:
             self.Canceled()
         else:
@@ -154,6 +157,7 @@ class _UpdateSuccessService(Service):
 
 class _UpdateFailedService(_UpdateSuccessService):
     def _complete_update(self):
+        time.sleep(5)
         if self._canceled:
             self.Canceled()
         else:
