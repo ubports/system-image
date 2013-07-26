@@ -87,7 +87,7 @@ class _TestBase(unittest.TestCase):
         return signals
 
 
-@unittest.skipUnless(_WHICH == 1, 'LP: #1205163')
+@unittest.skipUnless(_WHICH == 1, 'TEST 1 - LP: #1205163')
 class TestDBus(_TestBase):
     """Test the SystemImage dbus service."""
 
@@ -351,7 +351,7 @@ unmount system
         self.assertFalse(os.path.exists(self.reboot_log))
 
 
-@unittest.skipUnless(_WHICH == 2, 'LP: #1205163')
+@unittest.skipUnless(_WHICH == 2, 'TEST 2 - LP: #1205163')
 class TestDBusMocksNoUpdate(_TestBase):
     mode = 'no-update'
 
@@ -366,7 +366,7 @@ class TestDBusMocksNoUpdate(_TestBase):
         self.assertFalse(signals[0][0])
 
 
-@unittest.skipUnless(_WHICH == 3, 'LP: #1205163')
+@unittest.skipUnless(_WHICH == 3, 'TEST 3 - LP: #1205163')
 class TestDBusMocksUpdateAvailable(_TestBase):
     mode = 'update-success'
 
@@ -428,7 +428,7 @@ class TestDBusMocksUpdateAvailable(_TestBase):
         self.assertEqual(len(signals), 1)
 
 
-@unittest.skipUnless(_WHICH == 4, 'LP: #1205163')
+@unittest.skipUnless(_WHICH == 4, 'TEST 4 - LP: #1205163')
 class TestDBusMocksUpdateFailed(_TestBase):
     mode = 'update-failed'
 
