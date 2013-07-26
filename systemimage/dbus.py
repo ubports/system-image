@@ -137,7 +137,8 @@ class Service(Object):
         try:
             self._api.complete_update()
         except Cancel:
-            self.Canceled()
+            # No additional Canceled signal is issued.
+            pass
         except Exception:
             # If any other exception occurs, signal an UpdateFailed and log
             # the exception.
@@ -176,6 +177,7 @@ class Service(Object):
         period of time.
         """
         self._api.cancel()
+        self.Canceled()
 
     @method('com.canonical.SystemImage')
     def Exit(self):
@@ -194,7 +196,8 @@ class Service(Object):
         try:
             self._api.reboot()
         except Cancel:
-            self.Canceled()
+            # No additional Canceled signal is issued.
+            pass
         except Exception:
             # If any other exception occurs, signal an UpdateFailed and log
             # the exception.

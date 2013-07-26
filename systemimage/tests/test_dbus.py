@@ -331,24 +331,17 @@ unmount system
     def test_cancel(self):
         # The downloads can be canceled when there is an update available.
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        # Pre-cancel the download.
-        self.iface.Cancel()
-        # Do the download.
-        signals = self._run_loop(self.iface.GetUpdate, 'Canceled')
+        # Cancel future operations.
+        signals = self._run_loop(self.iface.Cancel, 'Canceled')
         self.assertEqual(len(signals), 1)
-
-    def test_reboot_after_cancel(self):
-        # The downloads can be canceled when there is an update available.  If
-        # the reboot is subsequently attempted, a Canceled signal is issued
-        # and no reboot occurs.
-        #
-        # Get the download.
-        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        # Cancel the reboot.
-        self.iface.Cancel()
-        # The reboot gets canceled.
-        signals = self._run_loop(self.iface.Reboot, 'Canceled')
-        self.assertEqual(len(signals), 1)
+        # Run an update, which will no-op.
+        self.assertFalse(os.path.exists(self.command_file))
+        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
+        self.assertEqual(len(signals), 0)
+        self.assertFalse(os.path.exists(self.command_file))
+        # Similarly, if we still try to reboot, nothing will happen.
+        self.assertFalse(os.path.exists(self.reboot_log))
+        self.iface.Reboot()
         self.assertFalse(os.path.exists(self.reboot_log))
 
     def test_exit(self):
@@ -379,6 +372,17 @@ class TestDBusMocksNoUpdate(_TestBase):
 @unittest.skipUnless(_WHICH == 3, 'TEST 3 - LP: #1205163')
 class TestDBusMocksUpdateAvailable(_TestBase):
     mode = 'update-success'
+
+    def setUp(self):
+        super().setUp()
+        config = Configuration()
+        config.load(self._controller.ini_path)
+        self.reboot_log = os.path.join(
+            config.updater.cache_partition, 'reboot.log')
+
+    def tearDown(self):
+        safe_remove(self.reboot_log)
+        super().tearDown()
 
     def test_build_number(self):
         self.assertEqual(self.iface.BuildNumber(), 42)
@@ -412,30 +416,31 @@ class TestDBusMocksUpdateAvailable(_TestBase):
 
     def test_update_canceled(self):
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        # Pre-cancel the update.
-        self.iface.Cancel()
-        signals = self._run_loop(self.iface.GetUpdate, 'Canceled')
+        # Cancel the update.
+        signals = self._run_loop(self.iface.Cancel, 'Canceled')
         self.assertEqual(len(signals), 1)
+        # The next GetUpdate() will no-op.
+        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
+        self.assertEqual(len(signals), 0)
 
     def test_reboot(self):
         # Read a reboot.log so we can prove that the "reboot" happened.
-        config = Configuration()
-        config.load(self._controller.ini_path)
-        reboot_log = os.path.join(config.updater.cache_partition, 'reboot.log')
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
         self.iface.Reboot()
-        with open(reboot_log, encoding='utf-8') as fp:
+        with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
         self.assertEqual(reboot, 'reboot -f recovery')
 
     def test_reboot_canceled(self):
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        # Cancel the reboot.
-        self.iface.Cancel()
-        signals = self._run_loop(self.iface.Reboot, 'Canceled')
+        signals = self._run_loop(self.iface.Cancel, 'Canceled')
         self.assertEqual(len(signals), 1)
+        # The next reboot will no-op.
+        self.assertFalse(os.path.exists(self.reboot_log))
+        self.iface.Reboot()
+        self.assertFalse(os.path.exists(self.reboot_log))
 
 
 @unittest.skipUnless(_WHICH == 4, 'TEST 4 - LP: #1205163')

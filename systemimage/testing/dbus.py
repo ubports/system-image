@@ -113,6 +113,7 @@ class _UpdateSuccessService(Service):
     @method('com.canonical.SystemImage')
     def Cancel(self):
         self._canceled = True
+        self.Canceled()
 
     @method('com.canonical.SystemImage', out_signature='x')
     def GetUpdateSize(self):
@@ -135,19 +136,16 @@ class _UpdateSuccessService(Service):
 
     def _complete_update(self):
         time.sleep(SIGNAL_DELAY_SECS)
-        if self._canceled:
-            self.Canceled()
-        else:
+        if not self._canceled:
             self.ReadyToReboot()
         return False
 
     @method('com.canonical.SystemImage')
     def Reboot(self):
-        if self._canceled:
-            self.Canceled()
-        # The actual reboot is mocked to write a reboot log, so go ahead and
-        # call it.  The client will check the log.
-        config.hooks.reboot().reboot()
+        if not self._canceled:
+            # The actual reboot is mocked to write a reboot log, so go ahead
+            # and call it.  The client will check the log.
+            config.hooks.reboot().reboot()
 
     @method('com.canonical.SystemImage')
     def Reset(self):
@@ -159,17 +157,14 @@ class _UpdateSuccessService(Service):
 class _UpdateFailedService(_UpdateSuccessService):
     def _complete_update(self):
         time.sleep(SIGNAL_DELAY_SECS)
-        if self._canceled:
-            self.Canceled()
-        else:
+        if not self._canceled:
             self.UpdateFailed()
         return False
 
     @method('com.canonical.SystemImage')
     def Reboot(self):
-        if self._canceled:
-            self.Canceled()
-        self.UpdateFailed()
+        if not self._canceled:
+            self.UpdateFailed()
 
 
 def get_service(testing_mode, session_bus, object_path, loop):

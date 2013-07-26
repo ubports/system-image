@@ -6,6 +6,9 @@ NEWS for system-image updater
 ==================
  * Further DBus API refinements to better support U/I development.
    - Add a .Exit() method.
+   - Calling .Cancel() immediately issues a Canceled signal.
+   - .GetUpdate() and .Reboot() no longer issue Canceled signals, but they
+     no-op if a .Cancel() has been previously called.
 
 0.9 (2013-07-25)
 ================
