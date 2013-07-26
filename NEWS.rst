@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+1.0 (2013-XX-XX)
+================
+
 0.9 (2013-07-25)
 ================
  * Rename DBus method IsUpdateAvailable() to CheckForUpdate() and make it
