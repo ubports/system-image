@@ -307,6 +307,8 @@ class State:
         # doing the reboot.
         if len(self.winner) > 0:
             self._next.append(self._download_files)
+        else:
+            log.info('No update available.')
 
     def _download_files(self):
         """Download and verify all the winning upgrade path's files."""
@@ -459,6 +461,7 @@ class State:
         #   ((image_number, order), file_2, file_2.asc),
         #   ...
         # ]
+        log.info('preparing to reboot')
         collated = []
         zipper = zip(
             # items # 0, 2, 4, ...
@@ -501,5 +504,6 @@ class State:
         self._next.append(self._reboot)
 
     def _reboot(self):
+        log.info('rebooting')
         config.hooks.reboot().reboot()
         # Nothing more to do.

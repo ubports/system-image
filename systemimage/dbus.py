@@ -17,14 +17,13 @@
 
 __all__ = [
     'Service',
-    'TestableService',
     ]
 
 
 import logging
-import traceback
 
 from dbus.service import Object, method, signal
+from gi.repository import GLib
 from systemimage.api import Cancel, Mediator
 
 
@@ -33,15 +32,10 @@ class Service(Object):
 
     def __init__(self, bus, object_path):
         super().__init__(bus, object_path)
-        self._api = self._new_mediator()
-
-    def _new_mediator(self):
-        return Mediator(pending_cb=self.UpdatePending,
-                        ready_cb=self.ReadyToReboot)
-
-    @property
-    def api(self):
-        return self._api
+        self._api = Mediator()
+        self._checking = False
+        self._completing = False
+        self._rebootable = True
 
     @method('com.canonical.SystemImage', out_signature='i')
     def BuildNumber(self):
@@ -50,26 +44,38 @@ class Service(Object):
         :return: The current build number.
         :rtype: int
         """
-        return self.api.get_build_number()
+        return self._api.get_build_number()
 
-    @method('com.canonical.SystemImage', out_signature='b')
-    def IsUpdateAvailable(self):
+    def _check_for_update(self):
+        # Asynchronous method call.
+        update = self._api.check_for_update()
+        self.UpdateAvailableStatus(bool(update))
+        # Stop GLib from calling this method again.
+        return False
+
+    # 2013-07-25 BAW: should we use the rather underdocumented async_callbacks
+    # argument to @method?
+    @method('com.canonical.SystemImage')
+    def CheckForUpdate(self):
         """Find out whether an update is available.
 
-        This method is used to explicitly find out whether an update is
-        available, by communicating with the server and calculating an upgrade
-        path from the current build number to a later build available on the
-        server.
+        This method is used to explicitly check whether an update is
+        available, by communicating with the server and calculating an
+        upgrade path from the current build number to a later build
+        available on the server.
 
-        If an update is available, the `UpdatePending` dbus signal is sent.
-
-        While this method provides this check explicitly, other methods in
-        this API will do an implicit check.
-
-        :return: True if an update is available, otherwise false.
-        :rtype: bool
+        This method runs asynchronously and thus does not return a result.
+        Instead, an `UpdateAvailableStatus` signal is triggered when the check
+        completes.  The argument to that signal is a boolean indicating
+        whether the update is available or not.
         """
-        return bool(self.api.check_for_update())
+        if self._checking:
+            # Check is already in progress, so there's nothing more to do.
+            return
+        self._checking = True
+        # Arrange for the actual check to happen in a little while, so that
+        # this method can return immediately.
+        GLib.timeout_add(100, self._check_for_update)
 
     @method('com.canonical.SystemImage', out_signature='x')
     def GetUpdateSize(self):
@@ -82,7 +88,7 @@ class Service(Object):
         :return: Size in bytes of any available update.
         :rtype: int
         """
-        return self.api.check_for_update().size
+        return self._api.check_for_update().size
 
     @method('com.canonical.SystemImage', out_signature='i')
     def GetUpdateVersion(self):
@@ -98,7 +104,7 @@ class Service(Object):
         :return: Future build number, should the update be applied.
         :rtype: int
         """
-        return self.api.check_for_update().version
+        return self._api.check_for_update().version
 
     @method('com.canonical.SystemImage', out_signature='aa{ss}')
     def GetDescriptions(self):
@@ -123,16 +129,12 @@ class Service(Object):
             the winning update path.
         :rtype: list of dictionaries
         """
-        return self.api.check_for_update().descriptions
+        return self._api.check_for_update().descriptions
 
-    @method('com.canonical.SystemImage')
-    def GetUpdate(self):
-        """Download the available update.
-
-        The download may be canceled during this time.
-        """
+    def _complete_update(self):
+        # Asynchronous method call.
         try:
-            self.api.complete_update()
+            self._api.complete_update()
         except Cancel:
             self.Canceled()
         except Exception:
@@ -140,7 +142,26 @@ class Service(Object):
             # the exception.
             log = logging.getLogger('systemimage')
             log.exception('GetUpdate() failed')
+            self._rebootable = False
             self.UpdateFailed()
+        else:
+            self.ReadyToReboot()
+        # Stop GLib from calling this method again.
+        return False
+
+    @method('com.canonical.SystemImage')
+    def GetUpdate(self):
+        """Download the available update.
+
+        The download may be canceled during this time.
+        """
+        if self._completing:
+            # Completing is already in progress, so there's nothing more to do.
+            return
+        self._completing = True
+        # Arrange for the update to happen in a little while, so that this
+        # method can return immediately.
+        GLib.timeout_add(100, self._complete_update)
 
     @method('com.canonical.SystemImage')
     def Cancel(self):
@@ -153,7 +174,7 @@ class Service(Object):
         timeout and restart via dbus activation automatically after a short
         period of time.
         """
-        self.api.cancel()
+        self._api.cancel()
 
     @method('com.canonical.SystemImage')
     def Reboot(self):
@@ -161,8 +182,11 @@ class Service(Object):
 
         Call this method after the download has completed.
         """
+        if not self._rebootable:
+            self.UpdateFailed()
+            return
         try:
-            self.api.reboot()
+            self._api.reboot()
         except Cancel:
             self.Canceled()
         except Exception:
@@ -172,14 +196,14 @@ class Service(Object):
             log.exception('Reboot() failed')
             self.UpdateFailed()
 
-    @signal('com.canonical.SystemImage')
-    def UpdatePending(self):
-        """An update is available.
+    @signal('com.canonical.SystemImage', signature='b')
+    def UpdateAvailableStatus(self, flag):
+        """Signal sent when update checking is complete.
 
-        This signal is sent in both the explicit call of `IsUpdateAvailable()`
-        case and when an update is found through an implicit check.
+        This signal is sent whenever the asynchronous checking for an update
+        completes.  Its argument includes the flag specifying whether an
+        update is available or not.
         """
-        pass
 
     @signal('com.canonical.SystemImage')
     def ReadyToReboot(self):
@@ -188,12 +212,10 @@ class Service(Object):
         This signal is sent whenever the download of an update is complete,
         and the device is ready to be rebooted to apply the update.
         """
-        pass
 
     @signal('com.canonical.SystemImage')
     def UpdateFailed(self):
         """The update failed for some reason."""
-        pass
 
     @signal('com.canonical.SystemImage')
     def Canceled(self):
@@ -203,20 +225,3 @@ class Service(Object):
         canceled.  The cancellation can occur any time prior to a reboot being
         issued.
         """
-        pass
-
-
-class TestableService(Service):
-    """For testing purposes only."""
-
-    @property
-    def api(self):
-        # Reset the api object so that the tests have isolated state.
-        current_api = self._api
-        self._api = self._new_mediator()
-        return current_api
-
-    # The Cancel method cannot cause a new mediator to be created.
-    @method('com.canonical.SystemImage')
-    def Cancel(self):
-        self._api.cancel()

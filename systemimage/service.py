@@ -31,7 +31,7 @@ from dbus.service import BusName
 from gi.repository import GLib
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import config
-from systemimage.dbus import Service, TestableService
+from systemimage.dbus import Service
 from systemimage.logging import initialize
 from systemimage.main import DEFAULT_CONFIG_FILE
 
@@ -39,9 +39,10 @@ from systemimage.main import DEFAULT_CONFIG_FILE
 # available.  This will be the case for the upstream source package, and when
 # the systemimage-dev binary package is installed in Ubuntu.
 try:
-    from systemimage.testing.dbus import instrument
+    from systemimage.testing.dbus import instrument, get_service
 except ImportError:
     instrument = None
+    get_service = None
 
 
 __version__ = resource_bytes(
@@ -67,7 +68,7 @@ def main():
     # Hidden argument for special setup required by test environment.
     if instrument is not None:
         parser.add_argument('--testing',
-                            default=False, action='store_true',
+                            default=False, action='store',
                             help=argparse.SUPPRESS)
 
     args = parser.parse_args(sys.argv[1:])
@@ -88,22 +89,27 @@ def main():
     bus_name = BusName('com.canonical.SystemImage', session_bus)
 
     with ExitStack() as stack:
-        if getattr(args, 'testing', False):
-            instrument(config, stack)
-            ServiceClass = TestableService
-        else:
-            ServiceClass = Service
-        # Create the dbus service and enter the main loop.
-        service = ServiceClass(session_bus, '/Service')
         loop = GLib.MainLoop()
         GLib.timeout_add_seconds(
             config.dbus.lifetime.total_seconds(), loop.quit)
+        testing_mode = getattr(args, 'testing', None)
+        if testing_mode:
+            instrument(config, stack)
+            service = get_service(testing_mode, session_bus, '/Service')
+            with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+                print('MODE:', testing_mode, service, file=fp)
+        else:
+            service = Service(session_bus, '/Service')
         try:
+            with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+                print('RUN', file=fp)
             loop.run()
         except KeyboardInterrupt:
             log.info('SystemImage dbus main loop interrupted')
         else:
             log.info('SystemImage dbus main loop exited')
+        with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+            print('DONE', file=fp)
 
 
 if __name__ == '__main__':
