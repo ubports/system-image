@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-0.9.1 (2013-XX-XX)
+0.9.1 (2013-07-26)
 ==================
  * Further DBus API refinements to better support U/I development.
    - Add a .Exit() method.
