@@ -119,7 +119,7 @@ class Controller:
         dbus_address = lines[0].strip()
         daemon_pid = int(lines[1].strip())
         self._stack.callback(self._kill, daemon_pid)
-        print('DBUS_SESSION_BUS_ADDRESS={}'.format(dbus_address))
+        #print('DBUS_SESSION_BUS_ADDRESS={}'.format(dbus_address))
         # Set the service's address into the environment for rendezvous.
         self._stack.enter_context(reset_envar('DBUS_SESSION_BUS_ADDRESS'))
         os.environ['DBUS_SESSION_BUS_ADDRESS'] = dbus_address

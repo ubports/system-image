@@ -18,6 +18,8 @@
 __all__ = [
     'TestDBus',
     'TestDBusMocksNoUpdate',
+    'TestDBusMocksUpdateAvailable',
+    'TestDBusMocksUpdateFailed',
     ]
 
 
@@ -34,6 +36,11 @@ from systemimage.testing.controller import Controller
 from systemimage.testing.helpers import (
     copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
     sign)
+
+
+# 2013-07-25 BAW: This is an ugly hack caused by a weird problem I have not
+# been able to track down.  LP: #1205163
+_WHICH = 1
 
 
 class _TestBase(unittest.TestCase):
@@ -80,6 +87,7 @@ class _TestBase(unittest.TestCase):
         return signals
 
 
+@unittest.skipUnless(_WHICH == 1, 'LP: #1205163')
 class TestDBus(_TestBase):
     """Test the SystemImage dbus service."""
 
@@ -134,10 +142,10 @@ class TestDBus(_TestBase):
             self.config.updater.cache_partition, 'reboot.log')
 
     def tearDown(self):
-        super().tearDown()
         safe_remove(self.config.system.build_file)
         safe_remove(self.command_file)
         safe_remove(self.reboot_log)
+        super().tearDown()
 
     def _prepare_index(self, index_file):
         index_path = os.path.join(
@@ -343,10 +351,119 @@ unmount system
         self.assertFalse(os.path.exists(self.reboot_log))
 
 
-## class TestDBusMocksNoUpdate(_TestBase):
-##     """Test the mocked results used by the UI tests."""
+@unittest.skipUnless(_WHICH == 2, 'LP: #1205163')
+class TestDBusMocksNoUpdate(_TestBase):
+    mode = 'no-update'
 
-##     mode = 'no-update'
+    def test_build_number(self):
+        self.assertEqual(self.iface.BuildNumber(), 42)
 
-##     def test_XXX(self):
-##         self.assertEqual(self.iface.BuildNumber(), 0)
+    def test_no_update_available(self):
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        self.assertFalse(signals[0][0])
+
+
+@unittest.skipUnless(_WHICH == 3, 'LP: #1205163')
+class TestDBusMocksUpdateAvailable(_TestBase):
+    mode = 'update-success'
+
+    def test_build_number(self):
+        self.assertEqual(self.iface.BuildNumber(), 42)
+
+    def test_update_available(self):
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        self.assertTrue(signals[0][0])
+
+    def test_size(self):
+        self.assertEqual(self.iface.GetUpdateSize(), 1369088)
+
+    def test_version(self):
+        self.assertEqual(self.iface.GetUpdateVersion(), 44)
+
+    def test_descriptions(self):
+        self.assertEqual(self.iface.GetDescriptions(), [
+            {'description': 'Ubuntu Edge support',
+             'description-fr': "Support d'Ubuntu Edge",
+             'description-en': 'Initialise your Colour',
+             'description-en_US': 'Initialize your Color',
+            },
+            {'description': 'Flipped container with 200% faster boot'},
+            ])
+
+    def test_update(self):
+        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
+        self.assertEqual(len(signals), 1)
+
+    def test_update_canceled(self):
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        # Pre-cancel the update.
+        self.iface.Cancel()
+        signals = self._run_loop(self.iface.GetUpdate, 'Canceled')
+        self.assertEqual(len(signals), 1)
+
+    def test_reboot(self):
+        # Create a reboot.log so we can prove that the "reboot" happened.
+        config = Configuration()
+        config.load(self._controller.ini_path)
+        reboot_log = os.path.join(config.updater.cache_partition, 'reboot.log')
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
+        self.iface.Reboot()
+        with open(reboot_log, encoding='utf-8') as fp:
+            reboot = fp.read()
+        self.assertEqual(reboot, 'reboot -f recovery')
+
+    def test_reboot_canceled(self):
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
+        # Cancel the reboot.
+        self.iface.Cancel()
+        signals = self._run_loop(self.iface.Reboot, 'Canceled')
+        self.assertEqual(len(signals), 1)
+
+
+@unittest.skipUnless(_WHICH == 4, 'LP: #1205163')
+class TestDBusMocksUpdateFailed(_TestBase):
+    mode = 'update-failed'
+
+    def test_build_number(self):
+        self.assertEqual(self.iface.BuildNumber(), 42)
+
+    def test_update_available(self):
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        self.assertTrue(signals[0][0])
+
+    def test_size(self):
+        self.assertEqual(self.iface.GetUpdateSize(), 1369088)
+
+    def test_version(self):
+        self.assertEqual(self.iface.GetUpdateVersion(), 44)
+
+    def test_descriptions(self):
+        self.assertEqual(self.iface.GetDescriptions(), [
+            {'description': 'Ubuntu Edge support',
+             'description-fr': "Support d'Ubuntu Edge",
+             'description-en': 'Initialise your Colour',
+             'description-en_US': 'Initialize your Color',
+            },
+            {'description': 'Flipped container with 200% faster boot'},
+            ])
+
+    def test_update(self):
+        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)
+
+    def test_reboot(self):
+        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)
+        signals = self._run_loop(self.iface.Reboot, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)

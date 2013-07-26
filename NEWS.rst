@@ -8,6 +8,7 @@ NEWS for system-image updater
    asynchronous.  Rename the UpdatePending() signal to UpdateAvailableStatus()
    and have it contain a boolean flag which indicates whether an update is
    available or not.  Make GetUpdate() actually asynchronous.  (LP: #1204976)
+ * Add DBus method mocks (LP: #1204528)
 
 0.8 (2013-07-24)
 ================
