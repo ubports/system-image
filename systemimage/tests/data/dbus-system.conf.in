@@ -1,4 +1,4 @@
-<!-- dbus session bus configuration file template for the test suite.
+<!-- dbus system bus configuration file template for the test suite.
      Use Python's str.format() to do substitutions.
   -->
 
@@ -7,7 +7,7 @@
  "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
 
 <busconfig>
-  <type>session</type>
+  <type>system</type>
   <listen>unix:tmpdir={tmpdir}</listen>
 
   <!-- Load our own services -->

@@ -50,14 +50,14 @@ class Controller:
     def __init__(self, testing_mode='live'):
         self._stack = ExitStack()
         self.tmpdir = self._stack.enter_context(temporary_directory())
-        self.config_path = os.path.join(self.tmpdir, 'dbus-session.conf')
+        self.config_path = os.path.join(self.tmpdir, 'dbus-system.conf')
         self.ini_path = None
         self.serverdir = self._stack.enter_context(temporary_directory())
         self._testing_mode = testing_mode
 
     def _setup(self):
-        # Set up the dbus-daemon session configuration file.
-        with open(test_data_path('dbus-session.conf.in'),
+        # Set up the dbus-daemon system configuration file.
+        with open(test_data_path('dbus-system.conf.in'),
                   'r', encoding='utf-8') as fp:
             template = fp.read()
         config = template.format(tmpdir=self.tmpdir)
@@ -119,10 +119,10 @@ class Controller:
         dbus_address = lines[0].strip()
         daemon_pid = int(lines[1].strip())
         self._stack.callback(self._kill, daemon_pid)
-        #print('DBUS_SESSION_BUS_ADDRESS={}'.format(dbus_address))
+        #print('DBUS_SYSTEM_BUS_ADDRESS={}'.format(dbus_address))
         # Set the service's address into the environment for rendezvous.
-        self._stack.enter_context(reset_envar('DBUS_SESSION_BUS_ADDRESS'))
-        os.environ['DBUS_SESSION_BUS_ADDRESS'] = dbus_address
+        self._stack.enter_context(reset_envar('DBUS_SYSTEM_BUS_ADDRESS'))
+        os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = dbus_address
 
     def start(self):
         try:

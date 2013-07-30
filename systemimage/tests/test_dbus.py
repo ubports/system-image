@@ -64,8 +64,8 @@ class _TestBase(unittest.TestCase):
         cls._controller = None
 
     def setUp(self):
-        self.session_bus = dbus.SessionBus()
-        service = self.session_bus.get_object(
+        self.system_bus = dbus.SystemBus()
+        service = self.system_bus.get_object(
             'com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
 
@@ -79,7 +79,7 @@ class _TestBase(unittest.TestCase):
         def callback(*args):
             signals.append(args)
             loop.quit()
-        self.session_bus.add_signal_receiver(
+        self.system_bus.add_signal_receiver(
             callback, signal_name=signal,
             dbus_interface='com.canonical.SystemImage')
         GLib.timeout_add(100, method)
@@ -348,7 +348,7 @@ unmount system
         self.iface.Exit()
         self.assertRaises(DBusException, self.iface.BuildNumber)
         # Re-establish a new connection.
-        bus = dbus.SessionBus()
+        bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
         self.assertEqual(self.iface.BuildNumber(), 0)

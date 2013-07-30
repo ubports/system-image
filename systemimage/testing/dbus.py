@@ -167,7 +167,7 @@ class _UpdateFailedService(_UpdateSuccessService):
             self.UpdateFailed()
 
 
-def get_service(testing_mode, session_bus, object_path, loop):
+def get_service(testing_mode, system_bus, object_path, loop):
     """Return the appropriate service class for the testing mode."""
     if testing_mode == 'live':
         ServiceClass = _LiveTestableService
@@ -179,4 +179,4 @@ def get_service(testing_mode, session_bus, object_path, loop):
         ServiceClass = _UpdateFailedService
     else:
         raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
-    return ServiceClass(session_bus, object_path, loop)
+    return ServiceClass(system_bus, object_path, loop)
