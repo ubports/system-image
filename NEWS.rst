@@ -2,6 +2,10 @@
 NEWS for system-image updater
 =============================
 
+0.9.3 (2013-XX-XX)
+==================
+
+
 0.9.2 (2013-07-30)
 ==================
  * system-image-dbus must run on the system bus instead of the session bus.
