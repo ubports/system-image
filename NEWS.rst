@@ -8,6 +8,7 @@ NEWS for system-image updater
    Fix contributed by Loïc Minier.  (LP: #1206558)
  * Add systemimage/data/com.canonical.SystemImage.conf which will get
    installed into /etc/dbus-1/system.d/ for dbus permissions.  (LP: #1206523)
+ * Use full path to executable in dbus service file.
 
 0.9.1 (2013-07-26)
 ==================
