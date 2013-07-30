@@ -85,8 +85,8 @@ def main():
     log.info('SystemImage dbus main loop started')
     DBusGMainLoop(set_as_default=True)
 
-    session_bus = dbus.SessionBus()
-    bus_name = BusName('com.canonical.SystemImage', session_bus)
+    system_bus = dbus.SystemBus()
+    bus_name = BusName('com.canonical.SystemImage', system_bus)
 
     with ExitStack() as stack:
         loop = GLib.MainLoop()
@@ -95,21 +95,15 @@ def main():
         testing_mode = getattr(args, 'testing', None)
         if testing_mode:
             instrument(config, stack)
-            service = get_service(testing_mode, session_bus, '/Service', loop)
-            with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
-                print('MODE:', testing_mode, service, file=fp)
+            service = get_service(testing_mode, system_bus, '/Service', loop)
         else:
-            service = Service(session_bus, '/Service', loop)
+            service = Service(system_bus, '/Service', loop)
         try:
-            with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
-                print('RUN', file=fp)
             loop.run()
         except KeyboardInterrupt:
             log.info('SystemImage dbus main loop interrupted')
         else:
             log.info('SystemImage dbus main loop exited')
-        with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
-            print('DONE', file=fp)
 
 
 if __name__ == '__main__':

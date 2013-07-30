@@ -22,6 +22,7 @@ __all__ = [
 
 
 import os
+import pwd
 import sys
 import time
 import dbus
@@ -50,18 +51,21 @@ class Controller:
     def __init__(self, testing_mode='live'):
         self._stack = ExitStack()
         self.tmpdir = self._stack.enter_context(temporary_directory())
-        self.config_path = os.path.join(self.tmpdir, 'dbus-session.conf')
+        self.config_path = os.path.join(self.tmpdir, 'dbus-system.conf')
         self.ini_path = None
         self.serverdir = self._stack.enter_context(temporary_directory())
         self._testing_mode = testing_mode
 
     def _setup(self):
-        # Set up the dbus-daemon session configuration file.
-        with open(test_data_path('dbus-session.conf.in'),
+        # Set up the dbus-daemon system configuration file.
+        with open(test_data_path('dbus-system.conf.in'),
                   'r', encoding='utf-8') as fp:
             template = fp.read()
-        config = template.format(tmpdir=self.tmpdir)
+        username = pwd.getpwuid(os.getuid()).pw_name
+        config = template.format(tmpdir=self.tmpdir, user=username)
         with open(self.config_path, 'w', encoding='utf-8') as fp:
+            fp.write(config)
+        with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
             fp.write(config)
         # We need a client.ini file for the subprocess.
         ini_tmpdir = self._stack.enter_context(temporary_directory())
@@ -119,10 +123,10 @@ class Controller:
         dbus_address = lines[0].strip()
         daemon_pid = int(lines[1].strip())
         self._stack.callback(self._kill, daemon_pid)
-        #print('DBUS_SESSION_BUS_ADDRESS={}'.format(dbus_address))
+        #print("DBUS_SYSTEM_BUS_ADDRESS='{}'".format(dbus_address))
         # Set the service's address into the environment for rendezvous.
-        self._stack.enter_context(reset_envar('DBUS_SESSION_BUS_ADDRESS'))
-        os.environ['DBUS_SESSION_BUS_ADDRESS'] = dbus_address
+        self._stack.enter_context(reset_envar('DBUS_SYSTEM_BUS_ADDRESS'))
+        os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = dbus_address
 
     def start(self):
         try:
@@ -132,8 +136,6 @@ class Controller:
             raise
 
     def _kill(self, pid):
-        with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
-            print('FORCE', pid, file=fp)
         os.kill(pid, signal.SIGTERM)
         # Wait for it to die.
         until = datetime.datetime.now() + datetime.timedelta(seconds=10)
@@ -143,8 +145,6 @@ class Controller:
                 os.kill(pid, 0)
             except ProcessLookupError:
                 break
-        with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
-            print('GONE', pid, file=fp)
 
     def shutdown(self):
         self._stack.close()

@@ -2,6 +2,11 @@
 NEWS for system-image updater
 =============================
 
+0.9.2 (2013-07-30)
+==================
+ * system-image-dbus must run on the system bus instead of the session bus.
+   Fix contributed by Loïc Minier.  (LP: #1206558)
+
 0.9.1 (2013-07-26)
 ==================
  * Further DBus API refinements to better support U/I development.
