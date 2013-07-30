@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2013-07-12
+:Date: 2013-07-30
 :Copyright: 2013 Canonical Ltd.
-:Version: 0.5
+:Version: 0.9
 :Manual section: 1
 
 
@@ -63,4 +63,4 @@ FILES
 SEE ALSO
 ========
 
-client.ini(5)
+client.ini(5), system-image-dbus(8)

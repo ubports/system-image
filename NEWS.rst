@@ -4,7 +4,7 @@ NEWS for system-image updater
 
 0.9.3 (2013-XX-XX)
 ==================
-
+ * Add manpage for system-image-dbus. (LP: #1206617)
 
 0.9.2 (2013-07-30)
 ==================
