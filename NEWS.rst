@@ -5,6 +5,7 @@ NEWS for system-image updater
 0.9.3 (2013-XX-XX)
 ==================
  * Add manpage for system-image-dbus. (LP: #1206617)
+ * Fix the dbus tests so they can all be run.  (LP: #1205163)
 
 0.9.2 (2013-07-30)
 ==================

@@ -48,15 +48,13 @@ SERVICES = [
 class Controller:
     """Start and stop the SystemImage dbus service under test."""
 
-    def __init__(self, testing_mode='live'):
+    def __init__(self):
         self._stack = ExitStack()
         self.tmpdir = self._stack.enter_context(temporary_directory())
         self.config_path = os.path.join(self.tmpdir, 'dbus-system.conf')
         self.ini_path = None
         self.serverdir = self._stack.enter_context(temporary_directory())
-        self._testing_mode = testing_mode
-
-    def _setup(self):
+        self.daemon_pid = None
         # Set up the dbus-daemon system configuration file.
         with open(test_data_path('dbus-system.conf.in'),
                   'r', encoding='utf-8') as fp:
@@ -74,13 +72,16 @@ class Controller:
         with open(self.ini_path, 'w', encoding='utf-8') as fp:
             print(template.format(tmpdir=ini_tmpdir, vardir=ini_vardir),
                   file=fp)
+
+    def set_testing_mode(self, mode):
+        """Set up a new testing mode and SIGHUP dbus-daemon."""
         # Now we have to set up the .service files.  We use the Python
         # executable used to run the tests, executing the entry point as would
         # happen in a deployed script or virtualenv.
         command = [sys.executable,
                    '-m', 'systemimage.service',
                    '-C', self.ini_path,
-                   '--testing', self._testing_mode,
+                   '--testing', mode,
                    ]
         for service in SERVICES:
             service_file = service + '.service'
@@ -91,6 +92,9 @@ class Controller:
             service_path = os.path.join(self.tmpdir, service_file)
             with open(service_path, 'w', encoding='utf-8') as fp:
                 fp.write(config)
+        # Only if the daemon is already running.
+        if self.daemon_pid is not None:
+            os.kill(self.daemon_pid, signal.SIGHUP)
 
     def _start(self):
         """Start the SystemImage service in a subprocess.
@@ -104,7 +108,6 @@ class Controller:
         if daemon_exe is None:
             print('Cannot find the `dbus-daemon` executable', file=sys.stderr)
             return
-        self._setup()
         os.environ['DBUS_VERBOSE'] = '1'
         dbus_args = [
             daemon_exe,
@@ -119,8 +122,8 @@ class Controller:
                                          universal_newlines=True)
         lines = stdout.splitlines()
         dbus_address = lines[0].strip()
-        daemon_pid = int(lines[1].strip())
-        self._stack.callback(self._kill, daemon_pid)
+        self.daemon_pid = int(lines[1].strip())
+        self._stack.callback(self._kill, self.daemon_pid)
         #print("DBUS_SYSTEM_BUS_ADDRESS='{}'".format(dbus_address))
         # Set the service's address into the environment for rendezvous.
         self._stack.enter_context(reset_envar('DBUS_SYSTEM_BUS_ADDRESS'))
@@ -143,6 +146,7 @@ class Controller:
                 os.kill(pid, 0)
             except ProcessLookupError:
                 break
+        self.daemon_pid = None
 
     def shutdown(self):
         self._stack.close()

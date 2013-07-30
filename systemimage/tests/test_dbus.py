@@ -25,9 +25,11 @@ __all__ = [
 
 import os
 import dbus
+import time
 import unittest
 
 from contextlib import ExitStack
+from datetime import datetime, timedelta
 from dbus.exceptions import DBusException
 from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
@@ -39,9 +41,59 @@ from systemimage.testing.helpers import (
     sign)
 
 
-# 2013-07-25 BAW: This is an ugly hack caused by a weird problem I have not
-# been able to track down.  LP: #1205163
-_WHICH = 1
+_stack = None
+_controller = None
+_started = False
+
+# Why are these tests set up this?
+#
+# LP: #1205163 provides the impetus.  Here's the problem: we have to start a
+# dbus-daemon child process which will create an isolated system bus on which
+# our com.canonical.SystemImage service will be started via dbus-activatiion.
+# This closely mimics how the real system starts up our service.
+#
+# We ask dbus-daemon to return us its pid and the dbus address it's listening
+# on.  We need the address because we have to ensure that the dbus client,
+# i.e. this foreground test process, can communicate with the isolated
+# service.  To do this, the foreground process sets the environment variable
+# DBUS_SYSTEM_BUS_ADDRESS to the address that dbus-daemon gave us.
+#
+# The problem is that the low-level dbus client library only consults that
+# envar when it initializes, which it only does once per process.  There's no
+# way to get the library to listen on a new DBUS_SYSTEM_BUS_ADDRESS later on.
+#
+# This means that our first approach, which involved killing the granchild
+# system-image-dbus process, and the child dbus-daemon process, and then
+# restarting a new dbus-daemon process on a new address, doesn't work.
+#
+# We need a new system-image-dbus process for each of the TestCases below
+# because we have to start them up in different testing modes, and there's no
+# way to do that without exiting them and restarting them.  The grandchild
+# processes get started via different com.canonical.SystemImage.service files
+# with different commands.
+#
+# So, we have to restart the system-image-dbus process, but *not* the
+# dbus-daemon process because for all of these tests, it must be listening on
+# the same system bus.  Fortunately, dbus-daemon responds to SIGHUP, which
+# tells it to re-read its configuration files, including its .service files.
+# So how this works is that at the end of each test class, we tell the dbus
+# service to .Exit(), wait until it has, then write a new .service file with
+# the new command, HUP the dbus-daemon, and now the next time it activates the
+# service, it will do so with the correct (i.e. newly written) command.
+
+
+def setUpModule():
+    global _controller, _stack
+    _stack = ExitStack()
+    _controller = Controller()
+    _stack.callback(_controller.shutdown)
+    DBusGMainLoop(set_as_default=True)
+
+
+def tearDownModule():
+    global _controller, _stack
+    _stack.close()
+    _controller = None
 
 
 class _TestBase(unittest.TestCase):
@@ -52,16 +104,29 @@ class _TestBase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._stack = ExitStack()
-        cls._controller = Controller(cls.mode)
-        cls._stack.callback(cls._controller.shutdown)
-        cls._controller.start()
-        DBusGMainLoop(set_as_default=True)
+        global _started
+        _controller.set_testing_mode(cls.mode)
+        if not _started:
+            _controller.start()
+            _started = True
 
     @classmethod
     def tearDownClass(cls):
-        cls._stack.close()
-        cls._controller = None
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        iface.Exit()
+        # 2013-07-30 BAW: This sucks but there's no way to know exactly when
+        # the process has exited, because we cannot know the pid of the
+        # system-image-dbus process, which is our grandchild.  Just keep
+        # pinging the server until it stops responding.
+        until = datetime.now() + timedelta(seconds=60)
+        while datetime.now() < until:
+            time.sleep(0.2)
+            try:
+                iface.Exit()
+            except DBusException:
+                break
 
     def setUp(self):
         self.system_bus = dbus.SystemBus()
@@ -88,7 +153,6 @@ class _TestBase(unittest.TestCase):
         return signals
 
 
-@unittest.skipUnless(_WHICH == 1, 'TEST 1 - LP: #1205163')
 class TestDBus(_TestBase):
     """Test the SystemImage dbus service."""
 
@@ -98,10 +162,9 @@ class TestDBus(_TestBase):
         # Set up the http/https servers that the dbus client will talk to.
         # Start up both an HTTPS and HTTP server.  The data files are vended
         # over the latter, everything else, over the former.
-        serverdir = cls._controller.serverdir
-        cls._stack.push(make_http_server(
-            serverdir, 8943, 'cert.pem', 'key.pem'))
-        cls._stack.push(make_http_server(serverdir, 8980))
+        serverdir = _controller.serverdir
+        _stack.push(make_http_server(serverdir, 8943, 'cert.pem', 'key.pem'))
+        _stack.push(make_http_server(serverdir, 8980))
         # Set up the server files.
         copy('channels_06.json', serverdir, 'channels.json')
         sign(os.path.join(serverdir, 'channels.json'), 'image-signing.gpg')
@@ -110,7 +173,7 @@ class TestDBus(_TestBase):
         # The four signed keyring tar.xz files and their signatures end up in
         # the proper location after the state machine runs to completion.
         config = Configuration()
-        config.load(cls._controller.ini_path)
+        config.load(_controller.ini_path)
         setup_keyrings('archive-master', use_config=config)
         setup_keyring_txz(
             'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
@@ -134,7 +197,7 @@ class TestDBus(_TestBase):
         self._prepare_index('index_13.json')
         # We need a configuration file that agrees with the dbus client.
         self.config = Configuration()
-        self.config.load(self._controller.ini_path)
+        self.config.load(_controller.ini_path)
         # For testing reboot preparation.
         self.command_file = os.path.join(
             self.config.updater.cache_partition, 'ubuntu_command')
@@ -150,12 +213,11 @@ class TestDBus(_TestBase):
 
     def _prepare_index(self, index_file):
         index_path = os.path.join(
-            self._controller.serverdir, 'stable', 'nexus7', 'index.json')
+            _controller.serverdir, 'stable', 'nexus7', 'index.json')
         head, tail = os.path.split(index_path)
         copy(index_file, head, tail)
         sign(index_path, 'device-signing.gpg')
-        setup_index(
-            index_file, self._controller.serverdir, 'device-signing.gpg')
+        setup_index(index_file, _controller.serverdir, 'device-signing.gpg')
 
     def _set_build(self, version):
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
@@ -314,7 +376,7 @@ unmount system
         # A signal is issued when the update failed.
         #
         # Cause the update to fail by deleting a file from the server.
-        os.remove(os.path.join(self._controller.serverdir, '4/5/6.txt.asc'))
+        os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
         signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
         self.assertEqual(len(signals), 1)
 
@@ -322,7 +384,7 @@ unmount system
         # Cause the update to fail by deleting a file from the server.
         #
         # Cause the update to fail by deleting a file from the server.
-        os.remove(os.path.join(self._controller.serverdir, '4/5/6.txt.asc'))
+        os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
         signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
         self.assertEqual(len(signals), 1)
         signals = self._run_loop(self.iface.Reboot, 'UpdateFailed')
@@ -354,7 +416,6 @@ unmount system
         self.assertEqual(self.iface.BuildNumber(), 0)
 
 
-@unittest.skipUnless(_WHICH == 2, 'TEST 2 - LP: #1205163')
 class TestDBusMocksNoUpdate(_TestBase):
     mode = 'no-update'
 
@@ -369,14 +430,13 @@ class TestDBusMocksNoUpdate(_TestBase):
         self.assertFalse(signals[0][0])
 
 
-@unittest.skipUnless(_WHICH == 3, 'TEST 3 - LP: #1205163')
 class TestDBusMocksUpdateAvailable(_TestBase):
     mode = 'update-success'
 
     def setUp(self):
         super().setUp()
         config = Configuration()
-        config.load(self._controller.ini_path)
+        config.load(_controller.ini_path)
         self.reboot_log = os.path.join(
             config.updater.cache_partition, 'reboot.log')
 
@@ -443,7 +503,6 @@ class TestDBusMocksUpdateAvailable(_TestBase):
         self.assertFalse(os.path.exists(self.reboot_log))
 
 
-@unittest.skipUnless(_WHICH == 4, 'TEST 4 - LP: #1205163')
 class TestDBusMocksUpdateFailed(_TestBase):
     mode = 'update-failed'
 
