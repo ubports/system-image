@@ -68,7 +68,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.updater.data_partition,
                          '/var/lib/system-image')
         # [dbus]
-        self.assertEqual(config.dbus.lifetime.total_seconds(), 120)
+        self.assertEqual(config.dbus.lifetime.total_seconds(), 600)
 
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
