@@ -177,6 +177,7 @@ Configuration file not found: /does/not/exist.ini
                              'channel/device: stable/nexus7\n')
 
 
+@unittest.skip('dbus-launch only supports session bus (LP: #1206588)')
 @unittest.skipUnless(DBUS_LAUNCH is not None, 'dbus-launch not found')
 class TestDBusMain(unittest.TestCase):
     def test_service_exits(self):
