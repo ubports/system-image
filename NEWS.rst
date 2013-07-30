@@ -10,6 +10,7 @@ NEWS for system-image updater
    installed into /etc/dbus-1/system.d/ for dbus permissions.  (LP: #1206523)
  * Use full path to executable in dbus service file.
  * system-image-dbus executable now resides in /usr/sbin
+ * client.ini: Bump dbus timeout to 10 minutes.
 
 0.9.1 (2013-07-26)
 ==================
