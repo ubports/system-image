@@ -7,7 +7,7 @@ NEWS for system-image updater
  * system-image-dbus must run on the system bus instead of the session bus.
    Fix contributed by Loïc Minier.  (LP: #1206558)
  * Add systemimage/data/com.canonical.SystemImage.conf which will get
-   installed into /etc/dbus-1/system.d/ for dbus permissions.
+   installed into /etc/dbus-1/system.d/ for dbus permissions.  (LP: #1206523)
 
 0.9.1 (2013-07-26)
 ==================
