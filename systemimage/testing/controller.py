@@ -65,8 +65,6 @@ class Controller:
         config = template.format(tmpdir=self.tmpdir, user=username)
         with open(self.config_path, 'w', encoding='utf-8') as fp:
             fp.write(config)
-        with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
-            fp.write(config)
         # We need a client.ini file for the subprocess.
         ini_tmpdir = self._stack.enter_context(temporary_directory())
         ini_vardir = self._stack.enter_context(temporary_directory())
