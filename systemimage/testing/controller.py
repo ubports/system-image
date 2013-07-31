@@ -68,7 +68,7 @@ class Controller:
         ini_vardir = self._stack.enter_context(temporary_directory())
         self.ini_path = os.path.join(self.tmpdir, 'client.ini')
         template = resource_bytes(
-            'systemimage.tests.data', 'config_00.ini').decode('utf-8')
+            'systemimage.tests.data', 'config_03.ini').decode('utf-8')
         with open(self.ini_path, 'w', encoding='utf-8') as fp:
             print(template.format(tmpdir=ini_tmpdir, vardir=ini_vardir),
                   file=fp)
@@ -130,6 +130,9 @@ class Controller:
         os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = dbus_address
 
     def start(self):
+        if self.daemon_pid is not None:
+            # Already started.
+            return
         try:
             self._start()
         except:

@@ -32,6 +32,7 @@ from gi.repository import GLib
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import config
 from systemimage.dbus import Service
+from systemimage.helpers import makedirs
 from systemimage.logging import initialize
 from systemimage.main import DEFAULT_CONFIG_FILE
 
@@ -81,6 +82,8 @@ def main():
     # Initialize the loggers.
     initialize(verbosity=args.verbose)
     log = logging.getLogger('systemimage')
+    # Create the temporary directory if it doesn't exist.
+    makedirs(config.system.tempdir)
 
     log.info('SystemImage dbus main loop started')
     DBusGMainLoop(set_as_default=True)

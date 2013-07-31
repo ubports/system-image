@@ -17,6 +17,7 @@
 
 __all__ = [
     'TestDBus',
+    'TestDBusMain',
     'TestDBusMocksNoUpdate',
     'TestDBusMocksUpdateAvailable',
     'TestDBusMocksUpdateFailed',
@@ -26,6 +27,7 @@ __all__ = [
 import os
 import dbus
 import time
+import shutil
 import unittest
 
 from contextlib import ExitStack
@@ -43,7 +45,6 @@ from systemimage.testing.helpers import (
 
 _stack = None
 _controller = None
-_started = False
 
 # Why are these tests set up this?
 #
@@ -104,11 +105,8 @@ class _TestBase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        global _started
         _controller.set_testing_mode(cls.mode)
-        if not _started:
-            _controller.start()
-            _started = True
+        _controller.start()
 
     @classmethod
     def tearDownClass(cls):
@@ -127,6 +125,14 @@ class _TestBase(unittest.TestCase):
                 iface.Exit()
             except DBusException:
                 break
+        # Clear out the temporary directory.
+        config = Configuration()
+        config.load(_controller.ini_path)
+        try:
+            shutil.rmtree(config.system.tempdir)
+        except FileNotFoundError:
+            pass
+        super().tearDownClass()
 
     def setUp(self):
         self.system_bus = dbus.SystemBus()
@@ -541,3 +547,26 @@ class TestDBusMocksUpdateFailed(_TestBase):
         self.assertEqual(len(signals), 1)
         signals = self._run_loop(self.iface.Reboot, 'UpdateFailed')
         self.assertEqual(len(signals), 1)
+
+
+class TestDBusMain(_TestBase):
+    mode = 'live'
+
+    def setUp(self):
+        # Don't call super's setUp() since that will start the service, thus
+        # creating the temporary directory.
+        pass
+
+    def tearDown(self):
+        # We didn't call setUp() so don't call tearDown().
+        pass
+
+    def test_temp_directory(self):
+        # The temporary directory gets created if it doesn't exist.
+        config = Configuration()
+        config.load(_controller.ini_path)
+        self.assertFalse(os.path.exists(config.system.tempdir))
+        # DBus activate the service, which should create the directory.
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        self.assertTrue(os.path.exists(config.system.tempdir))

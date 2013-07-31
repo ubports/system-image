@@ -6,6 +6,8 @@ NEWS for system-image updater
 ==================
  * Add manpage for system-image-dbus. (LP: #1206617)
  * Fix the dbus tests so they can all be run.  (LP: #1205163)
+ * system-image-dbus must also create the tempdir if it doesn't yet exist,
+   just like -cli does.  (LP: #1206515)
 
 0.9.2 (2013-07-30)
 ==================
