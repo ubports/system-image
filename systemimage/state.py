@@ -58,7 +58,7 @@ def _download_feedback(url, dst, bytes_read, size):
         progress = fmt.format(bytes_read, size)
     else:
         progress = '[{}d bytes]'.format(bytes_read)
-    log.debug('download %s %s -> %s', progress, url, dst)
+    log.debug('download {} {} -> {}', progress, url, dst)
 
 
 class State:
@@ -154,7 +154,7 @@ class State:
         try:
             # I think it makes no sense to check the blacklist when we're
             # downloading a blacklist file.
-            log.info('Looking for blacklist: %s',
+            log.info('Looking for blacklist: {}',
                      urljoin(config.service.https_base, url))
             get_keyring('blacklist', url, 'image-master')
         except SignatureError:
@@ -172,7 +172,7 @@ class State:
             # state machine to clear out the temporary directory.
             self.blacklist = os.path.join(
                 config.system.tempdir, 'blacklist.tar.xz')
-            log.info('Local blacklist file: %s', self.blacklist)
+            log.info('Local blacklist file: {}', self.blacklist)
         self._next.append(self._get_channel)
 
     def _get_blacklist_2(self):
@@ -188,7 +188,7 @@ class State:
         # one was missing originally, so don't try that again.
         url = 'gpg/blacklist.tar.xz'
         try:
-            log.info('Looking for blacklist again: %s',
+            log.info('Looking for blacklist again: {}',
                      urljoin(config.service.https_base, url))
             get_keyring('blacklist', url, 'image-master')
         except FileNotFoundError:
@@ -199,7 +199,7 @@ class State:
             # state machine to clear out the temporary directory.
             self.blacklist = os.path.join(
                 config.system.tempdir, 'blacklist.tar.xz')
-            log.info('Local blacklist file: %s', self.blacklist)
+            log.info('Local blacklist file: {}', self.blacklist)
         self._next.append(self._get_channel)
 
     def _get_channel(self):
@@ -216,7 +216,7 @@ class State:
         channels_path = os.path.join(config.system.tempdir, 'channels.json')
         asc_url = urljoin(config.service.https_base, 'channels.json.asc')
         asc_path = os.path.join(config.system.tempdir, 'channels.json.asc')
-        log.info('Looking for: %s', channels_url)
+        log.info('Looking for: {}', channels_url)
         with ExitStack() as stack:
             get_files([
                 (channels_url, channels_path),
@@ -237,7 +237,7 @@ class State:
                 log.info('channels.json not properly signed')
                 return
             # The signature was good.
-            log.info('Local channels file: %s', channels_path)
+            log.info('Local channels file: {}', channels_path)
             with open(channels_path, encoding='utf-8') as fp:
                 self.channels = Channels.from_json(fp.read())
         # The next step will depend on whether there is a device keyring
@@ -248,12 +248,12 @@ class State:
                 getattr(self.channels, config.system.channel),
                 config.device)
         except AttributeError:
-            log.info('no matching channel/device: %s/%s',
+            log.info('no matching channel/device: {}/{}',
                      config.system.channel, config.device)
             # Either our channel or device isn't described in the
             # channels.json file, so there's nothing more to do.
             return
-        log.info('found channel/device entry: %s/%s',
+        log.info('found channel/device entry: {}/{}',
                  config.system.channel, config.device)
         keyring = getattr(device, 'keyring', None)
         if keyring:
@@ -263,7 +263,7 @@ class State:
     def _get_device_keyring(self, keyring):
         keyring_url = urljoin(config.service.https_base, keyring.path)
         asc_url = urljoin(config.service.https_base, keyring.signature)
-        log.info('getting device keyring: %s', keyring_url)
+        log.info('getting device keyring: {}', keyring_url)
         get_keyring(
             'device-signing', (keyring_url, asc_url), 'image-signing',
             self.blacklist)
@@ -369,7 +369,7 @@ class State:
                         raise ChecksumError(dst, got, checksum)
             # Everything is fine so nothing needs to be cleared.
             stack.pop_all()
-        log.info('all files available in %s', config.system.tempdir)
+        log.info('all files available in {}', config.system.tempdir)
         # Now, copy the files from the temporary directory into the location
         # for the upgrader.
         self._next.append(self._move_files)
@@ -391,7 +391,7 @@ class State:
             log.error('No valid imaging master key found')
             raise SignatureError from None
         # Retry the previous step.
-        log.info('Installing new image master key to: %s',
+        log.info('Installing new image master key to: {}',
                  config.gpg.image_master)
         self._next.appendleft(self._get_blacklist_2)
 

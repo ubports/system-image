@@ -69,7 +69,7 @@ class Downloader:
 def _get_one_file(args):
     timeout, url, dst, size, callback = args
     bytes_read = 0
-    log.info('downloading %s -> %s', url, dst)
+    log.info('downloading {} -> {}', url, dst)
     with ExitStack() as stack:
         response = stack.enter_context(Downloader(url, timeout))
         out = stack.enter_context(atomic(dst, encoding=None))

@@ -24,6 +24,9 @@ __all__ = [
     ]
 
 
+from itertools import count
+
+
 MiB = 2 ** 20
 
 
@@ -44,7 +47,22 @@ class Scorer:
         """
         if len(candidates) == 0:
             return []
-        return sorted(zip(self.score(candidates), candidates))[0][1]
+        # We want to zip together the score for each candidate path, plus the
+        # candidate path, so that when we sort the sequence, we'll always get
+        # the lowest scoring upgrade path first.  The problem is that when two
+        # paths have the same score, sorted()'s comparison will find the first
+        # element of the tuple is the same and fall back to the second item.
+        # If that item is a list of Image objects, then it will try to compare
+        # Image objects, which are not comparable.
+        #
+        # We solve this by zipping in a second element which is guaranteed to
+        # be a monotomically increasing integer.  Thus if two paths score the
+        # same, we'll just end up picking the first one we saw, and comparison
+        # will never fall back to the list of Images.
+        #
+        # Be sure that after all is said and done we return the list of Images
+        # though!
+        return sorted(zip(self.score(candidates), count(), candidates))[0][2]
 
     def score(self, candidates):
         """Like `choose()` except returns the candidate path scores.

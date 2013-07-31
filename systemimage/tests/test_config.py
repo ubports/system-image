@@ -21,6 +21,7 @@ __all__ = [
 
 
 import os
+import logging
 import unittest
 
 from datetime import timedelta
@@ -45,8 +46,12 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.https_base,
                          'https://system-image.ubuntu.com')
         # [system]
-        self.assertEqual(config.system.tempdir, '/tmp/system-image')
         self.assertEqual(config.system.channel, 'daily')
+        self.assertEqual(config.system.tempdir, '/tmp/system-image')
+        self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
+        self.assertEqual(config.system.logfile,
+                         '/var/log/system-image/client.log')
+        self.assertEqual(config.system.loglevel, logging.ERROR)
         # [score]
         self.assertEqual(config.hooks.scorer, WeightedScorer)
         self.assertEqual(config.hooks.reboot, Reboot)
@@ -85,8 +90,12 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.threads, 5)
         self.assertEqual(config.service.timeout, timedelta(seconds=10))
         # [system]
-        self.assertEqual(config.system.tempdir, '/var/tmp/system-image-update')
         self.assertEqual(config.system.channel, 'stable')
+        self.assertEqual(config.system.tempdir, '/var/tmp/system-image-update')
+        self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
+        self.assertEqual(config.system.logfile,
+                         '/var/log/system-image/client.log')
+        self.assertEqual(config.system.loglevel, logging.ERROR)
         # [hooks]
         self.assertEqual(config.hooks.scorer, WeightedScorer)
         self.assertEqual(config.hooks.reboot, Reboot)

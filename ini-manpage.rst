@@ -8,9 +8,9 @@ Ubuntu System Image Upgrader configuration file
 -----------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2013-07-12
+:Date: 2013-07-31
 :Copyright: 2013 Canonical Ltd.
-:Version: 0.5
+:Version: 1.0
 :Manual section: 5
 
 
@@ -71,17 +71,15 @@ THE SYSTEM SECTION
 The section that starts with ``[system]`` defines attributes of the local
 system to be upgraded.  Every system has an upgrade *channel* and a *device*
 name.  The channel roughly indicates the frequency with which the server will
-provide upgrades.  The channel and device combine to define a URL path on the
-server to look for upgrades appropriate to the given device on the given
-schedule.  The specification for these paths is given in `[1]`_.
+provide upgrades.  The system is queried for the device.  The channel and
+device combine to define a URL path on the server to look for upgrades
+appropriate to the given device on the given schedule.  The specification for
+these paths is given in `[1]`_.
 
 This section contains the following variables:
 
 channel
     The upgrade channel.
-
-device
-    This system's device type.
 
 build_file
     The file on the local file system containing the system's current build
@@ -90,6 +88,15 @@ build_file
 tempdir
     A directory on the local file system that can be used to store temporary
     files.
+
+logfile
+    The file where logging output will be sent.
+
+loglevel
+    The level at which logging information will be emitted.  This is a string
+    corresponding to the following `log levels`_ from least verbose to most
+    verbose: ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``.  The
+    value of this variable is case insensitive.
 
 
 THE GPG SECTION
@@ -121,8 +128,9 @@ device_signing
 THE UPDATER SECTION
 ===================
 
-This section defines directories where upgrade files will be placed for
-recovery reboot to apply.  This section contains the following variables:
+The section that starts with ``[updater]`` defines directories where upgrade
+files will be placed for recovery reboot to apply.  This section contains the
+following variables:
 
 cache_partition
     The directory bind-mounted read-write from the Android side into the
@@ -136,9 +144,14 @@ data_partition
 THE HOOKS SECTION
 =================
 
-This section provides minimal capability to customize the upgrader operation
-by selecting different upgrade path winner scoring algorithms and different
-reboot commands.  This section contains the following variables:
+The section that starts with ``[hooks]`` provides minimal capability to
+customize the upgrader operation by selecting different upgrade path winner
+scoring algorithms and different reboot commands.  This section contains the
+following variables:
+
+device
+    The Python import path to the class implementing the device query
+    command.
 
 scorer
     The Python import path to the class implementing the upgrade scoring
@@ -147,6 +160,19 @@ scorer
 reboot
     The Python import path to the class that implements the system reboot
     command.
+
+
+THE DBUS SECTION
+================
+
+The section that starts with ``[dbus]`` controls operation of the
+``system-image-dbus(8)`` program.  This section contains the following
+variables:
+
+lifetime
+    The total lifetime of the DBus server.  After this amount of time, it will
+    automatically exit.  The format is the same as the ``[service]timeout``
+    variable.
 
 
 SEE ALSO
@@ -160,3 +186,4 @@ system-image-cli(1)
 
 .. _[1]: https://wiki.ubuntu.com/ImageBasedUpgrades/Server
 .. _[2]: https://wiki.ubuntu.com/ImageBasedUpgrades/GPG
+.. _`log levels`: http://docs.python.org/3/howto/logging.html#when-to-use-logging

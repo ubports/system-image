@@ -28,18 +28,10 @@ from contextlib import ExitStack
 from datetime import datetime, timezone
 from systemimage.gpg import SignatureError
 from systemimage.helpers import temporary_directory
-from systemimage.logging import initialize
 from systemimage.state import State
 from systemimage.testing.helpers import (
     copy, get_index, make_http_server, makedirs, setup_keyring_txz,
     setup_keyrings, sign, testable_configuration)
-
-
-def setUpModule():
-    # BAW 2013-06-17: For correctness, this really should be put in all
-    # test_*.py modules, or in a global test runner.  As it is, this only
-    # quiets the logging output for tests in this module and later.
-    initialize(verbosity=3)
 
 
 class TestIndex(unittest.TestCase):

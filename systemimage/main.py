@@ -72,11 +72,11 @@ def main():
         parser.error('\nConfiguration file not found: {}'.format(error))
         assert 'parser.error() does not return'
 
+    # Create the temporary directory if it doesn't exist.
+    makedirs(config.system.tempdir)
     # Initialize the loggers.
     initialize(verbosity=args.verbose)
     log = logging.getLogger('systemimage')
-    # Create the temporary directory if it doesn't exist.
-    makedirs(config.system.tempdir)
     # We assume the cache_partition already exists, as does the /etc directory
     # (i.e. where the archive master key lives).
 

@@ -2,12 +2,28 @@
 NEWS for system-image updater
 =============================
 
-0.9.3 (2013-XX-XX)
-==================
+1.0 (2013-XX-XX)
+================
  * Add manpage for system-image-dbus. (LP: #1206617)
  * Fix the dbus tests so they can all be run.  (LP: #1205163)
  * system-image-dbus must also create the tempdir if it doesn't yet exist,
    just like -cli does.  (LP: #1206515)
+ * Fix upgrade path scoring and winner resolution when two candidate upgrade
+   paths have the same score.  (LP: #1206866)
+ * Make system-image-cli and system-image-dbus more amenable to being run in
+   "demo" mode out of a virtualenv.
+   - Update setup.py with run-time dependencies.
+   - Add a tools/demo.ini sample configuration file which allows the full
+     upgrade procedure to be executed (reboots are a no-op, and the device is
+     fixed to 'grouper').
+ * Major changes to the way logging is done.
+   - The config file now has [system]logfile and [system]loglevel variables
+     which control where and how logging goes under normal operation.
+   - A single -v on the command line mirrors the log file output to the
+     console, and sets both log levels to INFO level.  Two -v on the command
+     line also mirrors the output, but sets the log levels to DEBUG.
+ * Added tools/sd.py which serves as a DBus client for testing and debugging
+   purposes.
 
 0.9.2 (2013-07-30)
 ==================

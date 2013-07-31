@@ -30,7 +30,7 @@ import os
 # roll our own.
 from configparser import ConfigParser
 from pkg_resources import resource_filename
-from systemimage.helpers import Bag, as_object, as_timedelta
+from systemimage.helpers import Bag, as_object, as_timedelta, as_loglevel
 
 
 def expand_path(path):
@@ -69,7 +69,8 @@ class Configuration:
             self.service['https_base'] = 'https://{}:{}'.format(
                 self.service.base, self.service.https_port)
         self.system = Bag(converters=dict(build_file=expand_path,
-                                          tempdir=expand_path),
+                                          tempdir=expand_path,
+                                          loglevel=as_loglevel),
                           **parser['system'])
         self.gpg = Bag(**parser['gpg'])
         self.updater = Bag(**parser['updater'])

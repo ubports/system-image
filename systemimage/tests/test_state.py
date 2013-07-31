@@ -32,19 +32,11 @@ from contextlib import ExitStack
 from subprocess import CalledProcessError
 from systemimage.config import config
 from systemimage.gpg import SignatureError
-from systemimage.logging import initialize
 from systemimage.state import State
 from systemimage.testing.helpers import (
     copy, get_index, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, temporary_directory, testable_configuration)
 from unittest.mock import patch
-
-
-def setUpModule():
-    # BAW 2013-06-17: For correctness, this really should be put in all
-    # test_*.py modules, or in a global test runner.  As it is, this only
-    # quiets the logging output for tests in this module and later.
-    initialize(verbosity=3)
 
 
 class TestState(unittest.TestCase):

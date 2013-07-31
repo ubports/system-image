@@ -17,9 +17,9 @@
 
 __all__ = [
     'ExtendedEncoder',
+    'as_loglevel',
     'as_object',
     'as_timedelta',
-    'as_utcdatetime',
     'atomic',
     'makedirs',
     'safe_remove',
@@ -31,10 +31,11 @@ import os
 import re
 import json
 import shutil
+import logging
 import tempfile
 
 from contextlib import ExitStack, contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from importlib import import_module
 from systemimage.bag import Bag
 
@@ -134,12 +135,11 @@ def as_timedelta(value):
     return timedelta(**keyword_arguments)
 
 
-def as_utcdatetime(s, utc=True):
-    """Convert a string to UTC aware datetime."""
-    dt = datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%f')
-    if utc:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
+def as_loglevel(value):
+    level = getattr(logging, value.upper(), None)
+    if level is None or not isinstance(level, int):
+        raise ValueError
+    return level
 
 
 class ExtendedEncoder(json.JSONEncoder):

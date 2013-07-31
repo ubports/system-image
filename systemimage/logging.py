@@ -21,24 +21,61 @@ __all__ = [
     ]
 
 
+import os
+import sys
 import logging
 
 from contextlib import contextmanager
+from systemimage.config import config
+from systemimage.helpers import makedirs
+
+
+DATE_FMT = '%b %d %H:%M:%S %Y'
+MSG_FMT = '[{name}] {asctime} ({process:d}) {message}'
+
+
+class FormattingLogRecord(logging.LogRecord):
+    def getMessage(self):
+        msg = str(self.msg)
+        if self.args:
+            msg = msg.format(*self.args)
+        return msg
 
 
 def initialize(*, verbosity=0):
     """Initialize the loggers."""
+    # We're not going to propagate to the root logger anyway.
+    logging.basicConfig(style='{')
+    # Make sure logging uses {}-style messages.
+    logging.setLogRecordFactory(FormattingLogRecord)
+    # Now configure the application level logger based on the ini file.
+    log = logging.getLogger('systemimage')
+    # Make sure the log directory exists.
+    makedirs(os.path.dirname(config.system.logfile))
+    # Our handler will output in UTF-8 using {} style logging.
+    handler = logging.FileHandler(config.system.logfile, encoding='utf-8')
+    handler.setLevel(config.system.loglevel)
+    formatter = logging.Formatter(style='{', fmt=MSG_FMT, datefmt=DATE_FMT)
+    handler.setFormatter(formatter)
+    log.addHandler(handler)
+    log.propagate = False
+    # If we want more verbosity, add a stream handler.
+    if verbosity == 0:
+        # Set the log level.
+        log.setLevel(config.system.loglevel)
+        return
     level = {
         0: logging.ERROR,
         1: logging.INFO,
         2: logging.DEBUG,
         3: logging.CRITICAL,
         }.get(verbosity, logging.ERROR)
-    logging.basicConfig(level=level,
-                        datefmt='%b %d %H:%M:%S %Y',
-                        format='%(asctime)s (%(process)d) %(message)s')
-    log = logging.getLogger('systemimage')
-    log.setLevel(level)
+    handler = logging.StreamHandler(stream=sys.stderr)
+    handler.setLevel(level)
+    handler.setFormatter(formatter)
+    log.addHandler(handler)
+    # Set the overall level on the log object to the minimum level.
+    log.setLevel(min(level, config.system.loglevel))
     # Please be quiet gnupg.
     gnupg_log = logging.getLogger('gnupg')
     gnupg_log.propagate = False

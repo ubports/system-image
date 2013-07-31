@@ -79,11 +79,11 @@ def main():
         parser.error('\nConfiguration file not found: {}'.format(error))
         assert 'parser.error() does not return'
 
+    # Create the temporary directory if it doesn't exist.
+    makedirs(config.system.tempdir)
     # Initialize the loggers.
     initialize(verbosity=args.verbose)
     log = logging.getLogger('systemimage')
-    # Create the temporary directory if it doesn't exist.
-    makedirs(config.system.tempdir)
 
     log.info('SystemImage dbus main loop started')
     DBusGMainLoop(set_as_default=True)

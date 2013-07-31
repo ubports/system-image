@@ -61,6 +61,9 @@ class TestCLIMain(unittest.TestCase):
                 resource_filename('systemimage.data', 'client.ini'), tempdir)
             stack.enter_context(
                 patch('systemimage.main.DEFAULT_CONFIG_FILE', ini_path))
+            # Mock out the initialize() call so that the main() doesn't try to
+            # create a log file in a non-existent system directory.
+            stack.enter_context(patch('systemimage.main.initialize'))
             cli_main()
             self.assertEqual(config.config_file, ini_path)
             self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
@@ -175,6 +178,28 @@ Configuration file not found: /does/not/exist.ini
             cli_main()
             self.assertEqual(capture.getvalue(),
                              'channel/device: stable/nexus7\n')
+
+    @testable_configuration
+    def test_log_file(self, ini_file):
+        # Test that the system log file gets created and written.
+        config = Configuration()
+        config.load(ini_file)
+        self.assertFalse(os.path.exists(config.system.logfile))
+        class FakeState:
+            def __iter__(self):
+                return self
+            def __next__(self):
+                raise StopIteration
+        with ExitStack() as stack:
+            stack.enter_context(patch('systemimage.main.sys.argv',
+                                      ['argv0', '-C', ini_file]))
+            stack.enter_context(patch('systemimage.main.State', FakeState))
+            cli_main()
+        self.assertTrue(os.path.exists(config.system.logfile))
+        with open(config.system.logfile, encoding='utf-8') as fp:
+            logged = fp.read()
+        # Ignore any leading timestamp and the trailing newline.
+        self.assertEqual(logged[-22:-1], 'running state machine')
 
 
 @unittest.skip('dbus-launch only supports session bus (LP: #1206588)')

@@ -22,9 +22,11 @@ __all__ = [
     ]
 
 
+import logging
 import unittest
 
-from systemimage.helpers import Bag, as_object
+from datetime import timedelta
+from systemimage.helpers import Bag, as_loglevel, as_object, as_timedelta
 
 
 class TestBag(unittest.TestCase):
@@ -53,3 +55,24 @@ class TestConverters(unittest.TestCase):
     def test_as_object_attribute_error(self):
         self.assertRaises(AttributeError, as_object,
                           'systemimage.tests.test_helpers.NoSuchTest')
+
+    def test_as_timedelta_seconds(self):
+        self.assertEqual(as_timedelta('2s'), timedelta(seconds=2))
+
+    def test_as_timedelta_unadorned(self):
+        self.assertRaises(ValueError, as_timedelta, '5')
+
+    def test_as_timedelta_minutes(self):
+        self.assertEqual(as_timedelta('10m'), timedelta(seconds=600))
+
+    def test_as_timedelta_unknown(self):
+        self.assertRaises(ValueError, as_timedelta, '3x')
+
+    def test_as_loglevel(self):
+        self.assertEqual(as_loglevel('error'), logging.ERROR)
+
+    def test_as_loglevel_uppercase(self):
+        self.assertEqual(as_loglevel('ERROR'), logging.ERROR)
+
+    def test_as_loglevel_unknown(self):
+        self.assertRaises(ValueError, as_loglevel, 'BADNESS')

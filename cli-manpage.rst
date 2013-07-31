@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2013-07-30
+:Date: 2013-07-31
 :Copyright: 2013 Canonical Ltd.
-:Version: 0.9
+:Version: 1.0
 :Manual section: 1
 
 
@@ -43,7 +43,10 @@ OPTIONS
     Show the system's current build number and exit.
 
 -v, --verbose
-    Increase the logging verbosity.  Multiple ``-v`` flags are allowed.
+    Increase the logging verbosity.  With one ``-v``, logging goes to the
+    console in addition to the log file, and logging at ``INFO`` level is
+    enabled.  With two ``-v`` (or ``-vv``), logging both to the console and to
+    the log file are output at ``DEBUG`` level.
 
 -C FILE, --config FILE
     Use the given configuration file, otherwise use the default.

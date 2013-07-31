@@ -13,28 +13,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from setuptools import find_packages, setup
+"""A helper for demos."""
 
-with open('systemimage/version.txt') as fp:
-    __version__ = fp.read().strip()
+__all__ = [
+    'DemoDevice',
+    'DemoReboot',
+    ]
 
 
-setup(
-    name='system-image',
-    version=__version__,
-    description='Ubuntu System Image Based Upgrades',
-    author='Barry Warsaw',
-    author_email='barry@ubuntu.com',
-    license='GNU GPLv3',
-    packages=find_packages(),
-    entry_points={
-        'console_scripts': [
-            'system-image-cli = systemimage.main:main',
-            'system-image-dbus = systemimage.service:main',
-            ],
-    },
-    install_requires = [
-        'python-gnupg',
-        ],
-    include_package_data=True,
-    )
+from systemimage.device import BaseDevice
+from systemimage.reboot import BaseReboot
+
+
+class DemoReboot(BaseReboot):
+    def reboot(self):
+        print("If I was a phone, I'd be rebooting right about now.")
+
+
+class DemoDevice(BaseDevice):
+    def get_device(self):
+        """Sure, why not be a grouper?"""
+        return 'grouper'

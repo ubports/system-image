@@ -83,3 +83,7 @@ class Image(Bag):
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def __repr__(self):
+        return '<Image: {}>'.format(COMMASPACE.join(sorted(
+            key for key in self.__dict__ if not key.startswith('_'))))
