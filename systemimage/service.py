@@ -85,7 +85,8 @@ def main():
     initialize(verbosity=args.verbose)
     log = logging.getLogger('systemimage')
 
-    log.info('SystemImage dbus main loop started')
+    log.info('SystemImage dbus main loop started [{}/{}]',
+             config.system.channel, config.device)
     DBusGMainLoop(set_as_default=True)
 
     system_bus = dbus.SystemBus()

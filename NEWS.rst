@@ -24,6 +24,7 @@ NEWS for system-image updater
      line also mirrors the output, but sets the log levels to DEBUG.
  * Added tools/sd.py which serves as a DBus client for testing and debugging
    purposes.
+ * Print the channel and device in the log file.  (LP: #1206898)
 
 0.9.2 (2013-07-30)
 ==================

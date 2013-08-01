@@ -94,7 +94,8 @@ def main():
     # Run the state machine to conclusion.  Suppress all exceptions, but note
     # that the state machine will log them.  If an exception occurs, exit with
     # a non-zero status.
-    log.info('running state machine')
+    log.info('running state machine [{}/{}]',
+             config.system.channel, config.device)
     try:
         list(State())
     except KeyboardInterrupt:
