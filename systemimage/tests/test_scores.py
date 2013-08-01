@@ -21,6 +21,7 @@ __all__ = [
 import unittest
 
 from systemimage.candidates import get_candidates
+from systemimage.image import Image
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import get_index
 
@@ -76,3 +77,13 @@ class TestWeightedScorer(unittest.TestCase):
             # There's only one description per image so order doesn't matter.
             descriptions.extend(image.descriptions.values())
         self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
+
+    def test_tied_candidates(self):
+        # LP: #1206866 - TypeError when two candidate paths scored equal.
+        #
+        # index_17.json was captured from real data causing the traceback.
+        index = get_index('index_17.json')
+        candidates = get_candidates(index, 20110000)
+        path = self.scorer.choose(candidates)
+        self.assertEqual(len(path), 1)
+        self.assertEqual(path[0].version, 20130800)

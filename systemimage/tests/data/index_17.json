@@ -1,0 +1,1576 @@
+{
+    "images": [
+        {
+            "type": "full",
+            "descriptions": {
+                "description": "20130726.1"
+            },
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130726.1.full.tar.xz.asc",
+                    "size": 263581532,
+                    "path": "/daily/ubuntu/ubuntu-20130726.1.full.tar.xz",
+                    "checksum": "edc23d02ee2ba48b45e2cf1e1a736eb1436b47a76a94f5b9375d26a9e5fc4e4c"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130726.full.tar.xz.asc",
+                    "size": 29476584,
+                    "path": "/daily/grouper/grouper-20130726.full.tar.xz",
+                    "checksum": "7d6698264774c2e663c3f3237baa9d5d14790edf133e959ce4abcd1f58b533b8"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130725.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130725.tar.xz",
+                    "checksum": "c62bbb25efa17e9a75361da0cb045e714be4ba11e2ed84c51821049d73bcd594"
+                }
+            ],
+            "version": 20130725
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130727"
+            },
+            "version": 20130726,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130727.delta-20130726.1.tar.xz.asc",
+                    "size": 15364620,
+                    "path": "/daily/ubuntu/ubuntu-20130727.delta-20130726.1.tar.xz",
+                    "checksum": "8d002d126e5149d08c0f97ac16f3416cb5ed9c246e7d063366c65a00c14c6581"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130727.delta-20130726.tar.xz.asc",
+                    "size": 27281492,
+                    "path": "/daily/grouper/grouper-20130727.delta-20130726.tar.xz",
+                    "checksum": "34eb0d19455e27040fd8e7505125a100c2c9af434b92546015efeb88953ca99a"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130726.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130726.tar.xz",
+                    "checksum": "e03476af725db9a468d094e560e4c6910222b7f3a6d3b707d146eafe67114df6"
+                }
+            ],
+            "base": 20130725
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130728"
+            },
+            "version": 20130727,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130728.delta-20130727.tar.xz.asc",
+                    "size": 16213432,
+                    "path": "/daily/ubuntu/ubuntu-20130728.delta-20130727.tar.xz",
+                    "checksum": "8764073b29fdafaf45574aa442a8810d965efc05e5975de41f8379a9389545de"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130728.delta-20130727.tar.xz.asc",
+                    "size": 27281596,
+                    "path": "/daily/grouper/grouper-20130728.delta-20130727.tar.xz",
+                    "checksum": "15811cd7634e5d40386f6160187410d393bc2f1d3ac72e9179c70e8606de617d"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130727.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130727.tar.xz",
+                    "checksum": "a12a2217700984fd167c7c831700320e760c041f10e9aa4a6f01e38ae8d2cf7d"
+                }
+            ],
+            "base": 20130726
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130729"
+            },
+            "version": 20130728,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130729.delta-20130728.tar.xz.asc",
+                    "size": 15368380,
+                    "path": "/daily/ubuntu/ubuntu-20130729.delta-20130728.tar.xz",
+                    "checksum": "0860c60161a45c30a57b7fa5a975a1f8ad74cd66a91c0a799f409a569f37af0d"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130729.delta-20130728.tar.xz.asc",
+                    "size": 27281856,
+                    "path": "/daily/grouper/grouper-20130729.delta-20130728.tar.xz",
+                    "checksum": "11ea5647a442666167f9bf886740bce6ad67f4aa6be8e6365e3414a54077c08f"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130728.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130728.tar.xz",
+                    "checksum": "50c68a5a04f6d463b776b431b136eb2b7b08e4e326df5ab958e778d3fb72360c"
+                }
+            ],
+            "base": 20130727
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730"
+            },
+            "version": 20130729,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.delta-20130729.tar.xz.asc",
+                    "size": 21963560,
+                    "path": "/daily/ubuntu/ubuntu-20130730.delta-20130729.tar.xz",
+                    "checksum": "5641b9668034b51e9ac0ca9aa7cf93255f501a792a7430703718fb0ae6185a69"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130730.delta-20130729.tar.xz.asc",
+                    "size": 27281332,
+                    "path": "/daily/grouper/grouper-20130730.delta-20130729.tar.xz",
+                    "checksum": "32ed374c7098989fe8e6a00bda22eb7bf1686325ef0b5aa99b9bd77aeec66d01"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130729.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130729.tar.xz",
+                    "checksum": "ffae1bb0654c1716141e05bf5f3c30afcc4c3db91df302635f0a06ce800c8cb4"
+                }
+            ],
+            "base": 20130728
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.1"
+            },
+            "version": 20130730,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.1.delta-20130730.tar.xz.asc",
+                    "size": 16208916,
+                    "path": "/daily/ubuntu/ubuntu-20130730.1.delta-20130730.tar.xz",
+                    "checksum": "f4700a9d45daaafccdcea9e4c33829fbeacf48f6a57617936099036b33dc5fff"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130730.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130730.tar.xz",
+                    "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
+                }
+            ],
+            "base": 20130729
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.2"
+            },
+            "version": 20130731,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz.asc",
+                    "size": 11856888,
+                    "path": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz",
+                    "checksum": "d8be295e3d0feed604353ea28373866217f8d69465647f97028237688144b02b"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130731.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130731.tar.xz",
+                    "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
+                }
+            ],
+            "base": 20130730
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731"
+            },
+            "version": 20130732,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz.asc",
+                    "size": 194004,
+                    "path": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz",
+                    "checksum": "a6f7671d8329ce47521d1b86ec13ac536c36c56ab8e5eded7d9198590536c7bf"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130732.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130732.tar.xz",
+                    "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
+                }
+            ],
+            "base": 20130731
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731.3"
+            },
+            "version": 20130733,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz.asc",
+                    "size": 14993132,
+                    "path": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz",
+                    "checksum": "002c10476be7a4db9d2fda3b9583eb67c2873b82c5f95483f6df7b253d7a8171"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz.asc",
+                    "size": 27282040,
+                    "path": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz",
+                    "checksum": "199bd9ec51808f48bc81d5fd460cd8591a47b7911ac78eb7af1d7536963d79ff"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130733.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130733.tar.xz",
+                    "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
+                }
+            ],
+            "base": 20130732
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130801"
+            },
+            "version": 20130800,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 18625000,
+                    "path": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "f81a98769b92a9ba2c61b75ee83aa7fa7417767788f518553ae195e0a846768f"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 27285408,
+                    "path": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "b255325b494bc700109ca1e3f7eb8e2e2d3f0e590d938ee9a9438746c8eb9fe0"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130800.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
+                }
+            ],
+            "base": 20130733
+        },
+        {
+            "type": "full",
+            "descriptions": {
+                "description": "20130727"
+            },
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130727.full.tar.xz.asc",
+                    "size": 263541776,
+                    "path": "/daily/ubuntu/ubuntu-20130727.full.tar.xz",
+                    "checksum": "278776baa51ed542285427aab5196526924f63829b9f1a3818393a279f7f57c7"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130727.full.tar.xz.asc",
+                    "size": 29478256,
+                    "path": "/daily/grouper/grouper-20130727.full.tar.xz",
+                    "checksum": "6dbd61f0f80f4d23b36e86f27f663ec44a40d2beee6d3a86d934112c8286cf7b"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130726.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130726.tar.xz",
+                    "checksum": "e03476af725db9a468d094e560e4c6910222b7f3a6d3b707d146eafe67114df6"
+                }
+            ],
+            "version": 20130726
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130728"
+            },
+            "version": 20130727,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130728.delta-20130727.tar.xz.asc",
+                    "size": 16213432,
+                    "path": "/daily/ubuntu/ubuntu-20130728.delta-20130727.tar.xz",
+                    "checksum": "8764073b29fdafaf45574aa442a8810d965efc05e5975de41f8379a9389545de"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130728.delta-20130727.tar.xz.asc",
+                    "size": 27281596,
+                    "path": "/daily/grouper/grouper-20130728.delta-20130727.tar.xz",
+                    "checksum": "15811cd7634e5d40386f6160187410d393bc2f1d3ac72e9179c70e8606de617d"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130727.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130727.tar.xz",
+                    "checksum": "a12a2217700984fd167c7c831700320e760c041f10e9aa4a6f01e38ae8d2cf7d"
+                }
+            ],
+            "base": 20130726
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130729"
+            },
+            "version": 20130728,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130729.delta-20130728.tar.xz.asc",
+                    "size": 15368380,
+                    "path": "/daily/ubuntu/ubuntu-20130729.delta-20130728.tar.xz",
+                    "checksum": "0860c60161a45c30a57b7fa5a975a1f8ad74cd66a91c0a799f409a569f37af0d"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130729.delta-20130728.tar.xz.asc",
+                    "size": 27281856,
+                    "path": "/daily/grouper/grouper-20130729.delta-20130728.tar.xz",
+                    "checksum": "11ea5647a442666167f9bf886740bce6ad67f4aa6be8e6365e3414a54077c08f"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130728.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130728.tar.xz",
+                    "checksum": "50c68a5a04f6d463b776b431b136eb2b7b08e4e326df5ab958e778d3fb72360c"
+                }
+            ],
+            "base": 20130727
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730"
+            },
+            "version": 20130729,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.delta-20130729.tar.xz.asc",
+                    "size": 21963560,
+                    "path": "/daily/ubuntu/ubuntu-20130730.delta-20130729.tar.xz",
+                    "checksum": "5641b9668034b51e9ac0ca9aa7cf93255f501a792a7430703718fb0ae6185a69"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130730.delta-20130729.tar.xz.asc",
+                    "size": 27281332,
+                    "path": "/daily/grouper/grouper-20130730.delta-20130729.tar.xz",
+                    "checksum": "32ed374c7098989fe8e6a00bda22eb7bf1686325ef0b5aa99b9bd77aeec66d01"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130729.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130729.tar.xz",
+                    "checksum": "ffae1bb0654c1716141e05bf5f3c30afcc4c3db91df302635f0a06ce800c8cb4"
+                }
+            ],
+            "base": 20130728
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.1"
+            },
+            "version": 20130730,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.1.delta-20130730.tar.xz.asc",
+                    "size": 16208916,
+                    "path": "/daily/ubuntu/ubuntu-20130730.1.delta-20130730.tar.xz",
+                    "checksum": "f4700a9d45daaafccdcea9e4c33829fbeacf48f6a57617936099036b33dc5fff"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130730.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130730.tar.xz",
+                    "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
+                }
+            ],
+            "base": 20130729
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.2"
+            },
+            "version": 20130731,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz.asc",
+                    "size": 11856888,
+                    "path": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz",
+                    "checksum": "d8be295e3d0feed604353ea28373866217f8d69465647f97028237688144b02b"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130731.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130731.tar.xz",
+                    "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
+                }
+            ],
+            "base": 20130730
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731"
+            },
+            "version": 20130732,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz.asc",
+                    "size": 194004,
+                    "path": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz",
+                    "checksum": "a6f7671d8329ce47521d1b86ec13ac536c36c56ab8e5eded7d9198590536c7bf"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130732.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130732.tar.xz",
+                    "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
+                }
+            ],
+            "base": 20130731
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731.3"
+            },
+            "version": 20130733,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz.asc",
+                    "size": 14993132,
+                    "path": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz",
+                    "checksum": "002c10476be7a4db9d2fda3b9583eb67c2873b82c5f95483f6df7b253d7a8171"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz.asc",
+                    "size": 27282040,
+                    "path": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz",
+                    "checksum": "199bd9ec51808f48bc81d5fd460cd8591a47b7911ac78eb7af1d7536963d79ff"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130733.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130733.tar.xz",
+                    "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
+                }
+            ],
+            "base": 20130732
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130801"
+            },
+            "version": 20130800,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 18625000,
+                    "path": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "f81a98769b92a9ba2c61b75ee83aa7fa7417767788f518553ae195e0a846768f"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 27285408,
+                    "path": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "b255325b494bc700109ca1e3f7eb8e2e2d3f0e590d938ee9a9438746c8eb9fe0"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130800.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
+                }
+            ],
+            "base": 20130733
+        },
+        {
+            "type": "full",
+            "descriptions": {
+                "description": "20130730"
+            },
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.full.tar.xz.asc",
+                    "size": 263677940,
+                    "path": "/daily/ubuntu/ubuntu-20130730.full.tar.xz",
+                    "checksum": "da85183c4db5e7f4ab2396c37bc504ee12e77d8b4571a49d5d2decf38aa40615"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130730.full.tar.xz.asc",
+                    "size": 29475508,
+                    "path": "/daily/grouper/grouper-20130730.full.tar.xz",
+                    "checksum": "9cc07362d569c575af47717dfe2ff4a48e6a59f8189690c4208428ebe00c86ce"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130729.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130729.tar.xz",
+                    "checksum": "ffae1bb0654c1716141e05bf5f3c30afcc4c3db91df302635f0a06ce800c8cb4"
+                }
+            ],
+            "version": 20130729
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.1"
+            },
+            "version": 20130730,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.1.delta-20130730.tar.xz.asc",
+                    "size": 16208916,
+                    "path": "/daily/ubuntu/ubuntu-20130730.1.delta-20130730.tar.xz",
+                    "checksum": "f4700a9d45daaafccdcea9e4c33829fbeacf48f6a57617936099036b33dc5fff"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130730.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130730.tar.xz",
+                    "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
+                }
+            ],
+            "base": 20130729
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.2"
+            },
+            "version": 20130731,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz.asc",
+                    "size": 11856888,
+                    "path": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz",
+                    "checksum": "d8be295e3d0feed604353ea28373866217f8d69465647f97028237688144b02b"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130731.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130731.tar.xz",
+                    "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
+                }
+            ],
+            "base": 20130730
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731"
+            },
+            "version": 20130732,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz.asc",
+                    "size": 194004,
+                    "path": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz",
+                    "checksum": "a6f7671d8329ce47521d1b86ec13ac536c36c56ab8e5eded7d9198590536c7bf"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130732.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130732.tar.xz",
+                    "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
+                }
+            ],
+            "base": 20130731
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731.3"
+            },
+            "version": 20130733,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz.asc",
+                    "size": 14993132,
+                    "path": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz",
+                    "checksum": "002c10476be7a4db9d2fda3b9583eb67c2873b82c5f95483f6df7b253d7a8171"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz.asc",
+                    "size": 27282040,
+                    "path": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz",
+                    "checksum": "199bd9ec51808f48bc81d5fd460cd8591a47b7911ac78eb7af1d7536963d79ff"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130733.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130733.tar.xz",
+                    "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
+                }
+            ],
+            "base": 20130732
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130801"
+            },
+            "version": 20130800,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 18625000,
+                    "path": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "f81a98769b92a9ba2c61b75ee83aa7fa7417767788f518553ae195e0a846768f"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 27285408,
+                    "path": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "b255325b494bc700109ca1e3f7eb8e2e2d3f0e590d938ee9a9438746c8eb9fe0"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130800.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
+                }
+            ],
+            "base": 20130733
+        },
+        {
+            "type": "full",
+            "descriptions": {
+                "description": "20130728"
+            },
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130728.full.tar.xz.asc",
+                    "size": 263627440,
+                    "path": "/daily/ubuntu/ubuntu-20130728.full.tar.xz",
+                    "checksum": "e312b28c234d939063b33c3ad88539e4d76cca97c79fb3578021a57ca9bee6af"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130728.full.tar.xz.asc",
+                    "size": 29475000,
+                    "path": "/daily/grouper/grouper-20130728.full.tar.xz",
+                    "checksum": "5c772c4dc523e403ca7b6fe8edc90fd4f3270c6d8831cd114de56ba8528d402d"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130727.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130727.tar.xz",
+                    "checksum": "a12a2217700984fd167c7c831700320e760c041f10e9aa4a6f01e38ae8d2cf7d"
+                }
+            ],
+            "version": 20130727
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130729"
+            },
+            "version": 20130728,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130729.delta-20130728.tar.xz.asc",
+                    "size": 15368380,
+                    "path": "/daily/ubuntu/ubuntu-20130729.delta-20130728.tar.xz",
+                    "checksum": "0860c60161a45c30a57b7fa5a975a1f8ad74cd66a91c0a799f409a569f37af0d"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130729.delta-20130728.tar.xz.asc",
+                    "size": 27281856,
+                    "path": "/daily/grouper/grouper-20130729.delta-20130728.tar.xz",
+                    "checksum": "11ea5647a442666167f9bf886740bce6ad67f4aa6be8e6365e3414a54077c08f"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130728.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130728.tar.xz",
+                    "checksum": "50c68a5a04f6d463b776b431b136eb2b7b08e4e326df5ab958e778d3fb72360c"
+                }
+            ],
+            "base": 20130727
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730"
+            },
+            "version": 20130729,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.delta-20130729.tar.xz.asc",
+                    "size": 21963560,
+                    "path": "/daily/ubuntu/ubuntu-20130730.delta-20130729.tar.xz",
+                    "checksum": "5641b9668034b51e9ac0ca9aa7cf93255f501a792a7430703718fb0ae6185a69"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130730.delta-20130729.tar.xz.asc",
+                    "size": 27281332,
+                    "path": "/daily/grouper/grouper-20130730.delta-20130729.tar.xz",
+                    "checksum": "32ed374c7098989fe8e6a00bda22eb7bf1686325ef0b5aa99b9bd77aeec66d01"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130729.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130729.tar.xz",
+                    "checksum": "ffae1bb0654c1716141e05bf5f3c30afcc4c3db91df302635f0a06ce800c8cb4"
+                }
+            ],
+            "base": 20130728
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.1"
+            },
+            "version": 20130730,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.1.delta-20130730.tar.xz.asc",
+                    "size": 16208916,
+                    "path": "/daily/ubuntu/ubuntu-20130730.1.delta-20130730.tar.xz",
+                    "checksum": "f4700a9d45daaafccdcea9e4c33829fbeacf48f6a57617936099036b33dc5fff"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130730.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130730.tar.xz",
+                    "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
+                }
+            ],
+            "base": 20130729
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.2"
+            },
+            "version": 20130731,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz.asc",
+                    "size": 11856888,
+                    "path": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz",
+                    "checksum": "d8be295e3d0feed604353ea28373866217f8d69465647f97028237688144b02b"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130731.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130731.tar.xz",
+                    "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
+                }
+            ],
+            "base": 20130730
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731"
+            },
+            "version": 20130732,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz.asc",
+                    "size": 194004,
+                    "path": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz",
+                    "checksum": "a6f7671d8329ce47521d1b86ec13ac536c36c56ab8e5eded7d9198590536c7bf"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130732.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130732.tar.xz",
+                    "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
+                }
+            ],
+            "base": 20130731
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731.3"
+            },
+            "version": 20130733,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz.asc",
+                    "size": 14993132,
+                    "path": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz",
+                    "checksum": "002c10476be7a4db9d2fda3b9583eb67c2873b82c5f95483f6df7b253d7a8171"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz.asc",
+                    "size": 27282040,
+                    "path": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz",
+                    "checksum": "199bd9ec51808f48bc81d5fd460cd8591a47b7911ac78eb7af1d7536963d79ff"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130733.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130733.tar.xz",
+                    "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
+                }
+            ],
+            "base": 20130732
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130801"
+            },
+            "version": 20130800,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 18625000,
+                    "path": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "f81a98769b92a9ba2c61b75ee83aa7fa7417767788f518553ae195e0a846768f"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 27285408,
+                    "path": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "b255325b494bc700109ca1e3f7eb8e2e2d3f0e590d938ee9a9438746c8eb9fe0"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130800.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
+                }
+            ],
+            "base": 20130733
+        },
+        {
+            "type": "full",
+            "descriptions": {
+                "description": "20130729"
+            },
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130729.full.tar.xz.asc",
+                    "size": 263605800,
+                    "path": "/daily/ubuntu/ubuntu-20130729.full.tar.xz",
+                    "checksum": "f094af5462bcb74b9f99c9fa4c5753fba22b2ed20386f3593d93b6d22bada2af"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130729.full.tar.xz.asc",
+                    "size": 29480448,
+                    "path": "/daily/grouper/grouper-20130729.full.tar.xz",
+                    "checksum": "18b87c7b33620b62adb3a52f74b7c7e3076e9851980a61bb27a74aca74843c34"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130728.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130728.tar.xz",
+                    "checksum": "50c68a5a04f6d463b776b431b136eb2b7b08e4e326df5ab958e778d3fb72360c"
+                }
+            ],
+            "version": 20130728
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730"
+            },
+            "version": 20130729,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.delta-20130729.tar.xz.asc",
+                    "size": 21963560,
+                    "path": "/daily/ubuntu/ubuntu-20130730.delta-20130729.tar.xz",
+                    "checksum": "5641b9668034b51e9ac0ca9aa7cf93255f501a792a7430703718fb0ae6185a69"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130730.delta-20130729.tar.xz.asc",
+                    "size": 27281332,
+                    "path": "/daily/grouper/grouper-20130730.delta-20130729.tar.xz",
+                    "checksum": "32ed374c7098989fe8e6a00bda22eb7bf1686325ef0b5aa99b9bd77aeec66d01"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130729.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130729.tar.xz",
+                    "checksum": "ffae1bb0654c1716141e05bf5f3c30afcc4c3db91df302635f0a06ce800c8cb4"
+                }
+            ],
+            "base": 20130728
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.1"
+            },
+            "version": 20130730,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.1.delta-20130730.tar.xz.asc",
+                    "size": 16208916,
+                    "path": "/daily/ubuntu/ubuntu-20130730.1.delta-20130730.tar.xz",
+                    "checksum": "f4700a9d45daaafccdcea9e4c33829fbeacf48f6a57617936099036b33dc5fff"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130730.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130730.tar.xz",
+                    "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
+                }
+            ],
+            "base": 20130729
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.2"
+            },
+            "version": 20130731,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz.asc",
+                    "size": 11856888,
+                    "path": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz",
+                    "checksum": "d8be295e3d0feed604353ea28373866217f8d69465647f97028237688144b02b"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130731.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130731.tar.xz",
+                    "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
+                }
+            ],
+            "base": 20130730
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731"
+            },
+            "version": 20130732,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz.asc",
+                    "size": 194004,
+                    "path": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz",
+                    "checksum": "a6f7671d8329ce47521d1b86ec13ac536c36c56ab8e5eded7d9198590536c7bf"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130732.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130732.tar.xz",
+                    "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
+                }
+            ],
+            "base": 20130731
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731.3"
+            },
+            "version": 20130733,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz.asc",
+                    "size": 14993132,
+                    "path": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz",
+                    "checksum": "002c10476be7a4db9d2fda3b9583eb67c2873b82c5f95483f6df7b253d7a8171"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz.asc",
+                    "size": 27282040,
+                    "path": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz",
+                    "checksum": "199bd9ec51808f48bc81d5fd460cd8591a47b7911ac78eb7af1d7536963d79ff"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130733.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130733.tar.xz",
+                    "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
+                }
+            ],
+            "base": 20130732
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130801"
+            },
+            "version": 20130800,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 18625000,
+                    "path": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "f81a98769b92a9ba2c61b75ee83aa7fa7417767788f518553ae195e0a846768f"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 27285408,
+                    "path": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "b255325b494bc700109ca1e3f7eb8e2e2d3f0e590d938ee9a9438746c8eb9fe0"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130800.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
+                }
+            ],
+            "base": 20130733
+        },
+        {
+            "type": "full",
+            "descriptions": {
+                "description": "20130801"
+            },
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130801.full.tar.xz.asc",
+                    "size": 264000016,
+                    "path": "/daily/ubuntu/ubuntu-20130801.full.tar.xz",
+                    "checksum": "963c3bf9367450ab17c47f670f91db1d15f0ef6bdcf194481b5f458379129d7e"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130801.full.tar.xz.asc",
+                    "size": 29471212,
+                    "path": "/daily/grouper/grouper-20130801.full.tar.xz",
+                    "checksum": "8ab7f9a566546cab1b1dded4bd6a2243cd3617f60b0b43272dbb362bf78ba46f"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130800.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
+                }
+            ],
+            "version": 20130800
+        },
+        {
+            "type": "full",
+            "descriptions": {
+                "description": "20130731.3"
+            },
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.3.full.tar.xz.asc",
+                    "size": 264081876,
+                    "path": "/daily/ubuntu/ubuntu-20130731.3.full.tar.xz",
+                    "checksum": "7c9ce28bb751e25e80e5cee540ef1bdc929e97801528a14f066516f3ae2343d1"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130731.3.full.tar.xz.asc",
+                    "size": 29476056,
+                    "path": "/daily/grouper/grouper-20130731.3.full.tar.xz",
+                    "checksum": "5ec8aee85a4c895cfd7b2e9e460c67e2f2500ce9250ea4c209097690a73beeb2"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130733.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130733.tar.xz",
+                    "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
+                }
+            ],
+            "version": 20130733
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130801"
+            },
+            "version": 20130800,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 18625000,
+                    "path": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "f81a98769b92a9ba2c61b75ee83aa7fa7417767788f518553ae195e0a846768f"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 27285408,
+                    "path": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "b255325b494bc700109ca1e3f7eb8e2e2d3f0e590d938ee9a9438746c8eb9fe0"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130800.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
+                }
+            ],
+            "base": 20130733
+        },
+        {
+            "type": "full",
+            "descriptions": {
+                "description": "20130730.2"
+            },
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.2.full.tar.xz.asc",
+                    "size": 264025988,
+                    "path": "/daily/ubuntu/ubuntu-20130730.2.full.tar.xz",
+                    "checksum": "26cf16b1458f5ec33a88567ce7b43f5d58669ec7e469a0922839cefa1f5e92a8"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130730.full.tar.xz.asc",
+                    "size": 29475508,
+                    "path": "/daily/grouper/grouper-20130730.full.tar.xz",
+                    "checksum": "9cc07362d569c575af47717dfe2ff4a48e6a59f8189690c4208428ebe00c86ce"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130731.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130731.tar.xz",
+                    "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
+                }
+            ],
+            "version": 20130731
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731"
+            },
+            "version": 20130732,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz.asc",
+                    "size": 194004,
+                    "path": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz",
+                    "checksum": "a6f7671d8329ce47521d1b86ec13ac536c36c56ab8e5eded7d9198590536c7bf"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130732.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130732.tar.xz",
+                    "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
+                }
+            ],
+            "base": 20130731
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731.3"
+            },
+            "version": 20130733,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz.asc",
+                    "size": 14993132,
+                    "path": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz",
+                    "checksum": "002c10476be7a4db9d2fda3b9583eb67c2873b82c5f95483f6df7b253d7a8171"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz.asc",
+                    "size": 27282040,
+                    "path": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz",
+                    "checksum": "199bd9ec51808f48bc81d5fd460cd8591a47b7911ac78eb7af1d7536963d79ff"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130733.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130733.tar.xz",
+                    "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
+                }
+            ],
+            "base": 20130732
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130801"
+            },
+            "version": 20130800,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 18625000,
+                    "path": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "f81a98769b92a9ba2c61b75ee83aa7fa7417767788f518553ae195e0a846768f"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 27285408,
+                    "path": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "b255325b494bc700109ca1e3f7eb8e2e2d3f0e590d938ee9a9438746c8eb9fe0"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130800.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
+                }
+            ],
+            "base": 20130733
+        },
+        {
+            "type": "full",
+            "descriptions": {
+                "description": "20130731"
+            },
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.full.tar.xz.asc",
+                    "size": 264008228,
+                    "path": "/daily/ubuntu/ubuntu-20130731.full.tar.xz",
+                    "checksum": "8d4dd8ae84e09ad73a2d566ec1ea5a83fa61206d487a85013308bd4cc33ddc7d"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130730.full.tar.xz.asc",
+                    "size": 29475508,
+                    "path": "/daily/grouper/grouper-20130730.full.tar.xz",
+                    "checksum": "9cc07362d569c575af47717dfe2ff4a48e6a59f8189690c4208428ebe00c86ce"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130732.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130732.tar.xz",
+                    "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
+                }
+            ],
+            "version": 20130732
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731.3"
+            },
+            "version": 20130733,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz.asc",
+                    "size": 14993132,
+                    "path": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz",
+                    "checksum": "002c10476be7a4db9d2fda3b9583eb67c2873b82c5f95483f6df7b253d7a8171"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz.asc",
+                    "size": 27282040,
+                    "path": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz",
+                    "checksum": "199bd9ec51808f48bc81d5fd460cd8591a47b7911ac78eb7af1d7536963d79ff"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130733.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130733.tar.xz",
+                    "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
+                }
+            ],
+            "base": 20130732
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130801"
+            },
+            "version": 20130800,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 18625000,
+                    "path": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "f81a98769b92a9ba2c61b75ee83aa7fa7417767788f518553ae195e0a846768f"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 27285408,
+                    "path": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "b255325b494bc700109ca1e3f7eb8e2e2d3f0e590d938ee9a9438746c8eb9fe0"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130800.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
+                }
+            ],
+            "base": 20130733
+        },
+        {
+            "type": "full",
+            "descriptions": {
+                "description": "20130730.1"
+            },
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.1.full.tar.xz.asc",
+                    "size": 264017228,
+                    "path": "/daily/ubuntu/ubuntu-20130730.1.full.tar.xz",
+                    "checksum": "c87fbde0007c2bd556005e4f5877d2e718da2855aa56321db5e38c86bf88a3bd"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130730.full.tar.xz.asc",
+                    "size": 29475508,
+                    "path": "/daily/grouper/grouper-20130730.full.tar.xz",
+                    "checksum": "9cc07362d569c575af47717dfe2ff4a48e6a59f8189690c4208428ebe00c86ce"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130730.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130730.tar.xz",
+                    "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
+                }
+            ],
+            "version": 20130730
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130730.2"
+            },
+            "version": 20130731,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz.asc",
+                    "size": 11856888,
+                    "path": "/daily/ubuntu/ubuntu-20130730.2.delta-20130730.1.tar.xz",
+                    "checksum": "d8be295e3d0feed604353ea28373866217f8d69465647f97028237688144b02b"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130731.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130731.tar.xz",
+                    "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
+                }
+            ],
+            "base": 20130730
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731"
+            },
+            "version": 20130732,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz.asc",
+                    "size": 194004,
+                    "path": "/daily/ubuntu/ubuntu-20130731.delta-20130730.2.tar.xz",
+                    "checksum": "a6f7671d8329ce47521d1b86ec13ac536c36c56ab8e5eded7d9198590536c7bf"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/version-20130732.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130732.tar.xz",
+                    "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
+                }
+            ],
+            "base": 20130731
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130731.3"
+            },
+            "version": 20130733,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz.asc",
+                    "size": 14993132,
+                    "path": "/daily/ubuntu/ubuntu-20130731.3.delta-20130731.tar.xz",
+                    "checksum": "002c10476be7a4db9d2fda3b9583eb67c2873b82c5f95483f6df7b253d7a8171"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz.asc",
+                    "size": 27282040,
+                    "path": "/daily/grouper/grouper-20130731.3.delta-20130730.tar.xz",
+                    "checksum": "199bd9ec51808f48bc81d5fd460cd8591a47b7911ac78eb7af1d7536963d79ff"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130733.tar.xz.asc",
+                    "size": 196,
+                    "path": "/daily/grouper/version-20130733.tar.xz",
+                    "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
+                }
+            ],
+            "base": 20130732
+        },
+        {
+            "type": "delta",
+            "descriptions": {
+                "description": "20130801"
+            },
+            "version": 20130800,
+            "files": [
+                {
+                    "order": 0,
+                    "signature": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 18625000,
+                    "path": "/daily/ubuntu/ubuntu-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "f81a98769b92a9ba2c61b75ee83aa7fa7417767788f518553ae195e0a846768f"
+                },
+                {
+                    "order": 1,
+                    "signature": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz.asc",
+                    "size": 27285408,
+                    "path": "/daily/grouper/grouper-20130801.delta-20130731.3.tar.xz",
+                    "checksum": "b255325b494bc700109ca1e3f7eb8e2e2d3f0e590d938ee9a9438746c8eb9fe0"
+                },
+                {
+                    "order": 2,
+                    "signature": "/daily/grouper/version-20130800.tar.xz.asc",
+                    "size": 192,
+                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
+                }
+            ],
+            "base": 20130733
+        }
+    ],
+    "global": {
+        "generated_at": "Thu Aug 01 11:30:01 UTC 2013"
+    }
+}

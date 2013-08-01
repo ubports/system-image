@@ -25,6 +25,7 @@ from systemimage.bag import Bag
 
 # The era starts in 2013.
 ERA = 2013
+COMMASPACE = ', '
 
 
 def _hash(version):
