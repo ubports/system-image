@@ -17,6 +17,7 @@
 
 __all__ = [
     'TestDBus',
+    'TestDBusClient',
     'TestDBusMain',
     'TestDBusMocksNoUpdate',
     'TestDBusMocksUpdateAvailable',
@@ -35,6 +36,7 @@ from datetime import datetime, timedelta
 from dbus.exceptions import DBusException
 from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
+from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
 from systemimage.testing.controller import Controller
@@ -101,10 +103,11 @@ class _TestBase(unittest.TestCase):
     """Base class for all DBus testing."""
 
     # Override this to start the DBus server in a different testing mode.
-    mode = 'live'
+    mode = None
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         _controller.set_testing_mode(cls.mode)
         _controller.start()
 
@@ -135,6 +138,7 @@ class _TestBase(unittest.TestCase):
         super().tearDownClass()
 
     def setUp(self):
+        super().setUp()
         self.system_bus = dbus.SystemBus()
         service = self.system_bus.get_object(
             'com.canonical.SystemImage', '/Service')
@@ -142,6 +146,7 @@ class _TestBase(unittest.TestCase):
 
     def tearDown(self):
         self.iface.Reset()
+        super().tearDown()
 
     def _run_loop(self, method, signal):
         loop = GLib.MainLoop()
@@ -159,44 +164,56 @@ class _TestBase(unittest.TestCase):
         return signals
 
 
-class TestDBus(_TestBase):
-    """Test the SystemImage dbus service."""
+class _LiveTesting(_TestBase):
+    mode = 'live'
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls._resources = ExitStack()
         # Set up the http/https servers that the dbus client will talk to.
         # Start up both an HTTPS and HTTP server.  The data files are vended
         # over the latter, everything else, over the former.
         serverdir = _controller.serverdir
-        _stack.push(make_http_server(serverdir, 8943, 'cert.pem', 'key.pem'))
-        _stack.push(make_http_server(serverdir, 8980))
-        # Set up the server files.
-        copy('channels_06.json', serverdir, 'channels.json')
-        sign(os.path.join(serverdir, 'channels.json'), 'image-signing.gpg')
-        # Only the archive-master key is pre-loaded.  All the other keys are
-        # downloaded and there will be both a blacklist and device keyring.
-        # The four signed keyring tar.xz files and their signatures end up in
-        # the proper location after the state machine runs to completion.
-        config = Configuration()
-        config.load(_controller.ini_path)
-        setup_keyrings('archive-master', use_config=config)
-        setup_keyring_txz(
-            'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
-            os.path.join(serverdir, 'gpg', 'blacklist.tar.xz'))
-        setup_keyring_txz(
-            'image-master.gpg', 'archive-master.gpg',
-            dict(type='image-master'),
-            os.path.join(serverdir, 'gpg', 'image-master.tar.xz'))
-        setup_keyring_txz(
-            'image-signing.gpg', 'image-master.gpg',
-            dict(type='image-signing'),
-            os.path.join(serverdir, 'gpg', 'image-signing.tar.xz'))
-        setup_keyring_txz(
-            'device-signing.gpg', 'image-signing.gpg',
-            dict(type='device-signing'),
-            os.path.join(serverdir, 'stable', 'nexus7',
-                         'device-signing.tar.xz'))
+        try:
+            cls._resources.push(
+                make_http_server(serverdir, 8943, 'cert.pem', 'key.pem'))
+            cls._resources.push(make_http_server(serverdir, 8980))
+            # Set up the server files.
+            copy('channels_06.json', serverdir, 'channels.json')
+            sign(os.path.join(serverdir, 'channels.json'), 'image-signing.gpg')
+            # Only the archive-master key is pre-loaded.  All the other keys
+            # are downloaded and there will be both a blacklist and device
+            # keyring.  The four signed keyring tar.xz files and their
+            # signatures end up in the proper location after the state machine
+            # runs to completion.
+            config = Configuration()
+            config.load(_controller.ini_path)
+            setup_keyrings('archive-master', use_config=config)
+            setup_keyring_txz(
+                'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
+                os.path.join(serverdir, 'gpg', 'blacklist.tar.xz'))
+            setup_keyring_txz(
+                'image-master.gpg', 'archive-master.gpg',
+                dict(type='image-master'),
+                os.path.join(serverdir, 'gpg', 'image-master.tar.xz'))
+            setup_keyring_txz(
+                'image-signing.gpg', 'image-master.gpg',
+                dict(type='image-signing'),
+                os.path.join(serverdir, 'gpg', 'image-signing.tar.xz'))
+            setup_keyring_txz(
+                'device-signing.gpg', 'image-signing.gpg',
+                dict(type='device-signing'),
+                os.path.join(serverdir, 'stable', 'nexus7',
+                             'device-signing.tar.xz'))
+        except:
+            cls._resources.close()
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._resources.close()
+        super().tearDownClass()
 
     def setUp(self):
         super().setUp()
@@ -228,6 +245,10 @@ class TestDBus(_TestBase):
     def _set_build(self, version):
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
             print(version, file=fp)
+
+
+class TestDBus(_LiveTesting):
+    """Test the SystemImage dbus service."""
 
     def test_check_build_number(self):
         # Get the build number.
@@ -570,3 +591,82 @@ class TestDBusMain(_TestBase):
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         self.assertTrue(os.path.exists(config.system.tempdir))
+
+
+class TestDBusClient(_LiveTesting):
+    """Test the DBus client (used with --dbus)."""
+
+    def setUp(self):
+        super().setUp()
+        self._client = DBusClient()
+
+    def test_build_number(self):
+        # Get the build number through the client.
+        self._set_build(20130701)
+        self.assertEqual(self._client.build_number, 20130701)
+
+    def test_check_for_update(self):
+        # There is an update available.
+        self.assertTrue(self._client.check_for_update())
+
+    def test_check_for_no_update(self):
+        # There is no update available.
+        self._set_build(20130701)
+        self.assertFalse(self._client.check_for_update())
+
+    def test_get_update_size(self):
+        # The size of the available update.
+        self.assertTrue(self._client.check_for_update())
+        self.assertEqual(self._client.update_size, 314572800)
+
+    def test_get_update_no_size(self):
+        # Size is zero if there is no update available.
+        self._set_build(20130701)
+        self.assertFalse(self._client.check_for_update())
+        self.assertEqual(self._client.update_size, 0)
+
+    def test_get_update_version(self):
+        # The target version of the upgrade.
+        self.assertTrue(self._client.check_for_update())
+        self.assertEqual(self._client.update_version, 20130600)
+
+    def test_get_update_no_version(self):
+        # Version is zero if there is no update available.
+        self._set_build(20130701)
+        self.assertFalse(self._client.check_for_update())
+        self.assertEqual(self._client.update_version, 0)
+
+    def test_get_update_descriptions(self):
+        # The update has some descriptions.
+        self.assertTrue(self._client.check_for_update())
+        self.assertEqual(self._client.update_descriptions,
+                         [{'description': 'Full'}])
+
+    def test_get_update_no_descriptions(self):
+        # Sometimes there's no update, and thus no descrptions.
+        self._set_build(20130701)
+        self.assertFalse(self._client.check_for_update())
+        self.assertEqual(self._client.update_descriptions, [])
+
+    def test_update(self):
+        # Do the update, but wait to reboot.
+        self.assertTrue(self._client.check_for_update())
+        ready = self._client.update()
+        self.assertTrue(ready)
+
+    def test_update_failed(self):
+        # For some reason <wink>, the update fails.
+        self.assertTrue(self._client.check_for_update())
+        # Cause the update to fail by deleting a file from the server.
+        os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
+        ready = self._client.update()
+        self.assertFalse(ready)
+
+    def test_reboot(self):
+        # After a successful update, we can reboot.
+        self.assertTrue(self._client.check_for_update())
+        self.assertTrue(self._client.update())
+        self._client.reboot()
+        with open(self.reboot_log, encoding='utf-8') as fp:
+            reboot = fp.read()
+        self.assertEqual(reboot, 'reboot -f recovery')

@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-1.0 (2013-XX-XX)
+1.0 (2013-08-01)
 ================
  * Add manpage for system-image-dbus. (LP: #1206617)
  * Fix the dbus tests so they can all be run.  (LP: #1205163)
@@ -16,6 +16,8 @@ NEWS for system-image updater
    - Add a tools/demo.ini sample configuration file which allows the full
      upgrade procedure to be executed (reboots are a no-op, and the device is
      fixed to 'grouper').
+   - Give system-image-cli a --dbus option so that it will perform the update
+     over dbus rather than against the internal API.
  * Major changes to the way logging is done.
    - The config file now has [system]logfile and [system]loglevel variables
      which control where and how logging goes under normal operation.
@@ -25,6 +27,7 @@ NEWS for system-image updater
  * Added tools/sd.py which serves as a DBus client for testing and debugging
    purposes.
  * Print the channel and device in the log file.  (LP: #1206898)
+ * Added some useful tools for debugging in a live environment. (LP: 1207391)
 
 0.9.2 (2013-07-30)
 ==================

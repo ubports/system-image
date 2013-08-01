@@ -84,11 +84,9 @@ class TestCLIMain(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 cli_main()
             self.assertEqual(cm.exception.code, 2)
-            self.assertEqual(stderr.getvalue(), """\
-usage: system-image-cli [-h] [--version] [-C FILE] [-b] [-c] [-u NUMBER] [-v]
-system-image-cli: error:\x20
-Configuration file not found: /does/not/exist/client.ini
-""")
+            self.assertEqual(
+                stderr.getvalue().splitlines()[-1],
+                'Configuration file not found: /does/not/exist/client.ini')
 
     def test_missing_explicit_config_file(self):
         # An explicit configuration file given with -C is missing.
@@ -103,11 +101,9 @@ Configuration file not found: /does/not/exist/client.ini
             with self.assertRaises(SystemExit) as cm:
                 cli_main()
             self.assertEqual(cm.exception.code, 2)
-            self.assertEqual(stderr.getvalue(), """\
-usage: system-image-cli [-h] [--version] [-C FILE] [-b] [-c] [-u NUMBER] [-v]
-system-image-cli: error:\x20
-Configuration file not found: /does/not/exist.ini
-""")
+            self.assertEqual(
+                stderr.getvalue().splitlines()[-1],
+                'Configuration file not found: /does/not/exist.ini')
 
     def test_ensure_directories_exist(self):
         # The temporary and var directories are created if they don't exist.
@@ -199,7 +195,8 @@ Configuration file not found: /does/not/exist.ini
         with open(config.system.logfile, encoding='utf-8') as fp:
             logged = fp.read()
         # Ignore any leading timestamp and the trailing newline.
-        self.assertEqual(logged[-22:-1], 'running state machine')
+        self.assertEqual(logged[-38:-1],
+                         'running state machine [stable/nexus7]')
 
 
 @unittest.skip('dbus-launch only supports session bus (LP: #1206588)')

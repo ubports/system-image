@@ -18,6 +18,7 @@
 __all__ = [
     'DemoDevice',
     'DemoReboot',
+    'TestingDevice',
     ]
 
 
@@ -32,5 +33,11 @@ class DemoReboot(BaseReboot):
 
 class DemoDevice(BaseDevice):
     def get_device(self):
-        """Sure, why not be a grouper?"""
+        # Sure, why not be a grouper?
         return 'grouper'
+
+
+class TestingDevice(BaseDevice):
+    # For test_dbus.py
+    def get_device(self):
+        return 'nexus7'

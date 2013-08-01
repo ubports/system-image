@@ -26,6 +26,7 @@ import logging
 import argparse
 
 from pkg_resources import resource_string as resource_bytes
+from systemimage.bindings import DBusClient
 from systemimage.config import config
 from systemimage.helpers import makedirs
 from systemimage.logging import initialize
@@ -64,6 +65,9 @@ def main():
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
+    parser.add_argument('--dbus',
+                        default=False, action='store_true',
+                        help='Run in D-Bus client mode.')
 
     args = parser.parse_args(sys.argv[1:])
     try:
@@ -80,10 +84,13 @@ def main():
     # We assume the cache_partition already exists, as does the /etc directory
     # (i.e. where the archive master key lives).
 
-    build = (config.build_number
-             if args.upgrade is None
-             else int(args.upgrade))
+    # Optional DBus client.
+    client = (DBusClient() if args.dbus else None)
+
     if args.build:
+        build = ((config if client is None else client).build_number
+                 if args.upgrade is None
+                 else int(args.upgrade))
         print('build number:', build)
         return
     if args.channel:
@@ -91,18 +98,30 @@ def main():
             config.system.channel, config.device))
         return
 
-    # Run the state machine to conclusion.  Suppress all exceptions, but note
-    # that the state machine will log them.  If an exception occurs, exit with
-    # a non-zero status.
-    log.info('running state machine [{}/{}]',
-             config.system.channel, config.device)
-    try:
-        list(State())
-    except KeyboardInterrupt:
-        return 0
-    except:
-        return 1
+    # We can either run the API directly or through DBus.
+    if client is None:
+        # Run the state machine to conclusion.  Suppress all exceptions, but
+        # note that the state machine will log them.  If an exception occurs,
+        # exit with a non-zero status.
+        log.info('running state machine [{}/{}]',
+                 config.system.channel, config.device)
+        try:
+            list(State())
+        except KeyboardInterrupt:
+            return 0
+        except:
+            return 1
+        else:
+            return 0
     else:
+        if not client.check_for_update():
+            log.info('No updates available')
+            return 0
+        if not client.update():
+            log.info('Update failed')
+            return 1
+        client.reboot()
+        # We probably won't get here..
         return 0
 
 

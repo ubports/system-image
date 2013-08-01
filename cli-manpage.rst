@@ -55,6 +55,13 @@ OPTIONS
     Calculate an upgrade path from the given build number instead of the
     system's actual build number.
 
+--dbus
+    Run in D-Bus client mode.  Normally, ``system-image-cli`` runs directly
+    against the internal API.  With this switch, it instead acts as a D-Bus
+    client, performing all operations against the ``system-image-dbus``
+    service.  This mode more closely mimics how a user interface would perform
+    updates.
+
 
 FILES
 =====

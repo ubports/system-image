@@ -51,6 +51,3 @@ def run(method):
 
 
 print('build number:', iface.BuildNumber())
-run(iface.CheckForUpdate)
-print('update available?', _signals[0][0])
-print('update version:', iface.GetUpdateVersion())
