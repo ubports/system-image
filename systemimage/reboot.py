@@ -40,7 +40,8 @@ class Reboot(BaseReboot):
     def reboot(self):
         log = logging.getLogger('systemimage')
         try:
-            check_call('reboot -f recovery'.split(), universal_newlines=True)
+            check_call('/sbin/reboot -f recovery'.split(),
+                       universal_newlines=True)
         except CalledProcessError as error:
             log.exception('reboot exit status: {}'.format(error.returncode))
             raise
