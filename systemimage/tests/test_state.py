@@ -430,7 +430,8 @@ class TestRebooting(_StateTestsBase):
         self._setup_keyrings()
         with patch('systemimage.reboot.check_call') as mock:
             list(State())
-        self.assertEqual(mock.call_args[0][0], ['reboot', '-f', 'recovery'])
+        self.assertEqual(mock.call_args[0][0],
+                         ['/sbin/reboot', '-f', 'recovery'])
 
 
     @testable_configuration

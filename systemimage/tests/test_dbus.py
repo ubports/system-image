@@ -384,7 +384,7 @@ unmount system
         self.iface.Reboot()
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
-        self.assertEqual(reboot, 'reboot -f recovery')
+        self.assertEqual(reboot, '/sbin/reboot -f recovery')
 
     def test_reboot_no_update(self):
         # There's no update to reboot to.
@@ -517,7 +517,7 @@ class TestDBusMocksUpdateAvailable(_TestBase):
         self.iface.Reboot()
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
-        self.assertEqual(reboot, 'reboot -f recovery')
+        self.assertEqual(reboot, '/sbin/reboot -f recovery')
 
     def test_reboot_canceled(self):
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
@@ -669,4 +669,4 @@ class TestDBusClient(_LiveTesting):
         self._client.reboot()
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
-        self.assertEqual(reboot, 'reboot -f recovery')
+        self.assertEqual(reboot, '/sbin/reboot -f recovery')
