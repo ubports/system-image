@@ -76,15 +76,17 @@ class State:
         self.winner = None
         self.files = []
         # See if there is a state file to unpickle.
+        first_step = self._get_blacklist_1
         try:
             with open(config.system.state_file, 'rb') as fp:
                 self.blacklist = pickle.load(fp)
                 self.winner = pickle.load(fp)
                 pickle_date = pickle.load(fp)
                 # XXX check for stale file.
-            self._next.append(self._download_files)
+            first_step = self._download_files
         except FileNotFoundError:
-            self._next.append(self._get_blacklist_1)
+            pass
+        self._next.append(first_step)
 
     def __iter__(self):
         return self
