@@ -70,6 +70,7 @@ class Configuration:
                 self.service.base, self.service.https_port)
         self.system = Bag(converters=dict(build_file=expand_path,
                                           tempdir=expand_path,
+                                          state_file=expand_path,
                                           loglevel=as_loglevel),
                           **parser['system'])
         self.gpg = Bag(**parser['gpg'])

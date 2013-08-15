@@ -53,6 +53,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
         self.assertEqual(config.system.loglevel, logging.ERROR)
+        self.assertEqual(config.system.state_file,
+                         '/var/lib/system-image/state.pck')
         # [hooks]
         self.assertEqual(config.hooks.device, SystemProperty)
         self.assertEqual(config.hooks.scorer, WeightedScorer)
@@ -98,6 +100,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
         self.assertEqual(config.system.loglevel, logging.ERROR)
+        self.assertEqual(config.system.state_file,
+                         '/var/lib/phablet/state.pck')
         # [hooks]
         self.assertEqual(config.hooks.device, SystemProperty)
         self.assertEqual(config.hooks.scorer, WeightedScorer)

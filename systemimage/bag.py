@@ -69,3 +69,19 @@ class Bag:
         self.__original__[key] = value
         safe_key, converted_value = self._normalize_key_value(key, value)
         self.__dict__[safe_key] = converted_value
+
+    # Pickle protocol.
+
+    def __getstate__(self):
+        # We don't need to pickle the converters, because for all practical
+        # purposes, those are only used when the Bag is instantiated.
+        return (self.__original__,
+                {key: value for key, value in self.__dict__.items()
+                 if not key.startswith('_')})
+
+    def __setstate__(self, state):
+        original, values = state
+        self.__original__ = original
+        self._converters = None
+        for key, value in values.items():
+            self.__dict__[key] = value

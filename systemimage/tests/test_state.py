@@ -19,6 +19,7 @@ __all__ = [
     'TestCommandFileDelta',
     'TestCommandFileFull',
     'TestFileOrder',
+    'TestPersistence',
     'TestRebootingState',
     'TestState',
     ]
@@ -566,3 +567,38 @@ update h.txt h.txt.asc
 update i.txt i.txt.asc
 unmount system
 """)
+
+
+class TestPersistence(_StateTestsBase):
+    """Test the State object's persistence."""
+
+    INDEX_FILE = 'index_16.json'
+
+    @configuration
+    def test_pickle_file(self):
+        # Run the state machine through the 'persist' state.  Create a new
+        # state object which restores the persisted state.
+        self._setup_keyrings()
+        self.assertFalse(os.path.exists(config.system.state_file))
+        state = State()
+        self.assertIsNone(state.winner)
+        state.run_thru('persist')
+        self.assertIsNotNone(state.winner)
+        self.assertTrue(os.path.exists(config.system.state_file))
+        state = State()
+        self.assertIsNotNone(state.winner)
+
+    @configuration
+    def test_no_update_no_pickle_file(self):
+        # If there's no update, there's no state file.
+        self._setup_keyrings()
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20250000, file=fp)
+        self.assertFalse(os.path.exists(config.system.state_file))
+        state = State()
+        self.assertIsNone(state.winner)
+        state.run_thru('persist')
+        self.assertEqual(state.winner, [])
+        self.assertFalse(os.path.exists(config.system.state_file))
+        state = State()
+        self.assertIsNone(state.winner)
