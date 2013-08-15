@@ -36,7 +36,7 @@ from pkg_resources import resource_filename
 from systemimage.config import Configuration, config
 from systemimage.main import main as cli_main
 from systemimage.testing.helpers import (
-    copy, temporary_directory, test_data_path, testable_configuration)
+    configuration, copy, data_path, temporary_directory)
 from unittest.mock import patch
 
 
@@ -113,7 +113,7 @@ class TestCLIMain(unittest.TestCase):
             # Create a configuration file with directories that point to
             # non-existent locations.
             config_ini = os.path.join(dir_1, 'client.ini')
-            with open(test_data_path('config_00.ini'), encoding='utf-8') as fp:
+            with open(data_path('config_00.ini'), encoding='utf-8') as fp:
                 template = fp.read()
             # These paths look something like they would on the real system.
             tmpdir = os.path.join(dir_2, 'tmp', 'system-image')
@@ -132,7 +132,7 @@ class TestCLIMain(unittest.TestCase):
             cli_main()
             self.assertTrue(os.path.exists(tmpdir))
 
-    @testable_configuration
+    @configuration
     def test_build_number(self, ini_file):
         # -b gives the build number.
         with ExitStack() as stack:
@@ -154,7 +154,7 @@ class TestCLIMain(unittest.TestCase):
             cli_main()
             self.assertEqual(capture.getvalue(), 'build number: 20130701\n')
 
-    @testable_configuration
+    @configuration
     def test_channel_device(self, ini_file):
         # -c gives the channel/device name.
         with ExitStack() as stack:
@@ -175,7 +175,7 @@ class TestCLIMain(unittest.TestCase):
             self.assertEqual(capture.getvalue(),
                              'channel/device: stable/nexus7\n')
 
-    @testable_configuration
+    @configuration
     def test_log_file(self, ini_file):
         # Test that the system log file gets created and written.
         config = Configuration()

@@ -29,13 +29,13 @@ from systemimage.config import config
 from systemimage.gpg import Context
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
-    copy, setup_keyring_txz, setup_keyrings, sign, testable_configuration)
+    configuration, copy, setup_keyring_txz, setup_keyrings, sign)
 
 
 class TestKeyrings(unittest.TestCase):
     """Test various attributes of the 5 defined keyrings."""
 
-    @testable_configuration
+    @configuration
     def test_archive_master(self):
         # The archive master keyring contains the master key.  This a
         # persistent, mandatory, shipped, non-expiring key.
@@ -56,7 +56,7 @@ class TestKeyrings(unittest.TestCase):
                 ['Ubuntu Archive Master Signing Key (TEST) '
                  '<ftpmaster@ubuntu.example.com>'])
 
-    @testable_configuration
+    @configuration
     def test_archive_master_cached(self):
         # Unpacking the .tar.xz caches the .gpg file contained within, so it
         # only needs to be unpacked once.  Test that the cached .gpg file is
@@ -68,7 +68,7 @@ class TestKeyrings(unittest.TestCase):
                 ctx.fingerprints,
                 set(['289518ED3A0C4CFE975A0B32E0979A7EADE8E880']))
 
-    @testable_configuration
+    @configuration
     def test_archive_and_image_masters(self):
         # There is also a system image master key which is also persistent,
         # mandatory, shipped, and non-expiring.  It should never need
@@ -98,7 +98,7 @@ class TestKeyrings(unittest.TestCase):
                     '<system-image@ubuntu.example.com>'
                 ])
 
-    @testable_configuration
+    @configuration
     def test_archive_image_masters_image_signing(self):
         # In addition to the above, there is also a image signing key which is
         # generally what downloaded files are signed with.  This key is also
@@ -135,7 +135,7 @@ class TestKeyrings(unittest.TestCase):
                     '<system-image@ubuntu.example.com>',
                 ])
 
-    @testable_configuration
+    @configuration
     def test_archive_image_masters_image_device_signing(self):
         # In addition to the above, there is also a device signing key which
         # downloaded files can also be signed with.  This key is also
@@ -178,14 +178,14 @@ class TestKeyrings(unittest.TestCase):
                     '<system-image@acme-phones.example.com>',
                 ])
 
-    @testable_configuration
+    @configuration
     def test_missing_keyring(self):
         # The keyring file does not exist.
         self.assertRaises(
             FileNotFoundError, Context,
             os.path.join(config.system.tempdir, 'does-not-exist.tar.xz'))
 
-    @testable_configuration
+    @configuration
     def test_missing_blacklist(self):
         # The blacklist file does not exist.
         blacklist = os.path.join(config.system.tempdir, 'no-blacklist.tar.xz')
@@ -201,7 +201,7 @@ class TestSignature(unittest.TestCase):
     def tearDown(self):
         self._stack.close()
 
-    @testable_configuration
+    @configuration
     def test_good_signature(self):
         # We have a channels.json file signed with the imaging signing key, as
         # would be the case in production.  The signature will match a context
@@ -217,7 +217,7 @@ class TestSignature(unittest.TestCase):
                 self.assertTrue(
                     ctx.verify(channels_json + '.asc', channels_json))
 
-    @testable_configuration
+    @configuration
     def test_bad_signature(self):
         # In this case, the file is signed with the device key, so it will not
         # verify against the image signing key.
@@ -233,7 +233,7 @@ class TestSignature(unittest.TestCase):
                 self.assertFalse(
                     ctx.verify(channels_json + '.asc', channels_json))
 
-    @testable_configuration
+    @configuration
     def test_good_signature_with_multiple_keyrings(self):
         # Like above, the file is signed with the device key, but this time we
         # include both the image signing and device signing pubkeys.
@@ -251,7 +251,7 @@ class TestSignature(unittest.TestCase):
                 self.assertTrue(
                     ctx.verify(channels_json + '.asc', channels_json))
 
-    @testable_configuration
+    @configuration
     def test_bad_signature_with_multiple_keyrings(self):
         # The file is signed with the image master key, but it won't verify
         # against the image signing and device signing pubkeys.
@@ -270,7 +270,7 @@ class TestSignature(unittest.TestCase):
                 self.assertFalse(
                     ctx.verify(channels_json + '.asc', channels_json))
 
-    @testable_configuration
+    @configuration
     def test_bad_not_even_a_signature(self):
         # The signature file isn't even a signature file.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
@@ -285,7 +285,7 @@ class TestSignature(unittest.TestCase):
                 self.assertFalse(ctx.verify(
                     channels_json + '.asc', channels_json))
 
-    @testable_configuration
+    @configuration
     def test_good_signature_not_in_blacklist(self):
         # We sign the file with the device signing key, and verify it against
         # the imaging signing and device signing keyrings.  In this case
@@ -309,7 +309,7 @@ class TestSignature(unittest.TestCase):
                 self.assertTrue(
                     ctx.verify(channels_json + '.asc', channels_json))
 
-    @testable_configuration
+    @configuration
     def test_bad_signature_in_blacklist(self):
         # Like above, but we put the device signing key id in the blacklist.
         channels_json = os.path.join(self._tmpdir, 'channels.json')

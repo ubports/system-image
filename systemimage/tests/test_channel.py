@@ -30,8 +30,8 @@ from systemimage.gpg import SignatureError
 from systemimage.helpers import temporary_directory
 from systemimage.state import State
 from systemimage.testing.helpers import (
-    copy, get_channels, make_http_server, setup_keyring_txz, setup_keyrings,
-    sign, testable_configuration)
+    configuration, copy, get_channels, make_http_server, setup_keyring_txz,
+    setup_keyrings, sign)
 
 
 class TestChannels(unittest.TestCase):
@@ -81,7 +81,7 @@ class TestLoadChannel(unittest.TestCase):
     def tearDown(self):
         self._stack.close()
 
-    @testable_configuration
+    @configuration
     def test_load_channel_good_path(self):
         # A channels.json file signed by the image signing key, no blacklist.
         # (blacklist -> channels)
@@ -93,7 +93,7 @@ class TestLoadChannel(unittest.TestCase):
         self.assertEqual(channels.daily.nexus7.keyring.signature,
                          '/daily/nexus7/device-keyring.tar.xz.asc')
 
-    @testable_configuration
+    @configuration
     def test_load_channel_bad_signature(self):
         # We get an error if the signature on the channels.json file is bad.
         # The state machine needs three transitions:
@@ -104,7 +104,7 @@ class TestLoadChannel(unittest.TestCase):
         next(self._state)
         self.assertRaises(SignatureError, next, self._state)
 
-    @testable_configuration
+    @configuration
     def test_load_channel_blacklisted_signature(self):
         # We get an error if the signature on the channels.json file is good
         # but the key is blacklisted.
@@ -118,7 +118,7 @@ class TestLoadChannel(unittest.TestCase):
         next(self._state)
         self.assertRaises(SignatureError, next, self._state)
 
-    @testable_configuration
+    @configuration
     def test_load_channel_bad_signature_gets_fixed(self):
         # The first load gets a bad signature, but the second one fixes the
         # signature and everything is fine.
@@ -159,7 +159,7 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
     def tearDown(self):
         self._stack.close()
 
-    @testable_configuration
+    @configuration
     def test_load_channel_over_https_port_with_http_fails(self):
         # We maliciously put an HTTP server on the HTTPS port.
         setup_keyrings()

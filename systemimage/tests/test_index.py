@@ -30,8 +30,8 @@ from systemimage.gpg import SignatureError
 from systemimage.helpers import temporary_directory
 from systemimage.state import State
 from systemimage.testing.helpers import (
-    copy, get_index, make_http_server, makedirs, setup_keyring_txz,
-    setup_keyrings, sign, testable_configuration)
+    configuration, copy, get_index, make_http_server, makedirs,
+    setup_keyring_txz, setup_keyrings, sign)
 
 
 class TestIndex(unittest.TestCase):
@@ -132,7 +132,7 @@ class TestDownloadIndex(unittest.TestCase):
         copy(src, self._serverdir, dst)
         sign(server_dst, keyring)
 
-    @testable_configuration
+    @configuration
     def test_load_index_good_path(self):
         # Load the index.json pointed to by the channels.json.  All signatures
         # validate correctly and there is no device keyring or blacklist.
@@ -153,7 +153,7 @@ class TestDownloadIndex(unittest.TestCase):
         self.assertEqual(
             state.index.images[0].files[1].checksum, 'bcd')
 
-    @testable_configuration
+    @configuration
     def test_load_index_with_device_keyring(self):
         # Here, the index.json file is signed with a device keyring.
         self._copysign(
@@ -177,7 +177,7 @@ class TestDownloadIndex(unittest.TestCase):
         self.assertEqual(
             state.index.images[0].files[1].checksum, 'bcd')
 
-    @testable_configuration
+    @configuration
     def test_load_index_with_device_keyring_and_signing_key(self):
         # Here, the index.json file is signed with the image signing keyring,
         # even though there is a device key.  That's fine.
@@ -202,7 +202,7 @@ class TestDownloadIndex(unittest.TestCase):
         self.assertEqual(
             state.index.images[0].files[1].checksum, 'bcd')
 
-    @testable_configuration
+    @configuration
     def test_load_index_with_bad_keyring(self):
         # Here, the index.json file is signed with a defective device keyring.
         self._copysign(
@@ -222,7 +222,7 @@ class TestDownloadIndex(unittest.TestCase):
             next(state)
         self.assertRaises(SignatureError, next, state)
 
-    @testable_configuration
+    @configuration
     def test_load_index_with_blacklist(self):
         # Here, we've blacklisted the device key.
         self._copysign(
@@ -245,7 +245,7 @@ class TestDownloadIndex(unittest.TestCase):
             next(state)
         self.assertRaises(SignatureError, next, state)
 
-    @testable_configuration
+    @configuration
     def test_missing_channel(self):
         # The system's channel does not exist.
         self._copysign(
@@ -262,7 +262,7 @@ class TestDownloadIndex(unittest.TestCase):
         # There really is nothing left to do.
         self.assertIsNone(state.index)
 
-    @testable_configuration
+    @configuration
     def test_missing_device(self):
         # The system's device does not exist.
         self._copysign(

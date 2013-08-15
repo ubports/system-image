@@ -27,14 +27,21 @@ setup(
     author_email='barry@ubuntu.com',
     license='GNU GPLv3',
     packages=find_packages(),
+    include_package_data=True,
     entry_points={
         'console_scripts': [
             'system-image-cli = systemimage.main:main',
             'system-image-dbus = systemimage.service:main',
             ],
+        'nose.plugins.0.10': [
+            'systemimage = systemimage.testing.nose:SystemImagePlugin',
+            ],
     },
     install_requires = [
         'python-gnupg',
         ],
-    include_package_data=True,
+    tests_require = [
+        'nose',
+        ],
+    test_suite = 'nose.collector',
     )

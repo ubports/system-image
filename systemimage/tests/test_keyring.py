@@ -31,8 +31,7 @@ from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import temporary_directory
 from systemimage.keyring import KeyringError, get_keyring
 from systemimage.testing.helpers import (
-    make_http_server, setup_keyring_txz, setup_keyrings,
-    testable_configuration)
+    configuration, make_http_server, setup_keyring_txz, setup_keyrings)
 
 
 class TestKeyring(unittest.TestCase):
@@ -54,7 +53,7 @@ class TestKeyring(unittest.TestCase):
     def tearDown(self):
         self._stack.close()
 
-    @testable_configuration
+    @configuration
     def test_keyring_good_path(self):
         # Everything checks out, with the simplest possible keyring.json.
         setup_keyrings('archive-master')
@@ -67,7 +66,7 @@ class TestKeyring(unittest.TestCase):
             self.assertEqual(ctx.fingerprints,
                              set(['289518ED3A0C4CFE975A0B32E0979A7EADE8E880']))
 
-    @testable_configuration
+    @configuration
     def test_keyring_good_path_full_json(self):
         # Everything checks out, with a fully loaded keyring.json file.
         next_year = datetime.now(tz=timezone.utc) + timedelta(days=365)
@@ -83,7 +82,7 @@ class TestKeyring(unittest.TestCase):
             self.assertEqual(ctx.fingerprints,
                              set(['289518ED3A0C4CFE975A0B32E0979A7EADE8E880']))
 
-    @testable_configuration
+    @configuration
     def test_keyring_good_path_model(self):
         # Everything checks out with the model specified.
         setup_keyrings()
@@ -97,7 +96,7 @@ class TestKeyring(unittest.TestCase):
             self.assertEqual(ctx.fingerprints,
                              set(['289518ED3A0C4CFE975A0B32E0979A7EADE8E880']))
 
-    @testable_configuration
+    @configuration
     def test_keyring_good_path_expiry(self):
         # Everything checks out, with the expiration date specified.
         next_year = datetime.now(tz=timezone.utc) + timedelta(days=365)
@@ -112,7 +111,7 @@ class TestKeyring(unittest.TestCase):
             self.assertEqual(ctx.fingerprints,
                              set(['289518ED3A0C4CFE975A0B32E0979A7EADE8E880']))
 
-    @testable_configuration
+    @configuration
     def test_good_path_device_signing_keyring(self):
         # Get the device signing keyring.
         setup_keyrings('archive-master', 'image-master', 'image-signing')
@@ -127,7 +126,7 @@ class TestKeyring(unittest.TestCase):
             self.assertEqual(ctx.fingerprints,
                              set(['94BE2CECF8A5AF9F3A10E2A6526B7016C3D2FB44']))
 
-    @testable_configuration
+    @configuration
     def test_good_path_blacklist(self):
         # Get the blacklist keyring.
         setup_keyrings('archive-master', 'image-master')
@@ -143,7 +142,7 @@ class TestKeyring(unittest.TestCase):
             self.assertEqual(ctx.fingerprints,
                              set(['94BE2CECF8A5AF9F3A10E2A6526B7016C3D2FB44']))
 
-    @testable_configuration
+    @configuration
     def test_tar_xz_file_missing(self):
         # If the tar.xz file cannot be downloaded, an error is raised.
         tarxz_path = os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz')
@@ -155,7 +154,7 @@ class TestKeyring(unittest.TestCase):
         self.assertRaises(FileNotFoundError, get_keyring,
                           'blacklist', 'gpg/blacklist.tar.xz', 'image-master')
 
-    @testable_configuration
+    @configuration
     def test_asc_file_missing(self):
         # If the tar.xz.asc file cannot be downloaded, an error is raised.
         tarxz_path = os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz')
@@ -167,7 +166,7 @@ class TestKeyring(unittest.TestCase):
         self.assertRaises(FileNotFoundError, get_keyring,
                           'blacklist', 'gpg/blacklist.tar.xz', 'image-master')
 
-    @testable_configuration
+    @configuration
     def test_keyring_bad_signature(self):
         # Both files are downloaded, but the signature does not match the
         # image-master key.
@@ -180,7 +179,7 @@ class TestKeyring(unittest.TestCase):
         self.assertRaises(SignatureError, get_keyring,
                           'blacklist', 'gpg/blacklist.tar.xz', 'image-master')
 
-    @testable_configuration
+    @configuration
     def test_keyring_blacklisted_signature(self):
         # Normally, the signature would be good, except that the fingerprint
         # of the device signing key is blacklisted.
@@ -201,7 +200,7 @@ class TestKeyring(unittest.TestCase):
                           'image-signing', 'gpg/image-signing.tar.xz',
                           'image-master', blacklist)
 
-    @testable_configuration
+    @configuration
     def test_keyring_bad_json_type(self):
         # This type, while the signatures match, the keyring type in the
         # keyring.json file does not match.
@@ -215,7 +214,7 @@ class TestKeyring(unittest.TestCase):
             cm.exception.message,
             'keyring type mismatch; wanted: blacklist, got: master')
 
-    @testable_configuration
+    @configuration
     def test_keyring_bad_json_model(self):
         # Similar to above, but with a non-matching model name.
         setup_keyrings()
@@ -229,7 +228,7 @@ class TestKeyring(unittest.TestCase):
             cm.exception.message,
             'keyring model mismatch; wanted: nexus7, got: nexus0')
 
-    @testable_configuration
+    @configuration
     def test_keyring_expired(self):
         # Similar to above, but the expiry key in the json names a utc
         # timestamp that has already elapsed.
@@ -245,7 +244,7 @@ class TestKeyring(unittest.TestCase):
         self.assertEqual(
             cm.exception.message, 'expired keyring timestamp')
 
-    @testable_configuration
+    @configuration
     def test_keyring_destination_image_master(self):
         # When a keyring is downloaded, we preserve its .tar.xz and
         # .tar.xz.asc files.
@@ -264,7 +263,7 @@ class TestKeyring(unittest.TestCase):
         with Context(config.gpg.archive_master) as ctx:
             self.assertTrue(ctx.verify(asc_path, config.gpg.image_master))
 
-    @testable_configuration
+    @configuration
     def test_keyring_destination_image_signing(self):
         # When a keyring is downloaded, we preserve its .tar.xz and
         # .tar.xz.asc files.
@@ -283,7 +282,7 @@ class TestKeyring(unittest.TestCase):
         with Context(config.gpg.image_master) as ctx:
             self.assertTrue(ctx.verify(asc_path, config.gpg.image_signing))
 
-    @testable_configuration
+    @configuration
     def test_keyring_destination_device_signing(self):
         # When a keyring is downloaded, we preserve its .tar.xz and
         # .tar.xz.asc files.
@@ -304,7 +303,7 @@ class TestKeyring(unittest.TestCase):
         with Context(config.gpg.image_signing) as ctx:
             self.assertTrue(ctx.verify(asc_path, config.gpg.device_signing))
 
-    @testable_configuration
+    @configuration
     def test_keyring_destination_blacklist(self):
         # Like above, but the blacklist files end up in the temporary
         # directory, since it's never persistent.

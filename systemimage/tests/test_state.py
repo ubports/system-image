@@ -34,8 +34,8 @@ from systemimage.config import config
 from systemimage.gpg import SignatureError
 from systemimage.state import State
 from systemimage.testing.helpers import (
-    copy, get_index, make_http_server, setup_index, setup_keyring_txz,
-    setup_keyrings, sign, temporary_directory, testable_configuration)
+    configuration, copy, get_index, make_http_server, setup_index,
+    setup_keyring_txz, setup_keyrings, sign, temporary_directory)
 from unittest.mock import patch
 
 
@@ -59,7 +59,7 @@ class TestState(unittest.TestCase):
     def tearDown(self):
         self._stack.close()
 
-    @testable_configuration
+    @configuration
     def test_first_signature_fails_get_new_image_signing_key(self):
         # The first time we check the channels.json file, the signature fails,
         # because it's blacklisted.  Everything works out in the end though
@@ -109,7 +109,7 @@ class TestState(unittest.TestCase):
         self.assertEqual(state.channels.stable.nexus7.index,
                          '/stable/nexus7/index.json')
 
-    @testable_configuration
+    @configuration
     def test_first_signature_fails_get_bad_image_signing_key(self):
         # The first time we check the channels.json file, the signature fails.
         # We try to get the new image signing key, but it is bogus.
@@ -141,7 +141,7 @@ class TestState(unittest.TestCase):
         with open(config.gpg.image_signing, 'rb') as fp:
             self.assertEqual(checksum, hashlib.md5(fp.read()).digest())
 
-    @testable_configuration
+    @configuration
     def test_bad_system_image_master_exposed_by_blacklist(self):
         # The blacklist is signed by the image master key.  If the blacklist's
         # signature is bad, the state machine will attempt to download a new
@@ -173,7 +173,7 @@ class TestState(unittest.TestCase):
         next(state)
         self.assertEqual(os.path.basename(state.blacklist), 'blacklist.tar.xz')
 
-    @testable_configuration
+    @configuration
     def test_bad_system_image_master_new_one_is_no_better(self):
         # The blacklist is signed by the system image master key.  If the
         # blacklist's signature is bad, the state machine will attempt to
@@ -204,7 +204,7 @@ class TestState(unittest.TestCase):
         with open(config.gpg.image_master, 'rb') as fp:
             self.assertEqual(checksum, hashlib.md5(fp.read()).digest())
 
-    @testable_configuration
+    @configuration
     def test_image_master_is_missing(self):
         # The system only comes pre-seeded with the archive master public
         # keyring.  All others are downloaded.
@@ -222,7 +222,7 @@ class TestState(unittest.TestCase):
         # Now the image master key exists.
         self.assertTrue(os.path.exists(config.gpg.image_master))
 
-    @testable_configuration
+    @configuration
     def test_image_master_is_missing_with_blacklist(self):
         # The system only comes pre-seeded with the archive master public
         # keyring.  All others are downloaded.  This time there is a
@@ -244,7 +244,7 @@ class TestState(unittest.TestCase):
         # Now the image master key exists.
         self.assertTrue(os.path.exists(config.gpg.image_master))
 
-    @testable_configuration
+    @configuration
     def test_image_signing_is_missing(self):
         # The system only comes pre-seeded with the archive master public
         # keyring.  All others are downloaded.
@@ -274,7 +274,7 @@ class TestState(unittest.TestCase):
         self.assertTrue(os.path.exists(config.gpg.image_master))
         self.assertTrue(os.path.exists(config.gpg.image_signing))
 
-    @testable_configuration
+    @configuration
     def test_downloaded_image_signing_is_still_bad(self):
         # LP: #1191979: Let's say there's a blacklist.tar.xz file but it is
         # not signed with the system image master key.  The state machine will
@@ -365,7 +365,7 @@ class TestRebooting(_StateTestsBase):
 
     INDEX_FILE = 'index_13.json'
 
-    @testable_configuration
+    @configuration
     def test_keyrings_copied_to_upgrader_paths(self):
         # The following keyrings get copied to system paths that the upgrader
         # consults:
@@ -424,7 +424,7 @@ class TestRebooting(_StateTestsBase):
                 self.assertTrue(os.path.exists(path))
                 self.assertTrue(os.path.exists(asc))
 
-    @testable_configuration
+    @configuration
     def test_reboot_issued(self):
         # The reboot gets issued.
         self._setup_keyrings()
@@ -434,7 +434,7 @@ class TestRebooting(_StateTestsBase):
                          ['/sbin/reboot', '-f', 'recovery'])
 
 
-    @testable_configuration
+    @configuration
     def test_no_update_available_no_reboot(self):
         # LP: #1202915.  If there's no update available, running the state
         # machine to completion should not result in a reboot.
@@ -447,13 +447,13 @@ class TestRebooting(_StateTestsBase):
         self.assertEqual(mock.call_count, 0)
 
     @unittest.skipIf(os.getuid() == 0, 'This test would actually reboot!')
-    @testable_configuration
+    @configuration
     def test_reboot_fails(self):
         # The reboot fails, e.g. because we are not root.
         self._setup_keyrings()
         self.assertRaises(CalledProcessError, list, State())
 
-    @testable_configuration
+    @configuration
     def test_run_until(self):
         # It is possible to run the state machine either until some specific
         # state is completed, or it runs to the end.
@@ -487,7 +487,7 @@ class TestRebooting(_StateTestsBase):
 class TestCommandFileFull(_StateTestsBase):
     INDEX_FILE = 'index_13.json'
 
-    @testable_configuration
+    @configuration
     def test_full_command_file(self):
         # A full update's command file gets properly filled.
         self._setup_keyrings()
@@ -511,7 +511,7 @@ unmount system
 class TestCommandFileDelta(_StateTestsBase):
     INDEX_FILE = 'index_15.json'
 
-    @testable_configuration
+    @configuration
     def test_delta_command_file(self):
         # A delta update's command file gets properly filled.
         self._setup_keyrings()
@@ -537,7 +537,7 @@ unmount system
 class TestFileOrder(_StateTestsBase):
     INDEX_FILE = 'index_16.json'
 
-    @testable_configuration
+    @configuration
     def test_file_order(self):
         # Updates are applied sorted first by image positional order, then
         # within the image by the 'order' key.

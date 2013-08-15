@@ -27,9 +27,10 @@ import unittest
 from datetime import timedelta
 from pkg_resources import resource_filename
 from systemimage.config import Configuration, config
+from systemimage.device import SystemProperty
 from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
-from systemimage.testing.helpers import test_data_path, testable_configuration
+from systemimage.testing.helpers import configuration, data_path
 from systemimage.reboot import Reboot
 from unittest.mock import patch
 
@@ -52,7 +53,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
         self.assertEqual(config.system.loglevel, logging.ERROR)
-        # [score]
+        # [hooks]
+        self.assertEqual(config.hooks.device, SystemProperty)
         self.assertEqual(config.hooks.scorer, WeightedScorer)
         self.assertEqual(config.hooks.reboot, Reboot)
         # [gpg]
@@ -78,7 +80,7 @@ class TestConfiguration(unittest.TestCase):
     def test_basic_ini_file(self):
         # Read a basic .ini file and check that the various attributes and
         # values are correct.
-        ini_file = test_data_path('config_01.ini')
+        ini_file = data_path('config_01.ini')
         config = Configuration()
         config.load(ini_file)
         # [service]
@@ -97,6 +99,7 @@ class TestConfiguration(unittest.TestCase):
                          '/var/log/system-image/client.log')
         self.assertEqual(config.system.loglevel, logging.ERROR)
         # [hooks]
+        self.assertEqual(config.hooks.device, SystemProperty)
         self.assertEqual(config.hooks.scorer, WeightedScorer)
         self.assertEqual(config.hooks.reboot, Reboot)
         # [gpg]
@@ -117,7 +120,7 @@ class TestConfiguration(unittest.TestCase):
 
     def test_nonstandard_ports(self):
         # config_02.ini has non-standard http and https ports.
-        ini_file = test_data_path('config_02.ini')
+        ini_file = data_path('config_02.ini')
         config = Configuration()
         config.load(ini_file)
         self.assertEqual(config.service.base, 'phablet.example.com')
@@ -126,7 +129,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.https_base,
                          'https://phablet.example.com:80443')
 
-    @testable_configuration
+    @configuration
     def test_get_build_number(self, ini_file):
         # The current build number is stored in a file specified in the
         # configuration file.
@@ -136,14 +139,14 @@ class TestConfiguration(unittest.TestCase):
             print(20130500, file=fp)
         self.assertEqual(config.build_number, 20130500)
 
-    @testable_configuration
+    @configuration
     def test_get_build_number_missing(self, ini_file):
         # The build file is missing, so the build number defaults to 0.
         config = Configuration()
         config.load(ini_file)
         self.assertEqual(config.build_number, 0)
 
-    @testable_configuration
+    @configuration
     def test_get_device_name(self, ini_file):
         config = Configuration()
         config.load(ini_file)

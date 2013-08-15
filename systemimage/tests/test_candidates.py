@@ -26,7 +26,7 @@ import unittest
 from operator import attrgetter
 from systemimage.candidates import get_candidates, iter_path
 from systemimage.scores import WeightedScorer
-from systemimage.testing.helpers import get_index, testable_configuration
+from systemimage.testing.helpers import configuration, get_index
 
 
 class TestCandidates(unittest.TestCase):
@@ -177,7 +177,7 @@ class TestCandidates(unittest.TestCase):
 class TestCandidateDownloads(unittest.TestCase):
     maxDiff = None
 
-    @testable_configuration
+    @configuration
     def test_get_downloads(self):
         # Path B will win; it has one full and two deltas, none of which have
         # a bootme flag.  Download all their files.
@@ -215,7 +215,7 @@ class TestCandidateDownloads(unittest.TestCase):
             '/f/e/d.txt.asc',
             ]))
 
-    @testable_configuration
+    @configuration
     def test_get_downloads_with_bootme(self):
         # Path B will win; it has one full and two deltas.  The first delta
         # has a bootme flag so the second delta's files are not downloaded.

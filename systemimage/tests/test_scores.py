@@ -21,7 +21,6 @@ __all__ = [
 import unittest
 
 from systemimage.candidates import get_candidates
-from systemimage.image import Image
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import get_index
 

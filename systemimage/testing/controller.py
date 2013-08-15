@@ -36,7 +36,7 @@ from distutils.spawn import find_executable
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import Configuration
 from systemimage.helpers import temporary_directory
-from systemimage.testing.helpers import reset_envar, test_data_path
+from systemimage.testing.helpers import data_path, reset_envar
 
 
 SPACE = ' '
@@ -56,8 +56,8 @@ class Controller:
         self.serverdir = self._stack.enter_context(temporary_directory())
         self.daemon_pid = None
         # Set up the dbus-daemon system configuration file.
-        with open(test_data_path('dbus-system.conf.in'),
-                  'r', encoding='utf-8') as fp:
+        path = data_path('dbus-system.conf.in')
+        with open(path, 'r', encoding='utf-8') as fp:
             template = fp.read()
         username = pwd.getpwuid(os.getuid()).pw_name
         config = template.format(tmpdir=self.tmpdir, user=username)
@@ -85,8 +85,8 @@ class Controller:
                    ]
         for service in SERVICES:
             service_file = service + '.service'
-            with open(test_data_path(service_file + '.in'),
-                      'r', encoding='utf-8') as fp:
+            path = data_path(service_file + '.in')
+            with open(path, 'r', encoding='utf-8') as fp:
                 template = fp.read()
             config = template.format(command=SPACE.join(command))
             service_path = os.path.join(self.tmpdir, service_file)

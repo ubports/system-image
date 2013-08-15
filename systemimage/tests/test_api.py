@@ -28,8 +28,8 @@ from contextlib import ExitStack
 from systemimage.api import Cancel, Mediator
 from systemimage.config import config
 from systemimage.testing.helpers import (
-    copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
-    sign, temporary_directory, testable_configuration)
+    configuration, copy, make_http_server, setup_index, setup_keyring_txz,
+    setup_keyrings, sign, temporary_directory)
 
 
 class TestAPI(unittest.TestCase):
@@ -83,7 +83,7 @@ class TestAPI(unittest.TestCase):
             os.path.join(self._serverdir, 'stable', 'nexus7',
                          'device-signing.tar.xz'))
 
-    @testable_configuration
+    @configuration
     def test_update_available(self):
         # Because our build number is lower than the latest available in the
         # index file, there is an update available.
@@ -91,7 +91,7 @@ class TestAPI(unittest.TestCase):
         mediator = Mediator()
         self.assertTrue(mediator.check_for_update())
 
-    @testable_configuration
+    @configuration
     def test_update_available_version(self):
         # An update is available.  What's the target version number?
         self._setup_keyrings()
@@ -99,7 +99,7 @@ class TestAPI(unittest.TestCase):
         updates = mediator.check_for_update()
         self.assertEqual(updates.version, 20130600)
 
-    @testable_configuration
+    @configuration
     def test_no_update_available_version(self):
         # No update is available, so the target version number is zero.
         self._setup_keyrings()
@@ -109,7 +109,7 @@ class TestAPI(unittest.TestCase):
         updates = mediator.check_for_update()
         self.assertEqual(updates.version, 0)
 
-    @testable_configuration
+    @configuration
     def test_no_update_available_at_latest(self):
         # Because our build number is equal to the latest available in the
         # index file, there is no update available.
@@ -119,7 +119,7 @@ class TestAPI(unittest.TestCase):
         mediator = Mediator()
         self.assertFalse(mediator.check_for_update())
 
-    @testable_configuration
+    @configuration
     def test_no_update_available_newer(self):
         # Because our build number is higher than the latest available in the
         # index file, there is no update available.
@@ -129,7 +129,7 @@ class TestAPI(unittest.TestCase):
         mediator = Mediator()
         self.assertFalse(mediator.check_for_update())
 
-    @testable_configuration
+    @configuration
     def test_get_details(self):
         # Get the details of an available update.
         self._setup_keyrings()
@@ -165,7 +165,7 @@ class TestAPI(unittest.TestCase):
             'description-xx_CC': 'This hyar is the delta B.2',
             })
 
-    @testable_configuration
+    @configuration
     def test_complete_update(self):
         # After checking that an update is available, complete the update, but
         # don't reboot.
@@ -218,7 +218,7 @@ unmount system
             'blacklist.tar.xz.asc',
             ]))
 
-    @testable_configuration
+    @configuration
     def test_reboot(self):
         # Run the intermediate steps, and finish with a reboot.
         self._setup_keyrings()
@@ -236,7 +236,7 @@ unmount system
             mediator.reboot()
             self.assertTrue(got_reboot)
 
-    @testable_configuration
+    @configuration
     def test_cancel(self):
         # When we get to the step of downloading the files, cancel it.
         self._setup_keyrings()
@@ -245,7 +245,7 @@ unmount system
         mediator.cancel()
         self.assertRaises(Cancel, mediator.complete_update)
 
-    @testable_configuration
+    @configuration
     def test_reboot_after_cancel(self):
         # Trying to reboot after the download has been canceled raises the
         # Cancel exception.
@@ -258,7 +258,7 @@ unmount system
         mediator.cancel()
         self.assertRaises(Cancel, mediator.reboot)
 
-    @testable_configuration
+    @configuration
     def test_get_build_number(self):
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130701, file=fp)
