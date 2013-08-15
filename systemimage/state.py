@@ -269,6 +269,44 @@ class State:
             self.blacklist)
         # We don't need to set the next action because it's already been done.
 
+    def _get_master_key(self):
+        """Try to get and validate a new image master key.
+
+        If there isn't one, throw a SignatureError.
+        """
+        try:
+            log.info('Getting the image master key')
+            # The image signing key must be signed by the archive master.
+            get_keyring(
+                'image-master', 'gpg/image-master.tar.xz',
+                'archive-master', self.blacklist)
+        except (FileNotFoundError, SignatureError, KeyringError):
+            # No valid image master key could be found.  Don't chain this
+            # exception.
+            log.error('No valid imaging master key found')
+            raise SignatureError from None
+        # Retry the previous step.
+        log.info('Installing new image master key to: {}',
+                 config.gpg.image_master)
+        self._next.appendleft(self._get_blacklist_2)
+
+    def _get_signing_key(self):
+        """Try to get and validate a new image signing key.
+
+        If there isn't one, throw a SignatureError.
+        """
+        try:
+            # The image signing key must be signed by the image master.
+            get_keyring(
+                'image-signing', 'gpg/image-signing.tar.xz', 'image-master',
+                self.blacklist)
+        except (FileNotFoundError, SignatureError, KeyringError):
+            # No valid image signing key could be found.  Don't chain this
+            # exception.
+            raise SignatureError from None
+        # Retry the previous step.
+        self._next.appendleft(self._get_channel)
+
     def _get_index(self, index):
         """Get and verify the index.json file."""
         index_url = urljoin(config.service.https_base, index)
@@ -373,44 +411,6 @@ class State:
         # Now, copy the files from the temporary directory into the location
         # for the upgrader.
         self._next.append(self._move_files)
-
-    def _get_master_key(self):
-        """Try to get and validate a new image master key.
-
-        If there isn't one, throw a SignatureError.
-        """
-        try:
-            log.info('Getting the image master key')
-            # The image signing key must be signed by the archive master.
-            get_keyring(
-                'image-master', 'gpg/image-master.tar.xz',
-                'archive-master', self.blacklist)
-        except (FileNotFoundError, SignatureError, KeyringError):
-            # No valid image master key could be found.  Don't chain this
-            # exception.
-            log.error('No valid imaging master key found')
-            raise SignatureError from None
-        # Retry the previous step.
-        log.info('Installing new image master key to: {}',
-                 config.gpg.image_master)
-        self._next.appendleft(self._get_blacklist_2)
-
-    def _get_signing_key(self):
-        """Try to get and validate a new image signing key.
-
-        If there isn't one, throw a SignatureError.
-        """
-        try:
-            # The image signing key must be signed by the image master.
-            get_keyring(
-                'image-signing', 'gpg/image-signing.tar.xz', 'image-master',
-                self.blacklist)
-        except (FileNotFoundError, SignatureError, KeyringError):
-            # No valid image signing key could be found.  Don't chain this
-            # exception.
-            raise SignatureError from None
-        # Retry the previous step.
-        self._next.appendleft(self._get_channel)
 
     def _move_files(self):
         # The upgrader already has the archive-master, so we don't need to
