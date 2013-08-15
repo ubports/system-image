@@ -32,9 +32,8 @@ from systemimage.helpers import temporary_directory
 from systemimage.scores import WeightedScorer
 from systemimage.state import ChecksumError, State
 from systemimage.testing.helpers import (
-    copy, get_index, make_http_server, makedirs, setup_index,
-    setup_keyring_txz, setup_keyrings, sign, test_data_path,
-    testable_configuration)
+    configuration, copy, get_index, make_http_server, makedirs, setup_index,
+    setup_keyring_txz, setup_keyrings, sign)
 
 
 class TestWinnerDownloads(unittest.TestCase):
@@ -70,7 +69,7 @@ class TestWinnerDownloads(unittest.TestCase):
     def tearDown(self):
         self._stack.close()
 
-    @testable_configuration
+    @configuration
     def test_calculate_candidates(self):
         # Calculate the candidate paths.
         setup_keyrings()
@@ -100,7 +99,7 @@ class TestWinnerDownloads(unittest.TestCase):
             descriptions.extend(image.descriptions.values())
         self.assertEqual(descriptions, ['Full C', 'Delta C.1'])
 
-    @testable_configuration
+    @configuration
     def test_calculate_winner(self):
         # Calculate the winning upgrade path.
         setup_keyrings()
@@ -119,7 +118,7 @@ class TestWinnerDownloads(unittest.TestCase):
             descriptions.extend(image.descriptions.values())
         self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
 
-    @testable_configuration
+    @configuration
     def test_download_winners(self):
         # Check that all the winning path's files are downloaded.
         setup_keyrings()
@@ -148,7 +147,7 @@ class TestWinnerDownloads(unittest.TestCase):
         assert_file_contains('d.txt', 'fed')
         assert_file_contains('c.txt', 'edc')
 
-    @testable_configuration
+    @configuration
     def test_download_winners_signed_by_device_key(self):
         # Check that all the winning path's files are downloaded, even when
         # they are signed by the device key instead of the image signing
@@ -194,7 +193,7 @@ class TestWinnerDownloads(unittest.TestCase):
         assert_file_contains('d.txt', 'fed')
         assert_file_contains('c.txt', 'edc')
 
-    @testable_configuration
+    @configuration
     def test_download_winners_signed_by_signing_key_with_device_key(self):
         # Check that all the winning path's files are downloaded, even when
         # they are signed by the device key instead of the image signing
@@ -239,7 +238,7 @@ class TestWinnerDownloads(unittest.TestCase):
         assert_file_contains('d.txt', 'fed')
         assert_file_contains('c.txt', 'edc')
 
-    @testable_configuration
+    @configuration
     def test_download_winners_bad_checksums(self):
         # Similar to the various good paths, except because the checksums are
         # wrong in index_10.json, we'll get a error when downloading.
@@ -259,7 +258,7 @@ class TestWinnerDownloads(unittest.TestCase):
             next(state)
         self.assertRaises(ChecksumError, next, state)
 
-    @testable_configuration
+    @configuration
     def test_download_winners_signed_by_wrong_key(self):
         # There is a device key, but the image files are signed by the image
         # signing key, which according to the spec means the files are not
@@ -297,7 +296,7 @@ class TestWinnerDownloads(unittest.TestCase):
                        if os.path.splitext(filename)[1] == '.txt')
         self.assertEqual(len(txtfiles), 0)
 
-    @testable_configuration
+    @configuration
     def test_no_download_winners_with_missing_signature(self):
         # If one of the download files is missing a signature, none of the
         # files get downloaded and get_files() fails.
@@ -320,7 +319,7 @@ class TestWinnerDownloads(unittest.TestCase):
                        if os.path.splitext(filename)[1] == '.txt')
         self.assertEqual(len(txtfiles), 0)
 
-    @testable_configuration
+    @configuration
     def test_no_download_winners_with_bad_signature(self):
         # If one of the download files has a bad a signature, none of the
         # files get downloaded and get_files() fails.

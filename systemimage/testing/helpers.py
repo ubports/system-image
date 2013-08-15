@@ -16,7 +16,9 @@
 """Test helpers."""
 
 __all__ = [
+    'configuration',
     'copy',
+    'data_path',
     'get_channels',
     'get_index',
     'make_http_server',
@@ -25,8 +27,6 @@ __all__ = [
     'setup_keyring_txz',
     'setup_keyrings',
     'sign',
-    'test_data_path',
-    'testable_configuration',
     ]
 
 
@@ -40,7 +40,7 @@ import tarfile
 import tempfile
 
 from contextlib import ExitStack, contextmanager
-from functools import partial
+from functools import partial, wraps
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from systemimage.channel import Channels
@@ -65,7 +65,7 @@ def get_channels(filename):
     return Channels.from_json(json_bytes.decode('utf-8'))
 
 
-def test_data_path(filename):
+def data_path(filename):
     return os.path.abspath(
         resource_filename('systemimage.tests.data', filename))
 
@@ -116,7 +116,7 @@ def make_http_server(directory, port, certpem=None, keypem=None,
     # Wrap the socket in the SSL context if given.
     ssl_context = None
     if certpem is not None and keypem is not None:
-        data_dir = os.path.dirname(test_data_path('__init__.py'))
+        data_dir = os.path.dirname(data_path('__init__.py'))
         if not os.path.isabs(certpem):
             certpem = os.path.join(data_dir, certpem)
         if not os.path.isabs(keypem):
@@ -149,7 +149,7 @@ def make_http_server(directory, port, certpem=None, keypem=None,
         return stack.pop_all()
 
 
-def testable_configuration(function):
+def configuration(function):
     """Decorator that produces a temporary configuration for testing.
 
     The config_00.ini template is copied to a temporary file and the
@@ -161,6 +161,7 @@ def testable_configuration(function):
 
     Everything is properly cleaned up after the test method exits.
     """
+    @wraps(function)
     def wrapper(*args, **kws):
         with ExitStack() as stack:
             fd, ini_file = tempfile.mkstemp(suffix='.ini')
@@ -199,8 +200,8 @@ def sign(filename, pubkey_ring):
     """
     with ExitStack() as stack:
         home = stack.enter_context(temporary_directory())
-        secring = test_data_path('master-secring.gpg')
-        pubring = test_data_path(pubkey_ring)
+        secring = data_path('master-secring.gpg')
+        pubring = data_path(pubkey_ring)
         ctx = gnupg.GPG(gnupghome=home, keyring=pubring,
                         #verbose=True,
                         secret_keyring=secring)
@@ -215,7 +216,7 @@ def sign(filename, pubkey_ring):
 
 
 def copy(filename, todir, dst=None):
-    src = test_data_path(filename)
+    src = data_path(filename)
     dst = os.path.join(todir, filename if dst is None else dst)
     makedirs(os.path.dirname(dst))
     shutil.copy(src, dst)

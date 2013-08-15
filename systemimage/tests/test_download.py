@@ -35,8 +35,7 @@ from systemimage.config import config
 from systemimage.download import CHUNK_SIZE, Downloader, get_files
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
-    make_http_server, temporary_directory, test_data_path,
-    testable_configuration)
+    configuration, data_path, make_http_server, temporary_directory)
 from threading import Event
 from unittest.mock import patch
 from urllib.error import URLError
@@ -54,7 +53,7 @@ class TestDownloads(unittest.TestCase):
         try:
             # Start the HTTP server running, vending files out of our test
             # data directory.
-            directory = os.path.dirname(test_data_path('__init__.py'))
+            directory = os.path.dirname(data_path('__init__.py'))
             self._stack.push(make_http_server(directory, 8980))
         except:
             self._stack.close()
@@ -69,7 +68,7 @@ class TestDownloads(unittest.TestCase):
              os.path.join(config.system.tempdir, filename)
             ) for url, filename in downloads]
 
-    @testable_configuration
+    @configuration
     def test_user_agent(self):
         # The User-Agent contains the build number.
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
@@ -82,7 +81,7 @@ class TestDownloads(unittest.TestCase):
                  response.headers['User-Agent-Echo'],
                  'Ubuntu System Image Upgrade Client; Build 20130100')
 
-    @testable_configuration
+    @configuration
     def test_download_good_path(self):
         # Download a bunch of files that exist.  No callback.
         get_files(self._abspathify([
@@ -93,11 +92,12 @@ class TestDownloads(unittest.TestCase):
             set(os.listdir(config.system.tempdir)),
             set(['channels.json', 'index.json']))
 
-    @testable_configuration
+    @configuration
     def test_download_with_callback(self):
         # Downloading calls the callback with some arguments.
         results = []
         def callback(*args):
+            print('CALLBACK:', args)
             results.append(args)
         get_files(self._abspathify([
             ('channels_01.json', 'channels.json'),
@@ -120,7 +120,7 @@ class TestDownloads(unittest.TestCase):
             urljoin(config.service.http_base, 'index_01.json'): 99,
             })
 
-    @testable_configuration
+    @configuration
     def test_download_with_callback_and_sizes(self):
         # Now we're providing a sequence of expected sizes of the source
         # files.  This will get passed to the callback so that more useful
@@ -139,7 +139,7 @@ class TestDownloads(unittest.TestCase):
             first_size = sizes[0]
             self.assertTrue(all(size == first_size for size in sizes))
 
-    @testable_configuration
+    @configuration
     @patch('systemimage.download.CHUNK_SIZE', 10)
     def test_download_chunks(self):
         # Similar to the above test, but makes sure that the chunking reads in
@@ -158,7 +158,7 @@ class TestDownloads(unittest.TestCase):
             results[urljoin(config.service.http_base, 'index_01.json')])
         self.assertEqual(index, [i * 10 for i in range(1, 10)] + [99])
 
-    @testable_configuration
+    @configuration
     def test_download_404(self):
         # Try to download a file which doesn't exist.  Since it's all or
         # nothing, the temp directory will be empty.
@@ -174,7 +174,7 @@ class TestHTTPSDownloads(unittest.TestCase):
     maxDiff = None
 
     def setUp(self):
-        self._directory = os.path.dirname(test_data_path('__init__.py'))
+        self._directory = os.path.dirname(data_path('__init__.py'))
 
     def test_https_good_path(self):
         # The HTTPS server has a valid certificate (mocked so that its CA is
@@ -351,7 +351,7 @@ class TestRegressions(unittest.TestCase):
     def tearDown(self):
         self._stack.close()
 
-    @testable_configuration
+    @configuration
     def test_lp1199361(self):
         # Downloading more files than there are threads causes a timeout error.
         downloads = []

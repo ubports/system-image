@@ -30,7 +30,7 @@ from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.dbus import Service
 from systemimage.helpers import makedirs
-from systemimage.testing.helpers import test_data_path
+from systemimage.testing.helpers import data_path
 from unittest.mock import patch
 from urllib.request import urlopen
 
@@ -56,7 +56,7 @@ def instrument(config, stack):
     # manager here so that the function actually gets patched.
     stack.enter_context(
         patch('systemimage.download.urlopen',
-              partial(urlopen, cafile=test_data_path('cert.pem'))))
+              partial(urlopen, cafile=data_path('cert.pem'))))
     # Patch the subprocess call to write the reboot command to a log
     # file which the testing parent process can open and read.
     safe_reboot = _ActionLog('reboot.log')

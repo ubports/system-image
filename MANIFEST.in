@@ -1,5 +1,5 @@
 include *.py MANIFEST.in
-global-include *.txt *.rst *.json *.ini *.gpg *.pem *.service *.in *.conf
+global-include *.txt *.rst *.json *.ini *.gpg *.pem *.service *.in *.conf *.cfg
 prune build
 prune dist
 prune .tox
