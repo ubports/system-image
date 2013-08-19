@@ -29,7 +29,7 @@ from functools import partial
 from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.dbus import Service
-from systemimage.helpers import makedirs
+from systemimage.helpers import makedirs, safe_remove
 from systemimage.testing.helpers import data_path
 from unittest.mock import patch
 from urllib.request import urlopen
@@ -75,6 +75,7 @@ class _LiveTestableService(Service):
         self._checking = False
         self._completing = False
         self._rebootable = True
+        safe_remove(config.system.state_file)
 
 
 class _NoUpdateService(Service):
