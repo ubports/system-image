@@ -375,12 +375,6 @@ class TestRebooting(_StateTestsBase):
         # * image-signing.tar.xz{,.asc}  - cache partition
         # * device-signing.tar.xz{,.asc} - cache partition (if one exists)
         self._setup_keyrings()
-        # Run the state machine enough times to download all the keyrings and
-        # data files, then to move the files into place just before a reboot
-        # is issued.  Steps preceded by * are steps that fail.
-        # *get blacklist/get master -> get channels/signing
-        # -> get device signing -> get index -> calculate winner
-        # -> download files -> move files
         cache_dir = config.updater.cache_partition
         data_dir = config.updater.data_partition
         blacklist_path = os.path.join(data_dir, 'blacklist.tar.xz')
@@ -404,9 +398,14 @@ class TestRebooting(_StateTestsBase):
                     cache_dir, os.path.basename(filerec.signature))
                 self.assertFalse(os.path.exists(path))
                 self.assertFalse(os.path.exists(asc))
+        # Run the state machine enough times to download all the keyrings and
+        # data files, then to move the files into place just before a reboot
+        # is issued.  Steps preceded by * are steps that fail.
+        # *get blacklist/get master -> get channels/signing
+        # -> get device signing -> get index -> calculate winner
+        # -> download files -> move files
         state = State()
-        for i in range(7):
-            next(state)
+        state.run_thru('move_files')
         # All of the keyrings and .asc files are found.
         self.assertTrue(os.path.exists(blacklist_path))
         self.assertTrue(os.path.exists(master_path))

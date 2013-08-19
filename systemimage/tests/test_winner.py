@@ -74,27 +74,23 @@ class TestWinnerDownloads(unittest.TestCase):
         # Calculate the candidate paths.
         setup_keyrings()
         state = State()
-        # Run the state machine 4 times to get the candidates and winner.
-        # (blacklist -> channel -> index -> calculate)
-        for i in range(4):
-            next(state)
-        # Set the build number.
-        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        # Run the state machine until we get an index file.
+        state.run_until('calculate_winner')
+        candidates = get_candidates(state.index, 20120100)
         # There are three candidate upgrade paths.
-        self.assertEqual(len(state.candidates), 3)
+        self.assertEqual(len(candidates), 3)
         descriptions = []
-        for image in state.candidates[0]:
+        for image in candidates[0]:
             # There's only one description per image so order doesn't matter.
             descriptions.extend(image.descriptions.values())
         self.assertEqual(descriptions, ['Full A', 'Delta A.1', 'Delta A.2'])
         descriptions = []
-        for image in state.candidates[1]:
+        for image in candidates[1]:
             # There's only one description per image so order doesn't matter.
             descriptions.extend(image.descriptions.values())
         self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
         descriptions = []
-        for image in state.candidates[2]:
+        for image in candidates[2]:
             # There's only one description per image so order doesn't matter.
             descriptions.extend(image.descriptions.values())
         self.assertEqual(descriptions, ['Full C', 'Delta C.1'])
@@ -126,10 +122,8 @@ class TestWinnerDownloads(unittest.TestCase):
         # Set the build number.
         with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
             print(20120100, file=fp)
-        # Run the state machine 5 times to get the files.
-        # (blacklist -> channel -> index -> calculate -> download)
-        for i in range(5):
-            next(state)
+        # Run the state machine until we download the files.
+        state.run_thru('download_files')
         # The B path files contain their checksums.
         def assert_file_contains(filename, contents):
             path = os.path.join(config.system.tempdir, filename)
@@ -170,12 +164,9 @@ class TestWinnerDownloads(unittest.TestCase):
         # Set the build number.
         with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
             print(20120100, file=fp)
-        # Because there's a device key, run the state machine 6 times to get
-        # the files.
-        # (blacklist -> channel -> index -> devicekey -> calculate -> download)
+        # Run the state machine until we download the files.
         state = State()
-        for i in range(6):
-            next(state)
+        state.run_thru('download_files')
         # The B path files contain their checksums.
         def assert_file_contains(filename, contents):
             path = os.path.join(config.system.tempdir, filename)
@@ -215,12 +206,9 @@ class TestWinnerDownloads(unittest.TestCase):
         # Set the build number.
         with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
             print(20120100, file=fp)
-        # Because there's a device key, run the state machine 6 times to get
-        # the files.
-        # (blacklist -> channel -> index -> devicekey -> calculate -> download)
+        # Run the state machine until we download the files.
         state = State()
-        for i in range(6):
-            next(state)
+        state.run_thru('download_files')
         # The B path files contain their checksums.
         def assert_file_contains(filename, contents):
             path = os.path.join(config.system.tempdir, filename)
@@ -251,11 +239,9 @@ class TestWinnerDownloads(unittest.TestCase):
         # Set the build number.
         with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
             print(20120100, file=fp)
-        # Run the state machine 4 times to get prepped.
-        # (blacklist -> channel -> index -> calculate)
+        # Run the state machine until we're prepped to download
+        state.run_until('download_files')
         # Now try to download the files and get the error.
-        for i in range(4):
-            next(state)
         self.assertRaises(ChecksumError, next, state)
 
     @configuration
@@ -280,14 +266,9 @@ class TestWinnerDownloads(unittest.TestCase):
         # Set the build number.
         with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
             print(20120100, file=fp)
-        # Because there's a device key, run the state machine 6 times to get
-        # the files.  However, since we want to catch the exception on step 6,
-        # run it just 5 times now.
-        #
-        # (blacklist -> channel -> index -> devicekey -> calculate -> download)
+        # Run the state machine until just before we download the files.
         state = State()
-        for i in range(5):
-            next(state)
+        state.run_until('download_files')
         # The next state transition will fail because of the missing signature.
         self.assertRaises(SignatureError, next, state)
         # There are no downloaded files.
@@ -307,10 +288,8 @@ class TestWinnerDownloads(unittest.TestCase):
             print(20120100, file=fp)
         # Remove a signature.
         os.remove(os.path.join(self._serverdir, '6/7/8.txt.asc'))
-        # Run the state machine 4 times to calculate the winning path.
-        # (blacklist -> channel -> index -> calculate [-> download])
-        for i in range(4):
-            next(state)
+        # Run the state machine to calculate the winning path.
+        state.run_until('download_files')
         # The next state transition will fail because of the missing signature.
         self.assertRaises(FileNotFoundError, next, state)
         # There are no downloaded files.
@@ -330,10 +309,8 @@ class TestWinnerDownloads(unittest.TestCase):
             print(20120100, file=fp)
         # Break a signature
         sign(os.path.join(self._serverdir, '6', '7', '8.txt'), 'spare.gpg')
-        # Run the state machine 4 times to calculate the winning path.
-        # (blacklist -> channel -> index -> calculate [-> download])
-        for i in range(4):
-            next(state)
+        # Run the state machine to calculate the winning path.
+        state.run_until('download_files')
         # The next state transition will fail because of the missing signature.
         self.assertRaises(SignatureError, next, state)
         # There are no downloaded files.
