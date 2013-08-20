@@ -16,6 +16,7 @@
 """Persistent settings - used by the DBus API."""
 
 __all__ = [
+    'LAST_UPDATE_KEY',
     'Settings',
     ]
 
@@ -25,19 +26,15 @@ import sqlite3
 from contextlib import contextmanager
 from systemimage.config import config
 
+LAST_UPDATE_KEY = '__last_update_date__'
 SCHEMA_VERSION = '1'
 
 
-@contextmanager
-def cursor():
-    with sqlite3.connect(config.system.settings_db) as conn:
-        yield conn.cursor()
-
-
 class Settings:
-    def __init__(self):
+    def __init__(self, use_config=None):
+        self._use_config = use_config
         # If the database file does not yet exist, create it.
-        with cursor() as c:
+        with self._cursor() as c:
             c.execute('select tbl_name from sqlite_master')
             if len(c.fetchall()) == 0:
                 # The database file has no tables.
@@ -47,8 +44,16 @@ class Settings:
             c.execute('insert into settings values ("__version__", ?)',
                       (SCHEMA_VERSION,))
 
+    @contextmanager
+    def _cursor(self):
+        dbpath = (config.system.settings_db
+                  if self._use_config is None
+                  else self._use_config.system.settings_db)
+        with sqlite3.connect(dbpath) as conn:
+            yield conn.cursor()
+
     def set(self, key, value):
-        with cursor() as c:
+        with self._cursor() as c:
             c.execute('select value from settings where key = ?', (key,))
             row = c.fetchone()
             if row is None:
@@ -59,7 +64,7 @@ class Settings:
                           (value, key))
 
     def get(self, key):
-        with cursor() as c:
+        with self._cursor() as c:
             c.execute('select value from settings where key = ?', (key,))
             row = c.fetchone()
             if row is None:

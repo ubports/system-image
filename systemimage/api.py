@@ -23,8 +23,7 @@ __all__ = [
     ]
 
 
-from datetime import datetime
-from systemimage.settings import Settings
+from systemimage.settings import LAST_UPDATE_KEY, Settings
 from systemimage.state import State
 from threading import Event
 
@@ -64,7 +63,7 @@ class Update:
 
     @property
     def last_update_date(self):
-        return Settings().get('__last_update_date__')
+        return Settings().get(LAST_UPDATE_KEY)
 
 
 class Mediator:

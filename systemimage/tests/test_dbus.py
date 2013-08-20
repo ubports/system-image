@@ -32,13 +32,14 @@ import shutil
 import unittest
 
 from contextlib import ExitStack
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dbus.exceptions import DBusException
 from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
+from systemimage.settings import LAST_UPDATE_KEY, Settings
 from systemimage.testing.controller import Controller
 from systemimage.testing.helpers import (
     copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
@@ -308,6 +309,27 @@ class TestDBusCheckForUpdate(_LiveTesting):
         self.assertEqual(last_update_date, '')
         # All other values are undefined.
 
+    def test_last_update_date(self):
+        # Pretend the device got a previous update.  Now, there's no update
+        # available, but the date of the last update is provided in the signal.
+        self._set_build(20130701)
+        # Fake that there was a previous update.
+        config = Configuration()
+        config.load(_controller.ini_path)
+        # Some random date in the past.
+        when = datetime(2013, 1, 20, 12, 1, 45, tzinfo=timezone.utc)
+        # Knock off the +00:00 from the format since it's always UTC.
+        Settings(config).set(LAST_UPDATE_KEY, when.isoformat()[:-6])
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = signals[0]
+        self.assertFalse(is_available)
+        # No update has been previously applied.
+        self.assertEqual(last_update_date, '2013-01-20T12:01:45')
+        # All other values are undefined.
+
     def test_get_multilingual_descriptions(self):
         # The descriptions are multilingual.
         self._prepare_index('index_14.json')
@@ -453,10 +475,6 @@ class TestDBusMocksUpdateAvailable(_TestBase):
     def tearDown(self):
         safe_remove(self.reboot_log)
         super().tearDown()
-
-    def test_last_update_date(self):
-        # After the initial update, the last update date is available.
-        pass
 
     def test_build_number(self):
         self.assertEqual(self.iface.BuildNumber(), 42)

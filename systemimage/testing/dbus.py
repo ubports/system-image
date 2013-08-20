@@ -76,6 +76,7 @@ class _LiveTestableService(Service):
         self._completing = False
         self._rebootable = True
         safe_remove(config.system.state_file)
+        safe_remove(config.system.settings_db)
 
 
 class _NoUpdateService(Service):
