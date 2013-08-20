@@ -16,7 +16,7 @@
 """Test the SystemImage dbus service."""
 
 __all__ = [
-    'TestDBus',
+    'TestDBusCheckForUpdate',
     'TestDBusClient',
     'TestDBusMain',
     'TestDBusMocksNoUpdate',
@@ -163,6 +163,15 @@ class _TestBase(unittest.TestCase):
         loop.run()
         return signals
 
+    def download_manually(self):
+        self.iface.SetSetting('auto_download', '0')
+
+    def download_on_wifi(self):
+        self.iface.SetSetting('auto_download', '1')
+
+    def download_always(self):
+        self.iface.SetSetting('auto_download', '2')
+
 
 class _LiveTesting(_TestBase):
     mode = 'live'
@@ -247,21 +256,44 @@ class _LiveTesting(_TestBase):
             print(version, file=fp)
 
 
-class TestDBus(_LiveTesting):
+class TestDBusCheckForUpdate(_LiveTesting):
     """Test the SystemImage dbus service."""
-
-    def test_check_build_number(self):
-        # Get the build number.
-        self._set_build(20130701)
-        self.assertEqual(self.iface.BuildNumber(), 20130701)
 
     def test_update_available(self):
         # There is an update available.
+        self.download_manually()
         signals = self._run_loop(
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(signals), 1)
         # There's one boolean argument to the result.
-        self.assertTrue(signals[0][0])
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = signals[0]
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(available_version, 20130600)
+        self.assertEqual(update_size, 314572800)
+        # This is the first update applied.
+        self.assertEqual(last_update_date, '')
+        self.assertEqual(descriptions, [{'description': 'Full'}])
+        self.assertEqual(error_reason, '')
+
+    def test_update_available_auto_download(self):
+        # When auto-updating (wifi-only is the default).
+        self.download_always()
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = signals[0]
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+        self.assertEqual(available_version, 20130600)
+        self.assertEqual(update_size, 314572800)
+        # This is the first update applied.
+        self.assertEqual(last_update_date, '')
+        self.assertEqual(descriptions, [{'description': 'Full'}])
+        self.assertEqual(error_reason, '')
 
     def test_no_update_available(self):
         # Our device is newer than the version that's available.
@@ -269,74 +301,23 @@ class TestDBus(_LiveTesting):
         signals = self._run_loop(
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(signals), 1)
-        self.assertFalse(signals[0][0])
-
-    def test_get_update_size(self):
-        # Check for an update and if one is available, get the size.
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(self.iface.GetUpdateSize(), 314572800)
-
-    def test_get_no_update_size(self):
-        # No update is available, but the client still asks for the size.
-        self._set_build(20130701)
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(self.iface.GetUpdateSize(), 0)
-
-    def test_get_update_size_without_check(self):
-        # Getting the update size implies a check.
-        self.assertEqual(self.iface.GetUpdateSize(), 314572800)
-
-    def test_get_update_size_without_check_none_available(self):
-        # No explicit check for update, and none is available.
-        self._set_build(20130701)
-        self.assertEqual(self.iface.GetUpdateSize(), 0)
-
-    def test_get_available_version(self):
-        # An update is available, so get the target version.
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(self.iface.GetUpdateVersion(), 20130600)
-
-    def test_get_available_version_without_check(self):
-        # Getting the target version implies a check.
-        self.assertEqual(self.iface.GetUpdateVersion(), 20130600)
-
-    def test_get_no_available_version(self):
-        # No update is available, but the client still asks for the version.
-        self._set_build(20130701)
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(self.iface.GetUpdateVersion(), 0)
-
-    def test_get_available_version_without_check_none_available(self):
-        # No explicit check for update, none is available.
-        self._set_build(20130701)
-        self.assertEqual(self.iface.GetUpdateVersion(), 0)
-
-    def test_get_descriptions(self):
-        # An update is available, with descriptions.
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(self.iface.GetDescriptions(),
-                         [{'description': 'Full'}])
-
-    def test_get_descriptions_no_check(self):
-        # Getting the descriptions implies a check.
-        self.assertEqual(self.iface.GetDescriptions(),
-                         [{'description': 'Full'}])
-
-    def test_get_no_available_descriptions(self):
-        # No update is available, so there are no descriptions.
-        self._set_build(20130701)
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(len(self.iface.GetDescriptions()), 0)
-
-    def test_get_no_available_descriptions_without_check(self):
-        # No explicit check for update, none is available.
-        self._set_build(20130701)
-        self.assertEqual(len(self.iface.GetDescriptions()), 0)
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = signals[0]
+        self.assertFalse(is_available)
+        # No update has been previously applied.
+        self.assertEqual(last_update_date, '')
+        # All other values are undefined.
 
     def test_get_multilingual_descriptions(self):
         # The descriptions are multilingual.
         self._prepare_index('index_14.json')
-        self.assertEqual(self.iface.GetDescriptions(), [
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = signals[0]
+        self.assertEqual(descriptions, [
             {'description': 'Full B',
              'description-en': 'The full B',
             },
@@ -351,6 +332,8 @@ class TestDBus(_LiveTesting):
              'description-xx_CC': 'This hyar is the delta B.2',
             }])
 
+
+def TestDBusXXX(_LiveTesting):
     def test_complete_update(self):
         # Complete the update; up until the reboot call.
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
@@ -471,6 +454,10 @@ class TestDBusMocksUpdateAvailable(_TestBase):
         safe_remove(self.reboot_log)
         super().tearDown()
 
+    def test_last_update_date(self):
+        # After the initial update, the last update date is available.
+        pass
+
     def test_build_number(self):
         self.assertEqual(self.iface.BuildNumber(), 42)
 
@@ -589,7 +576,7 @@ class TestDBusMain(_TestBase):
         self.assertFalse(os.path.exists(config.system.tempdir))
         # DBus activate the service, which should create the directory.
         bus = dbus.SystemBus()
-        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        bus.get_object('com.canonical.SystemImage', '/Service')
         self.assertTrue(os.path.exists(config.system.tempdir))
 
 

@@ -88,16 +88,15 @@ class TestAPI(unittest.TestCase):
         # Because our build number is lower than the latest available in the
         # index file, there is an update available.
         self._setup_keyrings()
-        mediator = Mediator()
-        self.assertTrue(mediator.check_for_update())
+        update = Mediator().check_for_update()
+        self.assertTrue(update.is_available)
 
     @configuration
     def test_update_available_version(self):
         # An update is available.  What's the target version number?
         self._setup_keyrings()
-        mediator = Mediator()
-        updates = mediator.check_for_update()
-        self.assertEqual(updates.version, 20130600)
+        update = Mediator().check_for_update()
+        self.assertEqual(update.version, 20130600)
 
     @configuration
     def test_no_update_available_version(self):
@@ -105,9 +104,9 @@ class TestAPI(unittest.TestCase):
         self._setup_keyrings()
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130600, file=fp)
-        mediator = Mediator()
-        updates = mediator.check_for_update()
-        self.assertEqual(updates.version, 0)
+        update = Mediator().check_for_update()
+        self.assertFalse(update.is_available)
+        self.assertEqual(update.version, 0)
 
     @configuration
     def test_no_update_available_at_latest(self):
@@ -116,8 +115,8 @@ class TestAPI(unittest.TestCase):
         self._setup_keyrings()
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130600, file=fp)
-        mediator = Mediator()
-        self.assertFalse(mediator.check_for_update())
+        update = Mediator().check_for_update()
+        self.assertFalse(update.is_available)
 
     @configuration
     def test_no_update_available_newer(self):
@@ -126,8 +125,8 @@ class TestAPI(unittest.TestCase):
         self._setup_keyrings()
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
             print(20130700, file=fp)
-        mediator = Mediator()
-        self.assertFalse(mediator.check_for_update())
+        update = Mediator().check_for_update()
+        self.assertFalse(update.is_available)
 
     @configuration
     def test_get_details(self):
@@ -140,9 +139,8 @@ class TestAPI(unittest.TestCase):
         sign(self.index_path, 'device-signing.gpg')
         setup_index('index_14.json', self._serverdir, 'device-signing.gpg')
         # Get the descriptions.
-        mediator = Mediator()
-        update = mediator.check_for_update()
-        self.assertTrue(update)
+        update = Mediator().check_for_update()
+        self.assertTrue(update.is_available)
         self.assertEqual(update.size, 180009)
         self.assertEqual(len(update.descriptions), 3)
         # The first contains the descriptions for the full update.
@@ -244,23 +242,3 @@ unmount system
         mediator.check_for_update()
         mediator.cancel()
         self.assertRaises(Cancel, mediator.complete_update)
-
-    @configuration
-    def test_reboot_after_cancel(self):
-        # Trying to reboot after the download has been canceled raises the
-        # Cancel exception.
-        self._setup_keyrings()
-        mediator = Mediator()
-        mediator.check_for_update()
-        # Let's say that the update got canceled after all the files were
-        # downloaded.
-        mediator.complete_update()
-        mediator.cancel()
-        self.assertRaises(Cancel, mediator.reboot)
-
-    @configuration
-    def test_get_build_number(self):
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130701, file=fp)
-        mediator = Mediator()
-        self.assertEqual(mediator.get_build_number(), 20130701)

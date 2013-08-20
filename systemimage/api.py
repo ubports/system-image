@@ -23,7 +23,8 @@ __all__ = [
     ]
 
 
-from systemimage.config import config
+from datetime import datetime
+from systemimage.settings import Settings
 from systemimage.state import State
 from threading import Event
 
@@ -38,7 +39,8 @@ class Update:
     def __init__(self, winners):
         self._winners = [] if winners is None else winners
 
-    def __bool__(self):
+    @property
+    def is_available(self):
         return len(self._winners) > 0
 
     @property
@@ -60,6 +62,10 @@ class Update:
             # No winners.
             return 0
 
+    @property
+    def last_update_date(self):
+        return Settings().get('__last_update_date__')
+
 
 class Mediator:
     """This is the DBus API mediator.
@@ -77,9 +83,6 @@ class Mediator:
     def _check_canceled(self, url, dst, bytes_read, size):
         if self._cancel.is_set():
             raise Cancel
-
-    def get_build_number(self):
-        return config.build_number
 
     def cancel(self):
         self._cancel.set()

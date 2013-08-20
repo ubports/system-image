@@ -39,19 +39,30 @@ class Service(Object):
         self._completing = False
         self._rebootable = True
 
-    @method('com.canonical.SystemImage', out_signature='i')
-    def BuildNumber(self):
-        """Return the system's current build number.
-
-        :return: The current build number.
-        :rtype: int
-        """
-        return self._api.get_build_number()
-
     def _check_for_update(self):
         # Asynchronous method call.
         update = self._api.check_for_update()
-        self.UpdateAvailableStatus(bool(update))
+        # Do we have an update and can we auto-download it?
+        downloading = False
+        if update.is_available:
+            settings = Settings()
+            auto = settings.get('auto_download')
+            if auto == '':
+                # This has not yet been set.  The default is wifi-only.
+                auto = '1'
+                settings.set('auto_download', auto)
+            if auto in ('1', '2'):
+                # XXX When we have access to the download service, we can
+                # check if we're on the wifi (auto == '1').
+                GLib.timeout_add(100, self._download)
+                downloading = True
+        self.UpdateAvailableStatus(update.is_available,
+                                   downloading,
+                                   update.version,
+                                   update.size,
+                                   update.last_update_date,
+                                   update.descriptions,
+                                   "")
         # Stop GLib from calling this method again.
         return False
 
@@ -79,59 +90,8 @@ class Service(Object):
         # this method can return immediately.
         GLib.timeout_add(100, self._check_for_update)
 
-    @method('com.canonical.SystemImage', out_signature='x')
-    def GetUpdateSize(self):
-        """Return the size in bytes of an available update.
-
-        This method performs an implicit check for update, if one has not been
-        previously done.  If no update is available, a size of zero is
-        returned.
-
-        :return: Size in bytes of any available update.
-        :rtype: int
-        """
-        return self._api.check_for_update().size
-
-    @method('com.canonical.SystemImage', out_signature='i')
-    def GetUpdateVersion(self):
-        """Return the build version for the update.
-
-        The number returned from this method is the build number that the
-        device will be left at, after any available update is applied.
-
-        This method performs an implicit check for update, if one has
-        not been previously done.  If no update is available, a build
-        version of zero is returned.
-
-        :return: Future build number, should the update be applied.
-        :rtype: int
-        """
-        return self._api.check_for_update().version
-
-    @method('com.canonical.SystemImage', out_signature='aa{ss}')
-    def GetDescriptions(self):
-        """Return all the descriptions for the available update.
-
-        If an update is available, this method will return a list of
-        dictionaries.  The number of items in this list will reflect the
-        number of images that are downloaded in order to apply the update.
-        Each image can come with a set of descriptions, in multiple languages,
-        for the updates contained in that image.  The keys of the dictionaries
-        always start with 'description' and may have suffixes indicating the
-        language code for the description.  Thus, each image may have multiple
-        descriptions in multiple languages.  The dictionary values are the
-        UTF-8 encoded Unicode descriptions for the language specified in the
-        key.
-
-        This method performs an implicit check for update, if one has
-        not been previously done.  If no update is available, an empty list is
-        returned.
-
-        :return: The descriptions in all languages for all images included in
-            the winning update path.
-        :rtype: list of dictionaries
-        """
-        return self._api.check_for_update().descriptions
+    def _download(self):
+        pass
 
     def _complete_update(self):
         # Asynchronous method call.
@@ -206,14 +166,13 @@ class Service(Object):
             log.exception('Reboot() failed')
             self.UpdateFailed()
 
-    @signal('com.canonical.SystemImage', signature='b')
-    def UpdateAvailableStatus(self, flag):
-        """Signal sent when update checking is complete.
-
-        This signal is sent whenever the asynchronous checking for an update
-        completes.  Its argument includes the flag specifying whether an
-        update is available or not.
-        """
+    @signal('com.canonical.SystemImage', signature='bbiisaa{ss}s')
+    def UpdateAvailableStatus(self,
+                              is_available, downloading,
+                              available_version, update_size,
+                              last_update_date, descriptions,
+                              error_reason):
+        """Signal sent in response to a CheckForUpdate()."""
 
     @signal('com.canonical.SystemImage')
     def ReadyToReboot(self):
