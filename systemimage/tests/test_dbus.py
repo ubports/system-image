@@ -670,3 +670,81 @@ class TestDBusClient(_LiveTesting):
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
         self.assertEqual(reboot, '/sbin/reboot -f recovery')
+
+
+class TestDBusGetSet(_TestBase):
+    """Test the DBus client's key/value settings."""
+
+    mode = 'live'
+
+    def test_set_get_basic(self):
+        # get/set a random key.
+        self.iface.SetSetting('name', 'ant')
+        self.assertEqual(self.iface.GetSetting('name'), 'ant')
+
+    def test_set_get_change(self):
+        # get/set a random key, then change it.
+        self.iface.SetSetting('name', 'ant')
+        self.assertEqual(self.iface.GetSetting('name'), 'ant')
+        self.iface.SetSetting('name', 'bee')
+        self.assertEqual(self.iface.GetSetting('name'), 'bee')
+
+    def test_get_before_set(self):
+        # Getting a key that doesn't exist returns the empty string.
+        self.assertEqual(self.iface.GetSetting('thing'), '')
+        self.iface.SetSetting('thing', 'one')
+        self.assertEqual(self.iface.GetSetting('thing'), 'one')
+
+    def test_setting_persists(self):
+        # Set a key, restart the dbus server, and the key's value persists.
+        self.iface.SetSetting('permanent', 'waves')
+        self.assertEqual(self.iface.GetSetting('permanent'), 'waves')
+        self.iface.Exit()
+        self.assertRaises(DBusException, self.iface.GetSetting, 'permanent')
+        # Re-establish a new connection.
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        self.assertEqual(self.iface.GetSetting('permanent'), 'waves')
+
+    def test_setting_min_battery_good(self):
+        # min_battery has special semantics.
+        self.iface.SetSetting('min_battery', '30')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '30')
+
+    def test_setting_min_battery_bad(self):
+        # min_battery requires the string representation of a percentage.
+        self.iface.SetSetting('min_battery', 'standby')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '')
+        self.iface.SetSetting('min_battery', '30')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '30')
+        self.iface.SetSetting('min_battery', 'foo')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '30')
+        self.iface.SetSetting('min_battery', '-10')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '30')
+        self.iface.SetSetting('min_battery', '100')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '100')
+        self.iface.SetSetting('min_battery', '101')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '100')
+        self.iface.SetSetting('min_battery', 'standby')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '100')
+
+    def test_setting_auto_downloads_good(self):
+        # auto_downloads has special semantics.
+        self.iface.SetSetting('auto_downloads', '0')
+        self.assertEqual(self.iface.GetSetting('auto_downloads'), '0')
+        self.iface.SetSetting('auto_downloads', '1')
+        self.assertEqual(self.iface.GetSetting('auto_downloads'), '1')
+        self.iface.SetSetting('auto_downloads', '2')
+        self.assertEqual(self.iface.GetSetting('auto_downloads'), '2')
+
+    def test_setting_auto_downloads_bad(self):
+        # auto_downloads requires an integer between 0 and 2.
+        self.iface.SetSetting('auto_download', 'standby')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '')
+        self.iface.SetSetting('auto_download', '-1')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '')
+        self.iface.SetSetting('auto_download', '0')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
+        self.iface.SetSetting('auto_download', '3')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '0')

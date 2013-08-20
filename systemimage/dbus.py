@@ -25,6 +25,7 @@ import logging
 from dbus.service import Object, method, signal
 from gi.repository import GLib
 from systemimage.api import Cancel, Mediator
+from systemimage.settings import Settings
 
 
 class Service(Object):
@@ -234,3 +235,31 @@ class Service(Object):
         canceled.  The cancellation can occur any time prior to a reboot being
         issued.
         """
+
+    @method('com.canonical.SystemImage', in_signature='ss')
+    def SetSetting(self, key, value):
+        """Set a key/value setting.
+
+        Some values are special, e.g. min_battery and auto_downloads.
+        Implement these special semantics here.
+        """
+        if key == 'min_battery':
+            try:
+                as_int = int(value)
+            except ValueError:
+                return
+            if as_int < 0 or as_int > 100:
+                return
+        if key == 'auto_download':
+            try:
+                as_int = int(value)
+            except ValueError:
+                return
+            if as_int not in (0, 1, 2):
+                return
+        Settings().set(key, value)
+
+    @method('com.canonical.SystemImage', in_signature='s', out_signature='s')
+    def GetSetting(self, key):
+        """Get a setting."""
+        return Settings().get(key)
