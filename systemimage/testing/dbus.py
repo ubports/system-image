@@ -73,8 +73,8 @@ class _LiveTestableService(Service):
     def Reset(self):
         self._api = Mediator()
         self._checking = False
-        self._completing = False
-        self._rebootable = True
+        self._update = None
+        self._downloading = False
         safe_remove(config.system.state_file)
         safe_remove(config.system.settings_db)
 

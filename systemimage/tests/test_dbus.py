@@ -159,7 +159,8 @@ class _TestBase(unittest.TestCase):
         self.system_bus.add_signal_receiver(
             callback, signal_name=signal,
             dbus_interface='com.canonical.SystemImage')
-        GLib.timeout_add(100, method)
+        if method is not None:
+            GLib.timeout_add(100, method)
         GLib.timeout_add_seconds(10, loop.quit)
         loop.run()
         return signals
@@ -314,12 +315,10 @@ class TestDBusCheckForUpdate(_LiveTesting):
         # available, but the date of the last update is provided in the signal.
         self._set_build(20130701)
         # Fake that there was a previous update.
-        config = Configuration()
-        config.load(_controller.ini_path)
         # Some random date in the past.
         when = datetime(2013, 1, 20, 12, 1, 45, tzinfo=timezone.utc)
         # Knock off the +00:00 from the format since it's always UTC.
-        Settings(config).set(LAST_UPDATE_KEY, when.isoformat()[:-6])
+        Settings(self.config).set(LAST_UPDATE_KEY, when.isoformat()[:-6])
         signals = self._run_loop(
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(signals), 1)
@@ -355,12 +354,26 @@ class TestDBusCheckForUpdate(_LiveTesting):
             }])
 
 
-def TestDBusXXX(_LiveTesting):
-    def test_complete_update(self):
-        # Complete the update; up until the reboot call.
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+class TestDBusDownload(_LiveTesting):
+    def test_auto_download(self):
+        # When always auto-downloading, and there is an update available, the
+        # update gets automatically downloaded.  First, we'll get an
+        # UpdateAvailableStatus signal, followed by a bunch of UpdateProgress
+        # signals (which for this test, we'll ignore), and finally an
+        # UpdateDownloaded signal.
+        self.download_always()
         self.assertFalse(os.path.exists(self.command_file))
-        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = signals[0]
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+        # Now, wait for the UpdateDownloaded signal.
+        signals = self._run_loop(None, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 1)
         with open(self.command_file, 'r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, """\
@@ -375,13 +388,84 @@ update 5.txt 5.txt.asc
 unmount system
 """)
 
-    def test_no_update_to_complete(self):
-        # Complete the update; up until the reboot call.
+    def test_nothing_to_auto_download(self):
+        # We're auto-downloading, but there's no update available.
+        self.download_always()
         self._set_build(20130701)
         self.assertFalse(os.path.exists(self.command_file))
-        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = signals[0]
+        self.assertFalse(is_available)
+        self.assertFalse(downloading)
+        # Now, wait for the UpdateDownloaded signal.
+        signals = self._run_loop(None, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 0)
         self.assertFalse(os.path.exists(self.command_file))
 
+    def test_manual_download(self):
+        # When manually downloading, and there is an update available, the
+        # update does not get downloaded until we explicitly ask it to be.
+        self.download_manually()
+        self.assertFalse(os.path.exists(self.command_file))
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = signals[0]
+        self.assertTrue(is_available)
+        # This is false because we're in manual download mode.
+        self.assertFalse(downloading)
+        self.assertFalse(os.path.exists(self.command_file))
+        # No UpdateDownloaded signal is coming.
+        signals = self._run_loop(None, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 0)
+        self.assertFalse(os.path.exists(self.command_file))
+        # Now we download manually and wait again for the signal.
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateDownloaded')
+        with open(self.command_file, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
+
+    def test_nothing_to_manually_download(self):
+        # We're manually downloading, but there's no update available.
+        self.download_manually()
+        self._set_build(20130701)
+        self.assertFalse(os.path.exists(self.command_file))
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = signals[0]
+        self.assertFalse(is_available)
+        # This is false because we're in manual download mode.
+        self.assertFalse(downloading)
+        # No UpdateDownloaded signal is coming
+        signals = self._run_loop(None, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 0)
+        self.assertFalse(os.path.exists(self.command_file))
+        # Now we download manually, but no signal is coming.
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 0)
+        self.assertFalse(os.path.exists(self.command_file))
+
+
+class TestDBusApply(_LiveTesting):
     def test_reboot(self):
         # Do the reboot.
         self.assertFalse(os.path.exists(self.reboot_log))

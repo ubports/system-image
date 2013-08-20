@@ -93,12 +93,12 @@ class Mediator:
         :rtype: bool
         """
         if self._update is None:
-            self._state.run_thru('calculate_winner')
+            self._state.run_until('download_files')
             self._update = Update(self._state.winner)
         return self._update
 
-    def complete_update(self):
-        """Complete the update."""
+    def download(self):
+        """Download the available update."""
         self._state.run_until('reboot')
 
     def reboot(self):

@@ -36,15 +36,15 @@ class Service(Object):
         self._loop = loop
         self._api = Mediator()
         self._checking = False
-        self._completing = False
-        self._rebootable = True
+        self._update = None
+        self._downloading = False
 
     def _check_for_update(self):
         # Asynchronous method call.
-        update = self._api.check_for_update()
+        self._update = self._api.check_for_update()
         # Do we have an update and can we auto-download it?
         downloading = False
-        if update.is_available:
+        if self._update.is_available:
             settings = Settings()
             auto = settings.get('auto_download')
             if auto == '':
@@ -56,13 +56,14 @@ class Service(Object):
                 # check if we're on the wifi (auto == '1').
                 GLib.timeout_add(100, self._download)
                 downloading = True
-        self.UpdateAvailableStatus(update.is_available,
+        self.UpdateAvailableStatus(self._update.is_available,
                                    downloading,
-                                   update.version,
-                                   update.size,
-                                   update.last_update_date,
-                                   update.descriptions,
+                                   self._update.version,
+                                   self._update.size,
+                                   self._update.last_update_date,
+                                   self._update.descriptions,
                                    "")
+        self._checking = False
         # Stop GLib from calling this method again.
         return False
 
@@ -91,40 +92,27 @@ class Service(Object):
         GLib.timeout_add(100, self._check_for_update)
 
     def _download(self):
-        pass
-
-    def _complete_update(self):
-        # Asynchronous method call.
-        try:
-            self._api.complete_update()
-        except Cancel:
-            # No additional Canceled signal is issued.
-            pass
-        except Exception:
-            # If any other exception occurs, signal an UpdateFailed and log
-            # the exception.
-            log = logging.getLogger('systemimage')
-            log.exception('GetUpdate() failed')
-            self._rebootable = False
-            self.UpdateFailed()
-        else:
-            self.ReadyToReboot()
+        if (self._downloading                        # Already in progress.
+            or self._update is None                  # Not yet checked.
+            or not self._update.is_available         # No update available.
+            ):
+            return
+        self._downloading = True
+        self._api.download()
+        self.UpdateDownloaded()
+        self._downloading = False
         # Stop GLib from calling this method again.
         return False
 
     @method('com.canonical.SystemImage')
-    def GetUpdate(self):
+    def DownloadUpdate(self):
         """Download the available update.
 
         The download may be canceled during this time.
         """
-        if self._completing:
-            # Completing is already in progress, so there's nothing more to do.
-            return
-        self._completing = True
         # Arrange for the update to happen in a little while, so that this
         # method can return immediately.
-        GLib.timeout_add(100, self._complete_update)
+        GLib.timeout_add(100, self._download)
 
     @method('com.canonical.SystemImage')
     def Cancel(self):
@@ -175,12 +163,8 @@ class Service(Object):
         """Signal sent in response to a CheckForUpdate()."""
 
     @signal('com.canonical.SystemImage')
-    def ReadyToReboot(self):
-        """The device is ready to reboot.
-
-        This signal is sent whenever the download of an update is complete,
-        and the device is ready to be rebooted to apply the update.
-        """
+    def UpdateDownloaded(self):
+        """The update has been successfully downloaded."""
 
     @signal('com.canonical.SystemImage')
     def UpdateFailed(self):
