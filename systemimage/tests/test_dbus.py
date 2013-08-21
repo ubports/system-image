@@ -464,13 +464,30 @@ unmount system
         self.assertEqual(len(signals), 0)
         self.assertFalse(os.path.exists(self.command_file))
 
+    def test_update_failed_signal(self):
+        # A signal is issued when the update failed.
+        self.download_manually()
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        # Cause the update to fail by deleting a file from the server.
+        os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)
+        failure_count, last_reason = signals[0]
+        self.assertEqual(failure_count, 1)
+        # Don't count on a specific error message.
+        self.assertNotEqual(last_reason, '')
+
 
 class TestDBusApply(_LiveTesting):
+    def setUp(self):
+        super().setUp()
+        self.download_always()
+
     def test_reboot(self):
         # Do the reboot.
         self.assertFalse(os.path.exists(self.reboot_log))
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.iface.Reboot()
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateDownloaded')
+        self.iface.ApplyUpdate()
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
         self.assertEqual(reboot, '/sbin/reboot -f recovery')
@@ -480,21 +497,11 @@ class TestDBusApply(_LiveTesting):
         self.assertFalse(os.path.exists(self.reboot_log))
         self._set_build(20130701)
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.iface.Reboot()
+        response = self.iface.ApplyUpdate()
+        # Let's not count on the exact response, except that success returns
+        # the empty string.
+        self.assertNotEqual(response, '')
         self.assertFalse(os.path.exists(self.reboot_log))
-
-    def test_ready_to_reboot_signal(self):
-        # A signal is issued when the client is ready to reboot.
-        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        self.assertEqual(len(signals), 1)
-
-    def test_update_failed_signal(self):
-        # A signal is issued when the update failed.
-        #
-        # Cause the update to fail by deleting a file from the server.
-        os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
-        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
-        self.assertEqual(len(signals), 1)
 
     def test_reboot_after_update_failed(self):
         # Cause the update to fail by deleting a file from the server.

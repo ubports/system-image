@@ -105,4 +105,5 @@ class Mediator:
         """Issue the reboot."""
         if self._cancel.is_set():
             raise Cancel
+        # Transition through all remaining states.
         list(self._state)
