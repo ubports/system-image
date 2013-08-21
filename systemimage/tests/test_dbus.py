@@ -22,6 +22,7 @@ __all__ = [
     'TestDBusMocksNoUpdate',
     'TestDBusMocksUpdateAvailable',
     'TestDBusMocksUpdateFailed',
+    'TestDBusMockUpdateAutoSuccess',
     ]
 
 
@@ -160,7 +161,7 @@ class _TestBase(unittest.TestCase):
             callback, signal_name=signal,
             dbus_interface='com.canonical.SystemImage')
         if method is not None:
-            GLib.timeout_add(100, method)
+            GLib.timeout_add(50, method)
         GLib.timeout_add_seconds(10, loop.quit)
         loop.run()
         return signals
@@ -537,6 +538,183 @@ class TestDBusApply(_LiveTesting):
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
         self.assertEqual(self.iface.BuildNumber(), 0)
+
+
+class TestDBusMockUpdateAutoSuccess(_TestBase):
+    mode = 'update-auto-success'
+
+    def setUp(self):
+        super().setUp()
+        # We want to catch multiple signals and do different things with them,
+        # so use a custom loop runner instead of _run_loop().
+        self.loop = GLib.MainLoop()
+        self.signal_matches = []
+        self.progress_signals = []
+        self.cancel_at_percentage = None
+        self.pause_at_percentage = None
+        self.pause_start = None
+        self.pause_end = None
+        def resume_callback():
+            self.pause_end = time.time()
+            self.iface.DownloadUpdate()
+            return False
+        def progress_callback(percentage, eta):
+            self.progress_signals.append((percentage, eta))
+            if percentage == self.pause_at_percentage:
+                self.pause_start = time.time()
+                self.iface.PauseDownload()
+                # Wait 5 seconds.
+                GLib.timeout_add_seconds(5, resume_callback)
+            if percentage == self.cancel_at_percentage:
+                self.iface.CancelUpdate()
+        self.signal_matches.append(
+            self.system_bus.add_signal_receiver(
+                progress_callback, signal_name='UpdateProgress',
+                dbus_interface='com.canonical.SystemImage'))
+        self.downloaded = False
+        def downloaded_callback(*args):
+            self.downloaded = True
+            self.loop.quit()
+        self.signal_matches.append(
+            self.system_bus.add_signal_receiver(
+                downloaded_callback, signal_name='UpdateDownloaded',
+                dbus_interface='com.canonical.SystemImage'))
+        self.status = None
+        def status_callback(*args):
+            self.status = args
+        self.signal_matches.append(
+            self.system_bus.add_signal_receiver(
+                status_callback, signal_name='UpdateAvailableStatus',
+                dbus_interface='com.canonical.SystemImage'))
+        self.failed = []
+        def failed_callback(*args):
+            self.failed.append(args)
+            self.loop.quit()
+        self.signal_matches.append(
+            self.system_bus.add_signal_receiver(
+                failed_callback, signal_name='UpdateFailed',
+                dbus_interface='com.canonical.SystemImage'))
+        # No test should run longer than this.
+        self.test_failsafe_id = GLib.timeout_add_seconds(120, self.loop.quit)
+
+    def tearDown(self):
+        # Don't let this test's failsafe impose on the next test.
+        GLib.source_remove(self.test_failsafe_id)
+        for match in self.signal_matches:
+            match.remove()
+        super().tearDown()
+
+    def test_scenario_1(self):
+        # Start the ball rolling.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+        self.assertEqual(available_version, 42)
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        self.assertEqual(descriptions, [
+            {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
+             'description-fr': "Support d'Ubuntu Edge",
+            },
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }])
+        self.assertEqual(error_reason, '')
+        # We should have gotten 100 UpdateProgress signals, where each
+        # increments the percentage by 1 and decrements the eta by 0.5.
+        self.assertEqual(len(self.progress_signals), 100)
+        for i in range(100):
+            percentage, eta = self.progress_signals[i]
+            self.assertEqual(percentage, i)
+            self.assertEqual(eta, 50 - (i * 0.5))
+        self.assertTrue(self.downloaded)
+        self.assertEqual(self.iface.ApplyUpdate(), '')
+
+    def test_scenario_2(self):
+        # Like scenario 1, but with PauseDownload called during the downloads.
+        self.pause_at_percentage = 35
+        # Start the ball rolling.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        # First, make sure that we still got 100 progress reports.
+        self.assertEqual(len(self.progress_signals), 100)
+        # And we still completed successfully.
+        self.assertTrue(self.downloaded)
+        # And that we paused successfully.  We can't be exact about the amount
+        # of time we paused, but it should always be at least 4 seconds.
+        self.assertGreater(self.pause_end - self.pause_start, 4)
+
+    def test_scenario_3(self):
+        # Like scenario 2, but PauseDownload is called when not downloading,
+        # so it is a no-op.  The test service waits 3 seconds after a
+        # CheckForUpdate before it begins downloading, so let's issue a
+        # no-op PauseDownload after 1 second.
+        GLib.timeout_add_seconds(1, self.iface.PauseDownload)
+        # Now run the loop and assert that we never paused.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        self.assertIsNone(self.pause_start)
+        self.assertIsNone(self.pause_end)
+
+    def test_scenario_4(self):
+        # If DownloadUpdate is called when not paused, downloading, or
+        # update-checked, it is a no-op.
+        self.iface.DownloadUpdate()
+        # Only run for 15 seconds, but still, we'll never see an
+        # UpdateAvailableStatus or UpdateDownloaded.
+        GLib.timeout_add_seconds(15, self.loop.quit)
+        self.loop.run()
+        self.assertIsNone(self.status)
+        self.assertFalse(self.downloaded)
+
+    def test_scenario_5(self):
+        # In this scenario, we cancel the download midway through.  This will
+        # result in an UpdateFailed signal.
+        self.cancel_at_percentage = 27
+        # Start the ball rolling.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        # Our failed signal will tell us we got one consecutive failure and
+        # the reason is that we canceled (but don't depend on the exact
+        # content of the last_reason, just that it's not the empty string).
+        self.assertEqual(len(self.failed), 1)
+        failure_count, reason = self.failed[0]
+        self.assertEqual(failure_count, 1)
+        self.assertNotEqual(reason, '')
+        # We also didn't download anything.
+        self.assertFalse(self.downloaded)
+
+    def test_scenario_6(self):
+        # Like secenario 5, but after a cancel, CheckForUpdate will restart
+        # things again.
+        self.cancel_at_percentage = 13
+        # Start the ball rolling.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        # Our failed signal will tell us we got one consecutive failure and
+        # the reason is that we canceled (but don't depend on the exact
+        # content of the last_reason, just that it's not the empty string).
+        self.assertEqual(len(self.failed), 1)
+        failure_count, reason = self.failed[0]
+        self.assertEqual(failure_count, 1)
+        self.assertNotEqual(reason, '')
+        # We also didn't download anything.
+        self.assertFalse(self.downloaded)
+        # Now, restart the download.
+        self.cancel_at_percentage = None
+        self.failed = []
+        self.progress_signals = []
+        # Start the ball rolling again.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        # This time, we've downloaded everything
+        self.assertTrue(self.downloaded)
+        self.assertEqual(len(self.failed), 0)
+
 
 
 class TestDBusMocksNoUpdate(_TestBase):

@@ -156,6 +156,10 @@ class Service(Object):
                               error_reason):
         """Signal sent in response to a CheckForUpdate()."""
 
+    @signal('com.canonical.SystemImage', signature='id')
+    def UpdateProgress(self, percentage, eta):
+        """Download progress."""
+
     @signal('com.canonical.SystemImage')
     def UpdateDownloaded(self):
         """The update has been successfully downloaded."""

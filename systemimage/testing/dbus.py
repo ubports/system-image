@@ -26,6 +26,7 @@ import time
 
 from dbus.service import method
 from functools import partial
+from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.dbus import Service
@@ -79,6 +80,90 @@ class _LiveTestableService(Service):
         self._failure_count = 0
         safe_remove(config.system.state_file)
         safe_remove(config.system.settings_db)
+
+
+class _UpdateAutoSuccess(Service):
+    """Normal update in auto-download mode."""
+
+    def __init__(self, bus, object_path, loop):
+        super().__init__(bus, object_path, loop)
+        self._reset()
+
+    def _reset(self):
+        self._percentage = 0
+        self._eta = 50.0
+        self._paused = False
+        self._downloading = False
+        self._canceled = False
+        self._failure_count = 0
+
+    @method('com.canonical.SystemImage')
+    def Reset(self):
+        self._reset()
+
+    @method('com.canonical.SystemImage')
+    def CheckForUpdate(self):
+        if self._failure_count > 0:
+            self._reset()
+        GLib.timeout_add_seconds(3, self._send_status)
+
+    def _send_status(self):
+        self.UpdateAvailableStatus(
+            True, True, 42, 1337 * 1024 * 1024,
+            '1983-09-13T12:13:14',
+            [
+            {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
+             'description-fr': "Support d'Ubuntu Edge",
+            },
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }],
+            '')
+        self._downloading = True
+        self.UpdateProgress(0, 50.0)
+        GLib.timeout_add(500, self._send_more_status)
+        return False
+
+    def _send_more_status(self):
+        if self._canceled:
+            self._downloading = False
+            self._failure_count += 1
+            self.UpdateFailed(self._failure_count, 'canceled')
+            return False
+        if not self._paused:
+            self._percentage += 1
+            self._eta -= 0.5
+            if self._percentage == 100:
+                # We're done.
+                self._downloading = False
+                self.UpdateDownloaded()
+                return False
+            self.UpdateProgress(self._percentage, self._eta)
+        # Continue sending more status.
+        return True
+
+    @method('com.canonical.SystemImage')
+    def PauseDownload(self):
+        if self._downloading:
+            self._paused = True
+        # Otherwise it's a no-op.
+
+    @method('com.canonical.SystemImage')
+    def DownloadUpdate(self):
+        self._paused = False
+
+    @method('com.canonical.SystemImage', signature='s')
+    def CancelUpdate(self):
+        if self._downloading:
+            self._canceled = True
+        # Otherwise it's a no-op.
+        return ''
+
+    @method('com.canonical.SystemImage', out_signature='s')
+    def ApplyUpdate(self):
+        # Always succeeds.
+        return ''
 
 
 class _NoUpdateService(Service):
@@ -175,8 +260,8 @@ def get_service(testing_mode, system_bus, object_path, loop):
     """Return the appropriate service class for the testing mode."""
     if testing_mode == 'live':
         ServiceClass = _LiveTestableService
-    elif testing_mode == 'no-update':
-        ServiceClass = _NoUpdateService
+    elif testing_mode == 'update-auto-success':
+        ServiceClass = _UpdateAutoSuccess
     elif testing_mode == 'update-success':
         ServiceClass = _UpdateSuccessService
     elif testing_mode == 'update-failed':
