@@ -86,6 +86,7 @@ class _UpdateAutoSuccess(Service):
 
     def __init__(self, bus, object_path, loop):
         super().__init__(bus, object_path, loop)
+        self._download_mode = '1'
         self._reset()
 
     @method('com.canonical.SystemImage')
@@ -172,6 +173,17 @@ class _UpdateAutoSuccess(Service):
     def ApplyUpdate(self):
         # Always succeeds.
         return ''
+
+    @method('com.canonical.SystemImage', in_signature='s', out_signature='s')
+    def GetSetting(self, key):
+        if key == "auto_download":
+           return self._download_mode
+        return ''
+
+    @method('com.canonical.SystemImage', in_signature='ss')
+    def SetSetting(self, key, value):
+        if key == "auto_download":
+           self._download_mode = value
 
 
 class _UpdateManualSuccess(_UpdateAutoSuccess):
