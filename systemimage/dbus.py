@@ -61,7 +61,7 @@ class Service(Object):
                                    self._update.version,
                                    self._update.size,
                                    self._update.last_update_date,
-                                   self._update.descriptions,
+                                   #self._update.descriptions,
                                    "")
         self._checking = False
         # Stop GLib from calling this method again.
@@ -157,11 +157,12 @@ class Service(Object):
         self._api.reboot()
         return ''
 
-    @signal('com.canonical.SystemImage', signature='bbiisaa{ss}s')
+    #@signal('com.canonical.SystemImage', signature='bbiisaa{ss}s')
+    @signal('com.canonical.SystemImage', signature='bbiiss')
     def UpdateAvailableStatus(self,
                               is_available, downloading,
                               available_version, update_size,
-                              last_update_date, descriptions,
+                              last_update_date, #descriptions,
                               error_reason):
         """Signal sent in response to a CheckForUpdate()."""
 

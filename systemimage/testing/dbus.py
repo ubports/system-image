@@ -111,14 +111,14 @@ class _UpdateAutoSuccess(Service):
         self.UpdateAvailableStatus(
             True, self._auto_download, 42, 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
-            [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }],
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #"}],
             '')
         if self._auto_download:
             self._downloading = True
@@ -198,14 +198,14 @@ class _UpdateFailed(Service):
         self.UpdateAvailableStatus(
             True, False, 42, 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
-            [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }],
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #}],
             msg)
         self._failure_count += 1
         self.UpdateFailed(self._failure_count, msg)
@@ -221,14 +221,14 @@ class _FailApply(Service):
         self.UpdateAvailableStatus(
             True, False, 42, 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
-            [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }],
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #}],
             '')
         self.UpdateDownloaded()
 
@@ -248,14 +248,14 @@ class _FailResume(Service):
         self.UpdateAvailableStatus(
             True, False, 42, 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
-            [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }],
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #}],
             '')
         self.UpdatePaused(42)
 
@@ -274,14 +274,14 @@ class _FailPause(Service):
         self.UpdateAvailableStatus(
             True, True, 42, 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
-            [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }],
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #}],
             '')
         self.UpdateProgress(10, 0)
 
