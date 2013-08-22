@@ -213,9 +213,16 @@ class Service(Object):
                 return
             if as_int not in (0, 1, 2):
                 return
+        if value == self.GetSetting(key):
+            return
         Settings().set(key, value)
+        self.SettingChanged(key, value)
 
     @method('com.canonical.SystemImage', in_signature='s', out_signature='s')
     def GetSetting(self, key):
         """Get a setting."""
         return Settings().get(key)
+
+    @signal('com.canonical.SystemImage', signature='ss')
+    def SettingChanged(self, key, new_value):
+        """A settings key has change"""
