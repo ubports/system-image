@@ -117,13 +117,15 @@ class _UpdateAutoSuccess(Service):
             # 'Flipped container with 200% boot speed improvement',
             #"}],
             '')
-        if self._auto_download:
+        if self._auto_download and not self._downloading and not self._rebootable:
             self._downloading = True
             self.UpdateProgress(0, 50.0)
             GLib.timeout_add(500, self._send_more_status)
         # send current progress without ETA if paused
         if self._paused:
             self.UpdatePaused(self._percentage)
+        if self._rebootable:
+            self.UpdateDownloaded()
         return False
 
     def _send_more_status(self):
@@ -138,6 +140,7 @@ class _UpdateAutoSuccess(Service):
             if self._percentage == 100:
                 # We're done.
                 self._downloading = False
+                self._rebootable = True
                 self.UpdateDownloaded()
                 return False
             self.UpdateProgress(self._percentage, self._eta)
