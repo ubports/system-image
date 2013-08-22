@@ -301,6 +301,30 @@ class _FailPause(Service):
     def PauseDownload(self):
         return 'no no, not now'
 
+class _NoUpdate(Service):
+    @method('com.canonical.SystemImage')
+    def CheckForUpdate(self):
+        GLib.timeout_add_seconds(3, self._send_status)
+
+    def _send_status(self):
+        self.UpdateAvailableStatus(
+            False, False, 0, 0,
+            '1983-09-13T12:13:14',
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #}],
+            '')
+
+
+def get_service(testing_mode, system_bus, object_path, loop):
+    """Return the appropriate service class for the testing mode."""
+    if testing_mode == 'live':
+        ServiceClass = _LiveTestableService
 
 def get_service(testing_mode, system_bus, object_path, loop):
     """Return the appropriate service class for the testing mode."""
@@ -318,6 +342,8 @@ def get_service(testing_mode, system_bus, object_path, loop):
         ServiceClass = _FailResume
     elif testing_mode == 'fail-pause':
         ServiceClass = _FailPause
+    elif testing_mode == 'no-update':
+        ServiceClass = _NoUpdate
     else:
         raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
     return ServiceClass(system_bus, object_path, loop)
