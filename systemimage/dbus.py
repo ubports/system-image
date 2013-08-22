@@ -158,7 +158,7 @@ class Service(Object):
         return ''
 
     #@signal('com.canonical.SystemImage', signature='bbiisaa{ss}s')
-    @signal('com.canonical.SystemImage', signature='bbiiss')
+    @signal('com.canonical.SystemImage', signature='bbsiss')
     def UpdateAvailableStatus(self,
                               is_available, downloading,
                               available_version, update_size,

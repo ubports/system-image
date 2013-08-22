@@ -105,7 +105,7 @@ class _UpdateAutoSuccess(Service):
 
     def _send_status(self):
         self.UpdateAvailableStatus(
-            True, self._auto_download, 42, 1337 * 1024 * 1024,
+            True, self._auto_download, '42', 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',
@@ -192,7 +192,7 @@ class _UpdateFailed(Service):
         if self._failure_count > 0:
             msg = 'You need some network for downloading'
         self.UpdateAvailableStatus(
-            True, False, 42, 1337 * 1024 * 1024,
+            True, False, '42', 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',
@@ -221,7 +221,7 @@ class _FailApply(Service):
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
-            True, False, 42, 1337 * 1024 * 1024,
+            True, False, '42', 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',
@@ -248,7 +248,7 @@ class _FailResume(Service):
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
-            True, False, 42, 1337 * 1024 * 1024,
+            True, False, '42', 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',
@@ -274,7 +274,7 @@ class _FailPause(Service):
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
-            True, True, 42, 1337 * 1024 * 1024,
+            True, True, '42', 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',
@@ -298,7 +298,7 @@ class _NoUpdate(Service):
 
     def _send_status(self):
         self.UpdateAvailableStatus(
-            False, False, 0, 0,
+            False, False, '', 0,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',

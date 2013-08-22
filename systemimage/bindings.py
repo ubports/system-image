@@ -95,7 +95,7 @@ class DBusClient:
 
     @property
     def update_version(self):
-        return int(self.iface.GetUpdateVersion())
+        return str(self.iface.GetUpdateVersion())
 
     @property
     def update_descriptions(self):
