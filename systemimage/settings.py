@@ -43,6 +43,8 @@ class Settings:
             # case we do, set a version value.
             c.execute('insert into settings values ("__version__", ?)',
                       (SCHEMA_VERSION,))
+            # Some keys are pre-populated with default values.
+            c.execute('insert into settings values ("auto_download", "1")')
 
     @contextmanager
     def _cursor(self):

@@ -67,3 +67,8 @@ class TestSettings(unittest.TestCase):
         settings.set('animal', 'cat')
         del settings
         self.assertEqual(Settings().get('animal'), 'cat')
+
+    @configuration
+    def test_prepopulated(self):
+        # Some keys are pre-populated with default values.
+        self.assertEqual(Settings().get('auto_download'), '1')
