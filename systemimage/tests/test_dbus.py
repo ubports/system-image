@@ -22,6 +22,8 @@ __all__ = [
     'TestDBusDownload',
     'TestDBusGetSet',
     'TestDBusMain',
+    'TestDBusMockFailApply',
+    'TestDBusMockFailResume',
     'TestDBusMockUpdateAutoSuccess',
     'TestDBusMockUpdateManualSuccess',
     ]
@@ -260,6 +262,7 @@ class _LiveTesting(_TestBase):
             print(version, file=fp)
 
 
+@unittest.skip('mocks only for now')
 class TestDBusCheckForUpdate(_LiveTesting):
     """Test the SystemImage dbus service."""
 
@@ -356,6 +359,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
             }])
 
 
+@unittest.skip('mocks only for now')
 class TestDBusDownload(_LiveTesting):
     def test_auto_download(self):
         # When always auto-downloading, and there is an update available, the
@@ -480,6 +484,7 @@ unmount system
         self.assertNotEqual(last_reason, '')
 
 
+@unittest.skip('mocks only for now')
 class TestDBusApply(_LiveTesting):
     def setUp(self):
         super().setUp()
@@ -554,6 +559,7 @@ class _TestDBusMockBase(_TestBase):
         self.pause_start = None
         self.pause_end = None
         self.auto_download = True
+        self.pause_quit = self.loop.quit
         def resume_callback():
             self.pause_end = time.time()
             self.iface.DownloadUpdate()
@@ -596,6 +602,14 @@ class _TestDBusMockBase(_TestBase):
         self.signal_matches.append(
             self.system_bus.add_signal_receiver(
                 failed_callback, signal_name='UpdateFailed',
+                dbus_interface='com.canonical.SystemImage'))
+        self.pauses = []
+        def paused_callback(percentage):
+            self.pauses.append(percentage)
+            self.pause_quit()
+        self.signal_matches.append(
+            self.system_bus.add_signal_receiver(
+                paused_callback, signal_name='UpdatePaused',
                 dbus_interface='com.canonical.SystemImage'))
         # No test should run longer than this.
         self.test_failsafe_id = GLib.timeout_add_seconds(120, self.loop.quit)
@@ -644,10 +658,14 @@ class TestDBusMockUpdateAutoSuccess(_TestDBusMockBase):
     def test_scenario_2(self):
         # Like scenario 1, but with PauseDownload called during the downloads.
         self.pause_at_percentage = 35
+        self.pause_quit = lambda: None
         # Start the ball rolling.
         GLib.timeout_add(50, self.iface.CheckForUpdate)
         self.loop.run()
-        # First, make sure that we still got 100 progress reports.
+        # We got a pause signal.
+        self.assertEqual(len(self.pauses), 1)
+        self.assertEqual(self.pauses[0], 35)
+        # Make sure that we still got 100 progress reports.
         self.assertEqual(len(self.progress_signals), 100)
         # And we still completed successfully.
         self.assertTrue(self.downloaded)
@@ -664,6 +682,7 @@ class TestDBusMockUpdateAutoSuccess(_TestDBusMockBase):
         # Now run the loop and assert that we never paused.
         GLib.timeout_add(50, self.iface.CheckForUpdate)
         self.loop.run()
+        self.assertEqual(len(self.pauses), 0)
         self.assertIsNone(self.pause_start)
         self.assertIsNone(self.pause_end)
 
@@ -798,6 +817,75 @@ class TestDBusMockUpdateFailed(_TestDBusMockBase):
         self.assertEqual(reason, 'You need some network for downloading')
 
 
+class TestDBusMockFailApply(_TestDBusMockBase):
+    mode = 'fail-apply'
+
+    def test_scenario_1(self):
+        # The update has been downloaded, client sends CheckForUpdate and
+        # receives a response.  The update is downloaded successfully.  An
+        # error occurs when we try to apply the update.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(available_version, 42)
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        self.assertEqual(descriptions, [
+            {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
+             'description-fr': "Support d'Ubuntu Edge",
+            },
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }])
+        self.assertEqual(error_reason, '')
+        self.assertTrue(self.downloaded)
+        self.assertEqual(self.iface.ApplyUpdate(),
+                         'Not enough battery, you need to plug in your phone')
+
+
+class TestDBusMockFailResume(_TestDBusMockBase):
+    mode = 'fail-resume'
+
+    def test_scenario_1(self):
+        # The server download is paused at 42%.  A CheckForUpdate is issued
+        # and gets a response.  An UpdatePaused signal is sent.  A problem
+        # occurs that prevents resuming.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(available_version, 42)
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        self.assertEqual(descriptions, [
+            {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
+             'description-fr': "Support d'Ubuntu Edge",
+            },
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }])
+        self.assertEqual(error_reason, '')
+        # The download is already paused.
+        self.assertEqual(len(self.pauses), 1)
+        self.assertEqual(self.pauses[0], 42)
+        # We try to resume the download, but that fails.
+        self.assertEqual(len(self.failed), 0)
+        self.iface.DownloadUpdate()
+        self.loop.run()
+        self.assertEqual(len(self.failed), 1)
+        failure_count, reason = self.failed[0]
+        self.assertEqual(failure_count, 9)
+        self.assertEqual(reason, 'You need some network for downloading')
+
+
+@unittest.skip('mocks only for now')
 class TestDBusMain(_TestBase):
     mode = 'live'
 
@@ -821,6 +909,7 @@ class TestDBusMain(_TestBase):
         self.assertTrue(os.path.exists(config.system.tempdir))
 
 
+@unittest.skip('mocks only for now')
 class TestDBusClient(_LiveTesting):
     """Test the DBus client (used with --dbus)."""
 

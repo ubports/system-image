@@ -168,6 +168,10 @@ class Service(Object):
     def UpdateFailed(self, consecutive_failure_count, last_reason):
         """The update failed for some reason."""
 
+    @signal('com.canonical.SystemImage', signature='i')
+    def UpdatePaused(self, percentage):
+        """The download got paused."""
+
     @signal('com.canonical.SystemImage')
     def Canceled(self):
         """A download has been canceled.

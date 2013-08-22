@@ -148,12 +148,13 @@ class _UpdateAutoSuccess(Service):
     def PauseDownload(self):
         if self._downloading:
             self._paused = True
+            self.UpdatePaused(self._percentage)
         # Otherwise it's a no-op.
 
     @method('com.canonical.SystemImage')
     def DownloadUpdate(self):
+        self._paused = False
         if not self._downloading:
-            self._paused = False
             if not self._auto_download:
                 self._downloading = True
                 self.UpdateProgress(0, 50.0)
@@ -209,6 +210,59 @@ class _UpdateFailed(Service):
         self.UpdateFailed(self._failure_count, msg)
 
 
+class _FailApply(Service):
+    @method('com.canonical.SystemImage')
+    def Reset(self):
+        pass
+
+    @method('com.canonical.SystemImage')
+    def CheckForUpdate(self):
+        self.UpdateAvailableStatus(
+            True, False, 42, 1337 * 1024 * 1024,
+            '1983-09-13T12:13:14',
+            [
+            {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
+             'description-fr': "Support d'Ubuntu Edge",
+            },
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }],
+            '')
+        self.UpdateDownloaded()
+
+    @method('com.canonical.SystemImage', out_signature='s')
+    def ApplyUpdate(self):
+        # The update cannot be applied.
+        return 'Not enough battery, you need to plug in your phone'
+
+
+class _FailResume(Service):
+    @method('com.canonical.SystemImage')
+    def Reset(self):
+        pass
+
+    @method('com.canonical.SystemImage')
+    def CheckForUpdate(self):
+        self.UpdateAvailableStatus(
+            True, False, 42, 1337 * 1024 * 1024,
+            '1983-09-13T12:13:14',
+            [
+            {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
+             'description-fr': "Support d'Ubuntu Edge",
+            },
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }],
+            '')
+        self.UpdatePaused(42)
+
+    @method('com.canonical.SystemImage')
+    def DownloadUpdate(self):
+        self.UpdateFailed(9, 'You need some network for downloading')
+
+
 def get_service(testing_mode, system_bus, object_path, loop):
     """Return the appropriate service class for the testing mode."""
     if testing_mode == 'live':
@@ -219,6 +273,10 @@ def get_service(testing_mode, system_bus, object_path, loop):
         ServiceClass = _UpdateManualSuccess
     elif testing_mode == 'update-failed':
         ServiceClass = _UpdateFailed
+    elif testing_mode == 'fail-apply':
+        ServiceClass = _FailApply
+    elif testing_mode == 'fail-resume':
+        ServiceClass = _FailResume
     else:
         raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
     return ServiceClass(system_bus, object_path, loop)
