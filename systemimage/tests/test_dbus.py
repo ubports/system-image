@@ -16,13 +16,14 @@
 """Test the SystemImage dbus service."""
 
 __all__ = [
+    'TestDBusApply',
     'TestDBusCheckForUpdate',
     'TestDBusClient',
+    'TestDBusDownload',
+    'TestDBusGetSet',
     'TestDBusMain',
-    'TestDBusMocksNoUpdate',
-    'TestDBusMocksUpdateAvailable',
-    'TestDBusMocksUpdateFailed',
     'TestDBusMockUpdateAutoSuccess',
+    'TestDBusMockUpdateManualSuccess',
     ]
 
 
@@ -540,9 +541,7 @@ class TestDBusApply(_LiveTesting):
         self.assertEqual(self.iface.BuildNumber(), 0)
 
 
-class TestDBusMockUpdateAutoSuccess(_TestBase):
-    mode = 'update-auto-success'
-
+class _TestDBusMockBase(_TestBase):
     def setUp(self):
         super().setUp()
         # We want to catch multiple signals and do different things with them,
@@ -554,6 +553,7 @@ class TestDBusMockUpdateAutoSuccess(_TestBase):
         self.pause_at_percentage = None
         self.pause_start = None
         self.pause_end = None
+        self.auto_download = True
         def resume_callback():
             self.pause_end = time.time()
             self.iface.DownloadUpdate()
@@ -582,6 +582,9 @@ class TestDBusMockUpdateAutoSuccess(_TestBase):
         self.status = None
         def status_callback(*args):
             self.status = args
+            if not self.auto_download:
+                # The download must be started manually.
+                self.loop.quit()
         self.signal_matches.append(
             self.system_bus.add_signal_receiver(
                 status_callback, signal_name='UpdateAvailableStatus',
@@ -603,6 +606,10 @@ class TestDBusMockUpdateAutoSuccess(_TestBase):
         for match in self.signal_matches:
             match.remove()
         super().tearDown()
+
+
+class TestDBusMockUpdateAutoSuccess(_TestDBusMockBase):
+    mode = 'update-auto-success'
 
     def test_scenario_1(self):
         # Start the ball rolling.
@@ -716,132 +723,79 @@ class TestDBusMockUpdateAutoSuccess(_TestBase):
         self.assertEqual(len(self.failed), 0)
 
 
-
-class TestDBusMocksNoUpdate(_TestBase):
-    mode = 'no-update'
-
-    def test_build_number(self):
-        self.assertEqual(self.iface.BuildNumber(), 42)
-
-    def test_no_update_available(self):
-        signals = self._run_loop(
-            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(len(signals), 1)
-        # There's one boolean argument to the result.
-        self.assertFalse(signals[0][0])
-
-
-class TestDBusMocksUpdateAvailable(_TestBase):
-    mode = 'update-success'
+class TestDBusMockUpdateManualSuccess(_TestDBusMockBase):
+    mode = 'update-manual-success'
 
     def setUp(self):
         super().setUp()
-        config = Configuration()
-        config.load(_controller.ini_path)
-        self.reboot_log = os.path.join(
-            config.updater.cache_partition, 'reboot.log')
+        self.auto_download = False
 
-    def tearDown(self):
-        safe_remove(self.reboot_log)
-        super().tearDown()
-
-    def test_build_number(self):
-        self.assertEqual(self.iface.BuildNumber(), 42)
-
-    def test_update_available(self):
-        signals = self._run_loop(
-            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(len(signals), 1)
-        # There's one boolean argument to the result.
-        self.assertTrue(signals[0][0])
-
-    def test_size(self):
-        self.assertEqual(self.iface.GetUpdateSize(), 1369088)
-
-    def test_version(self):
-        self.assertEqual(self.iface.GetUpdateVersion(), 44)
-
-    def test_descriptions(self):
-        self.assertEqual(self.iface.GetDescriptions(), [
+    def test_scenario_1(self):
+        # Like scenario 1 for auto-downloading except that the download must
+        # be started explicitly.
+        # Start the ball rolling.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(available_version, 42)
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        self.assertEqual(descriptions, [
             {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
              'description-fr': "Support d'Ubuntu Edge",
-             'description-en': 'Initialise your Colour',
-             'description-en_US': 'Initialize your Color',
             },
-            {'description': 'Flipped container with 200% faster boot'},
-            ])
-
-    def test_update(self):
-        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        self.assertEqual(len(signals), 1)
-
-    def test_update_canceled(self):
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        # Cancel the update.
-        signals = self._run_loop(self.iface.Cancel, 'Canceled')
-        self.assertEqual(len(signals), 1)
-        # The next GetUpdate() will no-op.
-        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        self.assertEqual(len(signals), 0)
-
-    def test_reboot(self):
-        # Read a reboot.log so we can prove that the "reboot" happened.
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        self.iface.Reboot()
-        with open(self.reboot_log, encoding='utf-8') as fp:
-            reboot = fp.read()
-        self.assertEqual(reboot, '/sbin/reboot -f recovery')
-
-    def test_reboot_canceled(self):
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        signals = self._run_loop(self.iface.Cancel, 'Canceled')
-        self.assertEqual(len(signals), 1)
-        # The next reboot will no-op.
-        self.assertFalse(os.path.exists(self.reboot_log))
-        self.iface.Reboot()
-        self.assertFalse(os.path.exists(self.reboot_log))
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }])
+        self.assertEqual(error_reason, '')
+        # There should be no progress yet.
+        self.assertEqual(len(self.progress_signals), 0)
+        self.iface.DownloadUpdate()
+        self.loop.run()
+        # We should have gotten 100 UpdateProgress signals, where each
+        # increments the percentage by 1 and decrements the eta by 0.5.
+        self.assertEqual(len(self.progress_signals), 100)
+        for i in range(100):
+            percentage, eta = self.progress_signals[i]
+            self.assertEqual(percentage, i)
+            self.assertEqual(eta, 50 - (i * 0.5))
+        self.assertTrue(self.downloaded)
+        self.assertEqual(self.iface.ApplyUpdate(), '')
 
 
-class TestDBusMocksUpdateFailed(_TestBase):
+class TestDBusMockUpdateFailed(_TestDBusMockBase):
     mode = 'update-failed'
 
-    def test_build_number(self):
-        self.assertEqual(self.iface.BuildNumber(), 42)
-
-    def test_update_available(self):
-        signals = self._run_loop(
-            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(len(signals), 1)
-        # There's one boolean argument to the result.
-        self.assertTrue(signals[0][0])
-
-    def test_size(self):
-        self.assertEqual(self.iface.GetUpdateSize(), 1369088)
-
-    def test_version(self):
-        self.assertEqual(self.iface.GetUpdateVersion(), 44)
-
-    def test_descriptions(self):
-        self.assertEqual(self.iface.GetDescriptions(), [
+    def test_scenario_1(self):
+        # The server is already in falure mode.  A CheckForUpdate() restarts
+        # the check, which returns information about the new update.  It
+        # auto-starts, but this fails.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(available_version, 42)
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        self.assertEqual(descriptions, [
             {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
              'description-fr': "Support d'Ubuntu Edge",
-             'description-en': 'Initialise your Colour',
-             'description-en_US': 'Initialize your Color',
             },
-            {'description': 'Flipped container with 200% faster boot'},
-            ])
-
-    def test_update(self):
-        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
-        self.assertEqual(len(signals), 1)
-
-    def test_reboot(self):
-        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
-        self.assertEqual(len(signals), 1)
-        signals = self._run_loop(self.iface.Reboot, 'UpdateFailed')
-        self.assertEqual(len(signals), 1)
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }])
+        self.assertEqual(error_reason, 'You need some network for downloading')
+        self.assertEqual(len(self.failed), 1)
+        failure_count, reason = self.failed[0]
+        self.assertEqual(failure_count, 2)
+        self.assertEqual(reason, 'You need some network for downloading')
 
 
 class TestDBusMain(_TestBase):

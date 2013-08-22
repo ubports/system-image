@@ -22,7 +22,6 @@ __all__ = [
 
 
 import os
-import time
 
 from dbus.service import method
 from functools import partial
@@ -89,6 +88,10 @@ class _UpdateAutoSuccess(Service):
         super().__init__(bus, object_path, loop)
         self._reset()
 
+    @method('com.canonical.SystemImage')
+    def Reset(self):
+        self._reset()
+
     def _reset(self):
         self._percentage = 0
         self._eta = 50.0
@@ -96,10 +99,7 @@ class _UpdateAutoSuccess(Service):
         self._downloading = False
         self._canceled = False
         self._failure_count = 0
-
-    @method('com.canonical.SystemImage')
-    def Reset(self):
-        self._reset()
+        self._auto_download = True
 
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
@@ -109,7 +109,7 @@ class _UpdateAutoSuccess(Service):
 
     def _send_status(self):
         self.UpdateAvailableStatus(
-            True, True, 42, 1337 * 1024 * 1024,
+            True, self._auto_download, 42, 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
             [
             {'description': 'Ubuntu Edge support',
@@ -120,9 +120,10 @@ class _UpdateAutoSuccess(Service):
              'Flipped container with 200% boot speed improvement',
             }],
             '')
-        self._downloading = True
-        self.UpdateProgress(0, 50.0)
-        GLib.timeout_add(500, self._send_more_status)
+        if self._auto_download:
+            self._downloading = True
+            self.UpdateProgress(0, 50.0)
+            GLib.timeout_add(500, self._send_more_status)
         return False
 
     def _send_more_status(self):
@@ -151,7 +152,12 @@ class _UpdateAutoSuccess(Service):
 
     @method('com.canonical.SystemImage')
     def DownloadUpdate(self):
-        self._paused = False
+        if not self._downloading:
+            self._paused = False
+            if not self._auto_download:
+                self._downloading = True
+                self.UpdateProgress(0, 50.0)
+                GLib.timeout_add(500, self._send_more_status)
 
     @method('com.canonical.SystemImage', signature='s')
     def CancelUpdate(self):
@@ -166,94 +172,41 @@ class _UpdateAutoSuccess(Service):
         return ''
 
 
-class _NoUpdateService(Service):
-    """A static, 'no update is available' service."""
-
-    @method('com.canonical.SystemImage', out_signature='i')
-    def BuildNumber(self):
-        return 42
-
-    def _check_for_update(self):
-        time.sleep(SIGNAL_DELAY_SECS)
-        self.UpdateAvailableStatus(False)
-        return False
-
-    @method('com.canonical.SystemImage')
-    def Reset(self):
-        pass
+class _UpdateManualSuccess(_UpdateAutoSuccess):
+    def _reset(self):
+        super()._reset()
+        self._auto_download = False
 
 
-class _UpdateSuccessService(Service):
-    """A static, 'update available' service."""
-
+class _UpdateFailed(Service):
     def __init__(self, bus, object_path, loop):
         super().__init__(bus, object_path, loop)
-        self._canceled = False
-
-    @method('com.canonical.SystemImage', out_signature='i')
-    def BuildNumber(self):
-        return 42
-
-    def _check_for_update(self):
-        time.sleep(SIGNAL_DELAY_SECS)
-        self.UpdateAvailableStatus(True)
-        return False
-
-    @method('com.canonical.SystemImage')
-    def Cancel(self):
-        self._canceled = True
-        self.Canceled()
-
-    @method('com.canonical.SystemImage', out_signature='x')
-    def GetUpdateSize(self):
-        return 1337 * 1024
-
-    @method('com.canonical.SystemImage', out_signature='i')
-    def GetUpdateVersion(self):
-        return 44
-
-    @method('com.canonical.SystemImage', out_signature='aa{ss}')
-    def GetDescriptions(self):
-        return [
-            {'description': 'Ubuntu Edge support',
-             'description-fr': "Support d'Ubuntu Edge",
-             'description-en': 'Initialise your Colour',
-             'description-en_US': 'Initialize your Color',
-            },
-            {'description': 'Flipped container with 200% faster boot'},
-            ]
-
-    def _complete_update(self):
-        time.sleep(SIGNAL_DELAY_SECS)
-        if not self._canceled:
-            self.ReadyToReboot()
-        return False
-
-    @method('com.canonical.SystemImage')
-    def Reboot(self):
-        if not self._canceled:
-            # The actual reboot is mocked to write a reboot log, so go ahead
-            # and call it.  The client will check the log.
-            config.hooks.reboot().reboot()
+        self._reset()
 
     @method('com.canonical.SystemImage')
     def Reset(self):
-        self._canceled = False
-        self._completing = False
-        self._checking = False
+        self._reset()
 
-
-class _UpdateFailedService(_UpdateSuccessService):
-    def _complete_update(self):
-        time.sleep(SIGNAL_DELAY_SECS)
-        if not self._canceled:
-            self.UpdateFailed()
-        return False
+    def _reset(self):
+        self._failure_count = 1
 
     @method('com.canonical.SystemImage')
-    def Reboot(self):
-        if not self._canceled:
-            self.UpdateFailed()
+    def CheckForUpdate(self):
+        msg = 'You need some network for downloading'
+        self.UpdateAvailableStatus(
+            True, False, 42, 1337 * 1024 * 1024,
+            '1983-09-13T12:13:14',
+            [
+            {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
+             'description-fr': "Support d'Ubuntu Edge",
+            },
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }],
+            msg)
+        self._failure_count += 1
+        self.UpdateFailed(self._failure_count, msg)
 
 
 def get_service(testing_mode, system_bus, object_path, loop):
@@ -262,10 +215,10 @@ def get_service(testing_mode, system_bus, object_path, loop):
         ServiceClass = _LiveTestableService
     elif testing_mode == 'update-auto-success':
         ServiceClass = _UpdateAutoSuccess
-    elif testing_mode == 'update-success':
-        ServiceClass = _UpdateSuccessService
+    elif testing_mode == 'update-manual-success':
+        ServiceClass = _UpdateManualSuccess
     elif testing_mode == 'update-failed':
-        ServiceClass = _UpdateFailedService
+        ServiceClass = _UpdateFailed
     else:
         raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
     return ServiceClass(system_bus, object_path, loop)
