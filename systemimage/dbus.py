@@ -56,13 +56,16 @@ class Service(Object):
                 # check if we're on the wifi (auto == '1').
                 GLib.timeout_add(50, self._download)
                 downloading = True
-        self.UpdateAvailableStatus(self._update.is_available,
-                                   downloading,
-                                   self._update.version,
-                                   self._update.size,
-                                   self._update.last_update_date,
-                                   self._update.descriptions,
-                                   "")
+        self.UpdateAvailableStatus(
+            self._update.is_available,
+            downloading,
+            self._update.version,
+            self._update.size,
+            self._update.last_update_date,
+            # XXX 2013-08-22 - the u/i cannot currently currently handle the
+            # array of dictionaries data type.  LP: #1215586
+            #self._update.descriptions,
+            "")
         self._checking = False
         # Stop GLib from calling this method again.
         return False
@@ -122,18 +125,20 @@ class Service(Object):
         GLib.timeout_add(50, self._download)
 
     @method('com.canonical.SystemImage')
-    def Cancel(self):
-        """Cancel a download and/or reboot.
+    def PauseDownload(self, out_signature='s'):
+        """Pause a downloading update."""
+        # XXX 2013-08-22 We cannot currently pause downloads until we
+        # integrate with the download service.  LP: #1196991
+        return ""
 
-        At any time between the `GetUpdate()` call and the `Reboot()` call, an
-        upgrade may be canceled by calling this method.  Once canceled, the
-        upgrade may not be restarted without killing the dbus client and
-        restarting it.  The dbus client is short-lived any way, so it will
-        timeout and restart via dbus activation automatically after a short
-        period of time.
-        """
+    @method('com.canonical.SystemImage')
+    def CancelUpdate(self, out_signature='s'):
+        """Cancel a download."""
         self._api.cancel()
         self.Canceled()
+        # XXX 2013-08-22: If we can't cancel the current download, return the
+        # reason in this string.
+        return ""
 
     @method('com.canonical.SystemImage')
     def Exit(self):
@@ -148,11 +153,15 @@ class Service(Object):
         self._api.reboot()
         return ''
 
-    @signal('com.canonical.SystemImage', signature='bbiisaa{ss}s')
+    # XXX 2013-08-22 The u/i cannot currently handle the array of dictionaries
+    # data type for the descriptions.  LP: #1215586
+    #@signal('com.canonical.SystemImage', signature='bbsisaa{ss}s')
+    @signal('com.canonical.SystemImage', signature='bbsiss')
     def UpdateAvailableStatus(self,
                               is_available, downloading,
                               available_version, update_size,
-                              last_update_date, descriptions,
+                              last_update_date,
+                              #descriptions,
                               error_reason):
         """Signal sent in response to a CheckForUpdate()."""
 
@@ -171,15 +180,6 @@ class Service(Object):
     @signal('com.canonical.SystemImage', signature='i')
     def UpdatePaused(self, percentage):
         """The download got paused."""
-
-    @signal('com.canonical.SystemImage')
-    def Canceled(self):
-        """A download has been canceled.
-
-        This signal is sent whenever the download of an update has been
-        canceled.  The cancellation can occur any time prior to a reboot being
-        issued.
-        """
 
     @method('com.canonical.SystemImage', in_signature='ss')
     def SetSetting(self, key, value):
@@ -202,9 +202,18 @@ class Service(Object):
                 return
             if as_int not in (0, 1, 2):
                 return
-        Settings().set(key, value)
+        settings = Settings()
+        old_value = settings.get(key)
+        settings.set(key, value)
+        if value != old_value:
+            # Send the signal.
+            self.SettingChanged(key, value)
 
     @method('com.canonical.SystemImage', in_signature='s', out_signature='s')
     def GetSetting(self, key):
         """Get a setting."""
         return Settings().get(key)
+
+    @signal('com.canonical.SystemImage', signature='ss')
+    def SettingChanged(self, key, new_value):
+        """A setting value has change."""

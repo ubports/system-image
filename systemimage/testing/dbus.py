@@ -88,18 +88,19 @@ class _UpdateAutoSuccess(Service):
         super().__init__(bus, object_path, loop)
         self._reset()
 
+    def _reset(self):
+        self._auto_download = True
+        self._canceled = False
+        self._downloading = False
+        self._eta = 50.0
+        self._failure_count = 0
+        self._paused = False
+        self._percentage = 0
+        self._rebootable = False
+
     @method('com.canonical.SystemImage')
     def Reset(self):
         self._reset()
-
-    def _reset(self):
-        self._percentage = 0
-        self._eta = 50.0
-        self._paused = False
-        self._downloading = False
-        self._canceled = False
-        self._failure_count = 0
-        self._auto_download = True
 
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
@@ -109,21 +110,27 @@ class _UpdateAutoSuccess(Service):
 
     def _send_status(self):
         self.UpdateAvailableStatus(
-            True, self._auto_download, 42, 1337 * 1024 * 1024,
+            True, self._auto_download, '42', 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
-            [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }],
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #"}],
             '')
-        if self._auto_download:
+        if (    self._auto_download and
+                not self._downloading and
+                not self._rebootable):
             self._downloading = True
             self.UpdateProgress(0, 50.0)
             GLib.timeout_add(500, self._send_more_status)
+        if self._paused:
+            self.UpdatePaused(self._percentage)
+        elif self._rebootable:
+            self.UpdateDownloaded()
         return False
 
     def _send_more_status(self):
@@ -138,6 +145,7 @@ class _UpdateAutoSuccess(Service):
             if self._percentage == 100:
                 # We're done.
                 self._downloading = False
+                self._rebootable = True
                 self.UpdateDownloaded()
                 return False
             self.UpdateProgress(self._percentage, self._eta)
@@ -161,7 +169,7 @@ class _UpdateAutoSuccess(Service):
                 self.UpdateProgress(0, 50.0)
                 GLib.timeout_add(500, self._send_more_status)
 
-    @method('com.canonical.SystemImage', signature='s')
+    @method('com.canonical.SystemImage', out_signature='s')
     def CancelUpdate(self):
         if self._downloading:
             self._canceled = True
@@ -185,30 +193,38 @@ class _UpdateFailed(Service):
         super().__init__(bus, object_path, loop)
         self._reset()
 
-    @method('com.canonical.SystemImage')
-    def Reset(self):
-        self._reset()
-
     def _reset(self):
         self._failure_count = 1
 
     @method('com.canonical.SystemImage')
+    def Reset(self):
+        self._reset()
+
+    @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
-        msg = 'You need some network for downloading'
+        msg = ('You need some network for downloading'
+               if self._failure_count > 0
+               else '')
         self.UpdateAvailableStatus(
-            True, False, 42, 1337 * 1024 * 1024,
+            True, False, '42', 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
-            [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }],
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #}],
             msg)
-        self._failure_count += 1
-        self.UpdateFailed(self._failure_count, msg)
+        if self._failure_count > 0:
+            self._failure_count += 1
+            self.UpdateFailed(self._failure_count, msg)
+
+    @method('com.canonical.SystemImage', out_signature='s')
+    def CancelUpdate(self):
+        self._failure_count = 0
+        return ''
 
 
 class _FailApply(Service):
@@ -219,16 +235,16 @@ class _FailApply(Service):
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
-            True, False, 42, 1337 * 1024 * 1024,
+            True, False, '42', 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
-            [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }],
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #}],
             '')
         self.UpdateDownloaded()
 
@@ -246,16 +262,16 @@ class _FailResume(Service):
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
-            True, False, 42, 1337 * 1024 * 1024,
+            True, False, '42', 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
-            [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }],
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #}],
             '')
         self.UpdatePaused(42)
 
@@ -272,22 +288,41 @@ class _FailPause(Service):
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
-            True, True, 42, 1337 * 1024 * 1024,
+            True, True, '42', 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
-            [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }],
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #}],
             '')
         self.UpdateProgress(10, 0)
 
     @method('com.canonical.SystemImage', out_signature='s')
     def PauseDownload(self):
         return 'no no, not now'
+
+class _NoUpdate(Service):
+    @method('com.canonical.SystemImage')
+    def CheckForUpdate(self):
+        GLib.timeout_add_seconds(3, self._send_status)
+
+    def _send_status(self):
+        self.UpdateAvailableStatus(
+            False, False, '', 0,
+            '1983-09-13T12:13:14',
+            #[
+            #{'description': 'Ubuntu Edge support',
+            # 'description-en_GB': 'change the background colour',
+            # 'description-fr': "Support d'Ubuntu Edge",
+            #},
+            #{'description':
+            # 'Flipped container with 200% boot speed improvement',
+            #}],
+            '')
 
 
 def get_service(testing_mode, system_bus, object_path, loop):
@@ -306,6 +341,8 @@ def get_service(testing_mode, system_bus, object_path, loop):
         ServiceClass = _FailResume
     elif testing_mode == 'fail-pause':
         ServiceClass = _FailPause
+    elif testing_mode == 'no-update':
+        ServiceClass = _NoUpdate
     else:
         raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
     return ServiceClass(system_bus, object_path, loop)

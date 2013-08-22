@@ -40,6 +40,7 @@ from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from dbus.exceptions import DBusException
 from dbus.mainloop.glib import DBusGMainLoop
+from functools import partial
 from gi.repository import GLib
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
@@ -631,20 +632,22 @@ class TestDBusMockUpdateAutoSuccess(_TestDBusMockBase):
         GLib.timeout_add(50, self.iface.CheckForUpdate)
         self.loop.run()
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = self.status
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
         self.assertTrue(is_available)
         self.assertTrue(downloading)
-        self.assertEqual(available_version, 42)
+        self.assertEqual(available_version, '42')
         self.assertEqual(update_size, 1337 * 1024 * 1024)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        self.assertEqual(descriptions, [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }])
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
         self.assertEqual(error_reason, '')
         # We should have gotten 100 UpdateProgress signals, where each
         # increments the percentage by 1 and decrements the eta by 0.5.
@@ -757,20 +760,22 @@ class TestDBusMockUpdateManualSuccess(_TestDBusMockBase):
         GLib.timeout_add(50, self.iface.CheckForUpdate)
         self.loop.run()
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = self.status
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
         self.assertTrue(is_available)
         self.assertFalse(downloading)
-        self.assertEqual(available_version, 42)
+        self.assertEqual(available_version, '42')
         self.assertEqual(update_size, 1337 * 1024 * 1024)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        self.assertEqual(descriptions, [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }])
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
         self.assertEqual(error_reason, '')
         # There should be no progress yet.
         self.assertEqual(len(self.progress_signals), 0)
@@ -797,20 +802,22 @@ class TestDBusMockUpdateFailed(_TestDBusMockBase):
         GLib.timeout_add(50, self.iface.CheckForUpdate)
         self.loop.run()
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = self.status
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
         self.assertTrue(is_available)
         self.assertFalse(downloading)
-        self.assertEqual(available_version, 42)
+        self.assertEqual(available_version, '42')
         self.assertEqual(update_size, 1337 * 1024 * 1024)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        self.assertEqual(descriptions, [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }])
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
         self.assertEqual(error_reason, 'You need some network for downloading')
         self.assertEqual(len(self.failed), 1)
         failure_count, reason = self.failed[0]
@@ -828,20 +835,22 @@ class TestDBusMockFailApply(_TestDBusMockBase):
         GLib.timeout_add(50, self.iface.CheckForUpdate)
         self.loop.run()
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = self.status
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
         self.assertTrue(is_available)
         self.assertFalse(downloading)
-        self.assertEqual(available_version, 42)
+        self.assertEqual(available_version, '42')
         self.assertEqual(update_size, 1337 * 1024 * 1024)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        self.assertEqual(descriptions, [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }])
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
         self.assertEqual(error_reason, '')
         self.assertTrue(self.downloaded)
         self.assertEqual(self.iface.ApplyUpdate(),
@@ -858,20 +867,22 @@ class TestDBusMockFailResume(_TestDBusMockBase):
         GLib.timeout_add(50, self.iface.CheckForUpdate)
         self.loop.run()
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = self.status
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
         self.assertTrue(is_available)
         self.assertFalse(downloading)
-        self.assertEqual(available_version, 42)
+        self.assertEqual(available_version, '42')
         self.assertEqual(update_size, 1337 * 1024 * 1024)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        self.assertEqual(descriptions, [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }])
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
         self.assertEqual(error_reason, '')
         # The download is already paused.
         self.assertEqual(len(self.pauses), 1)
@@ -899,20 +910,22 @@ class TestDBusMockFailPause(_TestDBusMockBase):
         self.test_failsafe_id = GLib.timeout_add_seconds(5, self.loop.quit)
         self.loop.run()
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = self.status
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
         self.assertTrue(is_available)
         self.assertTrue(downloading)
-        self.assertEqual(available_version, 42)
+        self.assertEqual(available_version, '42')
         self.assertEqual(update_size, 1337 * 1024 * 1024)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        self.assertEqual(descriptions, [
-            {'description': 'Ubuntu Edge support',
-             'description-en_GB': 'change the background colour',
-             'description-fr': "Support d'Ubuntu Edge",
-            },
-            {'description':
-             'Flipped container with 200% boot speed improvement',
-            }])
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
         self.assertEqual(error_reason, '')
         self.assertEqual(len(self.progress_signals), 1)
         percentage, eta = self.progress_signals[0]
@@ -1083,22 +1096,65 @@ class TestDBusGetSet(_TestBase):
         self.iface.SetSetting('min_battery', 'standby')
         self.assertEqual(self.iface.GetSetting('min_battery'), '100')
 
-    def test_setting_auto_downloads_good(self):
-        # auto_downloads has special semantics.
-        self.iface.SetSetting('auto_downloads', '0')
-        self.assertEqual(self.iface.GetSetting('auto_downloads'), '0')
-        self.iface.SetSetting('auto_downloads', '1')
-        self.assertEqual(self.iface.GetSetting('auto_downloads'), '1')
-        self.iface.SetSetting('auto_downloads', '2')
-        self.assertEqual(self.iface.GetSetting('auto_downloads'), '2')
+    def test_setting_auto_download_good(self):
+        # auto_download has special semantics.
+        self.iface.SetSetting('auto_download', '0')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
+        self.iface.SetSetting('auto_download', '1')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+        self.iface.SetSetting('auto_download', '2')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '2')
 
-    def test_setting_auto_downloads_bad(self):
-        # auto_downloads requires an integer between 0 and 2.
+    def test_setting_auto_download_bad(self):
+        # auto_download requires an integer between 0 and 2.  Don't forget
+        # that it gets pre-populated when the database is created.
         self.iface.SetSetting('auto_download', 'standby')
-        self.assertEqual(self.iface.GetSetting('auto_download'), '')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
         self.iface.SetSetting('auto_download', '-1')
-        self.assertEqual(self.iface.GetSetting('auto_download'), '')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
         self.iface.SetSetting('auto_download', '0')
         self.assertEqual(self.iface.GetSetting('auto_download'), '0')
         self.iface.SetSetting('auto_download', '3')
         self.assertEqual(self.iface.GetSetting('auto_download'), '0')
+
+    def test_prepopulated_settings(self):
+        # Some settings are pre-populated.
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+
+    def test_setting_changed_signal(self):
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'foo', 'yes'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 1)
+        key, new_value = signals[0]
+        self.assertEqual(key, 'foo')
+        self.assertEqual(new_value, 'yes')
+        # The value did not change.
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'foo', 'yes'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 0)
+        # This is the default value, so nothing changes.
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'auto_download', '1'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 0)
+        # This is a bogus value, so nothing changes.
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'min_battery', '200'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 0)
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'auto_download', '0'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 1)
+        key, new_value = signals[0]
+        self.assertEqual(key, 'auto_download')
+        self.assertEqual(new_value, '0')
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'min_battery', '30'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 1)
+        key, new_value = signals[0]
+        self.assertEqual(key, 'min_battery')
+        self.assertEqual(new_value, '30')
