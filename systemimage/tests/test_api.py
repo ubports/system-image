@@ -164,7 +164,7 @@ class TestAPI(unittest.TestCase):
             })
 
     @configuration
-    def test_complete_update(self):
+    def test_download(self):
         # After checking that an update is available, complete the update, but
         # don't reboot.
         self._setup_keyrings()
@@ -177,7 +177,7 @@ class TestAPI(unittest.TestCase):
             got_reboot = True
         with unittest.mock.patch(
                 'systemimage.reboot.Reboot.reboot', reboot_mock):
-            mediator.complete_update()
+            mediator.download()
         # No reboot got issued.
         self.assertFalse(got_reboot)
         # But the command file did get written, and all the files are present.
@@ -229,7 +229,7 @@ unmount system
         with unittest.mock.patch(
                 'systemimage.reboot.Reboot.reboot', reboot_mock):
             mediator.check_for_update()
-            mediator.complete_update()
+            mediator.download()
             self.assertFalse(got_reboot)
             mediator.reboot()
             self.assertTrue(got_reboot)
@@ -241,4 +241,4 @@ unmount system
         mediator = Mediator()
         mediator.check_for_update()
         mediator.cancel()
-        self.assertRaises(Cancel, mediator.complete_update)
+        self.assertRaises(Cancel, mediator.download)
