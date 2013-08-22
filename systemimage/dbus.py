@@ -122,7 +122,14 @@ class Service(Object):
         GLib.timeout_add(50, self._download)
 
     @method('com.canonical.SystemImage')
-    def Cancel(self):
+    def PauseDownload(self, out_signature='s'):
+        """Pause a downloading update.
+
+        TODO: complete"""
+        return ""
+
+    @method('com.canonical.SystemImage')
+    def CancelUpdate(self, out_signature='s'):
         """Cancel a download and/or reboot.
 
         At any time between the `GetUpdate()` call and the `Reboot()` call, an
@@ -134,6 +141,8 @@ class Service(Object):
         """
         self._api.cancel()
         self.Canceled()
+        # TODO: if can't cancel the current download, return the reason in this string
+        return ""
 
     @method('com.canonical.SystemImage')
     def Exit(self):
@@ -172,6 +181,7 @@ class Service(Object):
     def UpdatePaused(self, percentage):
         """The download got paused."""
 
+    # TODO: remove
     @signal('com.canonical.SystemImage')
     def Canceled(self):
         """A download has been canceled.

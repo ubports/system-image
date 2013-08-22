@@ -161,7 +161,7 @@ class _UpdateAutoSuccess(Service):
                 self.UpdateProgress(0, 50.0)
                 GLib.timeout_add(500, self._send_more_status)
 
-    @method('com.canonical.SystemImage', signature='s')
+    @method('com.canonical.SystemImage', out_signature='s')
     def CancelUpdate(self):
         if self._downloading:
             self._canceled = True
