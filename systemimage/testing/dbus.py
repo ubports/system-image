@@ -89,10 +89,6 @@ class _UpdateAutoSuccess(Service):
         self._download_mode = '1'
         self._reset()
 
-    @method('com.canonical.SystemImage')
-    def Reset(self):
-        self._reset()
-
     def _reset(self):
         self._percentage = 0
         self._eta = 50.0
@@ -195,18 +191,13 @@ class _UpdateManualSuccess(_UpdateAutoSuccess):
 class _UpdateFailed(Service):
     def __init__(self, bus, object_path, loop):
         super().__init__(bus, object_path, loop)
-        self._reset()
-
-    @method('com.canonical.SystemImage')
-    def Reset(self):
-        self._reset()
-
-    def _reset(self):
         self._failure_count = 1
 
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
-        msg = 'You need some network for downloading'
+        msg = ''
+        if self._failure_count > 0:
+            msg = 'You need some network for downloading'
         self.UpdateAvailableStatus(
             True, False, 42, 1337 * 1024 * 1024,
             '1983-09-13T12:13:14',
@@ -219,8 +210,14 @@ class _UpdateFailed(Service):
             # 'Flipped container with 200% boot speed improvement',
             #}],
             msg)
-        self._failure_count += 1
-        self.UpdateFailed(self._failure_count, msg)
+        if self._failure_count > 0:
+            self._failure_count += 1
+            self.UpdateFailed(self._failure_count, msg)
+
+    @method('com.canonical.SystemImage', out_signature='s')
+    def CancelUpdate(self):
+        self._failure_count = 0
+        return ''
 
 
 class _FailApply(Service):
