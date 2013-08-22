@@ -23,6 +23,7 @@ __all__ = [
     'TestDBusGetSet',
     'TestDBusMain',
     'TestDBusMockFailApply',
+    'TestDBusMockFailPause',
     'TestDBusMockFailResume',
     'TestDBusMockUpdateAutoSuccess',
     'TestDBusMockUpdateManualSuccess',
@@ -883,6 +884,42 @@ class TestDBusMockFailResume(_TestDBusMockBase):
         failure_count, reason = self.failed[0]
         self.assertEqual(failure_count, 9)
         self.assertEqual(reason, 'You need some network for downloading')
+
+
+class TestDBusMockFailPause(_TestDBusMockBase):
+    mode = 'fail-pause'
+
+    def test_scenario_1(self):
+        # The server is downloading, currently at 10% with no known ETA.  The
+        # client tries to pause the download but is unable to do so.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        # Only run the loop for a few seconds, since otherwise there's no
+        # natural way to pause the download.
+        GLib.source_remove(self.test_failsafe_id)
+        self.test_failsafe_id = GLib.timeout_add_seconds(5, self.loop.quit)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+        self.assertEqual(available_version, 42)
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        self.assertEqual(descriptions, [
+            {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
+             'description-fr': "Support d'Ubuntu Edge",
+            },
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }])
+        self.assertEqual(error_reason, '')
+        self.assertEqual(len(self.progress_signals), 1)
+        percentage, eta = self.progress_signals[0]
+        self.assertEqual(percentage, 10)
+        self.assertEqual(eta, 0)
+        reason = self.iface.PauseDownload()
+        self.assertEqual(reason, 'no no, not now')
 
 
 @unittest.skip('mocks only for now')

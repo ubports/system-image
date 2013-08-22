@@ -144,12 +144,13 @@ class _UpdateAutoSuccess(Service):
         # Continue sending more status.
         return True
 
-    @method('com.canonical.SystemImage')
+    @method('com.canonical.SystemImage', out_signature='s')
     def PauseDownload(self):
         if self._downloading:
             self._paused = True
             self.UpdatePaused(self._percentage)
         # Otherwise it's a no-op.
+        return ''
 
     @method('com.canonical.SystemImage')
     def DownloadUpdate(self):
@@ -263,6 +264,32 @@ class _FailResume(Service):
         self.UpdateFailed(9, 'You need some network for downloading')
 
 
+class _FailPause(Service):
+    @method('com.canonical.SystemImage')
+    def Reset(self):
+        pass
+
+    @method('com.canonical.SystemImage')
+    def CheckForUpdate(self):
+        self.UpdateAvailableStatus(
+            True, True, 42, 1337 * 1024 * 1024,
+            '1983-09-13T12:13:14',
+            [
+            {'description': 'Ubuntu Edge support',
+             'description-en_GB': 'change the background colour',
+             'description-fr': "Support d'Ubuntu Edge",
+            },
+            {'description':
+             'Flipped container with 200% boot speed improvement',
+            }],
+            '')
+        self.UpdateProgress(10, 0)
+
+    @method('com.canonical.SystemImage', out_signature='s')
+    def PauseDownload(self):
+        return 'no no, not now'
+
+
 def get_service(testing_mode, system_bus, object_path, loop):
     """Return the appropriate service class for the testing mode."""
     if testing_mode == 'live':
@@ -277,6 +304,8 @@ def get_service(testing_mode, system_bus, object_path, loop):
         ServiceClass = _FailApply
     elif testing_mode == 'fail-resume':
         ServiceClass = _FailResume
+    elif testing_mode == 'fail-pause':
+        ServiceClass = _FailPause
     else:
         raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
     return ServiceClass(system_bus, object_path, loop)
