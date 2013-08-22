@@ -121,6 +121,9 @@ class _UpdateAutoSuccess(Service):
             self._downloading = True
             self.UpdateProgress(0, 50.0)
             GLib.timeout_add(500, self._send_more_status)
+        # send current progress without ETA if paused
+        if self._paused:
+            self.UpdatePaused(self._percentage)
         return False
 
     def _send_more_status(self):
