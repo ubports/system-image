@@ -308,7 +308,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
         self.assertEqual(error_reason, '')
 
     def test_update_available_auto_download(self):
-        # When auto-updating (wifi-only is the default).
+        # Automatically download the available update.
         self.download_always()
         signals = self._run_loop(
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
@@ -527,7 +527,7 @@ class TestDBusApply(_LiveTesting):
         self.download_always()
 
     def test_reboot(self):
-        # Do the reboot.
+        # Apply the update, which reboots the device.
         self.assertFalse(os.path.exists(self.reboot_log))
         self._run_loop(self.iface.CheckForUpdate, 'UpdateDownloaded')
         self.iface.ApplyUpdate()
@@ -559,7 +559,8 @@ class TestDBusApply(_LiveTesting):
         # The reboot fails, so we get an error message.
         self.assertNotEqual(self.iface.ApplyUpdate(), '')
 
-    def test_cancel(self):
+    def test_cancel_manual(self):
+        # While manually downloading, cancel the update.
         self.download_manually()
         # The downloads can be canceled when there is an update available.
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
@@ -590,6 +591,34 @@ class TestDBusApply(_LiveTesting):
         # And now we can successfully download the update.
         signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateDownloaded')
         self.assertEqual(len(signals), 1)
+
+    def test_auto_download_cancel(self):
+        # While automatically downloading, cancel the update.
+        self.download_always()
+        loop = GLib.MainLoop()
+        # Start by clearing out the current signal matchers.  We a signal
+        # handler that immediately cancels the in-progress download once the
+        # UpdateAvailableStatus signal is received.  Then we shoudl see a
+        # UpdateFailed almost immediately thereafter, and no UpdateDownloaded.
+        for match in self._signal_matches:
+            match.remove()
+        del self._signal_matches[:]
+        got_update_available_status = False
+        def callback_uas(*args):
+            nonlocal got_update_available_status
+            got_update_available_status = True
+            self.iface.CancelUpdate()
+        self._receive_signal(callback_uas, 'UpdateAvailableStatus')
+        got_update_failed = False
+        def callback_uf(*args):
+            nonlocal got_update_failed
+            got_update_failed = True
+            loop.quit()
+        self._receive_signal(callback_uf, 'UpdateFailed')
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        loop.run()
+        self.assertTrue(got_update_available_status)
+        self.assertTrue(got_update_failed)
 
     def test_exit(self):
         self.iface.Exit()

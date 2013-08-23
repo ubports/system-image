@@ -150,11 +150,6 @@ class Service(Object):
         # reason in this string.
         return ''
 
-    @method('com.canonical.SystemImage')
-    def Exit(self):
-        """Quit the daemon immediately."""
-        self._loop.quit()
-
     @method('com.canonical.SystemImage', out_signature='s')
     def ApplyUpdate(self):
         """Apply the update, rebooting the device."""
@@ -162,34 +157,6 @@ class Service(Object):
             return 'No update has been downloaded'
         self._api.reboot()
         return ''
-
-    # XXX 2013-08-22 The u/i cannot currently handle the array of dictionaries
-    # data type for the descriptions.  LP: #1215586
-    #@signal('com.canonical.SystemImage', signature='bbsisaa{ss}s')
-    @signal('com.canonical.SystemImage', signature='bbsiss')
-    def UpdateAvailableStatus(self,
-                              is_available, downloading,
-                              available_version, update_size,
-                              last_update_date,
-                              #descriptions,
-                              error_reason):
-        """Signal sent in response to a CheckForUpdate()."""
-
-    @signal('com.canonical.SystemImage', signature='id')
-    def UpdateProgress(self, percentage, eta):
-        """Download progress."""
-
-    @signal('com.canonical.SystemImage')
-    def UpdateDownloaded(self):
-        """The update has been successfully downloaded."""
-
-    @signal('com.canonical.SystemImage', signature='is')
-    def UpdateFailed(self, consecutive_failure_count, last_reason):
-        """The update failed for some reason."""
-
-    @signal('com.canonical.SystemImage', signature='i')
-    def UpdatePaused(self, percentage):
-        """The download got paused."""
 
     @method('com.canonical.SystemImage', in_signature='ss')
     def SetSetting(self, key, value):
@@ -223,6 +190,39 @@ class Service(Object):
     def GetSetting(self, key):
         """Get a setting."""
         return Settings().get(key)
+
+    @method('com.canonical.SystemImage')
+    def Exit(self):
+        """Quit the daemon immediately."""
+        self._loop.quit()
+
+    # XXX 2013-08-22 The u/i cannot currently handle the array of dictionaries
+    # data type for the descriptions.  LP: #1215586
+    #@signal('com.canonical.SystemImage', signature='bbsisaa{ss}s')
+    @signal('com.canonical.SystemImage', signature='bbsiss')
+    def UpdateAvailableStatus(self,
+                              is_available, downloading,
+                              available_version, update_size,
+                              last_update_date,
+                              #descriptions,
+                              error_reason):
+        """Signal sent in response to a CheckForUpdate()."""
+
+    @signal('com.canonical.SystemImage', signature='id')
+    def UpdateProgress(self, percentage, eta):
+        """Download progress."""
+
+    @signal('com.canonical.SystemImage')
+    def UpdateDownloaded(self):
+        """The update has been successfully downloaded."""
+
+    @signal('com.canonical.SystemImage', signature='is')
+    def UpdateFailed(self, consecutive_failure_count, last_reason):
+        """The update failed for some reason."""
+
+    @signal('com.canonical.SystemImage', signature='i')
+    def UpdatePaused(self, percentage):
+        """The download got paused."""
 
     @signal('com.canonical.SystemImage', signature='ss')
     def SettingChanged(self, key, new_value):
