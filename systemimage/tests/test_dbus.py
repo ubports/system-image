@@ -258,6 +258,8 @@ class _LiveTesting(_TestBase):
 
     def tearDown(self):
         self.iface.CancelUpdate()
+        # Consume the UpdateFailed that results from the cancellation.
+        self._run_loop(None, 'UpdateFailed')
         safe_remove(self.config.system.build_file)
         for updater_dir in (self.config.updater.cache_partition,
                             self.config.updater.data_partition):
@@ -1049,7 +1051,6 @@ class TestDBusMain(_TestBase):
         self.assertTrue(os.path.exists(config.system.tempdir))
 
 
-@unittest.skip('The client API needs a massive update')
 class TestDBusClient(_LiveTesting):
     """Test the DBus client (used with --dbus)."""
 
@@ -1057,72 +1058,34 @@ class TestDBusClient(_LiveTesting):
         super().setUp()
         self._client = DBusClient()
 
-    def test_build_number(self):
-        # Get the build number through the client.
-        self._set_build(20130701)
-        self.assertEqual(self._client.build_number, 20130701)
-
     def test_check_for_update(self):
         # There is an update available.
-        self.assertTrue(self._client.check_for_update())
+        self._client.check_for_update()
+        self.assertTrue(self._client.is_available)
+        self.assertTrue(self._client.downloaded)
 
     def test_check_for_no_update(self):
         # There is no update available.
         self._set_build(20130701)
-        self.assertFalse(self._client.check_for_update())
-
-    def test_get_update_size(self):
-        # The size of the available update.
-        self.assertTrue(self._client.check_for_update())
-        self.assertEqual(self._client.update_size, 314572800)
-
-    def test_get_update_no_size(self):
-        # Size is zero if there is no update available.
-        self._set_build(20130701)
-        self.assertFalse(self._client.check_for_update())
-        self.assertEqual(self._client.update_size, 0)
-
-    def test_get_update_version(self):
-        # The target version of the upgrade.
-        self.assertTrue(self._client.check_for_update())
-        self.assertEqual(self._client.update_version, 20130600)
-
-    def test_get_update_no_version(self):
-        # Version is zero if there is no update available.
-        self._set_build(20130701)
-        self.assertFalse(self._client.check_for_update())
-        self.assertEqual(self._client.update_version, 0)
-
-    def test_get_update_descriptions(self):
-        # The update has some descriptions.
-        self.assertTrue(self._client.check_for_update())
-        self.assertEqual(self._client.update_descriptions,
-                         [{'description': 'Full'}])
-
-    def test_get_update_no_descriptions(self):
-        # Sometimes there's no update, and thus no descrptions.
-        self._set_build(20130701)
-        self.assertFalse(self._client.check_for_update())
-        self.assertEqual(self._client.update_descriptions, [])
-
-    def test_update(self):
-        # Do the update, but wait to reboot.
-        self.assertTrue(self._client.check_for_update())
-        ready = self._client.update()
-        self.assertTrue(ready)
+        self._client.check_for_update()
+        self.assertFalse(self._client.is_available)
+        self.assertFalse(self._client.downloaded)
 
     def test_update_failed(self):
         # For some reason <wink>, the update fails.
-        self.assertTrue(self._client.check_for_update())
+        #
         # Cause the update to fail by deleting a file from the server.
         os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
-        ready = self._client.update()
-        self.assertFalse(ready)
+        self._client.check_for_update()
+        self.assertTrue(self._client.is_available)
+        self.assertFalse(self._client.downloaded)
+        self.assertTrue(self._client.failed)
 
     def test_reboot(self):
         # After a successful update, we can reboot.
-        self.assertTrue(self._client.check_for_update())
-        self.assertTrue(self._client.update())
+        self._client.check_for_update()
+        self.assertTrue(self._client.is_available)
+        self.assertTrue(self._client.downloaded)
         self._client.reboot()
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()

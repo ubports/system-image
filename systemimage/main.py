@@ -84,14 +84,8 @@ def main():
     # We assume the cache_partition already exists, as does the /etc directory
     # (i.e. where the archive master key lives).
 
-    # Optional DBus client.
-    client = (DBusClient() if args.dbus else None)
-
     if args.build:
-        build = ((config if client is None else client).build_number
-                 if args.upgrade is None
-                 else int(args.upgrade))
-        print('build number:', build)
+        print('build number:', config.build_number)
         return
     if args.channel:
         print('channel/device: {}/{}'.format(
@@ -99,7 +93,22 @@ def main():
         return
 
     # We can either run the API directly or through DBus.
-    if client is None:
+    if args.dbus:
+        client = DBusClient()
+        client.check_for_update()
+        if not client.is_available:
+            log.info('No update is available')
+            return 0
+        if not client.downloaded:
+            log.info('No update was downloaded')
+            return 1
+        if client.failed:
+            log.info('Update failed')
+            return 2
+        client.reboot()
+        # We probably won't get here..
+        return 0
+    else:
         # Run the state machine to conclusion.  Suppress all exceptions, but
         # note that the state machine will log them.  If an exception occurs,
         # exit with a non-zero status.
@@ -113,16 +122,6 @@ def main():
             return 1
         else:
             return 0
-    else:
-        if not client.check_for_update():
-            log.info('No updates available')
-            return 0
-        if not client.update():
-            log.info('Update failed')
-            return 1
-        client.reboot()
-        # We probably won't get here..
-        return 0
 
 
 if __name__ == '__main__':
