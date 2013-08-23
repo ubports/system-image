@@ -38,6 +38,7 @@ class Service(Object):
         self._downloading = False
         self._rebootable = False
         self._failure_count = 0
+        self._last_error = ''
 
     def _check_for_update(self):
         # Asynchronous method call.
@@ -47,10 +48,6 @@ class Service(Object):
         if self._update.is_available:
             settings = Settings()
             auto = settings.get('auto_download')
-            if auto == '':
-                # This has not yet been set.  The default is wifi-only.
-                auto = '1'
-                settings.set('auto_download', auto)
             if auto in ('1', '2'):
                 # XXX When we have access to the download service, we can
                 # check if we're on the wifi (auto == '1').
@@ -90,6 +87,10 @@ class Service(Object):
             # Check is already in progress, so there's nothing more to do.
             return
         self._checking = True
+        # Reset any failure or in-progress state.
+        self._failure_count = 0
+        self._last_error = ''
+        self._api = Mediator()
         # Arrange for the actual check to happen in a little while, so that
         # this method can return immediately.
         GLib.timeout_add(50, self._check_for_update)
@@ -100,15 +101,21 @@ class Service(Object):
             or not self._update.is_available         # No update available.
             ):
             return
+        if self._failure_count > 0:
+            self._failure_count += 1
+            self.UpdateFailed(self._failure_count, self._last_error)
+            return
         self._downloading = True
         try:
             self._api.download()
         except Exception as error:
             self._failure_count += 1
-            self.UpdateFailed(self._failure_count, str(error))
+            self._last_error = str(error)
+            self.UpdateFailed(self._failure_count, self._last_error)
         else:
             self.UpdateDownloaded()
             self._failure_count = 0
+            self._last_error = ''
             self._rebootable = True
         self._downloading = False
         # Stop GLib from calling this method again.
@@ -131,14 +138,17 @@ class Service(Object):
         # integrate with the download service.  LP: #1196991
         return ""
 
-    @method('com.canonical.SystemImage')
-    def CancelUpdate(self, out_signature='s'):
+    @method('com.canonical.SystemImage', out_signature='s')
+    def CancelUpdate(self):
         """Cancel a download."""
         self._api.cancel()
-        self.Canceled()
+        # We're now in a failure state until the next CheckForUpdate.
+        self._failure_count += 1
+        self._last_error = 'Canceled'
+        self.UpdateFailed(self._failure_count, self._last_error)
         # XXX 2013-08-22: If we can't cancel the current download, return the
         # reason in this string.
-        return ""
+        return ''
 
     @method('com.canonical.SystemImage')
     def Exit(self):

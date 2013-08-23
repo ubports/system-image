@@ -96,7 +96,7 @@ class TestAPI(unittest.TestCase):
         # An update is available.  What's the target version number?
         self._setup_keyrings()
         update = Mediator().check_for_update()
-        self.assertEqual(update.version, 20130600)
+        self.assertEqual(update.version, '20130600')
 
     @configuration
     def test_no_update_available_version(self):
@@ -106,7 +106,7 @@ class TestAPI(unittest.TestCase):
             print(20130600, file=fp)
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
-        self.assertEqual(update.version, 0)
+        self.assertEqual(update.version, '')
 
     @configuration
     def test_no_update_available_at_latest(self):

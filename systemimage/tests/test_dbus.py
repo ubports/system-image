@@ -150,10 +150,22 @@ class _TestBase(unittest.TestCase):
         service = self.system_bus.get_object(
             'com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        self._signal_matches = []
+        self._loop_quitters = []
 
     def tearDown(self):
         self.iface.Reset()
+        for match in self._signal_matches:
+            match.remove()
+        for quit_id in self._loop_quitters:
+            GLib.source_remove(quit_id)
         super().tearDown()
+
+    def _receive_signal(self, callback, signal):
+        signal_match = self.system_bus.add_signal_receiver(
+            callback, signal_name=signal,
+            dbus_interface='com.canonical.SystemImage')
+        self._signal_matches.append(signal_match)
 
     def _run_loop(self, method, signal):
         loop = GLib.MainLoop()
@@ -162,12 +174,10 @@ class _TestBase(unittest.TestCase):
         def callback(*args):
             signals.append(args)
             loop.quit()
-        self.system_bus.add_signal_receiver(
-            callback, signal_name=signal,
-            dbus_interface='com.canonical.SystemImage')
+        self._receive_signal(callback, signal)
         if method is not None:
             GLib.timeout_add(50, method)
-        GLib.timeout_add_seconds(10, loop.quit)
+        self._loop_quitters.append(GLib.timeout_add_seconds(10, loop.quit))
         loop.run()
         return signals
 
@@ -246,8 +256,17 @@ class _LiveTesting(_TestBase):
             self.config.updater.cache_partition, 'reboot.log')
 
     def tearDown(self):
+        self.iface.CancelUpdate()
         safe_remove(self.config.system.build_file)
-        safe_remove(self.command_file)
+        for updater_dir in (self.config.updater.cache_partition,
+                            self.config.updater.data_partition):
+            try:
+                all_files = os.listdir(updater_dir)
+            except FileNotFoundError:
+                # The directory itself may not exist.
+                pass
+            for filename in all_files:
+                safe_remove(os.path.join(updater_dir, filename))
         safe_remove(self.reboot_log)
         super().tearDown()
 
@@ -264,7 +283,6 @@ class _LiveTesting(_TestBase):
             print(version, file=fp)
 
 
-@unittest.skip('mocks only for now')
 class TestDBusCheckForUpdate(_LiveTesting):
     """Test the SystemImage dbus service."""
 
@@ -276,14 +294,16 @@ class TestDBusCheckForUpdate(_LiveTesting):
         self.assertEqual(len(signals), 1)
         # There's one boolean argument to the result.
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = signals[0]
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
         self.assertTrue(is_available)
         self.assertFalse(downloading)
-        self.assertEqual(available_version, 20130600)
+        self.assertEqual(available_version, '20130600')
         self.assertEqual(update_size, 314572800)
         # This is the first update applied.
         self.assertEqual(last_update_date, '')
-        self.assertEqual(descriptions, [{'description': 'Full'}])
+        ## self.assertEqual(descriptions, [{'description': 'Full'}])
         self.assertEqual(error_reason, '')
 
     def test_update_available_auto_download(self):
@@ -294,14 +314,16 @@ class TestDBusCheckForUpdate(_LiveTesting):
         self.assertEqual(len(signals), 1)
         # There's one boolean argument to the result.
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = signals[0]
+         last_update_date,
+         # descriptions,
+         error_reason) = signals[0]
         self.assertTrue(is_available)
         self.assertTrue(downloading)
-        self.assertEqual(available_version, 20130600)
+        self.assertEqual(available_version, '20130600')
         self.assertEqual(update_size, 314572800)
         # This is the first update applied.
         self.assertEqual(last_update_date, '')
-        self.assertEqual(descriptions, [{'description': 'Full'}])
+        ## self.assertEqual(descriptions, [{'description': 'Full'}])
         self.assertEqual(error_reason, '')
 
     def test_no_update_available(self):
@@ -311,7 +333,9 @@ class TestDBusCheckForUpdate(_LiveTesting):
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(signals), 1)
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = signals[0]
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
         self.assertFalse(is_available)
         # No update has been previously applied.
         self.assertEqual(last_update_date, '')
@@ -330,12 +354,15 @@ class TestDBusCheckForUpdate(_LiveTesting):
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(signals), 1)
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = signals[0]
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
         self.assertFalse(is_available)
         # No update has been previously applied.
         self.assertEqual(last_update_date, '2013-01-20T12:01:45')
         # All other values are undefined.
 
+    @unittest.skip('LP: #1215586')
     def test_get_multilingual_descriptions(self):
         # The descriptions are multilingual.
         self._prepare_index('index_14.json')
@@ -361,7 +388,6 @@ class TestDBusCheckForUpdate(_LiveTesting):
             }])
 
 
-@unittest.skip('mocks only for now')
 class TestDBusDownload(_LiveTesting):
     def test_auto_download(self):
         # When always auto-downloading, and there is an update available, the
@@ -376,7 +402,9 @@ class TestDBusDownload(_LiveTesting):
         self.assertEqual(len(signals), 1)
         # There's one boolean argument to the result.
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = signals[0]
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
         self.assertTrue(is_available)
         self.assertTrue(downloading)
         # Now, wait for the UpdateDownloaded signal.
@@ -406,7 +434,9 @@ unmount system
         self.assertEqual(len(signals), 1)
         # There's one boolean argument to the result.
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = signals[0]
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
         self.assertFalse(is_available)
         self.assertFalse(downloading)
         # Now, wait for the UpdateDownloaded signal.
@@ -424,7 +454,9 @@ unmount system
         self.assertEqual(len(signals), 1)
         # There's one boolean argument to the result.
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = signals[0]
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
         self.assertTrue(is_available)
         # This is false because we're in manual download mode.
         self.assertFalse(downloading)
@@ -459,7 +491,9 @@ unmount system
         self.assertEqual(len(signals), 1)
         # There's one boolean argument to the result.
         (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = signals[0]
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
         self.assertFalse(is_available)
         # This is false because we're in manual download mode.
         self.assertFalse(downloading)
@@ -486,7 +520,6 @@ unmount system
         self.assertNotEqual(last_reason, '')
 
 
-@unittest.skip('mocks only for now')
 class TestDBusApply(_LiveTesting):
     def setUp(self):
         super().setUp()
@@ -514,29 +547,48 @@ class TestDBusApply(_LiveTesting):
 
     def test_reboot_after_update_failed(self):
         # Cause the update to fail by deleting a file from the server.
-        #
-        # Cause the update to fail by deleting a file from the server.
+        self.download_manually()
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
-        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateFailed')
         self.assertEqual(len(signals), 1)
-        signals = self._run_loop(self.iface.Reboot, 'UpdateFailed')
-        self.assertEqual(len(signals), 1)
+        failure_count, reason = signals[0]
+        self.assertEqual(failure_count, 1)
+        self.assertNotEqual(reason, '')
+        # The reboot fails, so we get an error message.
+        self.assertNotEqual(self.iface.ApplyUpdate(), '')
 
     def test_cancel(self):
+        self.download_manually()
         # The downloads can be canceled when there is an update available.
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         # Cancel future operations.
-        signals = self._run_loop(self.iface.Cancel, 'Canceled')
+        signals = self._run_loop(self.iface.CancelUpdate, 'UpdateFailed')
         self.assertEqual(len(signals), 1)
-        # Run an update, which will no-op.
+        failure_count, reason = signals[0]
+        self.assertEqual(failure_count, 1)
+        self.assertNotEqual(reason, '')
         self.assertFalse(os.path.exists(self.command_file))
-        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        self.assertEqual(len(signals), 0)
+        # Try to download the update again, though this will fail again.
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)
+        failure_count, reason = signals[0]
+        self.assertEqual(failure_count, 2)
+        self.assertNotEqual(reason, '')
         self.assertFalse(os.path.exists(self.command_file))
-        # Similarly, if we still try to reboot, nothing will happen.
-        self.assertFalse(os.path.exists(self.reboot_log))
-        self.iface.Reboot()
-        self.assertFalse(os.path.exists(self.reboot_log))
+        # The next check resets the failure count and succeeds.
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        # And now we can successfully download the update.
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 1)
 
     def test_exit(self):
         self.iface.Exit()
@@ -545,7 +597,9 @@ class TestDBusApply(_LiveTesting):
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        self.assertEqual(self.iface.BuildNumber(), 0)
+        # There's no update to apply, so we'll get an error string instead of
+        # the empty string for this call.  But it will restart the server.
+        self.assertNotEqual(self.iface.ApplyUpdate(), '')
 
 
 class _TestDBusMockBase(_TestBase):
@@ -575,53 +629,32 @@ class _TestDBusMockBase(_TestBase):
                 GLib.timeout_add_seconds(5, resume_callback)
             if percentage == self.cancel_at_percentage:
                 self.iface.CancelUpdate()
-        self.signal_matches.append(
-            self.system_bus.add_signal_receiver(
-                progress_callback, signal_name='UpdateProgress',
-                dbus_interface='com.canonical.SystemImage'))
+        self._receive_signal(progress_callback, 'UpdateProgress')
         self.downloaded = False
         def downloaded_callback(*args):
             self.downloaded = True
             self.loop.quit()
-        self.signal_matches.append(
-            self.system_bus.add_signal_receiver(
-                downloaded_callback, signal_name='UpdateDownloaded',
-                dbus_interface='com.canonical.SystemImage'))
+        self._receive_signal(downloaded_callback, 'UpdateDownloaded')
         self.status = None
         def status_callback(*args):
             self.status = args
             if not self.auto_download:
                 # The download must be started manually.
                 self.loop.quit()
-        self.signal_matches.append(
-            self.system_bus.add_signal_receiver(
-                status_callback, signal_name='UpdateAvailableStatus',
-                dbus_interface='com.canonical.SystemImage'))
+        self._receive_signal(status_callback, 'UpdateAvailableStatus')
         self.failed = []
         def failed_callback(*args):
             self.failed.append(args)
             self.loop.quit()
-        self.signal_matches.append(
-            self.system_bus.add_signal_receiver(
-                failed_callback, signal_name='UpdateFailed',
-                dbus_interface='com.canonical.SystemImage'))
+        self._receive_signal(failed_callback, 'UpdateFailed')
         self.pauses = []
         def paused_callback(percentage):
             self.pauses.append(percentage)
             self.pause_quit()
-        self.signal_matches.append(
-            self.system_bus.add_signal_receiver(
-                paused_callback, signal_name='UpdatePaused',
-                dbus_interface='com.canonical.SystemImage'))
+        self._receive_signal(paused_callback, 'UpdatePaused')
         # No test should run longer than this.
-        self.test_failsafe_id = GLib.timeout_add_seconds(120, self.loop.quit)
-
-    def tearDown(self):
-        # Don't let this test's failsafe impose on the next test.
-        GLib.source_remove(self.test_failsafe_id)
-        for match in self.signal_matches:
-            match.remove()
-        super().tearDown()
+        self._loop_quitters.append(
+            GLib.timeout_add_seconds(120, self.loop.quit))
 
 
 class TestDBusMockUpdateAutoSuccess(_TestDBusMockBase):
@@ -906,8 +939,10 @@ class TestDBusMockFailPause(_TestDBusMockBase):
         GLib.timeout_add(50, self.iface.CheckForUpdate)
         # Only run the loop for a few seconds, since otherwise there's no
         # natural way to pause the download.
-        GLib.source_remove(self.test_failsafe_id)
-        self.test_failsafe_id = GLib.timeout_add_seconds(5, self.loop.quit)
+        for quit_id in self._loop_quitters:
+            GLib.source_remove(quit_id)
+        del self._loop_quitters[:]
+        self._loop_quitters.append(GLib.timeout_add_seconds(5, self.loop.quit))
         self.loop.run()
         (is_available, downloading, available_version, update_size,
          last_update_date,
@@ -935,7 +970,6 @@ class TestDBusMockFailPause(_TestDBusMockBase):
         self.assertEqual(reason, 'no no, not now')
 
 
-@unittest.skip('mocks only for now')
 class TestDBusMain(_TestBase):
     mode = 'live'
 
@@ -959,7 +993,7 @@ class TestDBusMain(_TestBase):
         self.assertTrue(os.path.exists(config.system.tempdir))
 
 
-@unittest.skip('mocks only for now')
+@unittest.skip('The client API needs a massive update')
 class TestDBusClient(_LiveTesting):
     """Test the DBus client (used with --dbus)."""
 

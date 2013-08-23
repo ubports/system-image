@@ -56,10 +56,10 @@ class Update:
     @property
     def version(self):
         try:
-            return self._winners[-1].version
+            return str(self._winners[-1].version)
         except IndexError:
             # No winners.
-            return 0
+            return ''
 
     @property
     def last_update_date(self):
