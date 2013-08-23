@@ -23,12 +23,14 @@ __all__ = [
 
 import os
 import math
+import pickle
 import shutil
 import hashlib
 import logging
 
 from collections import deque
 from contextlib import ExitStack
+from datetime import datetime
 from functools import partial
 from itertools import islice
 from operator import itemgetter
@@ -65,16 +67,26 @@ class State:
     def __init__(self, callback=None):
         # Variables which manage state transitions.
         self._next = deque()
-        self._next.append(self._get_blacklist_1)
         self._debug_step = 1
         self._callback = (_download_feedback if callback is None else callback)
         # Variables which represent things we've learned.
         self.blacklist = None
         self.channels = None
         self.index = None
-        self.candidates = None
         self.winner = None
         self.files = []
+        # See if there is a state file to unpickle.
+        first_step = self._get_blacklist_1
+        try:
+            with open(config.system.state_file, 'rb') as fp:
+                self.blacklist = pickle.load(fp)
+                self.winner = pickle.load(fp)
+                pickle_date = pickle.load(fp)
+                # XXX check for stale file.
+            first_step = self._download_files
+        except FileNotFoundError:
+            pass
+        self._next.append(first_step)
 
     def __iter__(self):
         return self
@@ -269,6 +281,44 @@ class State:
             self.blacklist)
         # We don't need to set the next action because it's already been done.
 
+    def _get_master_key(self):
+        """Try to get and validate a new image master key.
+
+        If there isn't one, throw a SignatureError.
+        """
+        try:
+            log.info('Getting the image master key')
+            # The image signing key must be signed by the archive master.
+            get_keyring(
+                'image-master', 'gpg/image-master.tar.xz',
+                'archive-master', self.blacklist)
+        except (FileNotFoundError, SignatureError, KeyringError):
+            # No valid image master key could be found.  Don't chain this
+            # exception.
+            log.error('No valid imaging master key found')
+            raise SignatureError from None
+        # Retry the previous step.
+        log.info('Installing new image master key to: {}',
+                 config.gpg.image_master)
+        self._next.appendleft(self._get_blacklist_2)
+
+    def _get_signing_key(self):
+        """Try to get and validate a new image signing key.
+
+        If there isn't one, throw a SignatureError.
+        """
+        try:
+            # The image signing key must be signed by the image master.
+            get_keyring(
+                'image-signing', 'gpg/image-signing.tar.xz', 'image-master',
+                self.blacklist)
+        except (FileNotFoundError, SignatureError, KeyringError):
+            # No valid image signing key could be found.  Don't chain this
+            # exception.
+            raise SignatureError from None
+        # Retry the previous step.
+        self._next.appendleft(self._get_channel)
+
     def _get_index(self, index):
         """Get and verify the index.json file."""
         index_url = urljoin(config.service.https_base, index)
@@ -300,15 +350,27 @@ class State:
     def _calculate_winner(self):
         """Given an index, calculate the paths and score a winner."""
         # Store these as attributes for debugging and testing.
-        self.candidates = get_candidates(self.index, config.build_number)
-        self.winner = config.hooks.scorer().choose(self.candidates)
+        candidates = get_candidates(self.index, config.build_number)
+        self.winner = config.hooks.scorer().choose(candidates)
         # If there is no winning upgrade candidate, then there's nothing more
         # to do.  We can skip everything between downloading the files and
         # doing the reboot.
         if len(self.winner) > 0:
-            self._next.append(self._download_files)
+            self._next.append(self._persist)
         else:
             log.info('No update available.')
+
+    def _persist(self):
+        """Persist enough state to resume right to downloading files."""
+        with open(config.system.state_file, 'wb') as fp:
+            # Things we need to pickle:
+            # - the location of our blacklist file
+            # - the set of calculated winners
+            # - the current datetime
+            pickle.dump(self.blacklist, fp)
+            pickle.dump(self.winner, fp)
+            pickle.dump(datetime.now(), fp)
+        self._next.append(self._download_files)
 
     def _download_files(self):
         """Download and verify all the winning upgrade path's files."""
@@ -373,44 +435,6 @@ class State:
         # Now, copy the files from the temporary directory into the location
         # for the upgrader.
         self._next.append(self._move_files)
-
-    def _get_master_key(self):
-        """Try to get and validate a new image master key.
-
-        If there isn't one, throw a SignatureError.
-        """
-        try:
-            log.info('Getting the image master key')
-            # The image signing key must be signed by the archive master.
-            get_keyring(
-                'image-master', 'gpg/image-master.tar.xz',
-                'archive-master', self.blacklist)
-        except (FileNotFoundError, SignatureError, KeyringError):
-            # No valid image master key could be found.  Don't chain this
-            # exception.
-            log.error('No valid imaging master key found')
-            raise SignatureError from None
-        # Retry the previous step.
-        log.info('Installing new image master key to: {}',
-                 config.gpg.image_master)
-        self._next.appendleft(self._get_blacklist_2)
-
-    def _get_signing_key(self):
-        """Try to get and validate a new image signing key.
-
-        If there isn't one, throw a SignatureError.
-        """
-        try:
-            # The image signing key must be signed by the image master.
-            get_keyring(
-                'image-signing', 'gpg/image-signing.tar.xz', 'image-master',
-                self.blacklist)
-        except (FileNotFoundError, SignatureError, KeyringError):
-            # No valid image signing key could be found.  Don't chain this
-            # exception.
-            raise SignatureError from None
-        # Retry the previous step.
-        self._next.appendleft(self._get_channel)
 
     def _move_files(self):
         # The upgrader already has the archive-master, so we don't need to

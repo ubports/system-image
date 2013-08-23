@@ -25,8 +25,6 @@ import os
 import pwd
 import sys
 import time
-import dbus
-import shutil
 import signal
 import datetime
 import subprocess
@@ -34,7 +32,6 @@ import subprocess
 from contextlib import ExitStack
 from distutils.spawn import find_executable
 from pkg_resources import resource_string as resource_bytes
-from systemimage.config import Configuration
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import data_path, reset_envar
 

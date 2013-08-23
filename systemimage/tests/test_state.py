@@ -19,6 +19,7 @@ __all__ = [
     'TestCommandFileDelta',
     'TestCommandFileFull',
     'TestFileOrder',
+    'TestPersistence',
     'TestRebootingState',
     'TestState',
     ]
@@ -374,12 +375,6 @@ class TestRebooting(_StateTestsBase):
         # * image-signing.tar.xz{,.asc}  - cache partition
         # * device-signing.tar.xz{,.asc} - cache partition (if one exists)
         self._setup_keyrings()
-        # Run the state machine enough times to download all the keyrings and
-        # data files, then to move the files into place just before a reboot
-        # is issued.  Steps preceded by * are steps that fail.
-        # *get blacklist/get master -> get channels/signing
-        # -> get device signing -> get index -> calculate winner
-        # -> download files -> move files
         cache_dir = config.updater.cache_partition
         data_dir = config.updater.data_partition
         blacklist_path = os.path.join(data_dir, 'blacklist.tar.xz')
@@ -403,9 +398,14 @@ class TestRebooting(_StateTestsBase):
                     cache_dir, os.path.basename(filerec.signature))
                 self.assertFalse(os.path.exists(path))
                 self.assertFalse(os.path.exists(asc))
+        # Run the state machine enough times to download all the keyrings and
+        # data files, then to move the files into place just before a reboot
+        # is issued.  Steps preceded by * are steps that fail.
+        # *get blacklist/get master -> get channels/signing
+        # -> get device signing -> get index -> calculate winner
+        # -> download files -> move files
         state = State()
-        for i in range(7):
-            next(state)
+        state.run_thru('move_files')
         # All of the keyrings and .asc files are found.
         self.assertTrue(os.path.exists(blacklist_path))
         self.assertTrue(os.path.exists(master_path))
@@ -566,3 +566,38 @@ update h.txt h.txt.asc
 update i.txt i.txt.asc
 unmount system
 """)
+
+
+class TestPersistence(_StateTestsBase):
+    """Test the State object's persistence."""
+
+    INDEX_FILE = 'index_16.json'
+
+    @configuration
+    def test_pickle_file(self):
+        # Run the state machine through the 'persist' state.  Create a new
+        # state object which restores the persisted state.
+        self._setup_keyrings()
+        self.assertFalse(os.path.exists(config.system.state_file))
+        state = State()
+        self.assertIsNone(state.winner)
+        state.run_thru('persist')
+        self.assertIsNotNone(state.winner)
+        self.assertTrue(os.path.exists(config.system.state_file))
+        state = State()
+        self.assertIsNotNone(state.winner)
+
+    @configuration
+    def test_no_update_no_pickle_file(self):
+        # If there's no update, there's no state file.
+        self._setup_keyrings()
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20250000, file=fp)
+        self.assertFalse(os.path.exists(config.system.state_file))
+        state = State()
+        self.assertIsNone(state.winner)
+        state.run_thru('persist')
+        self.assertEqual(state.winner, [])
+        self.assertFalse(os.path.exists(config.system.state_file))
+        state = State()
+        self.assertIsNone(state.winner)

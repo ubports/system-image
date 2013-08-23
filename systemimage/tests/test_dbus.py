@@ -16,12 +16,18 @@
 """Test the SystemImage dbus service."""
 
 __all__ = [
-    'TestDBus',
+    'TestDBusApply',
+    'TestDBusCheckForUpdate',
     'TestDBusClient',
+    'TestDBusDownload',
+    'TestDBusGetSet',
     'TestDBusMain',
-    'TestDBusMocksNoUpdate',
-    'TestDBusMocksUpdateAvailable',
-    'TestDBusMocksUpdateFailed',
+    'TestDBusMockFailApply',
+    'TestDBusMockFailPause',
+    'TestDBusMockFailResume',
+    'TestDBusMockNoUpdate',
+    'TestDBusMockUpdateAutoSuccess',
+    'TestDBusMockUpdateManualSuccess',
     ]
 
 
@@ -32,13 +38,15 @@ import shutil
 import unittest
 
 from contextlib import ExitStack
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dbus.exceptions import DBusException
 from dbus.mainloop.glib import DBusGMainLoop
+from functools import partial
 from gi.repository import GLib
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
+from systemimage.settings import LAST_UPDATE_KEY, Settings
 from systemimage.testing.controller import Controller
 from systemimage.testing.helpers import (
     copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
@@ -143,10 +151,22 @@ class _TestBase(unittest.TestCase):
         service = self.system_bus.get_object(
             'com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        self._signal_matches = []
+        self._loop_quitters = []
 
     def tearDown(self):
         self.iface.Reset()
+        for match in self._signal_matches:
+            match.remove()
+        for quit_id in self._loop_quitters:
+            GLib.source_remove(quit_id)
         super().tearDown()
+
+    def _receive_signal(self, callback, signal):
+        signal_match = self.system_bus.add_signal_receiver(
+            callback, signal_name=signal,
+            dbus_interface='com.canonical.SystemImage')
+        self._signal_matches.append(signal_match)
 
     def _run_loop(self, method, signal):
         loop = GLib.MainLoop()
@@ -155,13 +175,21 @@ class _TestBase(unittest.TestCase):
         def callback(*args):
             signals.append(args)
             loop.quit()
-        self.system_bus.add_signal_receiver(
-            callback, signal_name=signal,
-            dbus_interface='com.canonical.SystemImage')
-        GLib.timeout_add(100, method)
-        GLib.timeout_add_seconds(10, loop.quit)
+        self._receive_signal(callback, signal)
+        if method is not None:
+            GLib.timeout_add(50, method)
+        self._loop_quitters.append(GLib.timeout_add_seconds(10, loop.quit))
         loop.run()
         return signals
+
+    def download_manually(self):
+        self.iface.SetSetting('auto_download', '0')
+
+    def download_on_wifi(self):
+        self.iface.SetSetting('auto_download', '1')
+
+    def download_always(self):
+        self.iface.SetSetting('auto_download', '2')
 
 
 class _LiveTesting(_TestBase):
@@ -229,8 +257,19 @@ class _LiveTesting(_TestBase):
             self.config.updater.cache_partition, 'reboot.log')
 
     def tearDown(self):
+        self.iface.CancelUpdate()
+        # Consume the UpdateFailed that results from the cancellation.
+        self._run_loop(None, 'UpdateFailed')
         safe_remove(self.config.system.build_file)
-        safe_remove(self.command_file)
+        for updater_dir in (self.config.updater.cache_partition,
+                            self.config.updater.data_partition):
+            try:
+                all_files = os.listdir(updater_dir)
+            except FileNotFoundError:
+                # The directory itself may not exist.
+                pass
+            for filename in all_files:
+                safe_remove(os.path.join(updater_dir, filename))
         safe_remove(self.reboot_log)
         super().tearDown()
 
@@ -247,21 +286,48 @@ class _LiveTesting(_TestBase):
             print(version, file=fp)
 
 
-class TestDBus(_LiveTesting):
+class TestDBusCheckForUpdate(_LiveTesting):
     """Test the SystemImage dbus service."""
-
-    def test_check_build_number(self):
-        # Get the build number.
-        self._set_build(20130701)
-        self.assertEqual(self.iface.BuildNumber(), 20130701)
 
     def test_update_available(self):
         # There is an update available.
+        self.download_manually()
         signals = self._run_loop(
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(signals), 1)
         # There's one boolean argument to the result.
-        self.assertTrue(signals[0][0])
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(available_version, '20130600')
+        self.assertEqual(update_size, 314572800)
+        # This is the first update applied.
+        self.assertEqual(last_update_date, '')
+        ## self.assertEqual(descriptions, [{'description': 'Full'}])
+        self.assertEqual(error_reason, '')
+
+    def test_update_available_auto_download(self):
+        # Automatically download the available update.
+        self.download_always()
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         # descriptions,
+         error_reason) = signals[0]
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+        self.assertEqual(available_version, '20130600')
+        self.assertEqual(update_size, 314572800)
+        # This is the first update applied.
+        self.assertEqual(last_update_date, '')
+        ## self.assertEqual(descriptions, [{'description': 'Full'}])
+        self.assertEqual(error_reason, '')
 
     def test_no_update_available(self):
         # Our device is newer than the version that's available.
@@ -269,74 +335,47 @@ class TestDBus(_LiveTesting):
         signals = self._run_loop(
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(signals), 1)
-        self.assertFalse(signals[0][0])
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertFalse(is_available)
+        # No update has been previously applied.
+        self.assertEqual(last_update_date, '')
+        # All other values are undefined.
 
-    def test_get_update_size(self):
-        # Check for an update and if one is available, get the size.
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(self.iface.GetUpdateSize(), 314572800)
-
-    def test_get_no_update_size(self):
-        # No update is available, but the client still asks for the size.
+    def test_last_update_date(self):
+        # Pretend the device got a previous update.  Now, there's no update
+        # available, but the date of the last update is provided in the signal.
         self._set_build(20130701)
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(self.iface.GetUpdateSize(), 0)
+        # Fake that there was a previous update.
+        # Some random date in the past.
+        when = datetime(2013, 1, 20, 12, 1, 45, tzinfo=timezone.utc)
+        # Knock off the +00:00 from the format since it's always UTC.
+        Settings(self.config).set(LAST_UPDATE_KEY, when.isoformat()[:-6])
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertFalse(is_available)
+        # No update has been previously applied.
+        self.assertEqual(last_update_date, '2013-01-20T12:01:45')
+        # All other values are undefined.
 
-    def test_get_update_size_without_check(self):
-        # Getting the update size implies a check.
-        self.assertEqual(self.iface.GetUpdateSize(), 314572800)
-
-    def test_get_update_size_without_check_none_available(self):
-        # No explicit check for update, and none is available.
-        self._set_build(20130701)
-        self.assertEqual(self.iface.GetUpdateSize(), 0)
-
-    def test_get_available_version(self):
-        # An update is available, so get the target version.
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(self.iface.GetUpdateVersion(), 20130600)
-
-    def test_get_available_version_without_check(self):
-        # Getting the target version implies a check.
-        self.assertEqual(self.iface.GetUpdateVersion(), 20130600)
-
-    def test_get_no_available_version(self):
-        # No update is available, but the client still asks for the version.
-        self._set_build(20130701)
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(self.iface.GetUpdateVersion(), 0)
-
-    def test_get_available_version_without_check_none_available(self):
-        # No explicit check for update, none is available.
-        self._set_build(20130701)
-        self.assertEqual(self.iface.GetUpdateVersion(), 0)
-
-    def test_get_descriptions(self):
-        # An update is available, with descriptions.
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(self.iface.GetDescriptions(),
-                         [{'description': 'Full'}])
-
-    def test_get_descriptions_no_check(self):
-        # Getting the descriptions implies a check.
-        self.assertEqual(self.iface.GetDescriptions(),
-                         [{'description': 'Full'}])
-
-    def test_get_no_available_descriptions(self):
-        # No update is available, so there are no descriptions.
-        self._set_build(20130701)
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(len(self.iface.GetDescriptions()), 0)
-
-    def test_get_no_available_descriptions_without_check(self):
-        # No explicit check for update, none is available.
-        self._set_build(20130701)
-        self.assertEqual(len(self.iface.GetDescriptions()), 0)
-
+    @unittest.skip('LP: #1215586')
     def test_get_multilingual_descriptions(self):
         # The descriptions are multilingual.
         self._prepare_index('index_14.json')
-        self.assertEqual(self.iface.GetDescriptions(), [
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date, descriptions, error_reason) = signals[0]
+        self.assertEqual(descriptions, [
             {'description': 'Full B',
              'description-en': 'The full B',
             },
@@ -351,11 +390,29 @@ class TestDBus(_LiveTesting):
              'description-xx_CC': 'This hyar is the delta B.2',
             }])
 
-    def test_complete_update(self):
-        # Complete the update; up until the reboot call.
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+
+class TestDBusDownload(_LiveTesting):
+    def test_auto_download(self):
+        # When always auto-downloading, and there is an update available, the
+        # update gets automatically downloaded.  First, we'll get an
+        # UpdateAvailableStatus signal, followed by a bunch of UpdateProgress
+        # signals (which for this test, we'll ignore), and finally an
+        # UpdateDownloaded signal.
+        self.download_always()
         self.assertFalse(os.path.exists(self.command_file))
-        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+        # Now, wait for the UpdateDownloaded signal.
+        signals = self._run_loop(None, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 1)
         with open(self.command_file, 'r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, """\
@@ -370,18 +427,112 @@ update 5.txt 5.txt.asc
 unmount system
 """)
 
-    def test_no_update_to_complete(self):
-        # Complete the update; up until the reboot call.
+    def test_nothing_to_auto_download(self):
+        # We're auto-downloading, but there's no update available.
+        self.download_always()
         self._set_build(20130701)
         self.assertFalse(os.path.exists(self.command_file))
-        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertFalse(is_available)
+        self.assertFalse(downloading)
+        # Now, wait for the UpdateDownloaded signal.
+        signals = self._run_loop(None, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 0)
         self.assertFalse(os.path.exists(self.command_file))
 
-    def test_reboot(self):
-        # Do the reboot.
-        self.assertFalse(os.path.exists(self.reboot_log))
+    def test_manual_download(self):
+        # When manually downloading, and there is an update available, the
+        # update does not get downloaded until we explicitly ask it to be.
+        self.download_manually()
+        self.assertFalse(os.path.exists(self.command_file))
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertTrue(is_available)
+        # This is false because we're in manual download mode.
+        self.assertFalse(downloading)
+        self.assertFalse(os.path.exists(self.command_file))
+        # No UpdateDownloaded signal is coming.
+        signals = self._run_loop(None, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 0)
+        self.assertFalse(os.path.exists(self.command_file))
+        # Now we download manually and wait again for the signal.
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateDownloaded')
+        with open(self.command_file, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
+
+    def test_nothing_to_manually_download(self):
+        # We're manually downloading, but there's no update available.
+        self.download_manually()
+        self._set_build(20130701)
+        self.assertFalse(os.path.exists(self.command_file))
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertFalse(is_available)
+        # This is false because we're in manual download mode.
+        self.assertFalse(downloading)
+        # No UpdateDownloaded signal is coming
+        signals = self._run_loop(None, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 0)
+        self.assertFalse(os.path.exists(self.command_file))
+        # Now we download manually, but no signal is coming.
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 0)
+        self.assertFalse(os.path.exists(self.command_file))
+
+    def test_update_failed_signal(self):
+        # A signal is issued when the update failed.
+        self.download_manually()
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.iface.Reboot()
+        # Cause the update to fail by deleting a file from the server.
+        os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)
+        failure_count, last_reason = signals[0]
+        self.assertEqual(failure_count, 1)
+        # Don't count on a specific error message.
+        self.assertNotEqual(last_reason, '')
+
+
+class TestDBusApply(_LiveTesting):
+    def setUp(self):
+        super().setUp()
+        self.download_always()
+
+    def test_reboot(self):
+        # Apply the update, which reboots the device.
+        self.assertFalse(os.path.exists(self.reboot_log))
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateDownloaded')
+        self.iface.ApplyUpdate()
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
         self.assertEqual(reboot, '/sbin/reboot -f recovery')
@@ -391,47 +542,85 @@ unmount system
         self.assertFalse(os.path.exists(self.reboot_log))
         self._set_build(20130701)
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.iface.Reboot()
+        response = self.iface.ApplyUpdate()
+        # Let's not count on the exact response, except that success returns
+        # the empty string.
+        self.assertNotEqual(response, '')
         self.assertFalse(os.path.exists(self.reboot_log))
-
-    def test_ready_to_reboot_signal(self):
-        # A signal is issued when the client is ready to reboot.
-        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        self.assertEqual(len(signals), 1)
-
-    def test_update_failed_signal(self):
-        # A signal is issued when the update failed.
-        #
-        # Cause the update to fail by deleting a file from the server.
-        os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
-        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
-        self.assertEqual(len(signals), 1)
 
     def test_reboot_after_update_failed(self):
         # Cause the update to fail by deleting a file from the server.
-        #
-        # Cause the update to fail by deleting a file from the server.
+        self.download_manually()
+        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
-        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateFailed')
         self.assertEqual(len(signals), 1)
-        signals = self._run_loop(self.iface.Reboot, 'UpdateFailed')
-        self.assertEqual(len(signals), 1)
+        failure_count, reason = signals[0]
+        self.assertEqual(failure_count, 1)
+        self.assertNotEqual(reason, '')
+        # The reboot fails, so we get an error message.
+        self.assertNotEqual(self.iface.ApplyUpdate(), '')
 
-    def test_cancel(self):
+    def test_cancel_manual(self):
+        # While manually downloading, cancel the update.
+        self.download_manually()
         # The downloads can be canceled when there is an update available.
         self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         # Cancel future operations.
-        signals = self._run_loop(self.iface.Cancel, 'Canceled')
+        signals = self._run_loop(self.iface.CancelUpdate, 'UpdateFailed')
         self.assertEqual(len(signals), 1)
-        # Run an update, which will no-op.
+        failure_count, reason = signals[0]
+        self.assertEqual(failure_count, 1)
+        self.assertNotEqual(reason, '')
         self.assertFalse(os.path.exists(self.command_file))
-        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        self.assertEqual(len(signals), 0)
+        # Try to download the update again, though this will fail again.
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)
+        failure_count, reason = signals[0]
+        self.assertEqual(failure_count, 2)
+        self.assertNotEqual(reason, '')
         self.assertFalse(os.path.exists(self.command_file))
-        # Similarly, if we still try to reboot, nothing will happen.
-        self.assertFalse(os.path.exists(self.reboot_log))
-        self.iface.Reboot()
-        self.assertFalse(os.path.exists(self.reboot_log))
+        # The next check resets the failure count and succeeds.
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        # And now we can successfully download the update.
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 1)
+
+    def test_auto_download_cancel(self):
+        # While automatically downloading, cancel the update.
+        self.download_always()
+        loop = GLib.MainLoop()
+        # Start by clearing out the current signal matchers.  We a signal
+        # handler that immediately cancels the in-progress download once the
+        # UpdateAvailableStatus signal is received.  Then we shoudl see a
+        # UpdateFailed almost immediately thereafter, and no UpdateDownloaded.
+        for match in self._signal_matches:
+            match.remove()
+        del self._signal_matches[:]
+        got_update_available_status = False
+        def callback_uas(*args):
+            nonlocal got_update_available_status
+            got_update_available_status = True
+            self.iface.CancelUpdate()
+        self._receive_signal(callback_uas, 'UpdateAvailableStatus')
+        got_update_failed = False
+        def callback_uf(*args):
+            nonlocal got_update_failed
+            got_update_failed = True
+            loop.quit()
+        self._receive_signal(callback_uf, 'UpdateFailed')
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        loop.run()
+        self.assertTrue(got_update_available_status)
+        self.assertTrue(got_update_failed)
 
     def test_exit(self):
         self.iface.Exit()
@@ -440,134 +629,403 @@ unmount system
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        self.assertEqual(self.iface.BuildNumber(), 0)
+        # There's no update to apply, so we'll get an error string instead of
+        # the empty string for this call.  But it will restart the server.
+        self.assertNotEqual(self.iface.ApplyUpdate(), '')
 
 
-class TestDBusMocksNoUpdate(_TestBase):
-    mode = 'no-update'
+class _TestDBusMockBase(_TestBase):
+    def setUp(self):
+        super().setUp()
+        # We want to catch multiple signals and do different things with them,
+        # so use a custom loop runner instead of _run_loop().
+        self.loop = GLib.MainLoop()
+        self.signal_matches = []
+        self.progress_signals = []
+        self.cancel_at_percentage = None
+        self.pause_at_percentage = None
+        self.pause_start = None
+        self.pause_end = None
+        self.auto_download = True
+        self.pause_quit = self.loop.quit
+        def resume_callback():
+            self.pause_end = time.time()
+            self.iface.DownloadUpdate()
+            return False
+        def progress_callback(percentage, eta):
+            self.progress_signals.append((percentage, eta))
+            if percentage == self.pause_at_percentage:
+                self.pause_start = time.time()
+                self.iface.PauseDownload()
+                # Wait 5 seconds.
+                GLib.timeout_add_seconds(5, resume_callback)
+            if percentage == self.cancel_at_percentage:
+                self.iface.CancelUpdate()
+        self._receive_signal(progress_callback, 'UpdateProgress')
+        self.downloaded = False
+        def downloaded_callback(*args):
+            self.downloaded = True
+            self.loop.quit()
+        self._receive_signal(downloaded_callback, 'UpdateDownloaded')
+        self.status = None
+        def status_callback(*args):
+            self.status = args
+            if not self.auto_download:
+                # The download must be started manually.
+                self.loop.quit()
+        self._receive_signal(status_callback, 'UpdateAvailableStatus')
+        self.failed = []
+        def failed_callback(*args):
+            self.failed.append(args)
+            self.loop.quit()
+        self._receive_signal(failed_callback, 'UpdateFailed')
+        self.pauses = []
+        def paused_callback(percentage):
+            self.pauses.append(percentage)
+            self.pause_quit()
+        self._receive_signal(paused_callback, 'UpdatePaused')
+        # No test should run longer than this.
+        self._loop_quitters.append(
+            GLib.timeout_add_seconds(120, self.loop.quit))
 
-    def test_build_number(self):
-        self.assertEqual(self.iface.BuildNumber(), 42)
 
-    def test_no_update_available(self):
-        signals = self._run_loop(
-            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(len(signals), 1)
-        # There's one boolean argument to the result.
-        self.assertFalse(signals[0][0])
+class TestDBusMockUpdateAutoSuccess(_TestDBusMockBase):
+    mode = 'update-auto-success'
+
+    def test_scenario_1(self):
+        # Start the ball rolling.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+        self.assertEqual(available_version, '42')
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
+        self.assertEqual(error_reason, '')
+        # We should have gotten 100 UpdateProgress signals, where each
+        # increments the percentage by 1 and decrements the eta by 0.5.
+        self.assertEqual(len(self.progress_signals), 100)
+        for i in range(100):
+            percentage, eta = self.progress_signals[i]
+            self.assertEqual(percentage, i)
+            self.assertEqual(eta, 50 - (i * 0.5))
+        self.assertTrue(self.downloaded)
+        self.assertEqual(self.iface.ApplyUpdate(), '')
+
+    def test_scenario_2(self):
+        # Like scenario 1, but with PauseDownload called during the downloads.
+        self.pause_at_percentage = 35
+        self.pause_quit = lambda: None
+        # Start the ball rolling.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        # We got a pause signal.
+        self.assertEqual(len(self.pauses), 1)
+        self.assertEqual(self.pauses[0], 35)
+        # Make sure that we still got 100 progress reports.
+        self.assertEqual(len(self.progress_signals), 100)
+        # And we still completed successfully.
+        self.assertTrue(self.downloaded)
+        # And that we paused successfully.  We can't be exact about the amount
+        # of time we paused, but it should always be at least 4 seconds.
+        self.assertGreater(self.pause_end - self.pause_start, 4)
+
+    def test_scenario_3(self):
+        # Like scenario 2, but PauseDownload is called when not downloading,
+        # so it is a no-op.  The test service waits 3 seconds after a
+        # CheckForUpdate before it begins downloading, so let's issue a
+        # no-op PauseDownload after 1 second.
+        GLib.timeout_add_seconds(1, self.iface.PauseDownload)
+        # Now run the loop and assert that we never paused.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        self.assertEqual(len(self.pauses), 0)
+        self.assertIsNone(self.pause_start)
+        self.assertIsNone(self.pause_end)
+
+    def test_scenario_4(self):
+        # If DownloadUpdate is called when not paused, downloading, or
+        # update-checked, it is a no-op.
+        self.iface.DownloadUpdate()
+        # Only run for 15 seconds, but still, we'll never see an
+        # UpdateAvailableStatus or UpdateDownloaded.
+        GLib.timeout_add_seconds(15, self.loop.quit)
+        self.loop.run()
+        self.assertIsNone(self.status)
+        self.assertFalse(self.downloaded)
+
+    def test_scenario_5(self):
+        # In this scenario, we cancel the download midway through.  This will
+        # result in an UpdateFailed signal.
+        self.cancel_at_percentage = 27
+        # Start the ball rolling.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        # Our failed signal will tell us we got one consecutive failure and
+        # the reason is that we canceled (but don't depend on the exact
+        # content of the last_reason, just that it's not the empty string).
+        self.assertEqual(len(self.failed), 1)
+        failure_count, reason = self.failed[0]
+        self.assertEqual(failure_count, 1)
+        self.assertNotEqual(reason, '')
+        # We also didn't download anything.
+        self.assertFalse(self.downloaded)
+
+    def test_scenario_6(self):
+        # Like secenario 5, but after a cancel, CheckForUpdate will restart
+        # things again.
+        self.cancel_at_percentage = 13
+        # Start the ball rolling.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        # Our failed signal will tell us we got one consecutive failure and
+        # the reason is that we canceled (but don't depend on the exact
+        # content of the last_reason, just that it's not the empty string).
+        self.assertEqual(len(self.failed), 1)
+        failure_count, reason = self.failed[0]
+        self.assertEqual(failure_count, 1)
+        self.assertNotEqual(reason, '')
+        # We also didn't download anything.
+        self.assertFalse(self.downloaded)
+        # Now, restart the download.
+        self.cancel_at_percentage = None
+        self.failed = []
+        self.progress_signals = []
+        # Start the ball rolling again.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        # This time, we've downloaded everything
+        self.assertTrue(self.downloaded)
+        self.assertEqual(len(self.failed), 0)
 
 
-class TestDBusMocksUpdateAvailable(_TestBase):
-    mode = 'update-success'
+class TestDBusMockUpdateManualSuccess(_TestDBusMockBase):
+    mode = 'update-manual-success'
 
     def setUp(self):
         super().setUp()
-        config = Configuration()
-        config.load(_controller.ini_path)
-        self.reboot_log = os.path.join(
-            config.updater.cache_partition, 'reboot.log')
+        self.auto_download = False
 
-    def tearDown(self):
-        safe_remove(self.reboot_log)
-        super().tearDown()
-
-    def test_build_number(self):
-        self.assertEqual(self.iface.BuildNumber(), 42)
-
-    def test_update_available(self):
-        signals = self._run_loop(
-            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self.assertEqual(len(signals), 1)
-        # There's one boolean argument to the result.
-        self.assertTrue(signals[0][0])
-
-    def test_size(self):
-        self.assertEqual(self.iface.GetUpdateSize(), 1369088)
-
-    def test_version(self):
-        self.assertEqual(self.iface.GetUpdateVersion(), 44)
-
-    def test_descriptions(self):
-        self.assertEqual(self.iface.GetDescriptions(), [
-            {'description': 'Ubuntu Edge support',
-             'description-fr': "Support d'Ubuntu Edge",
-             'description-en': 'Initialise your Colour',
-             'description-en_US': 'Initialize your Color',
-            },
-            {'description': 'Flipped container with 200% faster boot'},
-            ])
-
-    def test_update(self):
-        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        self.assertEqual(len(signals), 1)
-
-    def test_update_canceled(self):
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        # Cancel the update.
-        signals = self._run_loop(self.iface.Cancel, 'Canceled')
-        self.assertEqual(len(signals), 1)
-        # The next GetUpdate() will no-op.
-        signals = self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        self.assertEqual(len(signals), 0)
-
-    def test_reboot(self):
-        # Read a reboot.log so we can prove that the "reboot" happened.
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        self.iface.Reboot()
-        with open(self.reboot_log, encoding='utf-8') as fp:
-            reboot = fp.read()
-        self.assertEqual(reboot, '/sbin/reboot -f recovery')
-
-    def test_reboot_canceled(self):
-        self._run_loop(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        self._run_loop(self.iface.GetUpdate, 'ReadyToReboot')
-        signals = self._run_loop(self.iface.Cancel, 'Canceled')
-        self.assertEqual(len(signals), 1)
-        # The next reboot will no-op.
-        self.assertFalse(os.path.exists(self.reboot_log))
-        self.iface.Reboot()
-        self.assertFalse(os.path.exists(self.reboot_log))
+    def test_scenario_1(self):
+        # Like scenario 1 for auto-downloading except that the download must
+        # be started explicitly.
+        # Start the ball rolling.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(available_version, '42')
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
+        self.assertEqual(error_reason, '')
+        # There should be no progress yet.
+        self.assertEqual(len(self.progress_signals), 0)
+        self.iface.DownloadUpdate()
+        self.loop.run()
+        # We should have gotten 100 UpdateProgress signals, where each
+        # increments the percentage by 1 and decrements the eta by 0.5.
+        self.assertEqual(len(self.progress_signals), 100)
+        for i in range(100):
+            percentage, eta = self.progress_signals[i]
+            self.assertEqual(percentage, i)
+            self.assertEqual(eta, 50 - (i * 0.5))
+        self.assertTrue(self.downloaded)
+        self.assertEqual(self.iface.ApplyUpdate(), '')
 
 
-class TestDBusMocksUpdateFailed(_TestBase):
+class TestDBusMockUpdateFailed(_TestDBusMockBase):
     mode = 'update-failed'
 
-    def test_build_number(self):
-        self.assertEqual(self.iface.BuildNumber(), 42)
+    def test_scenario_1(self):
+        # The server is already in falure mode.  A CheckForUpdate() restarts
+        # the check, which returns information about the new update.  It
+        # auto-starts, but this fails.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(available_version, '42')
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
+        self.assertEqual(error_reason, 'You need some network for downloading')
+        self.assertEqual(len(self.failed), 1)
+        failure_count, reason = self.failed[0]
+        self.assertEqual(failure_count, 2)
+        self.assertEqual(reason, 'You need some network for downloading')
 
-    def test_update_available(self):
+
+class TestDBusMockFailApply(_TestDBusMockBase):
+    mode = 'fail-apply'
+
+    def test_scenario_1(self):
+        # The update has been downloaded, client sends CheckForUpdate and
+        # receives a response.  The update is downloaded successfully.  An
+        # error occurs when we try to apply the update.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(available_version, '42')
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
+        self.assertEqual(error_reason, '')
+        self.assertTrue(self.downloaded)
+        self.assertEqual(self.iface.ApplyUpdate(),
+                         'Not enough battery, you need to plug in your phone')
+
+
+class TestDBusMockFailResume(_TestDBusMockBase):
+    mode = 'fail-resume'
+
+    def test_scenario_1(self):
+        # The server download is paused at 42%.  A CheckForUpdate is issued
+        # and gets a response.  An UpdatePaused signal is sent.  A problem
+        # occurs that prevents resuming.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(available_version, '42')
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
+        self.assertEqual(error_reason, '')
+        # The download is already paused.
+        self.assertEqual(len(self.pauses), 1)
+        self.assertEqual(self.pauses[0], 42)
+        # We try to resume the download, but that fails.
+        self.assertEqual(len(self.failed), 0)
+        self.iface.DownloadUpdate()
+        self.loop.run()
+        self.assertEqual(len(self.failed), 1)
+        failure_count, reason = self.failed[0]
+        self.assertEqual(failure_count, 9)
+        self.assertEqual(reason, 'You need some network for downloading')
+
+
+class TestDBusMockFailPause(_TestDBusMockBase):
+    mode = 'fail-pause'
+
+    def test_scenario_1(self):
+        # The server is downloading, currently at 10% with no known ETA.  The
+        # client tries to pause the download but is unable to do so.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        # Only run the loop for a few seconds, since otherwise there's no
+        # natural way to pause the download.
+        for quit_id in self._loop_quitters:
+            GLib.source_remove(quit_id)
+        del self._loop_quitters[:]
+        self._loop_quitters.append(GLib.timeout_add_seconds(5, self.loop.quit))
+        self.loop.run()
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = self.status
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+        self.assertEqual(available_version, '42')
+        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        ## self.assertEqual(descriptions, [
+        ##     {'description': 'Ubuntu Edge support',
+        ##      'description-en_GB': 'change the background colour',
+        ##      'description-fr': "Support d'Ubuntu Edge",
+        ##     },
+        ##     {'description':
+        ##      'Flipped container with 200% boot speed improvement',
+        ##     }])
+        self.assertEqual(error_reason, '')
+        self.assertEqual(len(self.progress_signals), 1)
+        percentage, eta = self.progress_signals[0]
+        self.assertEqual(percentage, 10)
+        self.assertEqual(eta, 0)
+        reason = self.iface.PauseDownload()
+        self.assertEqual(reason, 'no no, not now')
+
+
+class TestDBusMockNoUpdate(_TestDBusMockBase):
+    mode = 'no-update'
+
+    def test_scenario_1(self):
+        # No update is available.
         signals = self._run_loop(
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(signals), 1)
-        # There's one boolean argument to the result.
-        self.assertTrue(signals[0][0])
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertFalse(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        # All the other status variables can be ignored.
 
-    def test_size(self):
-        self.assertEqual(self.iface.GetUpdateSize(), 1369088)
-
-    def test_version(self):
-        self.assertEqual(self.iface.GetUpdateVersion(), 44)
-
-    def test_descriptions(self):
-        self.assertEqual(self.iface.GetDescriptions(), [
-            {'description': 'Ubuntu Edge support',
-             'description-fr': "Support d'Ubuntu Edge",
-             'description-en': 'Initialise your Colour',
-             'description-en_US': 'Initialize your Color',
-            },
-            {'description': 'Flipped container with 200% faster boot'},
-            ])
-
-    def test_update(self):
-        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
-        self.assertEqual(len(signals), 1)
-
-    def test_reboot(self):
-        signals = self._run_loop(self.iface.GetUpdate, 'UpdateFailed')
-        self.assertEqual(len(signals), 1)
-        signals = self._run_loop(self.iface.Reboot, 'UpdateFailed')
-        self.assertEqual(len(signals), 1)
+    def test_lp_1215946(self):
+        self.auto_download = False
+        # no-update mock sends UpdateFailed before UpdateAvailableStatus.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        self.assertEqual(len(self.failed), 0)
+        self.assertIsNotNone(self.status)
 
 
 class TestDBusMain(_TestBase):
@@ -589,7 +1047,7 @@ class TestDBusMain(_TestBase):
         self.assertFalse(os.path.exists(config.system.tempdir))
         # DBus activate the service, which should create the directory.
         bus = dbus.SystemBus()
-        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        bus.get_object('com.canonical.SystemImage', '/Service')
         self.assertTrue(os.path.exists(config.system.tempdir))
 
 
@@ -600,73 +1058,156 @@ class TestDBusClient(_LiveTesting):
         super().setUp()
         self._client = DBusClient()
 
-    def test_build_number(self):
-        # Get the build number through the client.
-        self._set_build(20130701)
-        self.assertEqual(self._client.build_number, 20130701)
-
     def test_check_for_update(self):
         # There is an update available.
-        self.assertTrue(self._client.check_for_update())
+        self._client.check_for_update()
+        self.assertTrue(self._client.is_available)
+        self.assertTrue(self._client.downloaded)
 
     def test_check_for_no_update(self):
         # There is no update available.
         self._set_build(20130701)
-        self.assertFalse(self._client.check_for_update())
-
-    def test_get_update_size(self):
-        # The size of the available update.
-        self.assertTrue(self._client.check_for_update())
-        self.assertEqual(self._client.update_size, 314572800)
-
-    def test_get_update_no_size(self):
-        # Size is zero if there is no update available.
-        self._set_build(20130701)
-        self.assertFalse(self._client.check_for_update())
-        self.assertEqual(self._client.update_size, 0)
-
-    def test_get_update_version(self):
-        # The target version of the upgrade.
-        self.assertTrue(self._client.check_for_update())
-        self.assertEqual(self._client.update_version, 20130600)
-
-    def test_get_update_no_version(self):
-        # Version is zero if there is no update available.
-        self._set_build(20130701)
-        self.assertFalse(self._client.check_for_update())
-        self.assertEqual(self._client.update_version, 0)
-
-    def test_get_update_descriptions(self):
-        # The update has some descriptions.
-        self.assertTrue(self._client.check_for_update())
-        self.assertEqual(self._client.update_descriptions,
-                         [{'description': 'Full'}])
-
-    def test_get_update_no_descriptions(self):
-        # Sometimes there's no update, and thus no descrptions.
-        self._set_build(20130701)
-        self.assertFalse(self._client.check_for_update())
-        self.assertEqual(self._client.update_descriptions, [])
-
-    def test_update(self):
-        # Do the update, but wait to reboot.
-        self.assertTrue(self._client.check_for_update())
-        ready = self._client.update()
-        self.assertTrue(ready)
+        self._client.check_for_update()
+        self.assertFalse(self._client.is_available)
+        self.assertFalse(self._client.downloaded)
 
     def test_update_failed(self):
         # For some reason <wink>, the update fails.
-        self.assertTrue(self._client.check_for_update())
+        #
         # Cause the update to fail by deleting a file from the server.
         os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
-        ready = self._client.update()
-        self.assertFalse(ready)
+        self._client.check_for_update()
+        self.assertTrue(self._client.is_available)
+        self.assertFalse(self._client.downloaded)
+        self.assertTrue(self._client.failed)
 
     def test_reboot(self):
         # After a successful update, we can reboot.
-        self.assertTrue(self._client.check_for_update())
-        self.assertTrue(self._client.update())
+        self._client.check_for_update()
+        self.assertTrue(self._client.is_available)
+        self.assertTrue(self._client.downloaded)
         self._client.reboot()
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
         self.assertEqual(reboot, '/sbin/reboot -f recovery')
+
+
+class TestDBusGetSet(_TestBase):
+    """Test the DBus client's key/value settings."""
+
+    mode = 'live'
+
+    def test_set_get_basic(self):
+        # get/set a random key.
+        self.iface.SetSetting('name', 'ant')
+        self.assertEqual(self.iface.GetSetting('name'), 'ant')
+
+    def test_set_get_change(self):
+        # get/set a random key, then change it.
+        self.iface.SetSetting('name', 'ant')
+        self.assertEqual(self.iface.GetSetting('name'), 'ant')
+        self.iface.SetSetting('name', 'bee')
+        self.assertEqual(self.iface.GetSetting('name'), 'bee')
+
+    def test_get_before_set(self):
+        # Getting a key that doesn't exist returns the empty string.
+        self.assertEqual(self.iface.GetSetting('thing'), '')
+        self.iface.SetSetting('thing', 'one')
+        self.assertEqual(self.iface.GetSetting('thing'), 'one')
+
+    def test_setting_persists(self):
+        # Set a key, restart the dbus server, and the key's value persists.
+        self.iface.SetSetting('permanent', 'waves')
+        self.assertEqual(self.iface.GetSetting('permanent'), 'waves')
+        self.iface.Exit()
+        self.assertRaises(DBusException, self.iface.GetSetting, 'permanent')
+        # Re-establish a new connection.
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        self.assertEqual(self.iface.GetSetting('permanent'), 'waves')
+
+    def test_setting_min_battery_good(self):
+        # min_battery has special semantics.
+        self.iface.SetSetting('min_battery', '30')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '30')
+
+    def test_setting_min_battery_bad(self):
+        # min_battery requires the string representation of a percentage.
+        self.iface.SetSetting('min_battery', 'standby')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '')
+        self.iface.SetSetting('min_battery', '30')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '30')
+        self.iface.SetSetting('min_battery', 'foo')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '30')
+        self.iface.SetSetting('min_battery', '-10')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '30')
+        self.iface.SetSetting('min_battery', '100')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '100')
+        self.iface.SetSetting('min_battery', '101')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '100')
+        self.iface.SetSetting('min_battery', 'standby')
+        self.assertEqual(self.iface.GetSetting('min_battery'), '100')
+
+    def test_setting_auto_download_good(self):
+        # auto_download has special semantics.
+        self.iface.SetSetting('auto_download', '0')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
+        self.iface.SetSetting('auto_download', '1')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+        self.iface.SetSetting('auto_download', '2')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '2')
+
+    def test_setting_auto_download_bad(self):
+        # auto_download requires an integer between 0 and 2.  Don't forget
+        # that it gets pre-populated when the database is created.
+        self.iface.SetSetting('auto_download', 'standby')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+        self.iface.SetSetting('auto_download', '-1')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+        self.iface.SetSetting('auto_download', '0')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
+        self.iface.SetSetting('auto_download', '3')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
+
+    def test_prepopulated_settings(self):
+        # Some settings are pre-populated.
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+
+    def test_setting_changed_signal(self):
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'foo', 'yes'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 1)
+        key, new_value = signals[0]
+        self.assertEqual(key, 'foo')
+        self.assertEqual(new_value, 'yes')
+        # The value did not change.
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'foo', 'yes'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 0)
+        # This is the default value, so nothing changes.
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'auto_download', '1'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 0)
+        # This is a bogus value, so nothing changes.
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'min_battery', '200'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 0)
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'auto_download', '0'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 1)
+        key, new_value = signals[0]
+        self.assertEqual(key, 'auto_download')
+        self.assertEqual(new_value, '0')
+        signals = self._run_loop(
+            partial(self.iface.SetSetting, 'min_battery', '30'),
+            'SettingChanged')
+        self.assertEqual(len(signals), 1)
+        key, new_value = signals[0]
+        self.assertEqual(key, 'min_battery')
+        self.assertEqual(new_value, '30')

@@ -69,8 +69,10 @@ class Configuration:
             self.service['https_base'] = 'https://{}:{}'.format(
                 self.service.base, self.service.https_port)
         self.system = Bag(converters=dict(build_file=expand_path,
-                                          tempdir=expand_path,
-                                          loglevel=as_loglevel),
+                                          loglevel=as_loglevel,
+                                          settings_db=expand_path,
+                                          state_file=expand_path,
+                                          tempdir=expand_path),
                           **parser['system'])
         self.gpg = Bag(**parser['gpg'])
         self.updater = Bag(**parser['updater'])

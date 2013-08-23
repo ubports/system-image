@@ -20,6 +20,7 @@ __all__ = [
     ]
 
 
+import pickle
 import unittest
 
 from operator import setitem
@@ -63,3 +64,11 @@ class TestBag(unittest.TestCase):
         bag = Bag(a=1, b=2, c=3)
         self.assertRaises(ValueError, setitem, bag, 'b', 5)
         self.assertEqual(bag.b, 2)
+
+    def test_pickle(self):
+        bag = Bag(a=1, b=2, c=3)
+        pck = pickle.dumps(bag)
+        new_bag = pickle.loads(pck)
+        self.assertEqual(new_bag.a, 1)
+        self.assertEqual(new_bag.b, 2)
+        self.assertEqual(new_bag.c, 3)

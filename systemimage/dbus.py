@@ -20,11 +20,10 @@ __all__ = [
     ]
 
 
-import logging
-
 from dbus.service import Object, method, signal
 from gi.repository import GLib
-from systemimage.api import Cancel, Mediator
+from systemimage.api import Mediator
+from systemimage.settings import Settings
 
 
 class Service(Object):
@@ -35,22 +34,36 @@ class Service(Object):
         self._loop = loop
         self._api = Mediator()
         self._checking = False
-        self._completing = False
-        self._rebootable = True
-
-    @method('com.canonical.SystemImage', out_signature='i')
-    def BuildNumber(self):
-        """Return the system's current build number.
-
-        :return: The current build number.
-        :rtype: int
-        """
-        return self._api.get_build_number()
+        self._update = None
+        self._downloading = False
+        self._rebootable = False
+        self._failure_count = 0
+        self._last_error = ''
 
     def _check_for_update(self):
         # Asynchronous method call.
-        update = self._api.check_for_update()
-        self.UpdateAvailableStatus(bool(update))
+        self._update = self._api.check_for_update()
+        # Do we have an update and can we auto-download it?
+        downloading = False
+        if self._update.is_available:
+            settings = Settings()
+            auto = settings.get('auto_download')
+            if auto in ('1', '2'):
+                # XXX When we have access to the download service, we can
+                # check if we're on the wifi (auto == '1').
+                GLib.timeout_add(50, self._download)
+                downloading = True
+        self.UpdateAvailableStatus(
+            self._update.is_available,
+            downloading,
+            self._update.version,
+            self._update.size,
+            self._update.last_update_date,
+            # XXX 2013-08-22 - the u/i cannot currently currently handle the
+            # array of dictionaries data type.  LP: #1215586
+            #self._update.descriptions,
+            "")
+        self._checking = False
         # Stop GLib from calling this method again.
         return False
 
@@ -74,163 +87,143 @@ class Service(Object):
             # Check is already in progress, so there's nothing more to do.
             return
         self._checking = True
+        # Reset any failure or in-progress state.
+        self._failure_count = 0
+        self._last_error = ''
+        self._api = Mediator()
         # Arrange for the actual check to happen in a little while, so that
         # this method can return immediately.
-        GLib.timeout_add(100, self._check_for_update)
+        GLib.timeout_add(50, self._check_for_update)
 
-    @method('com.canonical.SystemImage', out_signature='x')
-    def GetUpdateSize(self):
-        """Return the size in bytes of an available update.
-
-        This method performs an implicit check for update, if one has not been
-        previously done.  If no update is available, a size of zero is
-        returned.
-
-        :return: Size in bytes of any available update.
-        :rtype: int
-        """
-        return self._api.check_for_update().size
-
-    @method('com.canonical.SystemImage', out_signature='i')
-    def GetUpdateVersion(self):
-        """Return the build version for the update.
-
-        The number returned from this method is the build number that the
-        device will be left at, after any available update is applied.
-
-        This method performs an implicit check for update, if one has
-        not been previously done.  If no update is available, a build
-        version of zero is returned.
-
-        :return: Future build number, should the update be applied.
-        :rtype: int
-        """
-        return self._api.check_for_update().version
-
-    @method('com.canonical.SystemImage', out_signature='aa{ss}')
-    def GetDescriptions(self):
-        """Return all the descriptions for the available update.
-
-        If an update is available, this method will return a list of
-        dictionaries.  The number of items in this list will reflect the
-        number of images that are downloaded in order to apply the update.
-        Each image can come with a set of descriptions, in multiple languages,
-        for the updates contained in that image.  The keys of the dictionaries
-        always start with 'description' and may have suffixes indicating the
-        language code for the description.  Thus, each image may have multiple
-        descriptions in multiple languages.  The dictionary values are the
-        UTF-8 encoded Unicode descriptions for the language specified in the
-        key.
-
-        This method performs an implicit check for update, if one has
-        not been previously done.  If no update is available, an empty list is
-        returned.
-
-        :return: The descriptions in all languages for all images included in
-            the winning update path.
-        :rtype: list of dictionaries
-        """
-        return self._api.check_for_update().descriptions
-
-    def _complete_update(self):
-        # Asynchronous method call.
+    def _download(self):
+        if (self._downloading                        # Already in progress.
+            or self._update is None                  # Not yet checked.
+            or not self._update.is_available         # No update available.
+            ):
+            return
+        if self._failure_count > 0:
+            self._failure_count += 1
+            self.UpdateFailed(self._failure_count, self._last_error)
+            return
+        self._downloading = True
         try:
-            self._api.complete_update()
-        except Cancel:
-            # No additional Canceled signal is issued.
-            pass
-        except Exception:
-            # If any other exception occurs, signal an UpdateFailed and log
-            # the exception.
-            log = logging.getLogger('systemimage')
-            log.exception('GetUpdate() failed')
-            self._rebootable = False
-            self.UpdateFailed()
+            self._api.download()
+        except Exception as error:
+            self._failure_count += 1
+            self._last_error = str(error)
+            self.UpdateFailed(self._failure_count, self._last_error)
         else:
-            self.ReadyToReboot()
+            self.UpdateDownloaded()
+            self._failure_count = 0
+            self._last_error = ''
+            self._rebootable = True
+        self._downloading = False
         # Stop GLib from calling this method again.
         return False
 
     @method('com.canonical.SystemImage')
-    def GetUpdate(self):
+    def DownloadUpdate(self):
         """Download the available update.
 
         The download may be canceled during this time.
         """
-        if self._completing:
-            # Completing is already in progress, so there's nothing more to do.
-            return
-        self._completing = True
         # Arrange for the update to happen in a little while, so that this
         # method can return immediately.
-        GLib.timeout_add(100, self._complete_update)
+        GLib.timeout_add(50, self._download)
 
     @method('com.canonical.SystemImage')
-    def Cancel(self):
-        """Cancel a download and/or reboot.
+    def PauseDownload(self, out_signature='s'):
+        """Pause a downloading update."""
+        # XXX 2013-08-22 We cannot currently pause downloads until we
+        # integrate with the download service.  LP: #1196991
+        return ""
 
-        At any time between the `GetUpdate()` call and the `Reboot()` call, an
-        upgrade may be canceled by calling this method.  Once canceled, the
-        upgrade may not be restarted without killing the dbus client and
-        restarting it.  The dbus client is short-lived any way, so it will
-        timeout and restart via dbus activation automatically after a short
-        period of time.
-        """
+    @method('com.canonical.SystemImage', out_signature='s')
+    def CancelUpdate(self):
+        """Cancel a download."""
         self._api.cancel()
-        self.Canceled()
+        # We're now in a failure state until the next CheckForUpdate.
+        self._failure_count += 1
+        self._last_error = 'Canceled'
+        self.UpdateFailed(self._failure_count, self._last_error)
+        # XXX 2013-08-22: If we can't cancel the current download, return the
+        # reason in this string.
+        return ''
+
+    @method('com.canonical.SystemImage', out_signature='s')
+    def ApplyUpdate(self):
+        """Apply the update, rebooting the device."""
+        if not self._rebootable:
+            return 'No update has been downloaded'
+        self._api.reboot()
+        return ''
+
+    @method('com.canonical.SystemImage', in_signature='ss')
+    def SetSetting(self, key, value):
+        """Set a key/value setting.
+
+        Some values are special, e.g. min_battery and auto_downloads.
+        Implement these special semantics here.
+        """
+        if key == 'min_battery':
+            try:
+                as_int = int(value)
+            except ValueError:
+                return
+            if as_int < 0 or as_int > 100:
+                return
+        if key == 'auto_download':
+            try:
+                as_int = int(value)
+            except ValueError:
+                return
+            if as_int not in (0, 1, 2):
+                return
+        settings = Settings()
+        old_value = settings.get(key)
+        settings.set(key, value)
+        if value != old_value:
+            # Send the signal.
+            self.SettingChanged(key, value)
+
+    @method('com.canonical.SystemImage', in_signature='s', out_signature='s')
+    def GetSetting(self, key):
+        """Get a setting."""
+        return Settings().get(key)
 
     @method('com.canonical.SystemImage')
     def Exit(self):
         """Quit the daemon immediately."""
         self._loop.quit()
 
-    @method('com.canonical.SystemImage')
-    def Reboot(self):
-        """Reboot the device.
+    # XXX 2013-08-22 The u/i cannot currently handle the array of dictionaries
+    # data type for the descriptions.  LP: #1215586
+    #@signal('com.canonical.SystemImage', signature='bbsisaa{ss}s')
+    @signal('com.canonical.SystemImage', signature='bbsiss')
+    def UpdateAvailableStatus(self,
+                              is_available, downloading,
+                              available_version, update_size,
+                              last_update_date,
+                              #descriptions,
+                              error_reason):
+        """Signal sent in response to a CheckForUpdate()."""
 
-        Call this method after the download has completed.
-        """
-        if not self._rebootable:
-            self.UpdateFailed()
-            return
-        try:
-            self._api.reboot()
-        except Cancel:
-            # No additional Canceled signal is issued.
-            pass
-        except Exception:
-            # If any other exception occurs, signal an UpdateFailed and log
-            # the exception.
-            log = logging.getLogger('systemimage')
-            log.exception('Reboot() failed')
-            self.UpdateFailed()
-
-    @signal('com.canonical.SystemImage', signature='b')
-    def UpdateAvailableStatus(self, flag):
-        """Signal sent when update checking is complete.
-
-        This signal is sent whenever the asynchronous checking for an update
-        completes.  Its argument includes the flag specifying whether an
-        update is available or not.
-        """
+    @signal('com.canonical.SystemImage', signature='id')
+    def UpdateProgress(self, percentage, eta):
+        """Download progress."""
 
     @signal('com.canonical.SystemImage')
-    def ReadyToReboot(self):
-        """The device is ready to reboot.
+    def UpdateDownloaded(self):
+        """The update has been successfully downloaded."""
 
-        This signal is sent whenever the download of an update is complete,
-        and the device is ready to be rebooted to apply the update.
-        """
-
-    @signal('com.canonical.SystemImage')
-    def UpdateFailed(self):
+    @signal('com.canonical.SystemImage', signature='is')
+    def UpdateFailed(self, consecutive_failure_count, last_reason):
         """The update failed for some reason."""
 
-    @signal('com.canonical.SystemImage')
-    def Canceled(self):
-        """A download has been canceled.
+    @signal('com.canonical.SystemImage', signature='i')
+    def UpdatePaused(self, percentage):
+        """The download got paused."""
 
-        This signal is sent whenever the download of an update has been
-        canceled.  The cancellation can occur any time prior to a reboot being
-        issued.
-        """
+    @signal('com.canonical.SystemImage', signature='ss')
+    def SettingChanged(self, key, new_value):
+        """A setting value has change."""

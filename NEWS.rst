@@ -6,6 +6,7 @@ NEWS for system-image updater
 ================
  * Use nose as the test runner.  This allows us to pre-initialize the logging
    to prevent unwanted output. (LP: #1207117)
+ * Update the DBus API to the new specification. (LP: #1212781)
 
 1.0 (2013-08-01)
 ================

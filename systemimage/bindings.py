@@ -22,96 +22,80 @@ __all__ = [
 
 
 import dbus
+import logging
 
-from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
-from importlib import import_module
 
-
-class ReceivedSignal:
-    """Class representing the signal that was received."""
-
-    def __init__(self, *values):
-        self.values = values
-
-
-class UpdateAvailableStatus(ReceivedSignal): pass
-class ReadyToReboot(ReceivedSignal): pass
-class UpdateFailed(ReceivedSignal): pass
-class Canceled(ReceivedSignal): pass
+log = logging.getLogger('systemimage')
 
 
 class DBusClient:
     """Python bindings to be used as a DBus client."""
 
     def __init__(self):
-        DBusGMainLoop(set_as_default=True)
-
         self.bus = dbus.SystemBus()
         service = self.bus.get_object('com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        self._myself = import_module('systemimage.bindings')
-
-    def _run(self, method, *signals):
-        answers = []
-        loop = GLib.MainLoop()
-        def callback(*args, **kws):
-            signal = kws['member']
-            class_ = getattr(self._myself, signal)
-            assert issubclass(class_, ReceivedSignal), (
-                'Bad signal: {}'.format(signal))
-            answers.append(class_(*args))
-            loop.quit()
-        if len(signals) == 0:
-            signals = ('UpdateAvailableStatus', 'ReadyToReboot',
-                       'UpdateFailed', 'Canceled')
-        for signal in signals:
+        for signal in ('UpdateAvailableStatus',
+                       'UpdateDownloaded', 'UpdateFailed'):
             self.bus.add_signal_receiver(
-                callback, signal_name=signal,
-                dbus_interface='com.canonical.SystemImage',
-                member_keyword='member')
-        GLib.timeout_add(100, method)
-        GLib.timeout_add_seconds(120, loop.quit)
-        loop.run()
-        return answers
+                self._handle, signal_name=signal,
+                member_keyword='member',
+                dbus_interface='com.canonical.SystemImage')
+        self.failed = False
+        self.is_available = False
+        self.downloaded = False
 
-    @property
-    def build_number(self):
-        return self.iface.BuildNumber()
+    def _handle(self, *args, **kws):
+        signal = kws.pop('member')
+        handler = getattr(self, '_do_' + signal, None)
+        if handler is not None:
+            handler(*args, **kws)
+
+    def _run(self, method):
+        self.loop = GLib.MainLoop()
+        GLib.timeout_add(50, method)
+        quitter_id = GLib.timeout_add_seconds(600, self.loop.quit)
+        self.loop.run()
+        GLib.source_remove(quitter_id)
+
+    def _do_UpdateAvailableStatus(self, is_available, downloading,
+                                  available_version, update_size,
+                                  last_update_date,
+                                  #descriptions,
+                                  error_reason):
+        if error_reason != '':
+            # Cancel the download, set the failed flag and log the reason.
+            log.error('CheckForUpdate returned an error: {}', error_reason)
+            self.failed = True
+            self.loop.quit()
+            return
+        if not is_available:
+            log.info('No update available')
+            self.loop.quit()
+            return
+        if not downloading:
+            # We should be in auto download mode, so why aren't we downloading
+            # the update?  Do it manually.
+            log.info('Update available, downloading manually')
+            self.iface.DownloadUpdate()
+        self.is_available = True
+
+    def _do_UpdateDownloaded(self):
+        self.downloaded = True
+        self.loop.quit()
+
+    def _do_UpdateFailed(self, consecutive_failure_count, last_reason):
+        log.error('UpdateFailed: {}', last_reason)
+        self.failed = True
+        self.loop.quit()
 
     def check_for_update(self):
-        signals = self._run(self.iface.CheckForUpdate, 'UpdateAvailableStatus')
-        # That's a sequence of signals, each of which are a single tuple.
-        # Unpack the madness.
-        assert len(signals) == 1, (
-            'Multiple CheckForUpdate signals received: {}'.format(signals))
-        assert isinstance(signals[0], UpdateAvailableStatus), (
-            'Unexpected signal: {}'.format(signals[0]))
-        return bool(signals[0].values[0])
-
-    @property
-    def update_size(self):
-        return int(self.iface.GetUpdateSize())
-
-    @property
-    def update_version(self):
-        return int(self.iface.GetUpdateVersion())
-
-    @property
-    def update_descriptions(self):
-        return self.iface.GetDescriptions()
-
-    def update(self):
-        signals = self._run(
-            self.iface.GetUpdate, 'UpdateFailed', 'ReadyToReboot')
-        assert len(signals) == 1, (
-            'Multiple GetUpdate signals received: {}'.format(signals))
-        if isinstance(signals[0], ReadyToReboot):
-            return True
-        elif isinstance(signals[0], UpdateFailed):
-            return False
-        else:
-            raise RuntimeError('Unexpected signal: {}'.format(signals[0]))
+        # Switch to auto-download mode for this run.
+        old_value = self.iface.GetSetting('auto_download')
+        self.iface.SetSetting('auto_download', '2')
+        self._run(self.iface.CheckForUpdate)
+        self.iface.SetSetting('auto_download', old_value)
 
     def reboot(self):
-        self.iface.Reboot()
+        self.iface.ApplyUpdate()

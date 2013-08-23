@@ -171,8 +171,8 @@ def get_files(downloads, callback=None, sizes=None):
             # fails, rather than os.remove()'ing them.
             try:
                 list(tpe.map(_get_one_file, args))
-            except (HTTPError, URLError, CertificateError):
-                raise FileNotFoundError
+            except (HTTPError, URLError, CertificateError) as error:
+                raise FileNotFoundError(str(error)) from error
             # Check all the signed files.  First, grab the blacklists file if
             # there is one available.
         # Everything's fine so do *not* delete the downloaded files.

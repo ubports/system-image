@@ -23,7 +23,7 @@ __all__ = [
     ]
 
 
-from systemimage.config import config
+from systemimage.settings import LAST_UPDATE_KEY, Settings
 from systemimage.state import State
 from threading import Event
 
@@ -38,7 +38,8 @@ class Update:
     def __init__(self, winners):
         self._winners = [] if winners is None else winners
 
-    def __bool__(self):
+    @property
+    def is_available(self):
         return len(self._winners) > 0
 
     @property
@@ -55,10 +56,14 @@ class Update:
     @property
     def version(self):
         try:
-            return self._winners[-1].version
+            return str(self._winners[-1].version)
         except IndexError:
             # No winners.
-            return 0
+            return ''
+
+    @property
+    def last_update_date(self):
+        return Settings().get(LAST_UPDATE_KEY)
 
 
 class Mediator:
@@ -78,9 +83,6 @@ class Mediator:
         if self._cancel.is_set():
             raise Cancel
 
-    def get_build_number(self):
-        return config.build_number
-
     def cancel(self):
         self._cancel.set()
 
@@ -91,16 +93,17 @@ class Mediator:
         :rtype: bool
         """
         if self._update is None:
-            self._state.run_thru('calculate_winner')
+            self._state.run_until('download_files')
             self._update = Update(self._state.winner)
         return self._update
 
-    def complete_update(self):
-        """Complete the update."""
+    def download(self):
+        """Download the available update."""
         self._state.run_until('reboot')
 
     def reboot(self):
         """Issue the reboot."""
         if self._cancel.is_set():
             raise Cancel
+        # Transition through all remaining states.
         list(self._state)
