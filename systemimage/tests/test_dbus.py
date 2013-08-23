@@ -25,6 +25,7 @@ __all__ = [
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
     'TestDBusMockFailResume',
+    'TestDBusMockNoUpdate',
     'TestDBusMockUpdateAutoSuccess',
     'TestDBusMockUpdateManualSuccess',
     ]
@@ -968,6 +969,32 @@ class TestDBusMockFailPause(_TestDBusMockBase):
         self.assertEqual(eta, 0)
         reason = self.iface.PauseDownload()
         self.assertEqual(reason, 'no no, not now')
+
+
+class TestDBusMockNoUpdate(_TestDBusMockBase):
+    mode = 'no-update'
+
+    def test_scenario_1(self):
+        # No update is available.
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertFalse(is_available)
+        self.assertFalse(downloading)
+        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        # All the other status variables can be ignored.
+
+    def test_lp_1215946(self):
+        self.auto_download = False
+        # no-update mock sends UpdateFailed before UpdateAvailableStatus.
+        GLib.timeout_add(50, self.iface.CheckForUpdate)
+        self.loop.run()
+        self.assertEqual(len(self.failed), 0)
+        self.assertIsNotNone(self.status)
 
 
 class TestDBusMain(_TestBase):

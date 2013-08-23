@@ -305,7 +305,12 @@ class _FailPause(Service):
     def PauseDownload(self):
         return 'no no, not now'
 
+
 class _NoUpdate(Service):
+    @method('com.canonical.SystemImage')
+    def Reset(self):
+        pass
+
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         GLib.timeout_add_seconds(3, self._send_status)
