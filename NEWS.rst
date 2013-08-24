@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+1.2 (2013-XX-XX)
+================
+
 1.1 (2013-08-23)
 ================
  * Use nose as the test runner.  This allows us to pre-initialize the logging
