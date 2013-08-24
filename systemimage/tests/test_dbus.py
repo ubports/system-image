@@ -28,6 +28,7 @@ __all__ = [
     'TestDBusMockNoUpdate',
     'TestDBusMockUpdateAutoSuccess',
     'TestDBusMockUpdateManualSuccess',
+    'TestDBusRegressions',
     ]
 
 
@@ -1090,6 +1091,67 @@ class TestDBusClient(_LiveTesting):
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
         self.assertEqual(reboot, '/sbin/reboot -f recovery')
+
+
+class TestDBusRegressions(_LiveTesting):
+    """Test that various regressions have been fixed."""
+
+    def test_lp_1205398(self):
+        # Reset state after cancel.
+        self.download_manually()
+        # This test requires that the download take more than 50ms, since
+        # that's the quickest we can issue the cancel, so make one of the
+        # files huge.
+        index_path = os.path.join(
+            _controller.serverdir, 'stable', 'nexus7', 'index.json')
+        file_path = os.path.join(_controller.serverdir, '5', '6', '7.txt')
+        # This index file has a 5/6/7/txt checksum equal to the one we're
+        # going to create below.
+        setup_index(
+            'index_18.json', _controller.serverdir, 'device-signing.gpg')
+        head, tail = os.path.split(index_path)
+        copy('index_18.json', head, tail)
+        sign(index_path, 'device-signing.gpg')
+        with open(file_path, 'wb') as fp:
+            # 50MB
+            for chunk in range(12800):
+                fp.write(b'x' * 4096)
+        sign(file_path, 'device-signing.gpg')
+        # An update is available.
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        self.assertFalse(os.path.exists(self.command_file))
+        # Pre-cancel the download.  This works because cancelling currently
+        # just sets an event.  XXX This test will have to change once LP:
+        # #1196991 is fixed.
+        self.iface.CancelUpdate()
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateFailed')
+        self.assertEqual(len(signals), 1)
+        failure_count, reason = signals[0]
+        self.assertNotEqual(reason, '')
+        self.assertFalse(os.path.exists(self.command_file))
+        # There's still an update available though, so check again.
+        signals = self._run_loop(
+            self.iface.CheckForUpdate, 'UpdateAvailableStatus')
+        self.assertEqual(len(signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = signals[0]
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        # Now we'll let the download proceed to completion.
+        signals = self._run_loop(self.iface.DownloadUpdate, 'UpdateDownloaded')
+        self.assertEqual(len(signals), 1)
+        # And now there is a command file for the update.
+        self.assertTrue(os.path.exists(self.command_file))
 
 
 class TestDBusGetSet(_TestBase):

@@ -33,7 +33,6 @@ from contextlib import ExitStack
 from datetime import datetime
 from functools import partial
 from itertools import islice
-from operator import itemgetter
 from systemimage.candidates import get_candidates, iter_path
 from systemimage.channel import Channels
 from systemimage.config import config
