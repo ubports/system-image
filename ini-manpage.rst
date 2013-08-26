@@ -17,10 +17,15 @@ Ubuntu System Image Upgrader configuration file
 DESCRIPTION
 ===========
 
-/etc/system-image/client.ini is the configuration file for the system image
-upgrader.  It is an ini-style configuration file with sections that define the
-service to connect to, as well as local system resources.  Generally, the
-options never need to be changed.
+``/etc/system-image/client.ini`` is the configuration file for the system
+image upgrader.  It is an ini-style configuration file with sections that
+define the service to connect to, as well as local system resources.
+Generally, the options never need to be changed.
+
+The system image upgrader will also optionally read a
+``/etc/system-image/channel.ini`` file with the same format as ``client.ini``.
+This file should only contain a ``[service]`` section for overriding in the
+``client.ini`` file.  All other sections are ignored.
 
 
 SYNTAX
@@ -49,20 +54,11 @@ http_port
 https_port
     The port for HTTPS connections.
 
-threads
-    The number of parallel download threads that can be spawned.  This allows
-    multiple files to be downloaded in parallel.
+channel
+    The upgrade channel.
 
-timeout
-    The maximum allowed time interval for downloading the individual files.
-    The actual time to complete the downloading of all required files may be
-    longer than this timeout.  This variable takes a numeric value followed by
-    an optional interval marker.  Supported markers are ``w`` for weeks, ``d``
-    for days, ``h`` for hours, ``m`` for minutes, and ``s`` for seconds.  When
-    no marker is given, the default is seconds.  Thus a value of ``1m``
-    indicates a timeout of one minute, while a value of ``15`` indicates a
-    timeout of 15 seconds.  A negative or zero value indicates that there is
-    no timeout.
+build_number
+    The system's current build number.
 
 
 THE SYSTEM SECTION
@@ -77,9 +73,6 @@ appropriate to the given device on the given schedule.  The specification for
 these paths is given in `[1]`_.
 
 This section contains the following variables:
-
-channel
-    The upgrade channel.
 
 build_file
     The file on the local file system containing the system's current build
@@ -97,6 +90,21 @@ loglevel
     corresponding to the following `log levels`_ from least verbose to most
     verbose: ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``.  The
     value of this variable is case insensitive.
+
+threads
+    The number of parallel download threads that can be spawned.  This allows
+    multiple files to be downloaded in parallel.
+
+timeout
+    The maximum allowed time interval for downloading the individual files.
+    The actual time to complete the downloading of all required files may be
+    longer than this timeout.  This variable takes a numeric value followed by
+    an optional interval marker.  Supported markers are ``w`` for weeks, ``d``
+    for days, ``h`` for hours, ``m`` for minutes, and ``s`` for seconds.  When
+    no marker is given, the default is seconds.  Thus a value of ``1m``
+    indicates a timeout of one minute, while a value of ``15`` indicates a
+    timeout of 15 seconds.  A negative or zero value indicates that there is
+    no timeout.
 
 
 THE GPG SECTION
@@ -171,7 +179,7 @@ variables:
 
 lifetime
     The total lifetime of the DBus server.  After this amount of time, it will
-    automatically exit.  The format is the same as the ``[service]timeout``
+    automatically exit.  The format is the same as the ``[system]timeout``
     variable.
 
 

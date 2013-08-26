@@ -43,7 +43,9 @@ OPTIONS
     the log file are output at ``DEBUG`` level.
 
 -C FILE, --config FILE
-    Use the given configuration file, otherwise use the default.
+    Use the given configuration file, otherwise use the default.  The program
+    will optionally also read a ``channel.ini`` file in the same directory as
+    ``FILE``.
 
 
 FILES
@@ -51,6 +53,10 @@ FILES
 
 /etc/system-image/client.ini
     Default configuration file.
+
+/etc/system-image/channel.ini
+    Optional configuration file overrides (for the ``[service]`` section
+    only).
 
 /etc/dbus-1/system.d/com.canonical.SystemImage.conf
     DBus service permissions file.

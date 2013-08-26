@@ -256,16 +256,16 @@ class State:
         try:
             device = getattr(
                 # This device's channel.
-                getattr(self.channels, config.system.channel),
+                getattr(self.channels, config.service.channel),
                 config.device)
         except AttributeError:
             log.info('no matching channel/device: {}/{}',
-                     config.system.channel, config.device)
+                     config.service.channel, config.device)
             # Either our channel or device isn't described in the
             # channels.json file, so there's nothing more to do.
             return
         log.info('found channel/device entry: {}/{}',
-                 config.system.channel, config.device)
+                 config.service.channel, config.device)
         keyring = getattr(device, 'keyring', None)
         if keyring:
             self._next.append(partial(self._get_device_keyring, keyring))
