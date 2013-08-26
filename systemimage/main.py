@@ -38,6 +38,7 @@ __version__ = resource_bytes(
     'systemimage', 'version.txt').decode('utf-8').strip()
 
 DEFAULT_CONFIG_FILE = '/etc/system-image/client.ini'
+COLON = ':'
 
 
 def main():
@@ -66,6 +67,10 @@ def main():
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
+    parser.add_argument('-n', '--dry-run',
+                        default=False, action='store_true',
+                        help="""Calculate and print the upgrade path, but do
+                                not download or apply it""")
     parser.add_argument('--dbus',
                         default=False, action='store_true',
                         help='Run in D-Bus client mode.')
@@ -98,6 +103,15 @@ def main():
     if args.channel:
         print('channel/device: {}/{}'.format(
             config.service.channel, config.device))
+        return
+    if args.dry_run:
+        state = State()
+        state.run_thru('persist')
+        if len(state.winner) > 0:
+            winning_path = [str(image.version) for image in state.winner]
+            print('Upgrade path is {}'.format(COLON.join(winning_path)))
+        else:
+            print('Already up-to-date')
         return
 
     # We can either run the API directly or through DBus.

@@ -46,6 +46,7 @@ from urllib.parse import urljoin
 
 log = logging.getLogger('systemimage')
 COMMASPACE = ', '
+COLON = ':'
 
 
 class ChecksumError(Exception):
@@ -355,9 +356,11 @@ class State:
         # to do.  We can skip everything between downloading the files and
         # doing the reboot.
         if len(self.winner) > 0:
+            winning_path = [str(image.version) for image in self.winner]
+            log.info('Upgrade path is {}'.format(COLON.join(winning_path)))
             self._next.append(self._persist)
         else:
-            log.info('No update available.')
+            log.info('Already up-to-date')
 
     def _persist(self):
         """Persist enough state to resume right to downloading files."""

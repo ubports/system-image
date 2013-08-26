@@ -9,6 +9,7 @@ NEWS for system-image updater
  * Set "auto_download" mode to '0' by default (manual download).  This
    prevents inadvertent downloading over 3G until we integrate the download
    service.
+ * Add -n/--dry-run option to system-image-cli.  (LP: #1212713)
 
 1.1 (2013-08-23)
 ================

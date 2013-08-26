@@ -20,7 +20,7 @@ __all__ = [
     'TestCommandFileFull',
     'TestFileOrder',
     'TestPersistence',
-    'TestRebootingState',
+    'TestRebooting',
     'TestState',
     ]
 

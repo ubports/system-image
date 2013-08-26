@@ -17,6 +17,7 @@
 
 __all__ = [
     'TestCLIMain',
+    'TestCLIMainDryRun',
     'TestDBusMain',
     ]
 
@@ -37,6 +38,8 @@ from systemimage.config import Configuration, config
 from systemimage.main import main as cli_main
 from systemimage.testing.helpers import (
     configuration, copy, data_path, temporary_directory)
+# This should be moved and refactored.
+from systemimage.tests.test_state import _StateTestsBase
 from unittest.mock import patch
 
 
@@ -245,6 +248,50 @@ class TestCLIMain(unittest.TestCase):
         # Ignore any leading timestamp and the trailing newline.
         self.assertEqual(logged[-38:-1],
                          'running state machine [stable/nexus7]')
+
+
+class TestCLIMainDryRun(_StateTestsBase):
+    INDEX_FILE = 'index_14.json'
+
+    @configuration
+    def test_dry_run(self, ini_file):
+        # `system-image-cli --dry-run` prints the winning upgrade path.
+        self._setup_keyrings()
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--dry-run']))
+            cli_main()
+            self.assertEqual(capture.getvalue(),
+                             'Upgrade path is 20130200:20130201:20130304\n')
+
+    @configuration
+    def test_dry_run_no_update(self, ini_file):
+        # `system-image-cli --dry-run` prints the winning upgrade path.
+        self._setup_keyrings()
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--dry-run']))
+            # Set up the build number.
+            config = Configuration()
+            config.load(ini_file)
+            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+                print(20130701, file=fp)
+            cli_main()
+            self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
 
 @unittest.skip('dbus-launch only supports session bus (LP: #1206588)')
