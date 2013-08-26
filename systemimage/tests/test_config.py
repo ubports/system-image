@@ -20,18 +20,16 @@ __all__ = [
     ]
 
 
-import os
 import logging
 import unittest
 
 from datetime import timedelta
 from pkg_resources import resource_filename
-from systemimage.config import Configuration, config
+from systemimage.config import Configuration
 from systemimage.device import SystemProperty
 from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import configuration, data_path
-from systemimage.reboot import Reboot
 from unittest.mock import patch
 
 
@@ -46,8 +44,9 @@ class TestConfiguration(unittest.TestCase):
                          'http://system-image.ubuntu.com')
         self.assertEqual(config.service.https_base,
                          'https://system-image.ubuntu.com')
+        self.assertEqual(config.service.channel, 'daily')
+        self.assertEqual(config.service.build_number, 0)
         # [system]
-        self.assertEqual(config.system.channel, 'daily')
         self.assertEqual(config.system.tempdir, '/tmp/system-image')
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
@@ -93,10 +92,9 @@ class TestConfiguration(unittest.TestCase):
                          'http://phablet.example.com')
         self.assertEqual(config.service.https_base,
                          'https://phablet.example.com')
-        self.assertEqual(config.service.threads, 5)
-        self.assertEqual(config.service.timeout, timedelta(seconds=10))
+        self.assertEqual(config.service.channel, 'stable')
+        self.assertEqual(config.service.build_number, 0)
         # [system]
-        self.assertEqual(config.system.channel, 'stable')
         self.assertEqual(config.system.tempdir, '/var/tmp/system-image-update')
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
@@ -106,6 +104,8 @@ class TestConfiguration(unittest.TestCase):
                          '/var/lib/phablet/state.pck')
         self.assertEqual(config.system.settings_db,
                          '/var/lib/phablet/settings.db')
+        self.assertEqual(config.system.threads, 5)
+        self.assertEqual(config.system.timeout, timedelta(seconds=10))
         # [hooks]
         self.assertEqual(config.hooks.device, SystemProperty)
         self.assertEqual(config.hooks.scorer, WeightedScorer)
@@ -170,3 +170,39 @@ class TestConfiguration(unittest.TestCase):
         # Silence the log exceptions this will provoke.
         with patch('systemimage.device.logging.getLogger'):
             self.assertEqual(config.device, '?')
+
+    def test_channel_ini_overrides(self):
+        # If a /etc/system-image/channels.ini file exists, it overrides any
+        # previously set options.
+        default_ini = resource_filename('systemimage.data', 'client.ini')
+        config = Configuration()
+        config.load(default_ini)
+        # [service]
+        self.assertEqual(config.service.base, 'system-image.ubuntu.com')
+        self.assertEqual(config.service.http_base,
+                         'http://system-image.ubuntu.com')
+        self.assertEqual(config.service.https_base,
+                         'https://system-image.ubuntu.com')
+        self.assertEqual(config.service.channel, 'daily')
+        self.assertEqual(config.service.build_number, 0)
+        # Load the overrides.
+        channel_ini = resource_filename(
+            'systemimage.tests.data', 'channel_01.ini')
+        config.load(channel_ini, override=True)
+        self.assertEqual(config.service.base, 'systum-imaje.ubuntu.com')
+        self.assertEqual(config.service.http_base,
+                         'http://systum-imaje.ubuntu.com:88')
+        self.assertEqual(config.service.https_base,
+                         'https://systum-imaje.ubuntu.com:89')
+        self.assertEqual(config.service.channel, 'proposed')
+        self.assertEqual(config.service.build_number, 20130833)
+
+    def test_channel_ini_ignored_sections(self):
+        # Only the [service] section in channel.ini is used.
+        default_ini = resource_filename('systemimage.data', 'client.ini')
+        config = Configuration()
+        config.load(default_ini)
+        channel_ini = resource_filename(
+            'systemimage.tests.data', 'channel_02.ini')
+        config.load(channel_ini, override=True)
+        self.assertEqual(config.system.build_file, '/etc/ubuntu-build')

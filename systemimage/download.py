@@ -131,11 +131,11 @@ def get_files(downloads, callback=None, sizes=None):
     else:
         sizes = [None] * len(downloads)
     # Download all the files, blocking until we get them all.
-    if config.service.timeout <= timedelta():
+    if config.system.timeout <= timedelta():
         # E.g. -1s or 0s or 0d etc.
         timeout = None
     else:
-        timeout = config.service.timeout.total_seconds()
+        timeout = config.system.timeout.total_seconds()
     # Repack the downloads so that the _get_one_file() function will be called
     # with the proper set of arguments.
     args = [(timeout, url, dst, size, callback)
@@ -150,7 +150,7 @@ def get_files(downloads, callback=None, sizes=None):
         # context manager.
         for url, path in downloads:
             stack.callback(safe_remove, path)
-        with ThreadPoolExecutor(max_workers=config.service.threads) as tpe:
+        with ThreadPoolExecutor(max_workers=config.system.threads) as tpe:
             # All we need to do is iterate over the returned generator in
             # order to complete all the requests.  There's really nothing to
             # return.  Either all the files got downloaded, or they didn't.

@@ -21,6 +21,7 @@ __all__ = [
     ]
 
 
+import os
 import sys
 import logging
 import argparse
@@ -75,6 +76,13 @@ def main():
     except FileNotFoundError as error:
         parser.error('\nConfiguration file not found: {}'.format(error))
         assert 'parser.error() does not return'
+    # Load the optional channel.ini file, which must live next to the
+    # configuration file.  It's okay if this file does not exist.
+    channel_ini = os.path.join(os.path.dirname(args.config), 'channel.ini')
+    try:
+        config.load(channel_ini, override=True)
+    except FileNotFoundError:
+        pass
 
     # Create the temporary directory if it doesn't exist.
     makedirs(config.system.tempdir)
@@ -89,7 +97,7 @@ def main():
         return
     if args.channel:
         print('channel/device: {}/{}'.format(
-            config.system.channel, config.device))
+            config.service.channel, config.device))
         return
 
     # We can either run the API directly or through DBus.
@@ -113,7 +121,7 @@ def main():
         # note that the state machine will log them.  If an exception occurs,
         # exit with a non-zero status.
         log.info('running state machine [{}/{}]',
-                 config.system.channel, config.device)
+                 config.service.channel, config.device)
         try:
             list(State())
         except KeyboardInterrupt:

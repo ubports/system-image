@@ -355,7 +355,7 @@ class TestRegressions(unittest.TestCase):
     def test_lp1199361(self):
         # Downloading more files than there are threads causes a timeout error.
         downloads = []
-        for i in range(config.service.threads * 2):
+        for i in range(config.system.threads * 2):
             file_name = '{:02d}.dat'.format(i)
             server_path = os.path.join(self._serverdir, file_name)
             with open(server_path, 'wb') as fp:

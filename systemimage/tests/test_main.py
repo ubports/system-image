@@ -155,6 +155,54 @@ class TestCLIMain(unittest.TestCase):
             self.assertEqual(capture.getvalue(), 'build number: 20130701\n')
 
     @configuration
+    def test_channel_ini_override_build_number(self, ini_file):
+        # The channel.ini file can override the build number.
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        shutil.copy(
+            resource_filename('systemimage.tests.data', 'channel_01.ini'),
+            channel_ini)
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '-b']))
+            # Set up the build number.
+            config = Configuration()
+            config.load(ini_file)
+            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+                print(20130701, file=fp)
+            cli_main()
+            self.assertEqual(capture.getvalue(), 'build number: 20130833\n')
+
+    @configuration
+    def test_channel_ini_override_channel(self, ini_file):
+        # The channel.ini file can override the channel.
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        shutil.copy(
+            resource_filename('systemimage.tests.data', 'channel_01.ini'),
+            channel_ini)
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            config = Configuration()
+            config.load(ini_file)
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '-c']))
+            cli_main()
+            self.assertEqual(capture.getvalue(),
+                             'channel/device: proposed/nexus7\n')
+
+    @configuration
     def test_channel_device(self, ini_file):
         # -c gives the channel/device name.
         with ExitStack() as stack:
@@ -215,3 +263,8 @@ class TestDBusMain(unittest.TestCase):
                  ], timeout=6)
             end = time.time()
             self.assertLess(end - start, 6)
+
+    @unittest.skip('XXX FIXME')
+    def test_channel_ini_override(self):
+        # An optional channel.ini can override the build number and channel.
+        pass

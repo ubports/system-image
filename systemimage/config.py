@@ -44,17 +44,17 @@ class Configuration:
         ini_path = resource_filename('systemimage.data', 'client.ini')
         self.load(ini_path)
         self._device = None
+        self._override = False
 
-    def load(self, path):
+    def load(self, path, *, override=False):
         parser = ConfigParser()
         files_read = parser.read(path)
         if files_read != [path]:
             raise FileNotFoundError(path)
         self.config_file = path
-        self.service = Bag(converters=dict(timeout=as_timedelta,
-                                           threads=int,
-                                           http_port=int,
-                                           https_port=int),
+        self.service = Bag(converters=dict(http_port=int,
+                                           https_port=int,
+                                           build_number=int),
                            **parser['service'])
         # Construct the HTTP and HTTPS base urls, which most applications will
         # actually use.
@@ -68,7 +68,13 @@ class Configuration:
         else:
             self.service['https_base'] = 'https://{}:{}'.format(
                 self.service.base, self.service.https_port)
-        self.system = Bag(converters=dict(build_file=expand_path,
+        # Short-circuit, since we're loading a channel.ini file.
+        self._override = override
+        if override:
+            return
+        self.system = Bag(converters=dict(timeout=as_timedelta,
+                                          threads=int,
+                                          build_file=expand_path,
                                           loglevel=as_loglevel,
                                           settings_db=expand_path,
                                           state_file=expand_path,
@@ -85,6 +91,8 @@ class Configuration:
 
     @property
     def build_number(self):
+        if self._override:
+            return self.service.build_number
         try:
             with open(self.system.build_file, encoding='utf-8') as fp:
                 return int(fp.read().strip())

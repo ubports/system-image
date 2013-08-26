@@ -37,7 +37,6 @@ import gnupg
 import shutil
 import inspect
 import tarfile
-import tempfile
 
 from contextlib import ExitStack, contextmanager
 from functools import partial, wraps
@@ -164,9 +163,8 @@ def configuration(function):
     @wraps(function)
     def wrapper(*args, **kws):
         with ExitStack() as stack:
-            fd, ini_file = tempfile.mkstemp(suffix='.ini')
-            os.close(fd)
-            stack.callback(os.remove, ini_file)
+            etc_dir = stack.enter_context(temporary_directory())
+            ini_file = os.path.join(etc_dir, 'client.ini')
             temp_tmpdir = stack.enter_context(temporary_directory())
             temp_vardir = stack.enter_context(temporary_directory())
             template = resource_bytes(

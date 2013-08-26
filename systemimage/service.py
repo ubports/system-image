@@ -20,6 +20,7 @@ __all__ = [
     ]
 
 
+import os
 import sys
 import dbus
 import logging
@@ -78,6 +79,13 @@ def main():
     except FileNotFoundError as error:
         parser.error('\nConfiguration file not found: {}'.format(error))
         assert 'parser.error() does not return'
+    # Load the optional channel.ini file, which must live next to the
+    # configuration file.  It's okay if this file does not exist.
+    channel_ini = os.path.join(os.path.dirname(args.config), 'channel.ini')
+    try:
+        config.load(channel_ini, override=True)
+    except FileNotFoundError:
+        pass
 
     # Create the temporary directory if it doesn't exist.
     makedirs(config.system.tempdir)
@@ -86,7 +94,7 @@ def main():
     log = logging.getLogger('systemimage')
 
     log.info('SystemImage dbus main loop started [{}/{}]',
-             config.system.channel, config.device)
+             config.service.channel, config.device)
     DBusGMainLoop(set_as_default=True)
 
     system_bus = dbus.SystemBus()
