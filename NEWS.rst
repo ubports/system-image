@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-1.2 (2013-XX-XX)
+1.2 (2013-08-26)
 ================
  * Add support for an optional /etc/system-image/channel.ini file, and shuffle
    some of the other /etc/system-image/client.ini file options.  (LP: #1214009)
