@@ -1224,17 +1224,19 @@ class TestDBusGetSet(_TestBase):
         # auto_download requires an integer between 0 and 2.  Don't forget
         # that it gets pre-populated when the database is created.
         self.iface.SetSetting('auto_download', 'standby')
-        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
         self.iface.SetSetting('auto_download', '-1')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
+        self.iface.SetSetting('auto_download', '1')
         self.assertEqual(self.iface.GetSetting('auto_download'), '1')
-        self.iface.SetSetting('auto_download', '0')
-        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
         self.iface.SetSetting('auto_download', '3')
-        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+        self.iface.SetSetting('auto_download', '2')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '2')
 
     def test_prepopulated_settings(self):
         # Some settings are pre-populated.
-        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
 
     def test_setting_changed_signal(self):
         signals = self._run_loop(
@@ -1251,7 +1253,7 @@ class TestDBusGetSet(_TestBase):
         self.assertEqual(len(signals), 0)
         # This is the default value, so nothing changes.
         signals = self._run_loop(
-            partial(self.iface.SetSetting, 'auto_download', '1'),
+            partial(self.iface.SetSetting, 'auto_download', '0'),
             'SettingChanged')
         self.assertEqual(len(signals), 0)
         # This is a bogus value, so nothing changes.
@@ -1260,12 +1262,12 @@ class TestDBusGetSet(_TestBase):
             'SettingChanged')
         self.assertEqual(len(signals), 0)
         signals = self._run_loop(
-            partial(self.iface.SetSetting, 'auto_download', '0'),
+            partial(self.iface.SetSetting, 'auto_download', '1'),
             'SettingChanged')
         self.assertEqual(len(signals), 1)
         key, new_value = signals[0]
         self.assertEqual(key, 'auto_download')
-        self.assertEqual(new_value, '0')
+        self.assertEqual(new_value, '1')
         signals = self._run_loop(
             partial(self.iface.SetSetting, 'min_battery', '30'),
             'SettingChanged')

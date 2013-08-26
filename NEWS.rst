@@ -6,6 +6,9 @@ NEWS for system-image updater
 ================
  * Add support for an optional /etc/system-image/channel.ini file, and shuffle
    some of the other /etc/system-image/client.ini file options.  (LP: #1214009)
+ * Set "auto_download" mode to '0' by default (manual download).  This
+   prevents inadvertent downloading over 3G until we integrate the download
+   service.
 
 1.1 (2013-08-23)
 ================

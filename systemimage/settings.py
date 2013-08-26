@@ -28,6 +28,8 @@ from systemimage.config import config
 
 LAST_UPDATE_KEY = '__last_update_date__'
 SCHEMA_VERSION = '1'
+# Download manually by default for now until LP: #1196991
+AUTO_DOWNLOAD_DEFAULT = '0'
 
 
 class Settings:
@@ -43,8 +45,6 @@ class Settings:
             # case we do, set a version value.
             c.execute('insert into settings values ("__version__", ?)',
                       (SCHEMA_VERSION,))
-            # Some keys are pre-populated with default values.
-            c.execute('insert into settings values ("auto_download", "1")')
 
     @contextmanager
     def _cursor(self):
@@ -70,5 +70,7 @@ class Settings:
             c.execute('select value from settings where key = ?', (key,))
             row = c.fetchone()
             if row is None:
+                if key == 'auto_download':
+                    return AUTO_DOWNLOAD_DEFAULT
                 return ''
             return row[0]
