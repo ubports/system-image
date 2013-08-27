@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+1.3 (2013-XX-XX)
+================
+
 1.2 (2013-08-26)
 ================
  * Add support for an optional /etc/system-image/channel.ini file, and shuffle
