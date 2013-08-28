@@ -4,6 +4,7 @@ NEWS for system-image updater
 
 1.3 (2013-XX-XX)
 ================
+ * Fixed bug in resolving channels with dashes in their name. (LP: #1217932)
 
 1.2 (2013-08-26)
 ================

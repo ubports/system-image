@@ -40,6 +40,12 @@ class TestBag(unittest.TestCase):
         self.assertEqual(bag.c_d, 2)
         self.assertEqual(bag.e_f, 3)
 
+    def test_dash_literal_access(self):
+        bag = Bag(**{'a-b': 1, 'c-d': 2, 'e-f': 3})
+        self.assertEqual(bag['a-b'], 1)
+        self.assertEqual(bag['c-d'], 2)
+        self.assertEqual(bag['e-f'], 3)
+
     def test_keyword_translation(self):
         bag = Bag(**{'global': 1, 'with': 2, 'import': 3})
         self.assertEqual(bag.global_, 1)

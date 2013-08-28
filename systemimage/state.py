@@ -252,21 +252,22 @@ class State:
             log.info('Local channels file: {}', channels_path)
             with open(channels_path, encoding='utf-8') as fp:
                 self.channels = Channels.from_json(fp.read())
-        # The next step will depend on whether there is a device keyring
-        # available or not.  If there is, download and verify it now.
+        # Locate the index file for the channel/device.
         try:
-            device = getattr(
-                # This device's channel.
-                getattr(self.channels, config.service.channel),
-                config.device)
-        except AttributeError:
-            log.info('no matching channel/device: {}/{}',
-                     config.service.channel, config.device)
-            # Either our channel or device isn't described in the
-            # channels.json file, so there's nothing more to do.
+            channel = self.channels[config.service.channel]
+        except KeyError:
+            log.info('no matching channel: {}', config.service.channel)
+            return
+        log.info('got channel: {}', config.service.channel)
+        try:
+            device = channel[config.device]
+        except KeyError:
+            log.info('no matching device: {}', config.device)
             return
         log.info('found channel/device entry: {}/{}',
                  config.service.channel, config.device)
+        # The next step will depend on whether there is a device keyring
+        # available or not.  If there is, download and verify it now.
         keyring = getattr(device, 'keyring', None)
         if keyring:
             self._next.append(partial(self._get_device_keyring, keyring))
@@ -341,6 +342,8 @@ class State:
             ctx = stack.enter_context(
                 Context(*keyrings, blacklist=self.blacklist))
             if not ctx.verify(asc_path, index_path):
+                log.error('index.json signature failure: {} {}',
+                          index_path, asc_path)
                 raise SignatureError(index_path)
             # The signature was good.
             with open(index_path, encoding='utf-8') as fp:

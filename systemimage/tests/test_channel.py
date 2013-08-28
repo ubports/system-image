@@ -26,6 +26,7 @@ import os
 import unittest
 
 from contextlib import ExitStack
+from operator import getitem
 from systemimage.gpg import SignatureError
 from systemimage.helpers import temporary_directory
 from systemimage.state import State
@@ -59,6 +60,17 @@ class TestChannels(unittest.TestCase):
         self.assertRaises(AttributeError, getattr, self.channels, 'bleeding')
         self.assertRaises(AttributeError,
                           getattr, self.channels.stable, 'nexus3')
+
+    def test_daily_proposed(self):
+        # The channel name has a dash in it.
+        channels = get_channels('channels_07.json')
+        self.assertEqual(channels['daily-proposed'].grouper.index,
+                         '/daily-proposed/grouper/index.json')
+
+    def test_bad_getitem(self):
+        # Trying to get a channel via getitem which doesn't exist.
+        channels = get_channels('channels_07.json')
+        self.assertRaises(KeyError, getitem, channels, 'daily-testing')
 
 
 class TestLoadChannel(unittest.TestCase):

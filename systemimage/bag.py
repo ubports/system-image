@@ -44,9 +44,11 @@ class Bag:
     def __init__(self, *, converters=None, **kws):
         self._converters = make_converter(converters)
         self.__original__ = {}
+        self.__untranslated__ = {}
         for key, value in kws.items():
             self.__original__[key] = value
             safe_key, converted_value = self._normalize_key_value(key, value)
+            self.__untranslated__[key] = converted_value
             # BAW 2013-04-30: attribute values *must* be immutable, but for
             # now we don't enforce this.  If you set or delete attributes, you
             # will probably break things.
@@ -69,6 +71,10 @@ class Bag:
         self.__original__[key] = value
         safe_key, converted_value = self._normalize_key_value(key, value)
         self.__dict__[safe_key] = converted_value
+        self.__untranslated__[key] = converted_value
+
+    def __getitem__(self, key):
+        return self.__untranslated__[key]
 
     # Pickle protocol.
 

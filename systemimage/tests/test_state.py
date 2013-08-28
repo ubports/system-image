@@ -18,6 +18,7 @@
 __all__ = [
     'TestCommandFileDelta',
     'TestCommandFileFull',
+    'TestDailyProposed',
     'TestFileOrder',
     'TestPersistence',
     'TestRebooting',
@@ -30,10 +31,12 @@ import hashlib
 import unittest
 
 from contextlib import ExitStack
+from datetime import datetime, timezone
 from subprocess import CalledProcessError
 from systemimage.config import config
 from systemimage.gpg import SignatureError
 from systemimage.state import State
+from systemimage.testing.demo import DemoDevice
 from systemimage.testing.helpers import (
     configuration, copy, get_index, make_http_server, setup_index,
     setup_keyring_txz, setup_keyrings, sign, temporary_directory)
@@ -326,6 +329,8 @@ class _StateTestsBase(unittest.TestCase):
             index_path = os.path.join(
                 self._serverdir, 'stable', 'nexus7', 'index.json')
             head, tail = os.path.split(index_path)
+            assert self.INDEX_FILE is not None, (
+                'Subclasses must set INDEX_FILE')
             copy(self.INDEX_FILE, head, tail)
             sign(index_path, 'device-signing.gpg')
             setup_index(self.INDEX_FILE, self._serverdir, 'device-signing.gpg')
@@ -601,3 +606,54 @@ class TestPersistence(_StateTestsBase):
         self.assertFalse(os.path.exists(config.system.state_file))
         state = State()
         self.assertIsNone(state.winner)
+
+
+class TestDailyProposed(_StateTestsBase):
+    """Test that the daily-proposed channel works as expected."""
+
+    INDEX_FILE = 'index_13.json'
+
+    def setUp(self):
+        super().setUp()
+        try:
+            # Use a different channel file that has a daily-proposed channel.
+            copy('channels_07.json', self._serverdir, 'channels.json')
+            sign(os.path.join(self._serverdir, 'channels.json'),
+                 'image-signing.gpg')
+            index_path = os.path.join(
+                self._serverdir, 'daily-proposed', 'grouper', 'index.json')
+            head, tail = os.path.split(index_path)
+            copy(self.INDEX_FILE, head, tail)
+            sign(index_path, 'image-signing.gpg')
+            setup_index(self.INDEX_FILE, self._serverdir, 'image-signing.gpg')
+        except:
+            self._stack.close()
+            raise
+
+    @configuration
+    def test_daily_proposed_channel(self):
+        # Resolve the index.json path for a channel with a dash in it.
+        self._setup_keyrings()
+        state = State()
+        self._stack.enter_context(
+            patch('systemimage.state.config.service.channel',
+                  'daily-proposed'))
+        self._stack.enter_context(
+            patch('systemimage.state.config.hooks.device', DemoDevice))
+        state.run_thru('get_index')
+        self.assertEqual(state.index.global_.generated_at,
+                         datetime(2013, 8, 1, 8, 1, tzinfo=timezone.utc))
+
+    @configuration
+    def test_bogus_channel(self):
+        # Try and fail to resolve the index.json path for a non-existent
+        # channel with a dash in it.
+        self._setup_keyrings()
+        state = State()
+        self._stack.enter_context(
+            patch('systemimage.state.config.service.channel',
+                  'daily-testing'))
+        self._stack.enter_context(
+            patch('systemimage.state.config.hooks.device', DemoDevice))
+        state.run_thru('get_index')
+        self.assertIsNone(state.index)
