@@ -16,6 +16,8 @@
 """Determine candidate images."""
 
 __all__ = [
+    'delta_filter',
+    'full_filter',
     'get_candidates',
     'iter_path',
     ]
@@ -136,3 +138,31 @@ def iter_path(winner):
             yield (n, filerec)
         if getattr(image, 'bootme', False):
             break
+
+
+def full_filter(candidates):
+    filtered = []
+    for path in candidates:
+        full_image = None
+        for image in path:
+            # Take the last full update we find from the start of the path.
+            if image.type != 'full':
+                break
+            full_image = image
+        if full_image is not None:
+            filtered.append([full_image])
+    return filtered
+
+
+def delta_filter(candidates):
+    filtered = []
+    for path in candidates:
+        new_path = []
+        for image in path:
+            # Add all the deltas from the start of the path to the first full.
+            if image.type != 'delta':
+                break
+            new_path.append(image)
+        if len(new_path) != 0:
+            filtered.append(new_path)
+    return filtered

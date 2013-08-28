@@ -438,7 +438,6 @@ class TestRebooting(_StateTestsBase):
         self.assertEqual(mock.call_args[0][0],
                          ['/sbin/reboot', '-f', 'recovery'])
 
-
     @configuration
     def test_no_update_available_no_reboot(self):
         # LP: #1202915.  If there's no update available, running the state
@@ -690,3 +689,30 @@ class TestVersionedProposed(_NonIdentifierChannelTestsBase):
         state.run_thru('get_index')
         self.assertEqual(state.index.global_.generated_at,
                          datetime(2013, 8, 1, 8, 1, tzinfo=timezone.utc))
+
+
+class TestFilters(_StateTestsBase):
+    INDEX_FILE = 'index_15.json'
+
+    @configuration
+    def test_filter_none(self):
+        # With no filter, we get the unadulterated candidate paths.
+        self._setup_keyrings()
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20120100, file=fp)
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual(len(state.winner), 1)
+
+    @configuration
+    def test_filter_1(self):
+        # The state machine can use a filter to come up with a different set
+        # of candidate upgrade paths.  In this case, no candidates.
+        self._setup_keyrings()
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(20120100, file=fp)
+        def filter_out_everything(candidates):
+            return []
+        state = State(candidate_filter=filter_out_everything)
+        state.run_thru('calculate_winner')
+        self.assertEqual(len(state.winner), 0)

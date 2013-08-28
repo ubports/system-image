@@ -233,6 +233,8 @@ class TestCLIMain(unittest.TestCase):
         config.load(ini_file)
         self.assertFalse(os.path.exists(config.system.logfile))
         class FakeState:
+            def __init__(self, candidate_filter):
+                pass
             def __iter__(self):
                 return self
             def __next__(self):
@@ -248,6 +250,25 @@ class TestCLIMain(unittest.TestCase):
         # Ignore any leading timestamp and the trailing newline.
         self.assertEqual(logged[-38:-1],
                          'running state machine [stable/nexus7]')
+
+    @configuration
+    def test_bad_filter_type(self, ini_file):
+        # --filter option where value is not `full` or `delta` is an error.
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            stderr = StringIO()
+            stack.enter_context(patch('argparse._sys.stderr', stderr))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--filter', 'bogus']))
+            with self.assertRaises(SystemExit) as cm:
+                cli_main()
+            self.assertEqual(cm.exception.code, 2)
+            self.assertEqual(
+                stderr.getvalue().splitlines()[-1],
+                'system-image-cli: error: Bad filter type: bogus')
 
 
 class TestCLIMainDryRun(_StateTestsBase):
@@ -273,7 +294,7 @@ class TestCLIMainDryRun(_StateTestsBase):
 
     @configuration
     def test_dry_run_no_update(self, ini_file):
-        # `system-image-cli --dry-run` prints the winning upgrade path.
+        # `system-image-cli --dry-run` when there are no updates available.
         self._setup_keyrings()
         with ExitStack() as stack:
             # We patch builtin print() rather than sys.stdout because the
@@ -292,6 +313,56 @@ class TestCLIMainDryRun(_StateTestsBase):
                 print(20130701, file=fp)
             cli_main()
             self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
+
+
+class TestCLIFilters(_StateTestsBase):
+    INDEX_FILE = 'index_15.json'
+
+    @configuration
+    def test_filter_full(self, ini_file):
+        # With --filter=full, only full updates will be considered.
+        self._setup_keyrings()
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--dry-run',
+                       '--filter', 'full']))
+            # Set up the build number.
+            config = Configuration()
+            config.load(ini_file)
+            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+                print(20120100, file=fp)
+            cli_main()
+            self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
+
+    @configuration
+    def test_filter_delta(self, ini_file):
+        # With --filter=delta, only delta updates will be considered.
+        self._setup_keyrings()
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--dry-run',
+                       '--filter', 'delta']))
+            # Set up the build number.
+            config = Configuration()
+            config.load(ini_file)
+            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+                print(20120100, file=fp)
+            cli_main()
+            self.assertEqual(capture.getvalue(), 'Upgrade path is 20130600\n')
 
 
 @unittest.skip('dbus-launch only supports session bus (LP: #1206588)')

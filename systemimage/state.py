@@ -64,11 +64,12 @@ def _download_feedback(url, dst, bytes_read, size):
 
 
 class State:
-    def __init__(self, callback=None):
+    def __init__(self, callback=None, candidate_filter=None):
         # Variables which manage state transitions.
         self._next = deque()
         self._debug_step = 1
         self._callback = (_download_feedback if callback is None else callback)
+        self._filter = candidate_filter
         # Variables which represent things we've learned.
         self.blacklist = None
         self.channels = None
@@ -354,6 +355,8 @@ class State:
         """Given an index, calculate the paths and score a winner."""
         # Store these as attributes for debugging and testing.
         candidates = get_candidates(self.index, config.build_number)
+        if self._filter is not None:
+            candidates = self._filter(candidates)
         self.winner = config.hooks.scorer().choose(candidates)
         # If there is no winning upgrade candidate, then there's nothing more
         # to do.  We can skip everything between downloading the files and

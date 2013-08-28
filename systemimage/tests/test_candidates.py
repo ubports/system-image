@@ -16,15 +16,17 @@
 """Test the candidate upgrade path algorithm."""
 
 __all__ = [
-    'TestCandidates',
     'TestCandidateDownloads',
+    'TestCandidateFilters',
+    'TestCandidates',
     ]
 
 
 import unittest
 
 from operator import attrgetter
-from systemimage.candidates import get_candidates, iter_path
+from systemimage.candidates import (
+    delta_filter, full_filter, get_candidates, iter_path)
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import configuration, get_index
 
@@ -237,3 +239,83 @@ class TestCandidateDownloads(unittest.TestCase):
             '/7/8/9.txt',
             '/8/9/a.txt',
             ]))
+
+
+def _descriptions(path):
+    descriptions = []
+    for image in path:
+        # There's only one description per image so order doesn't
+        # matter.
+        descriptions.extend(image.descriptions.values())
+    return descriptions
+
+
+class TestCandidateFilters(unittest.TestCase):
+    def test_filter_for_fulls(self):
+        # Run a filter over the candidates, such that the only ones left are
+        # those that contain only full upgrades.  This can truncate any paths
+        # that start with some fulls and then contain some deltas.
+        index = get_index('index_10.json')
+        candidates = get_candidates(index, 20120600)
+        filtered = full_filter(candidates)
+        # Since all images start with a full update, we're still left with
+        # three candidates.
+        self.assertEqual(len(filtered), 3)
+        self.assertEqual([image.type for image in filtered[0]], ['full'])
+        self.assertEqual([image.type for image in filtered[1]], ['full'])
+        self.assertEqual([image.type for image in filtered[2]], ['full'])
+        self.assertEqual(_descriptions(filtered[0]), ['Full A'])
+        self.assertEqual(_descriptions(filtered[1]), ['Full B'])
+        self.assertEqual(_descriptions(filtered[2]), ['Full C'])
+
+    def test_filter_for_fulls_one_candidate(self):
+        # Filter for full updates, where the only candidate has one full image.
+        index = get_index('index_13.json')
+        candidates = get_candidates(index, 20120600)
+        filtered = full_filter(candidates)
+        self.assertEqual(filtered, candidates)
+
+    def test_filter_for_fulls_with_just_delta_candidates(self):
+        # A candidate path that contains only deltas will have no filtered
+        # paths if all the images are delta updates.
+        index = get_index('index_15.json')
+        candidates = get_candidates(index, 20120100)
+        self.assertEqual(len(candidates), 1)
+        filtered = full_filter(candidates)
+        self.assertEqual(len(filtered), 0)
+
+    def test_filter_for_deltas(self):
+        # Filter the candidates, where the only available path is a delta path.
+        index = get_index('index_15.json')
+        candidates = get_candidates(index, 20120100)
+        self.assertEqual(len(candidates), 1)
+        filtered = delta_filter(candidates)
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(candidates, filtered)
+
+    def test_filter_for_deltas_none_available(self):
+        # Run a filter over the candidates, such that the only ones left are
+        # those that start with and contain only deltas.  Since none of the
+        # paths do so, tere are no candidates left.
+        index = get_index('index_10.json')
+        candidates = get_candidates(index, 20120600)
+        filtered = delta_filter(candidates)
+        self.assertEqual(len(filtered), 0)
+
+    def test_filter_for_deltas_one_candidate(self):
+        # Filter for delta updates, but the only candidate is a full.
+        index = get_index('index_13.json')
+        candidates = get_candidates(index, 20120600)
+        filtered = delta_filter(candidates)
+        self.assertEqual(len(filtered), 0)
+
+    def test_filter_for_multiple_deltas(self):
+        # The candidate path has multiple deltas.  All are preserved.
+        index = get_index('index_19.json')
+        candidates = get_candidates(index, 20120100)
+        filtered = delta_filter(candidates)
+        self.assertEqual(len(filtered), 1)
+        path = filtered[0]
+        self.assertEqual(len(path), 3)
+        self.assertEqual(_descriptions(path),
+                         ['Delta A', 'Delta B', 'Delta C'])

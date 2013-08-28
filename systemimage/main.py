@@ -28,6 +28,7 @@ import argparse
 
 from pkg_resources import resource_string as resource_bytes
 from systemimage.bindings import DBusClient
+from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
 from systemimage.helpers import makedirs
 from systemimage.logging import initialize
@@ -60,6 +61,19 @@ def main():
     parser.add_argument('-c', '--channel',
                         default=False, action='store_true',
                         help='Show the current channel/device name and exit')
+    parser.add_argument('--dbus',
+                        default=False, action='store_true',
+                        help='Run in D-Bus client mode.')
+    parser.add_argument('-f', '--filter',
+                        default=None, action='store',
+                        help="""Filter the candidate paths to contain only
+                                full updates or only delta updates.  The
+                                argument to this option must be either `full`
+                                or `delta`""")
+    parser.add_argument('-n', '--dry-run',
+                        default=False, action='store_true',
+                        help="""Calculate and print the upgrade path, but do
+                                not download or apply it""")
     parser.add_argument('-u', '--upgrade',
                         default=None, metavar='NUMBER',
                         help="""Upgrade from this build number instead of the
@@ -67,13 +81,6 @@ def main():
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
-    parser.add_argument('-n', '--dry-run',
-                        default=False, action='store_true',
-                        help="""Calculate and print the upgrade path, but do
-                                not download or apply it""")
-    parser.add_argument('--dbus',
-                        default=False, action='store_true',
-                        help='Run in D-Bus client mode.')
 
     args = parser.parse_args(sys.argv[1:])
     try:
@@ -89,6 +96,17 @@ def main():
     except FileNotFoundError:
         pass
 
+    # Sanity check -f/--filter.
+    if args.filter is None:
+        candidate_filter = None
+    elif args.filter == 'full':
+        candidate_filter = full_filter
+    elif args.filter == 'delta':
+        candidate_filter = delta_filter
+    else:
+        parser.error('Bad filter type: {}'.format(args.filter))
+        assert 'parser.error() does not return'
+
     # Create the temporary directory if it doesn't exist.
     makedirs(config.system.tempdir)
     # Initialize the loggers.
@@ -103,15 +121,6 @@ def main():
     if args.channel:
         print('channel/device: {}/{}'.format(
             config.service.channel, config.device))
-        return
-    if args.dry_run:
-        state = State()
-        state.run_thru('persist')
-        if len(state.winner) > 0:
-            winning_path = [str(image.version) for image in state.winner]
-            print('Upgrade path is {}'.format(COLON.join(winning_path)))
-        else:
-            print('Already up-to-date')
         return
 
     # We can either run the API directly or through DBus.
@@ -130,6 +139,16 @@ def main():
         client.reboot()
         # We probably won't get here..
         return 0
+
+    state = State(candidate_filter=candidate_filter)
+    if args.dry_run:
+        state.run_thru('persist')
+        if len(state.winner) > 0:
+            winning_path = [str(image.version) for image in state.winner]
+            print('Upgrade path is {}'.format(COLON.join(winning_path)))
+        else:
+            print('Already up-to-date')
+        return
     else:
         # Run the state machine to conclusion.  Suppress all exceptions, but
         # note that the state machine will log them.  If an exception occurs,
@@ -137,7 +156,7 @@ def main():
         log.info('running state machine [{}/{}]',
                  config.service.channel, config.device)
         try:
-            list(State())
+            list(state)
         except KeyboardInterrupt:
             return 0
         except:
