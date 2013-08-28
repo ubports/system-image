@@ -608,20 +608,24 @@ class TestPersistence(_StateTestsBase):
         self.assertIsNone(state.winner)
 
 
-class TestDailyProposed(_StateTestsBase):
-    """Test that the daily-proposed channel works as expected."""
+class _NonIdentifierChannelTestsBase(_StateTestsBase):
+    """Additional tests for channel names which aren't Python identifiers."""
 
-    INDEX_FILE = 'index_13.json'
+    CHANNEL_FILE = None
+    CHANNEL = None
 
     def setUp(self):
         super().setUp()
         try:
+            assert self.CHANNEL_FILE is not None, (
+                'Subclasses must set CHANNEL_FILE')
             # Use a different channel file that has a daily-proposed channel.
-            copy('channels_07.json', self._serverdir, 'channels.json')
+            copy(self.CHANNEL_FILE, self._serverdir, 'channels.json')
             sign(os.path.join(self._serverdir, 'channels.json'),
                  'image-signing.gpg')
+            assert self.CHANNEL is not None, 'Subclasses must set CHANNEL'
             index_path = os.path.join(
-                self._serverdir, 'daily-proposed', 'grouper', 'index.json')
+                self._serverdir, self.CHANNEL, 'grouper', 'index.json')
             head, tail = os.path.split(index_path)
             copy(self.INDEX_FILE, head, tail)
             sign(index_path, 'image-signing.gpg')
@@ -629,6 +633,14 @@ class TestDailyProposed(_StateTestsBase):
         except:
             self._stack.close()
             raise
+
+
+class TestDailyProposed(_NonIdentifierChannelTestsBase):
+    """Test that the daily-proposed channel works as expected."""
+
+    INDEX_FILE = 'index_13.json'
+    CHANNEL_FILE = 'channels_07.json'
+    CHANNEL = 'daily-proposed'
 
     @configuration
     def test_daily_proposed_channel(self):
@@ -657,3 +669,24 @@ class TestDailyProposed(_StateTestsBase):
             patch('systemimage.state.config.hooks.device', DemoDevice))
         state.run_thru('get_index')
         self.assertIsNone(state.index)
+
+
+class TestVersionedProposed(_NonIdentifierChannelTestsBase):
+    INDEX_FILE = 'index_13.json'
+    CHANNEL_FILE = 'channels_08.json'
+    CHANNEL = '14.04-proposed'
+
+    @configuration
+    def test_version_proposed_channel(self):
+        # Resolve the index.json path for a channel with a dash and a dot in
+        # it.
+        self._setup_keyrings()
+        state = State()
+        self._stack.enter_context(
+            patch('systemimage.state.config.service.channel',
+                  '14.04-proposed'))
+        self._stack.enter_context(
+            patch('systemimage.state.config.hooks.device', DemoDevice))
+        state.run_thru('get_index')
+        self.assertEqual(state.index.global_.generated_at,
+                         datetime(2013, 8, 1, 8, 1, tzinfo=timezone.utc))
