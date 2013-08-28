@@ -72,6 +72,18 @@ class TestChannels(unittest.TestCase):
         channels = get_channels('channels_07.json')
         self.assertRaises(KeyError, getitem, channels, 'daily-testing')
 
+    def test_channel_version(self):
+        # The channel name has a dot in it.
+        channels = get_channels('channels_08.json')
+        self.assertEqual(channels['13.10'].grouper.index,
+                         '/13.10/grouper/index.json')
+
+    def test_channel_version_proposed(self):
+        # The channel name has both a dot and a dash in it.
+        channels = get_channels('channels_08.json')
+        self.assertEqual(channels['14.04-proposed'].grouper.index,
+                         '/14.04-proposed/grouper/index.json')
+
 
 class TestLoadChannel(unittest.TestCase):
     """Test downloading and caching the channels.json file."""
