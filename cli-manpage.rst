@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2013-07-31
+:Date: 2013-08-29
 :Copyright: 2013 Canonical Ltd.
-:Version: 1.0
+:Version: 1.4
 :Manual section: 1
 
 
@@ -39,8 +39,26 @@ OPTIONS
 --version
     Show the program's version number and exit.
 
--b, --build
-    Show the system's current build number and exit.
+-b NUMBER, --build NUMBER
+    Override the device's current build number just this once.  ``NUMBER``
+    must be an integer.  Use ``-b 0`` for force an upgrade.
+
+-c CHANNEL, --channel CHANNEL
+    Override the device's upgrade channel just this once.
+
+-d DEVICE, --device DEVICE
+    Override the device name just this once.
+
+--f FILTER, --filter FILTER
+    Filter the candidate upgrade paths to only contain full or delta updates.
+    ``FILTER`` must be either ``full`` or ``delta``.
+
+-i, --info
+    Show some information about the current device, including the current
+    build number, device name and channel, then exit.
+
+-n, --dry-run
+    Calculate and print the upgrade path, but do not download or apply it.
 
 -v, --verbose
     Increase the logging verbosity.  With one ``-v``, logging goes to the
