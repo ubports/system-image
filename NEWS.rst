@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-1.3 (2013-XX-XX)
+1.3 (2013-08-29)
 ================
  * Fixed bug in resolving channels with dashes in their name. (LP: #1217932)
  * Add `system-image-cli --filter` option to allow for forcing full or delta
