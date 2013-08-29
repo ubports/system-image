@@ -94,7 +94,7 @@ def main():
     log = logging.getLogger('systemimage')
 
     log.info('SystemImage dbus main loop started [{}/{}]',
-             config.service.channel, config.device)
+             config.channel, config.device)
     DBusGMainLoop(set_as_default=True)
 
     system_bus = dbus.SystemBus()

@@ -647,8 +647,7 @@ class TestDailyProposed(_NonIdentifierChannelTestsBase):
         self._setup_keyrings()
         state = State()
         self._stack.enter_context(
-            patch('systemimage.state.config.service.channel',
-                  'daily-proposed'))
+            patch('systemimage.state.config.channel', 'daily-proposed'))
         self._stack.enter_context(
             patch('systemimage.state.config.hooks.device', DemoDevice))
         state.run_thru('get_index')
@@ -662,8 +661,7 @@ class TestDailyProposed(_NonIdentifierChannelTestsBase):
         self._setup_keyrings()
         state = State()
         self._stack.enter_context(
-            patch('systemimage.state.config.service.channel',
-                  'daily-testing'))
+            patch('systemimage.state.config.channel', 'daily-testing'))
         self._stack.enter_context(
             patch('systemimage.state.config.hooks.device', DemoDevice))
         state.run_thru('get_index')
@@ -682,8 +680,7 @@ class TestVersionedProposed(_NonIdentifierChannelTestsBase):
         self._setup_keyrings()
         state = State()
         self._stack.enter_context(
-            patch('systemimage.state.config.service.channel',
-                  '14.04-proposed'))
+            patch('systemimage.state.config.channel', '14.04-proposed'))
         self._stack.enter_context(
             patch('systemimage.state.config.hooks.device', DemoDevice))
         state.run_thru('get_index')

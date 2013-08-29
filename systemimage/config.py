@@ -43,8 +43,11 @@ class Configuration:
         self.config_file = None
         ini_path = resource_filename('systemimage.data', 'client.ini')
         self.load(ini_path)
-        self._device = None
         self._override = False
+        # Cache/overrides.
+        self._device = None
+        self._build_number = None
+        self._channel = None
 
     def load(self, path, *, override=False):
         parser = ConfigParser()
@@ -91,13 +94,27 @@ class Configuration:
 
     @property
     def build_number(self):
-        if self._override:
-            return self.service.build_number
-        try:
-            with open(self.system.build_file, encoding='utf-8') as fp:
-                return int(fp.read().strip())
-        except FileNotFoundError:
-            return 0
+        if self._build_number is None:
+            if self._override:
+                self._build_number = self.service.build_number
+            else:
+                try:
+                    with open(self.system.build_file, encoding='utf-8') as fp:
+                        self._build_number = int(fp.read().strip())
+                except FileNotFoundError:
+                    self._build_number = 0
+        return self._build_number
+
+    @build_number.setter
+    def build_number(self, value):
+        if not isinstance(value, int):
+            raise ValueError(
+                'integer is required, got: {}'.format(type(value).__name__))
+        self._build_number = value
+
+    @build_number.deleter
+    def build_number(self):
+        self._build_number = None
 
     @property
     def device(self):
@@ -105,6 +122,20 @@ class Configuration:
         if self._device is None:
             self._device = self.hooks.device().get_device()
         return self._device
+
+    @device.setter
+    def device(self, value):
+        self._device = value
+
+    @property
+    def channel(self):
+        if self._channel is None:
+            self._channel = self.service.channel
+        return self._channel
+
+    @channel.setter
+    def channel(self, value):
+        self._channel = value
 
 
 # Define the global configuration object.  Normal use can be as simple as:
@@ -127,5 +158,9 @@ _config = Configuration()
 class _Proxy:
     def __getattribute__(self, name):
         return getattr(_config, name)
+    def __setattr__(self, name, value):
+        setattr(_config, name, value)
+    def __delattr__(self, name):
+        delattr(_config, name)
 
 config = _Proxy()

@@ -33,6 +33,7 @@ from systemimage.config import config
 from systemimage.helpers import makedirs
 from systemimage.logging import initialize
 from systemimage.state import State
+from textwrap import dedent
 
 
 __version__ = resource_bytes(
@@ -56,11 +57,15 @@ def main():
                         help="""Use the given configuration file instead of
                                 the default""")
     parser.add_argument('-b', '--build',
-                        default=False, action='store_true',
-                        help='Show the current build number and exit')
+                        default=None, action='store',
+                        help=
+                            'Override the current build number just this once')
     parser.add_argument('-c', '--channel',
-                        default=False, action='store_true',
-                        help='Show the current channel/device name and exit')
+                        default=None, action='store',
+                        help='Override the channel just this once')
+    parser.add_argument('-d', '--device',
+                        default=None, action='store',
+                        help='Override the device name just this once')
     parser.add_argument('--dbus',
                         default=False, action='store_true',
                         help='Run in D-Bus client mode.')
@@ -70,6 +75,11 @@ def main():
                                 full updates or only delta updates.  The
                                 argument to this option must be either `full`
                                 or `delta`""")
+    parser.add_argument('-i', '--info',
+                        default=False, action='store_true',
+                        help="""Show some information about the current
+                                device, including the current build number,
+                                device name and channel, then exit""")
     parser.add_argument('-n', '--dry-run',
                         default=False, action='store_true',
                         help="""Calculate and print the upgrade path, but do
@@ -115,13 +125,27 @@ def main():
     # We assume the cache_partition already exists, as does the /etc directory
     # (i.e. where the archive master key lives).
 
-    if args.build:
-        print('build number:', config.build_number)
-        return
-    if args.channel:
-        print('channel/device: {}/{}'.format(
-            config.service.channel, config.device))
-        return
+    # Command line overrides.
+    if args.build is not None:
+        try:
+            config.build_number = int(args.build)
+        except ValueError:
+            parser.error(
+                '-b/--build requires an integer: {}'.format(args.build))
+            assert 'parser.error() does not return'
+    if args.channel is not None:
+        config.channel = args.channel
+    if args.device is not None:
+        config.device = args.device
+
+    if args.info:
+        print(dedent("""
+            current build number: {}
+            device name: {}
+            channel: {}""").format(config.build_number,
+                                   config.device,
+                                   config.channel))
+        return 0
 
     # We can either run the API directly or through DBus.
     if args.dbus:
@@ -154,7 +178,7 @@ def main():
         # note that the state machine will log them.  If an exception occurs,
         # exit with a non-zero status.
         log.info('running state machine [{}/{}]',
-                 config.service.channel, config.device)
+                 config.channel, config.device)
         try:
             list(state)
         except KeyboardInterrupt:

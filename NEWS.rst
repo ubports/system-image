@@ -7,6 +7,11 @@ NEWS for system-image updater
  * Fixed bug in resolving channels with dashes in their name. (LP: #1217932)
  * Add `system-image-cli --filter` option to allow for forcing full or delta
    updates.  (LP: #1208909)
+ * Command line option changes for `system-image-cli`:
+   - Added -i/--info to get current build number, device, and channel.
+   - Re-purposed -c/--channel to allow for overriding the channel name.
+   - Re-purposed -b/--build to allow for overriding the build number.
+   - Added -d/--device to allow for overriding the device name.
 
 1.2 (2013-08-26)
 ================

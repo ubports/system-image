@@ -40,6 +40,7 @@ from systemimage.testing.helpers import (
     configuration, copy, data_path, temporary_directory)
 # This should be moved and refactored.
 from systemimage.tests.test_state import _StateTestsBase
+from textwrap import dedent
 from unittest.mock import patch
 
 
@@ -56,7 +57,7 @@ class TestCLIMain(unittest.TestCase):
             stack.enter_context(patch('builtins.print'))
             # Patch arguments to something harmless.
             stack.enter_context(
-                patch('systemimage.main.sys.argv', ['argv0', '--build']))
+                patch('systemimage.main.sys.argv', ['argv0', '--info']))
             # Patch default configuration file.
             tempdir = stack.enter_context(temporary_directory())
             ini_path = os.path.join(tempdir, 'client.ini')
@@ -130,14 +131,15 @@ class TestCLIMain(unittest.TestCase):
             # Patch arguments to something harmless.
             stack.enter_context(patch(
                 'systemimage.main.sys.argv',
-                ['argv0', '-C', config_ini, '--build']))
+                ['argv0', '-C', config_ini, '--info']))
             self.assertFalse(os.path.exists(tmpdir))
             cli_main()
             self.assertTrue(os.path.exists(tmpdir))
 
     @configuration
-    def test_build_number(self, ini_file):
-        # -b gives the build number.
+    def test_info(self, ini_file):
+        # -i/--info gives information about the device, including the current
+        # build number, channel, and device name.
         with ExitStack() as stack:
             # We patch builtin print() rather than sys.stdout because the
             # latter can mess with pdb output should we need to trace through
@@ -146,16 +148,149 @@ class TestCLIMain(unittest.TestCase):
             stack.enter_context(
                 patch('builtins.print', partial(print, file=capture)))
             stack.enter_context(
-                patch('systemimage.main.sys.argv', ['argv0', '-b']))
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--info']))
             # Set up the build number.
             config = Configuration()
             config.load(ini_file)
             with open(config.system.build_file, 'w', encoding='utf-8') as fp:
                 print(20130701, file=fp)
-            stack.enter_context(
-                patch('systemimage.main.DEFAULT_CONFIG_FILE', ini_file))
             cli_main()
-            self.assertEqual(capture.getvalue(), 'build number: 20130701\n')
+            self.assertEqual(capture.getvalue(), dedent("""
+                current build number: 20130701
+                device name: nexus7
+                channel: stable
+                """))
+
+    @configuration
+    def test_build_number(self, ini_file):
+        # -b/--build overrides the build number.
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            # Set up the default build number.
+            config = Configuration()
+            config.load(ini_file)
+            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+                print(20130701, file=fp)
+            # Use --build to override the default build number.
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file,
+                       '--build', '20250801',
+                       '--info']))
+            cli_main()
+            self.assertEqual(capture.getvalue(), dedent("""
+                current build number: 20250801
+                device name: nexus7
+                channel: stable
+                """))
+
+    @configuration
+    def test_device_name(self, ini_file):
+        # -d/--device overrides the device type.
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            # Set up the default build number.
+            config = Configuration()
+            config.load(ini_file)
+            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+                print(20130701, file=fp)
+            # Use --build to override the default build number.
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file,
+                       '--device', 'phablet',
+                       '--info']))
+            cli_main()
+            self.assertEqual(capture.getvalue(), dedent("""
+                current build number: 20130701
+                device name: phablet
+                channel: stable
+                """))
+
+    @configuration
+    def test_channel_name(self, ini_file):
+        # -c/--channel overrides the channel.
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            # Set up the default build number.
+            config = Configuration()
+            config.load(ini_file)
+            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+                print(20130701, file=fp)
+            # Use --build to override the default build number.
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file,
+                       '--channel', 'daily-proposed',
+                       '--info']))
+            cli_main()
+            self.assertEqual(capture.getvalue(), dedent("""
+                current build number: 20130701
+                device name: nexus7
+                channel: daily-proposed
+                """))
+
+    @configuration
+    def test_all_overrides(self, ini_file):
+        # Use -b -d and -c together.
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            # Set up the default build number.
+            config = Configuration()
+            config.load(ini_file)
+            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+                print(20130701, file=fp)
+            # Use --build to override the default build number.
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file,
+                       '-b', '20250801',
+                       '-c', 'daily-proposed',
+                       '-d', 'phablet',
+                       '--info']))
+            cli_main()
+            self.assertEqual(capture.getvalue(), dedent("""
+                current build number: 20250801
+                device name: phablet
+                channel: daily-proposed
+                """))
+
+    @configuration
+    def test_bad_build_number_override(self, ini_file):
+        # -b/--build requires an integer.
+        with ExitStack() as stack:
+            stderr = StringIO()
+            stack.enter_context(patch('argparse._sys.stderr', stderr))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--build', 'bogus']))
+            with self.assertRaises(SystemExit) as cm:
+                cli_main()
+            self.assertEqual(cm.exception.code, 2)
+            self.assertEqual(
+              stderr.getvalue().splitlines()[-1],
+              'system-image-cli: error: -b/--build requires an integer: bogus')
 
     @configuration
     def test_channel_ini_override_build_number(self, ini_file):
@@ -173,14 +308,18 @@ class TestCLIMain(unittest.TestCase):
                 patch('builtins.print', partial(print, file=capture)))
             stack.enter_context(
                 patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '-b']))
+                      ['argv0', '-C', ini_file, '-i']))
             # Set up the build number.
             config = Configuration()
             config.load(ini_file)
             with open(config.system.build_file, 'w', encoding='utf-8') as fp:
                 print(20130701, file=fp)
             cli_main()
-            self.assertEqual(capture.getvalue(), 'build number: 20130833\n')
+            self.assertEqual(capture.getvalue(), dedent("""
+                current build number: 20130833
+                device name: nexus7
+                channel: proposed
+                """))
 
     @configuration
     def test_channel_ini_override_channel(self, ini_file):
@@ -200,31 +339,13 @@ class TestCLIMain(unittest.TestCase):
             config.load(ini_file)
             stack.enter_context(
                 patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '-c']))
+                      ['argv0', '-C', ini_file, '-i']))
             cli_main()
-            self.assertEqual(capture.getvalue(),
-                             'channel/device: proposed/nexus7\n')
-
-    @configuration
-    def test_channel_device(self, ini_file):
-        # -c gives the channel/device name.
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv', ['argv0', '-c']))
-            stack.enter_context(
-                patch('systemimage.device.check_output',
-                      return_value='nexus7'))
-            stack.enter_context(
-                patch('systemimage.main.DEFAULT_CONFIG_FILE', ini_file))
-            cli_main()
-            self.assertEqual(capture.getvalue(),
-                             'channel/device: stable/nexus7\n')
+            self.assertEqual(capture.getvalue(), dedent("""
+                current build number: 20130833
+                device name: nexus7
+                channel: proposed
+                """))
 
     @configuration
     def test_log_file(self, ini_file):

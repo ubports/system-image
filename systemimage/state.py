@@ -255,18 +255,18 @@ class State:
                 self.channels = Channels.from_json(fp.read())
         # Locate the index file for the channel/device.
         try:
-            channel = self.channels[config.service.channel]
+            channel = self.channels[config.channel]
         except KeyError:
-            log.info('no matching channel: {}', config.service.channel)
+            log.info('no matching channel: {}', config.channel)
             return
-        log.info('got channel: {}', config.service.channel)
+        log.info('got channel: {}', config.channel)
         try:
             device = channel[config.device]
         except KeyError:
             log.info('no matching device: {}', config.device)
             return
         log.info('found channel/device entry: {}/{}',
-                 config.service.channel, config.device)
+                 config.channel, config.device)
         # The next step will depend on whether there is a device keyring
         # available or not.  If there is, download and verify it now.
         keyring = getattr(device, 'keyring', None)

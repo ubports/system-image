@@ -171,6 +171,44 @@ class TestConfiguration(unittest.TestCase):
         with patch('systemimage.device.logging.getLogger'):
             self.assertEqual(config.device, '?')
 
+    @configuration
+    def test_get_channel(self, ini_file):
+        config = Configuration()
+        config.load(ini_file)
+        self.assertEqual(config.channel, 'stable')
+
+    @configuration
+    def test_overrides(self, ini_file):
+        config = Configuration()
+        config.load(ini_file)
+        self.assertEqual(config.build_number, 0)
+        self.assertEqual(config.device, 'nexus7')
+        self.assertEqual(config.channel, 'stable')
+        config.build_number = 20250801
+        config.device = 'phablet'
+        config.channel = 'daily-proposed'
+        self.assertEqual(config.build_number, 20250801)
+        self.assertEqual(config.device, 'phablet')
+        self.assertEqual(config.channel, 'daily-proposed')
+
+    def test_bad_override(self):
+        config = Configuration()
+        with self.assertRaises(ValueError) as cm:
+            # Looks like an int, but isn't.
+            config.build_number = '20150801'
+        self.assertEqual(str(cm.exception), 'integer is required, got: str')
+
+    def test_reset_build_number(self):
+        config = Configuration()
+        old_build = config.build_number
+        self.assertEqual(old_build, 0)
+        config.build_number = 20990000
+        self.assertEqual(config.build_number, 20990000)
+        del config.build_number
+        self.assertEqual(config.build_number, 0)
+        config.build_number = 21000000
+        self.assertEqual(config.build_number, 21000000)
+
     def test_channel_ini_overrides(self):
         # If a /etc/system-image/channels.ini file exists, it overrides any
         # previously set options.
