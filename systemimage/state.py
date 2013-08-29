@@ -78,15 +78,15 @@ class State:
         self.files = []
         # See if there is a state file to unpickle.
         first_step = self._get_blacklist_1
-        try:
-            with open(config.system.state_file, 'rb') as fp:
-                self.blacklist = pickle.load(fp)
-                self.winner = pickle.load(fp)
-                pickle_date = pickle.load(fp)
-                # XXX check for stale file.
-            first_step = self._download_files
-        except FileNotFoundError:
-            pass
+        ## try:
+        ##     with open(config.system.state_file, 'rb') as fp:
+        ##         self.blacklist = pickle.load(fp)
+        ##         self.winner = pickle.load(fp)
+        ##         pickle_date = pickle.load(fp)
+        ##         # XXX check for stale file.
+        ##     first_step = self._download_files
+        ## except FileNotFoundError:
+        ##     pass
         self._next.append(first_step)
 
     def __iter__(self):
@@ -370,14 +370,14 @@ class State:
 
     def _persist(self):
         """Persist enough state to resume right to downloading files."""
-        with open(config.system.state_file, 'wb') as fp:
-            # Things we need to pickle:
-            # - the location of our blacklist file
-            # - the set of calculated winners
-            # - the current datetime
-            pickle.dump(self.blacklist, fp)
-            pickle.dump(self.winner, fp)
-            pickle.dump(datetime.now(), fp)
+        ## with open(config.system.state_file, 'wb') as fp:
+        ##     # Things we need to pickle:
+        ##     # - the location of our blacklist file
+        ##     # - the set of calculated winners
+        ##     # - the current datetime
+        ##     pickle.dump(self.blacklist, fp)
+        ##     pickle.dump(self.winner, fp)
+        ##     pickle.dump(datetime.now(), fp)
         self._next.append(self._download_files)
 
     def _download_files(self):

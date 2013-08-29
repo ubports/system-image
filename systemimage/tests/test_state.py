@@ -572,6 +572,7 @@ unmount system
 """)
 
 
+@unittest.skip('persistence is temporarily disabled')
 class TestPersistence(_StateTestsBase):
     """Test the State object's persistence."""
 

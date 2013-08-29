@@ -12,6 +12,7 @@ NEWS for system-image updater
    - Re-purposed -c/--channel to allow for overriding the channel name.
    - Re-purposed -b/--build to allow for overriding the build number.
    - Added -d/--device to allow for overriding the device name.
+ * State persistence is disabled for now.
 
 1.2 (2013-08-26)
 ================
