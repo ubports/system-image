@@ -394,6 +394,9 @@ class TestCLIMain(unittest.TestCase):
 
 class TestCLIMainDryRun(_StateTestsBase):
     INDEX_FILE = 'index_14.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
 
     @configuration
     def test_dry_run(self, ini_file):
@@ -438,6 +441,9 @@ class TestCLIMainDryRun(_StateTestsBase):
 
 class TestCLIFilters(_StateTestsBase):
     INDEX_FILE = 'index_15.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
 
     @configuration
     def test_filter_full(self, ini_file):

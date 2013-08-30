@@ -15,7 +15,11 @@
     },
     "daily-proposed": {
         "grouper": {
-            "index": "/daily-proposed/grouper/index.json"
+            "index": "/daily-proposed/grouper/index.json",
+            "keyring": {
+                "path": "/daily-proposed/grouper/device-signing.tar.xz",
+                "signature": "/daily-proposed/grouper/device-signing.tar.xz.asc"
+            }
         },
         "maguro": {
             "index": "/daily-proposed/maguro/index.json"

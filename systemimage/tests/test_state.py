@@ -308,6 +308,9 @@ class TestState(unittest.TestCase):
 class _StateTestsBase(unittest.TestCase):
     # Must override in base classes.
     INDEX_FILE = None
+    CHANNEL_FILE = None
+    CHANNEL = None
+    DEVICE = None
 
     # For more detailed output.
     maxDiff = None
@@ -323,11 +326,15 @@ class _StateTestsBase(unittest.TestCase):
                 self._serverdir, 8943, 'cert.pem', 'key.pem'))
             self._stack.push(make_http_server(self._serverdir, 8980))
             # Set up the server files.
-            copy('channels_06.json', self._serverdir, 'channels.json')
+            assert self.CHANNEL_FILE is not None, (
+                'Subclasses must set CHANNEL_FILE')
+            copy(self.CHANNEL_FILE, self._serverdir, 'channels.json')
             sign(os.path.join(self._serverdir, 'channels.json'),
                  'image-signing.gpg')
+            assert self.CHANNEL is not None, 'Subclasses must set CHANNEL'
+            assert self.DEVICE is not None, 'Subclasses must set DEVICE'
             index_path = os.path.join(
-                self._serverdir, 'stable', 'nexus7', 'index.json')
+                self._serverdir, self.CHANNEL, self.DEVICE, 'index.json')
             head, tail = os.path.split(index_path)
             assert self.INDEX_FILE is not None, (
                 'Subclasses must set INDEX_FILE')
@@ -362,7 +369,7 @@ class _StateTestsBase(unittest.TestCase):
         setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
-            os.path.join(self._serverdir, 'stable', 'nexus7',
+            os.path.join(self._serverdir, self.CHANNEL, self.DEVICE,
                          'device-signing.tar.xz'))
 
 
@@ -370,6 +377,9 @@ class TestRebooting(_StateTestsBase):
     """Test various state transitions leading to a reboot."""
 
     INDEX_FILE = 'index_13.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
 
     @configuration
     def test_keyrings_copied_to_upgrader_paths(self):
@@ -490,6 +500,9 @@ class TestRebooting(_StateTestsBase):
 
 class TestCommandFileFull(_StateTestsBase):
     INDEX_FILE = 'index_13.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
 
     @configuration
     def test_full_command_file(self):
@@ -514,6 +527,9 @@ unmount system
 
 class TestCommandFileDelta(_StateTestsBase):
     INDEX_FILE = 'index_15.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
 
     @configuration
     def test_delta_command_file(self):
@@ -540,6 +556,9 @@ unmount system
 
 class TestFileOrder(_StateTestsBase):
     INDEX_FILE = 'index_16.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
 
     @configuration
     def test_file_order(self):
@@ -577,6 +596,9 @@ class TestPersistence(_StateTestsBase):
     """Test the State object's persistence."""
 
     INDEX_FILE = 'index_16.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
 
     @configuration
     def test_pickle_file(self):
@@ -608,39 +630,13 @@ class TestPersistence(_StateTestsBase):
         self.assertIsNone(state.winner)
 
 
-class _NonIdentifierChannelTestsBase(_StateTestsBase):
-    """Additional tests for channel names which aren't Python identifiers."""
-
-    CHANNEL_FILE = None
-    CHANNEL = None
-
-    def setUp(self):
-        super().setUp()
-        try:
-            assert self.CHANNEL_FILE is not None, (
-                'Subclasses must set CHANNEL_FILE')
-            # Use a different channel file that has a daily-proposed channel.
-            copy(self.CHANNEL_FILE, self._serverdir, 'channels.json')
-            sign(os.path.join(self._serverdir, 'channels.json'),
-                 'image-signing.gpg')
-            assert self.CHANNEL is not None, 'Subclasses must set CHANNEL'
-            index_path = os.path.join(
-                self._serverdir, self.CHANNEL, 'grouper', 'index.json')
-            head, tail = os.path.split(index_path)
-            copy(self.INDEX_FILE, head, tail)
-            sign(index_path, 'image-signing.gpg')
-            setup_index(self.INDEX_FILE, self._serverdir, 'image-signing.gpg')
-        except:
-            self._stack.close()
-            raise
-
-
-class TestDailyProposed(_NonIdentifierChannelTestsBase):
+class TestDailyProposed(_StateTestsBase):
     """Test that the daily-proposed channel works as expected."""
 
     INDEX_FILE = 'index_13.json'
     CHANNEL_FILE = 'channels_07.json'
     CHANNEL = 'daily-proposed'
+    DEVICE = 'grouper'
 
     @configuration
     def test_daily_proposed_channel(self):
@@ -669,10 +665,11 @@ class TestDailyProposed(_NonIdentifierChannelTestsBase):
         self.assertIsNone(state.index)
 
 
-class TestVersionedProposed(_NonIdentifierChannelTestsBase):
+class TestVersionedProposed(_StateTestsBase):
     INDEX_FILE = 'index_13.json'
     CHANNEL_FILE = 'channels_08.json'
     CHANNEL = '14.04-proposed'
+    DEVICE = 'grouper'
 
     @configuration
     def test_version_proposed_channel(self):
@@ -691,6 +688,9 @@ class TestVersionedProposed(_NonIdentifierChannelTestsBase):
 
 class TestFilters(_StateTestsBase):
     INDEX_FILE = 'index_15.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
 
     @configuration
     def test_filter_none(self):

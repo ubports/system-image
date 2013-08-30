@@ -28,7 +28,21 @@ ERA = 2013
 COMMASPACE = ', '
 
 
-def _hash(version):
+def _old_hash(version):
+    # Turn the old YYYYMMXX version numbers into 16 bit values, using the
+    # following observations:
+    #
+    # * Assume none of this will matter 16 years from now (i.e. in 2029 ;)
+    # * The middle two digits of the version number are a month, so we
+    #   only need 4 bits (for months 0-11).
+    # * We need 7 bits for the builds-per-month last two digits since the
+    #   spec leaves room for 0-99 builds per month.
+    #
+    # But that's cool because a) gives of 4 bits, b) gives us 4 bits, and
+    # c) gives us 7 bits for a total of 15 bits.  Double that (since the
+    # hash has to support two version numbers for deltas) and that gives
+    # us 30 bits.  Woo hoo!  2 bits to spare.
+    #
     # Short-circuit for when the version number is 0.
     if version == 0:
         return 0
@@ -47,6 +61,19 @@ def _hash(version):
     return (yse << 12) + (month << 8) + (bpm << 1)
 
 
+def _new_hash(version):
+    # LP: #1218612 introduces a new version number regime, starting
+    # sequentially at 1.  We still have the 32 bit limit on hashes, but now we
+    # don't have to play games with the content, giving us 65k new versions
+    # before we have to worry about running out of bits.  We still have to fit
+    # two version numbers (version and base for deltas) into those 32 bits,
+    # thus version numbers bigger than 16 bits are not supported.  Still, even
+    # if we release 10 images every day, that gives us nearly 17 years of
+    # running room.  I sure hope we'll have 64 bit phones by then.
+    assert 0 <= version < (1 << 16), '16 bit unsigned version numbers only'
+    return version
+
+
 class Image(Bag):
     def __hash__(self):
         # BAW 2013-04-30: We don't currently enforce immutability of attribute
@@ -63,21 +90,19 @@ class Image(Bag):
         #
         # $ python3 -c "from ctypes import *; print(sizeof(c_ssize_t))"
         #
-        # We can do this with the following observations:
-        # * Assume none of this will matter 16 years from now (i.e. in 2029 ;)
-        # * The middle two digits of the version number are a month, so we
-        #   only need 4 bits (for months 0-11).
-        # * We need 7 bits for the builds-per-month last two digits since the
-        #   spec leaves room for 0-99 builds per month.
-        #
-        # But that's cool because a) gives of 4 bits, b) gives us 4 bits, and
-        # c) gives us 7 bits for a total of 15 bits.  Double that (since the
-        # hash has to support two version numbers for deltas) and that gives
-        # us 30 bits.  Woo hoo!  2 bits to spare.
-        #
         # Use a base of 0 for full images.
         base = self.base if self.type == 'delta' else 0
-        return (_hash(self.version) << 16) + _hash(base)
+        # Which version number regime should we use.  We have to assume that
+        # there won't be a version in one scheme and a base in another.
+        if self.version < 20000000:
+            # New regime.
+            assert base < 20000000, 'Mixed version regime detected'
+            hash_function = _new_hash
+        else:
+            assert base >= 20000000 or base == 0, (
+                'Mixed version regime detected')
+            hash_function = _old_hash
+        return (hash_function(self.version) << 16) + hash_function(base)
 
     def __eq__(self, other):
         return hash(self) == hash(other)
