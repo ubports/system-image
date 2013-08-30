@@ -43,7 +43,11 @@
     },
     "14.04-proposed": {
         "grouper": {
-            "index": "/14.04-proposed/grouper/index.json"
+            "index": "/14.04-proposed/grouper/index.json",
+            "keyring": {
+                "path": "/14.04-proposed/grouper/device-signing.tar.xz",
+                "signature": "/14.04-proposed/grouper/device-signing.tar.xz.asc"
+            }
         },
         "maguro": {
             "index": "/14.04-proposed/maguro/index.json"

@@ -5,6 +5,8 @@ NEWS for system-image updater
 1.4 (2013-XX-XX)
 ================
  * Update the `system-image-cli` manpage with the previously added switches.
+ * Support the new version number regime, which uses sequential version
+   numbers starting at 1.  (LP: #1218612)
 
 1.3 (2013-08-29)
 ================
