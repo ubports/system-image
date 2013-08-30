@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+1.5 (2013-XX-XX)
+================
+
 1.4 (2013-08-30)
 ================
  * Update the `system-image-cli` manpage with the previously added switches.
