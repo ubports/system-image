@@ -4,6 +4,8 @@ NEWS for system-image updater
 
 1.5 (2013-XX-XX)
 ================
+ * `system-image-cli --dry-run -c <bad-channel>` no longer produces a
+   traceback.  You get "Already up-to-date", but use `-v` for more info.
 
 1.4 (2013-08-30)
 ================

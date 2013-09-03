@@ -167,11 +167,12 @@ def main():
     state = State(candidate_filter=candidate_filter)
     if args.dry_run:
         state.run_thru('persist')
-        if len(state.winner) > 0:
+        # Say -c <no-such-channel> was given.  This will fail.
+        if state.winner is None or len(state.winner) == 0:
+            print('Already up-to-date')
+        else:
             winning_path = [str(image.version) for image in state.winner]
             print('Upgrade path is {}'.format(COLON.join(winning_path)))
-        else:
-            print('Already up-to-date')
         return
     else:
         # Run the state machine to conclusion.  Suppress all exceptions, but

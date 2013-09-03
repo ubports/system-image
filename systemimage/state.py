@@ -23,7 +23,7 @@ __all__ = [
 
 import os
 import math
-import pickle
+#import pickle
 import shutil
 import hashlib
 import logging

@@ -205,7 +205,6 @@ class TestCLIMain(unittest.TestCase):
             config.load(ini_file)
             with open(config.system.build_file, 'w', encoding='utf-8') as fp:
                 print(20130701, file=fp)
-            # Use --build to override the default build number.
             stack.enter_context(
                 patch('systemimage.main.sys.argv',
                       ['argv0', '-C', ini_file,
@@ -233,7 +232,6 @@ class TestCLIMain(unittest.TestCase):
             config.load(ini_file)
             with open(config.system.build_file, 'w', encoding='utf-8') as fp:
                 print(20130701, file=fp)
-            # Use --build to override the default build number.
             stack.enter_context(
                 patch('systemimage.main.sys.argv',
                       ['argv0', '-C', ini_file,
@@ -435,6 +433,27 @@ class TestCLIMainDryRun(_StateTestsBase):
             config.load(ini_file)
             with open(config.system.build_file, 'w', encoding='utf-8') as fp:
                 print(20130701, file=fp)
+            cli_main()
+            self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
+
+    @configuration
+    def test_dry_run_bad_channel(self, ini_file):
+        # 'system-image-cli --dry-run --channel <bad-channel>` should say it's
+        # already up-to-date.
+        self._setup_keyrings()
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            # Use --build to override the default build number.
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file,
+                       '--channel', 'daily-proposed',
+                       '--dry-run']))
             cli_main()
             self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
