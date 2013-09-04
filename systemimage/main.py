@@ -139,7 +139,7 @@ def main():
         config.device = args.device
 
     if args.info:
-        print(dedent("""
+        print(dedent("""\
             current build number: {}
             device name: {}
             channel: {}""").format(config.build_number,

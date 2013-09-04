@@ -156,7 +156,7 @@ class TestCLIMain(unittest.TestCase):
             with open(config.system.build_file, 'w', encoding='utf-8') as fp:
                 print(20130701, file=fp)
             cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""
+            self.assertEqual(capture.getvalue(), dedent("""\
                 current build number: 20130701
                 device name: nexus7
                 channel: stable
@@ -184,7 +184,7 @@ class TestCLIMain(unittest.TestCase):
                        '--build', '20250801',
                        '--info']))
             cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""
+            self.assertEqual(capture.getvalue(), dedent("""\
                 current build number: 20250801
                 device name: nexus7
                 channel: stable
@@ -211,7 +211,7 @@ class TestCLIMain(unittest.TestCase):
                        '--device', 'phablet',
                        '--info']))
             cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""
+            self.assertEqual(capture.getvalue(), dedent("""\
                 current build number: 20130701
                 device name: phablet
                 channel: stable
@@ -238,7 +238,7 @@ class TestCLIMain(unittest.TestCase):
                        '--channel', 'daily-proposed',
                        '--info']))
             cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""
+            self.assertEqual(capture.getvalue(), dedent("""\
                 current build number: 20130701
                 device name: nexus7
                 channel: daily-proposed
@@ -268,7 +268,7 @@ class TestCLIMain(unittest.TestCase):
                        '-d', 'phablet',
                        '--info']))
             cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""
+            self.assertEqual(capture.getvalue(), dedent("""\
                 current build number: 20250801
                 device name: phablet
                 channel: daily-proposed
@@ -313,7 +313,7 @@ class TestCLIMain(unittest.TestCase):
             with open(config.system.build_file, 'w', encoding='utf-8') as fp:
                 print(20130701, file=fp)
             cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""
+            self.assertEqual(capture.getvalue(), dedent("""\
                 current build number: 20130833
                 device name: nexus7
                 channel: proposed
@@ -339,7 +339,7 @@ class TestCLIMain(unittest.TestCase):
                 patch('systemimage.main.sys.argv',
                       ['argv0', '-C', ini_file, '-i']))
             cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""
+            self.assertEqual(capture.getvalue(), dedent("""\
                 current build number: 20130833
                 device name: nexus7
                 channel: proposed
