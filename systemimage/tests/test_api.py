@@ -29,7 +29,7 @@ from systemimage.api import Cancel, Mediator
 from systemimage.config import config
 from systemimage.testing.helpers import (
     configuration, copy, make_http_server, setup_index, setup_keyring_txz,
-    setup_keyrings, sign, temporary_directory)
+    setup_keyrings, sign, temporary_directory, touch_build)
 
 
 class TestAPI(unittest.TestCase):
@@ -102,8 +102,7 @@ class TestAPI(unittest.TestCase):
     def test_no_update_available_version(self):
         # No update is available, so the target version number is zero.
         self._setup_keyrings()
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130600, file=fp)
+        touch_build(20130600)
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
         self.assertEqual(update.version, '')
@@ -113,8 +112,7 @@ class TestAPI(unittest.TestCase):
         # Because our build number is equal to the latest available in the
         # index file, there is no update available.
         self._setup_keyrings()
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130600, file=fp)
+        touch_build(20130600)
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
 
@@ -123,8 +121,7 @@ class TestAPI(unittest.TestCase):
         # Because our build number is higher than the latest available in the
         # index file, there is no update available.
         self._setup_keyrings()
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130700, file=fp)
+        touch_build(20130700)
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
 

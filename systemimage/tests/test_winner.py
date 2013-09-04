@@ -26,14 +26,12 @@ import unittest
 from contextlib import ExitStack
 from systemimage.candidates import get_candidates
 from systemimage.config import config
-from systemimage.download import get_files
 from systemimage.gpg import SignatureError
 from systemimage.helpers import temporary_directory
-from systemimage.scores import WeightedScorer
 from systemimage.state import ChecksumError, State
 from systemimage.testing.helpers import (
-    configuration, copy, get_index, make_http_server, makedirs, setup_index,
-    setup_keyring_txz, setup_keyrings, sign)
+    configuration, copy, make_http_server, setup_index, setup_keyring_txz,
+    setup_keyrings, sign, touch_build)
 
 
 class TestWinnerDownloads(unittest.TestCase):
@@ -100,9 +98,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # Calculate the winning upgrade path.
         setup_keyrings()
         state = State()
-        # Set the build number.
-        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         # Run the state machine 4 times to get the candidates and winner.
         # (blacklist -> channel -> index -> calculate)
         for i in range(4):
@@ -119,9 +115,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # Check that all the winning path's files are downloaded.
         setup_keyrings()
         state = State()
-        # Set the build number.
-        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         # Run the state machine until we download the files.
         state.run_thru('download_files')
         # The B path files contain their checksums.
@@ -161,9 +155,7 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, self._indexpath),
              'device-signing.gpg')
         setup_index('index_12.json', self._serverdir, 'device-signing.gpg')
-        # Set the build number.
-        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         # Run the state machine until we download the files.
         state = State()
         state.run_thru('download_files')
@@ -203,9 +195,7 @@ class TestWinnerDownloads(unittest.TestCase):
              'device-signing.gpg')
         # All the downloadable files are now signed with the image signing key.
         setup_index('index_12.json', self._serverdir, 'image-signing.gpg')
-        # Set the build number.
-        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         # Run the state machine until we download the files.
         state = State()
         state.run_thru('download_files')
@@ -236,9 +226,7 @@ class TestWinnerDownloads(unittest.TestCase):
         setup_index('index_10.json', self._serverdir, 'image-signing.gpg')
         setup_keyrings()
         state = State()
-        # Set the build number.
-        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         # Run the state machine until we're prepped to download
         state.run_until('download_files')
         # Now try to download the files and get the error.
@@ -263,9 +251,7 @@ class TestWinnerDownloads(unittest.TestCase):
              'device-signing.gpg')
         # All the downloadable files are now signed with a bogus key.
         setup_index('index_12.json', self._serverdir, 'spare.gpg')
-        # Set the build number.
-        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         # Run the state machine until just before we download the files.
         state = State()
         state.run_until('download_files')
@@ -283,9 +269,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # files get downloaded and get_files() fails.
         setup_keyrings()
         state = State()
-        # Set the build number.
-        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         # Remove a signature.
         os.remove(os.path.join(self._serverdir, '6/7/8.txt.asc'))
         # Run the state machine to calculate the winning path.
@@ -304,9 +288,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # files get downloaded and get_files() fails.
         setup_keyrings()
         state = State()
-        # Set the build number.
-        with open(config.system.build_file, 'wt', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         # Break a signature
         sign(os.path.join(self._serverdir, '6', '7', '8.txt'), 'spare.gpg')
         # Run the state machine to calculate the winning path.

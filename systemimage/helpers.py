@@ -21,6 +21,7 @@ __all__ = [
     'as_object',
     'as_timedelta',
     'atomic',
+    'last_update_date',
     'makedirs',
     'safe_remove',
     'temporary_directory',
@@ -179,3 +180,25 @@ def makedirs(dir):
         os.makedirs(dir, exist_ok=True)
     except (FileExistsError, PermissionError):
         pass
+
+
+def last_update_date():
+    """Return the last update date.
+
+    Taken from the mtime of /etc/system-image/channel.ini first, with fallback
+    to /etc/ubuntu-build if that file doesn't exist.
+    """
+    # Avoid circular imports.
+    from systemimage.config import config
+    channel_ini = os.path.join(
+        os.path.dirname(config.config_file), 'channel.ini')
+    ubuntu_build = config.system.build_file
+    for path in (channel_ini, ubuntu_build):
+        try:
+            # Local time, since we can't know the timezone.
+            timestamp = datetime.fromtimestamp(os.stat(path).st_mtime)
+            return str(timestamp)
+        except FileNotFoundError:
+            pass
+    else:
+        return 'Unknown'

@@ -29,7 +29,7 @@ from systemimage.config import Configuration
 from systemimage.device import SystemProperty
 from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
-from systemimage.testing.helpers import configuration, data_path
+from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
 
 
@@ -143,8 +143,7 @@ class TestConfiguration(unittest.TestCase):
         # configuration file.
         config = Configuration()
         config.load(ini_file)
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20130500, file=fp)
+        touch_build(20130500)
         self.assertEqual(config.build_number, 20130500)
 
     @configuration

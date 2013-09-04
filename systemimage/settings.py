@@ -16,7 +16,6 @@
 """Persistent settings - used by the DBus API."""
 
 __all__ = [
-    'LAST_UPDATE_KEY',
     'Settings',
     ]
 
@@ -26,7 +25,6 @@ import sqlite3
 from contextlib import contextmanager
 from systemimage.config import config
 
-LAST_UPDATE_KEY = '__last_update_date__'
 SCHEMA_VERSION = '1'
 # Download manually by default for now until LP: #1196991
 AUTO_DOWNLOAD_DEFAULT = '0'

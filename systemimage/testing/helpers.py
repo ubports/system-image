@@ -27,6 +27,7 @@ __all__ = [
     'setup_keyring_txz',
     'setup_keyrings',
     'sign',
+    'touch_build',
     ]
 
 
@@ -325,3 +326,17 @@ def reset_envar(name):
                 pass
         else:
             os.environ[name] = old_value
+
+
+def touch_build(version, timestamp=None):
+    with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+        print(version, file=fp)
+    if timestamp is not None:
+        timestamp = int(timestamp)
+        os.utime(config.system.build_file, (timestamp, timestamp))
+        channel_ini = os.path.join(
+            os.path.dirname(config.config_file), 'channel.ini')
+        try:
+            os.utime(channel_ini, (timestamp, timestamp))
+        except FileNotFoundError:
+            pass

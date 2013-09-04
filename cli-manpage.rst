@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2013-08-29
+:Date: 2013-09-04
 :Copyright: 2013 Canonical Ltd.
-:Version: 1.4
+:Version: 1.5
 :Manual section: 1
 
 
@@ -55,7 +55,7 @@ OPTIONS
 
 -i, --info
     Show some information about the current device, including the current
-    build number, device name and channel, then exit.
+    build number, device name, and channel, then exit.
 
 -n, --dry-run
     Calculate and print the upgrade path, but do not download or apply it.

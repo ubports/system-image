@@ -30,7 +30,7 @@ from pkg_resources import resource_string as resource_bytes
 from systemimage.bindings import DBusClient
 from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
-from systemimage.helpers import makedirs
+from systemimage.helpers import last_update_date, makedirs
 from systemimage.logging import initialize
 from systemimage.state import State
 from textwrap import dedent
@@ -142,9 +142,13 @@ def main():
         print(dedent("""\
             current build number: {}
             device name: {}
-            channel: {}""").format(config.build_number,
-                                   config.device,
-                                   config.channel))
+            channel: {}
+            last update: {}""").format(
+                config.build_number,
+                config.device,
+                config.channel,
+                last_update_date(),
+                ))
         return 0
 
     # We can either run the API directly or through DBus.

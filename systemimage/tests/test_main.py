@@ -30,6 +30,7 @@ import unittest
 import subprocess
 
 from contextlib import ExitStack
+from datetime import datetime
 from distutils.spawn import find_executable
 from functools import partial
 from io import StringIO
@@ -37,7 +38,7 @@ from pkg_resources import resource_filename
 from systemimage.config import Configuration, config
 from systemimage.main import main as cli_main
 from systemimage.testing.helpers import (
-    configuration, copy, data_path, temporary_directory)
+    configuration, copy, data_path, temporary_directory, touch_build)
 # This should be moved and refactored.
 from systemimage.tests.test_state import _StateTestsBase
 from textwrap import dedent
@@ -45,6 +46,7 @@ from unittest.mock import patch
 
 
 DBUS_LAUNCH = find_executable('dbus-launch')
+TIMESTAMP = datetime(2013, 8, 1, 12, 11, 10).timestamp()
 
 
 class TestCLIMain(unittest.TestCase):
@@ -153,13 +155,77 @@ class TestCLIMain(unittest.TestCase):
             # Set up the build number.
             config = Configuration()
             config.load(ini_file)
-            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-                print(20130701, file=fp)
+            touch_build(20130701, TIMESTAMP)
             cli_main()
             self.assertEqual(capture.getvalue(), dedent("""\
                 current build number: 20130701
                 device name: nexus7
                 channel: stable
+                last update: 2013-08-01 12:11:10
+                """))
+
+    @configuration
+    def test_info_last_update_channel_ini(self, ini_file):
+        # --info's last update date uses the mtime of channel.ini even when
+        # /etc/ubuntu-build exists.
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        shutil.copy(
+            resource_filename('systemimage.tests.data', 'channel_01.ini'),
+            channel_ini)
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--info']))
+            # Set up the build number.
+            config = Configuration()
+            config.load(ini_file)
+            touch_build(20130701)
+            timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
+            os.utime(config.system.build_file, (timestamp_1, timestamp_1))
+            timestamp_2 = int(datetime(2011, 8, 1, 5, 6, 7).timestamp())
+            os.utime(channel_ini, (timestamp_2, timestamp_2))
+            cli_main()
+            self.assertEqual(capture.getvalue(), dedent("""\
+                current build number: 20130833
+                device name: nexus7
+                channel: proposed
+                last update: 2011-08-01 05:06:07
+                """))
+
+    @configuration
+    def test_info_last_update_date_fallback(self, ini_file):
+        # --info's last update date falls back to the mtime of
+        # /etc/ubuntu-build when no channel.ini file exists.
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        with ExitStack() as stack:
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            capture = StringIO()
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--info']))
+            # Set up the build number.
+            config = Configuration()
+            config.load(ini_file)
+            touch_build(20130701)
+            timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
+            os.utime(config.system.build_file, (timestamp_1, timestamp_1))
+            self.assertFalse(os.path.exists(channel_ini))
+            cli_main()
+            self.assertEqual(capture.getvalue(), dedent("""\
+                current build number: 20130701
+                device name: nexus7
+                channel: stable
+                last update: 2011-01-08 02:03:04
                 """))
 
     @configuration
@@ -175,8 +241,7 @@ class TestCLIMain(unittest.TestCase):
             # Set up the default build number.
             config = Configuration()
             config.load(ini_file)
-            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-                print(20130701, file=fp)
+            touch_build(20130701, TIMESTAMP)
             # Use --build to override the default build number.
             stack.enter_context(
                 patch('systemimage.main.sys.argv',
@@ -188,6 +253,7 @@ class TestCLIMain(unittest.TestCase):
                 current build number: 20250801
                 device name: nexus7
                 channel: stable
+                last update: 2013-08-01 12:11:10
                 """))
 
     @configuration
@@ -203,8 +269,7 @@ class TestCLIMain(unittest.TestCase):
             # Set up the default build number.
             config = Configuration()
             config.load(ini_file)
-            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-                print(20130701, file=fp)
+            touch_build(20130701, TIMESTAMP)
             stack.enter_context(
                 patch('systemimage.main.sys.argv',
                       ['argv0', '-C', ini_file,
@@ -215,6 +280,7 @@ class TestCLIMain(unittest.TestCase):
                 current build number: 20130701
                 device name: phablet
                 channel: stable
+                last update: 2013-08-01 12:11:10
                 """))
 
     @configuration
@@ -230,8 +296,7 @@ class TestCLIMain(unittest.TestCase):
             # Set up the default build number.
             config = Configuration()
             config.load(ini_file)
-            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-                print(20130701, file=fp)
+            touch_build(20130701, TIMESTAMP)
             stack.enter_context(
                 patch('systemimage.main.sys.argv',
                       ['argv0', '-C', ini_file,
@@ -242,6 +307,7 @@ class TestCLIMain(unittest.TestCase):
                 current build number: 20130701
                 device name: nexus7
                 channel: daily-proposed
+                last update: 2013-08-01 12:11:10
                 """))
 
     @configuration
@@ -257,8 +323,7 @@ class TestCLIMain(unittest.TestCase):
             # Set up the default build number.
             config = Configuration()
             config.load(ini_file)
-            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-                print(20130701, file=fp)
+            touch_build(20130701, TIMESTAMP)
             # Use --build to override the default build number.
             stack.enter_context(
                 patch('systemimage.main.sys.argv',
@@ -272,6 +337,7 @@ class TestCLIMain(unittest.TestCase):
                 current build number: 20250801
                 device name: phablet
                 channel: daily-proposed
+                last update: 2013-08-01 12:11:10
                 """))
 
     @configuration
@@ -310,13 +376,13 @@ class TestCLIMain(unittest.TestCase):
             # Set up the build number.
             config = Configuration()
             config.load(ini_file)
-            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-                print(20130701, file=fp)
+            touch_build(20130701, TIMESTAMP)
             cli_main()
             self.assertEqual(capture.getvalue(), dedent("""\
                 current build number: 20130833
                 device name: nexus7
                 channel: proposed
+                last update: 2013-08-01 12:11:10
                 """))
 
     @configuration
@@ -326,6 +392,7 @@ class TestCLIMain(unittest.TestCase):
         shutil.copy(
             resource_filename('systemimage.tests.data', 'channel_01.ini'),
             channel_ini)
+        os.utime(channel_ini, (TIMESTAMP, TIMESTAMP))
         with ExitStack() as stack:
             # We patch builtin print() rather than sys.stdout because the
             # latter can mess with pdb output should we need to trace through
@@ -343,6 +410,7 @@ class TestCLIMain(unittest.TestCase):
                 current build number: 20130833
                 device name: nexus7
                 channel: proposed
+                last update: 2013-08-01 12:11:10
                 """))
 
     @configuration
@@ -431,8 +499,7 @@ class TestCLIMainDryRun(_StateTestsBase):
             # Set up the build number.
             config = Configuration()
             config.load(ini_file)
-            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-                print(20130701, file=fp)
+            touch_build(20130701)
             cli_main()
             self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
@@ -482,8 +549,7 @@ class TestCLIFilters(_StateTestsBase):
             # Set up the build number.
             config = Configuration()
             config.load(ini_file)
-            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-                print(20120100, file=fp)
+            touch_build(20120100)
             cli_main()
             self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
@@ -505,8 +571,7 @@ class TestCLIFilters(_StateTestsBase):
             # Set up the build number.
             config = Configuration()
             config.load(ini_file)
-            with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-                print(20120100, file=fp)
+            touch_build(20120100)
             cli_main()
             self.assertEqual(capture.getvalue(), 'Upgrade path is 20130600\n')
 

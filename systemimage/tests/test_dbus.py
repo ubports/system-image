@@ -39,7 +39,7 @@ import shutil
 import unittest
 
 from contextlib import ExitStack
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from dbus.exceptions import DBusException
 from dbus.mainloop.glib import DBusGMainLoop
 from functools import partial
@@ -47,7 +47,6 @@ from gi.repository import GLib
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
-from systemimage.settings import LAST_UPDATE_KEY, Settings
 from systemimage.testing.controller import Controller
 from systemimage.testing.helpers import (
     copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
@@ -290,6 +289,14 @@ class _LiveTesting(_TestBase):
 class TestDBusCheckForUpdate(_LiveTesting):
     """Test the SystemImage dbus service."""
 
+    def setUp(self):
+        super().setUp()
+        self._more_resources = ExitStack()
+
+    def tearDown(self):
+        self._more_resources.close()
+        super().tearDown()
+
     def test_update_available(self):
         # There is an update available.
         self.download_manually()
@@ -306,7 +313,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
         self.assertEqual(available_version, '20130600')
         self.assertEqual(update_size, 314572800)
         # This is the first update applied.
-        self.assertEqual(last_update_date, '')
+        self.assertEqual(last_update_date, 'Unknown')
         ## self.assertEqual(descriptions, [{'description': 'Full'}])
         self.assertEqual(error_reason, '')
 
@@ -326,13 +333,16 @@ class TestDBusCheckForUpdate(_LiveTesting):
         self.assertEqual(available_version, '20130600')
         self.assertEqual(update_size, 314572800)
         # This is the first update applied.
-        self.assertEqual(last_update_date, '')
+        self.assertEqual(last_update_date, 'Unknown')
         ## self.assertEqual(descriptions, [{'description': 'Full'}])
         self.assertEqual(error_reason, '')
 
     def test_no_update_available(self):
         # Our device is newer than the version that's available.
         self._set_build(20130701)
+        # Give /etc/ubuntu-build a predictable mtime.
+        timestamp = int(datetime(2013, 8, 1, 10, 11, 12).timestamp())
+        os.utime(self.config.system.build_file, (timestamp, timestamp))
         signals = self._run_loop(
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(signals), 1)
@@ -342,7 +352,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
          error_reason) = signals[0]
         self.assertFalse(is_available)
         # No update has been previously applied.
-        self.assertEqual(last_update_date, '')
+        self.assertEqual(last_update_date, '2013-08-01 10:11:12')
         # All other values are undefined.
 
     def test_last_update_date(self):
@@ -350,10 +360,13 @@ class TestDBusCheckForUpdate(_LiveTesting):
         # available, but the date of the last update is provided in the signal.
         self._set_build(20130701)
         # Fake that there was a previous update.
-        # Some random date in the past.
-        when = datetime(2013, 1, 20, 12, 1, 45, tzinfo=timezone.utc)
-        # Knock off the +00:00 from the format since it's always UTC.
-        Settings(self.config).set(LAST_UPDATE_KEY, when.isoformat()[:-6])
+        timestamp = int(datetime(2013, 1, 20, 12, 1, 45).timestamp())
+        channel_ini = os.path.join(
+            os.path.dirname(_controller.ini_path), 'channel.ini')
+        self._more_resources.callback(safe_remove, channel_ini)
+        with open(channel_ini, 'w', encoding='utf-8'):
+            pass
+        os.utime(channel_ini, (timestamp, timestamp))
         signals = self._run_loop(
             self.iface.CheckForUpdate, 'UpdateAvailableStatus')
         self.assertEqual(len(signals), 1)
@@ -363,7 +376,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
          error_reason) = signals[0]
         self.assertFalse(is_available)
         # No update has been previously applied.
-        self.assertEqual(last_update_date, '2013-01-20T12:01:45')
+        self.assertEqual(last_update_date, '2013-01-20 12:01:45')
         # All other values are undefined.
 
     @unittest.skip('LP: #1215586')

@@ -17,28 +17,20 @@
 
 
 __all__ = [
-    'TestBag',
     'TestConverters',
+    'TestLastUpdateDate',
     ]
 
 
+import os
 import logging
 import unittest
 
-from datetime import timedelta
-from systemimage.helpers import Bag, as_loglevel, as_object, as_timedelta
-
-
-class TestBag(unittest.TestCase):
-    def test_hyphens(self):
-        # Hyphens get converted to underscores.
-        bag = Bag(**{'foo-bar': 'yes'})
-        self.assertEqual(bag.foo_bar, 'yes')
-
-    def test_keywords(self):
-        # Python keywords get an underscore appended.
-        bag = Bag(**{'global': 'yes'})
-        self.assertEqual(bag.global_, 'yes')
+from datetime import datetime, timedelta
+from systemimage.config import Configuration
+from systemimage.helpers import (
+    Bag, as_loglevel, as_object, as_timedelta, last_update_date)
+from systemimage.testing.helpers import configuration, touch_build
 
 
 class TestConverters(unittest.TestCase):
@@ -76,3 +68,59 @@ class TestConverters(unittest.TestCase):
 
     def test_as_loglevel_unknown(self):
         self.assertRaises(ValueError, as_loglevel, 'BADNESS')
+
+
+class TestLastUpdateDate(unittest.TestCase):
+    @configuration
+    def test_date_from_channel_ini(self, ini_file):
+        # The last update date can come from the mtime of the channel.ini
+        # file, which lives next to the configuration file.
+        channel_ini = os.path.join(
+            os.path.dirname(ini_file), 'channel.ini')
+        with open(channel_ini, 'w', encoding='utf-8'):
+            pass
+        timestamp = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
+        os.utime(channel_ini, (timestamp, timestamp))
+        self.assertEqual(last_update_date(), '2022-01-02 03:04:05')
+
+    @configuration
+    def test_date_from_channel_ini_instead_of_ubuntu_build(self, ini_file):
+        # The last update date can come from the mtime of the channel.ini
+        # file, which lives next to the configuration file, even when there is
+        # an /etc/ubuntu-build file.
+        channel_ini = os.path.join(
+            os.path.dirname(ini_file), 'channel.ini')
+        with open(channel_ini, 'w', encoding='utf-8'):
+            pass
+        # This creates the ubuntu-build file, but not the channel.ini file.
+        timestamp_1 = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
+        touch_build(2, timestamp_1)
+        timestamp_2 = int(datetime(2022, 3, 4, 5, 6, 7).timestamp())
+        os.utime(channel_ini, (timestamp_2, timestamp_2))
+        self.assertEqual(last_update_date(), '2022-03-04 05:06:07')
+
+    @configuration
+    def test_date_fallback(self, ini_file):
+        # If the channel.ini file doesn't exist, use the ubuntu-build file.
+        channel_ini = os.path.join(
+            os.path.dirname(ini_file), 'channel.ini')
+        with open(channel_ini, 'w', encoding='utf-8'):
+            pass
+        # This creates the ubuntu-build file, but not the channel.ini file.
+        timestamp_1 = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
+        touch_build(2, timestamp_1)
+        timestamp_2 = int(datetime(2022, 3, 4, 5, 6, 7).timestamp())
+        os.utime(channel_ini, (timestamp_2, timestamp_2))
+        # Like the above test, but with this file removed.
+        os.remove(channel_ini)
+        self.assertEqual(last_update_date(), '2022-01-02 03:04:05')
+
+    @configuration
+    def test_date_unknown(self, ini_file):
+        # No fallbacks.
+        config = Configuration()
+        config.load(ini_file)
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        self.assertFalse(os.path.exists(channel_ini))
+        self.assertFalse(os.path.exists(config.system.build_file))
+        self.assertEqual(last_update_date(), 'Unknown')

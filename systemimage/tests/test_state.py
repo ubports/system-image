@@ -39,7 +39,7 @@ from systemimage.state import State
 from systemimage.testing.demo import DemoDevice
 from systemimage.testing.helpers import (
     configuration, copy, get_index, make_http_server, setup_index,
-    setup_keyring_txz, setup_keyrings, sign, temporary_directory)
+    setup_keyring_txz, setup_keyrings, sign, temporary_directory, touch_build)
 from unittest.mock import patch
 
 
@@ -454,8 +454,7 @@ class TestRebooting(_StateTestsBase):
         # machine to completion should not result in a reboot.
         self._setup_keyrings()
         # Hack the current build number so that no update is available.
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20250000, file=fp)
+        touch_build(20250000)
         with patch('systemimage.reboot.Reboot.reboot') as mock:
             list(State())
         self.assertEqual(mock.call_count, 0)
@@ -536,8 +535,7 @@ class TestCommandFileDelta(_StateTestsBase):
         # A delta update's command file gets properly filled.
         self._setup_keyrings()
         # Set the current build number so a delta update will work.
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         State().run_until('reboot')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -566,8 +564,7 @@ class TestFileOrder(_StateTestsBase):
         # within the image by the 'order' key.
         self._setup_keyrings()
         # Set the current build number so a delta update will work.
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         State().run_until('reboot')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -618,8 +615,7 @@ class TestPersistence(_StateTestsBase):
     def test_no_update_no_pickle_file(self):
         # If there's no update, there's no state file.
         self._setup_keyrings()
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20250000, file=fp)
+        touch_build(20250000)
         self.assertFalse(os.path.exists(config.system.state_file))
         state = State()
         self.assertIsNone(state.winner)
@@ -696,8 +692,7 @@ class TestFilters(_StateTestsBase):
     def test_filter_none(self):
         # With no filter, we get the unadulterated candidate paths.
         self._setup_keyrings()
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         state = State()
         state.run_thru('calculate_winner')
         self.assertEqual(len(state.winner), 1)
@@ -707,8 +702,7 @@ class TestFilters(_StateTestsBase):
         # The state machine can use a filter to come up with a different set
         # of candidate upgrade paths.  In this case, no candidates.
         self._setup_keyrings()
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(20120100, file=fp)
+        touch_build(20120100)
         def filter_out_everything(candidates):
             return []
         state = State(candidate_filter=filter_out_everything)
