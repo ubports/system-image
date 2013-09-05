@@ -11,9 +11,12 @@ NEWS for system-image updater
       falling back to the mtime of `/etc/ubuntu-build`).
     - version details for ubuntu, the device, and any custom version, if the
       `/etc/system-image/channel.ini` file contains these details.
- * The D-Bus API signal `UpdateAvailableStatus` field `last_update_date` has a
-   changed format.  It's still ISO 8601, but with a space instead of a 'T'
-   separating the date from the time.
+ * D-Bus API changes:
+   - `UpdateAvailableStatus` field `last_update_date` has changes its format.
+      It's still ISO 8601, but with a space instead of a 'T' separating the
+      date from the time.
+   - New `Info()` method returns data similar to `system-image-cli --info`.
+     (LP: #1215959)
 
 1.4 (2013-08-30)
 ================

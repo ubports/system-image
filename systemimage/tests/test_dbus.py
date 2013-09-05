@@ -21,6 +21,8 @@ __all__ = [
     'TestDBusClient',
     'TestDBusDownload',
     'TestDBusGetSet',
+    'TestDBusInfo',
+    'TestDBusInfoNoDetails',
     'TestDBusMain',
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
@@ -1288,3 +1290,30 @@ class TestDBusGetSet(_TestBase):
         key, new_value = signals[0]
         self.assertEqual(key, 'min_battery')
         self.assertEqual(new_value, '30')
+
+
+class TestDBusInfo(_TestBase):
+    mode = 'more-info'
+
+    def test_info(self):
+        # .Info() with a channel.ini containing version details.
+        buildno, device, channel, last_update, details = self.iface.Info()
+        self.assertEqual(buildno, 45)
+        self.assertEqual(device, 'nexus11')
+        self.assertEqual(channel, 'daily-proposed')
+        self.assertEqual(last_update, '2099-08-01 04:45:45')
+        self.assertEqual(details, dict(ubuntu='123', mako='456', custom='789'))
+
+
+class TestDBusInfoNoDetails(_LiveTesting):
+    def test_info_no_version_details(self):
+        # .Info() where there is no channel.ini with version details.
+        self._set_build(45)
+        timestamp = datetime(2099, 8, 1, 4, 45, 45).timestamp()
+        os.utime(self.config.system.build_file, (timestamp, timestamp))
+        buildno, device, channel, last_update, details = self.iface.Info()
+        self.assertEqual(buildno, 45)
+        self.assertEqual(device, 'nexus7')
+        self.assertEqual(channel, 'stable')
+        self.assertEqual(last_update, '2099-08-01 04:45:45')
+        self.assertEqual(details, {})

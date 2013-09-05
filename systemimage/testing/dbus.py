@@ -331,6 +331,17 @@ class _NoUpdate(Service):
             '')
 
 
+class _MoreInfo(Service):
+    @method('com.canonical.SystemImage')
+    def Reset(self):
+        pass
+
+    @method('com.canonical.SystemImage', out_signature='isssa{ss}')
+    def Info(self):
+        return (45, 'nexus11', 'daily-proposed', '2099-08-01 04:45:45',
+                dict(ubuntu='123', mako='456', custom='789'))
+
+
 def get_service(testing_mode, system_bus, object_path, loop):
     """Return the appropriate service class for the testing mode."""
     if testing_mode == 'live':
@@ -349,6 +360,8 @@ def get_service(testing_mode, system_bus, object_path, loop):
         ServiceClass = _FailPause
     elif testing_mode == 'no-update':
         ServiceClass = _NoUpdate
+    elif testing_mode == 'more-info':
+        ServiceClass = _MoreInfo
     else:
         raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
     return ServiceClass(system_bus, object_path, loop)

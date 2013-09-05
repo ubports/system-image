@@ -23,6 +23,8 @@ __all__ = [
 from dbus.service import Object, method, signal
 from gi.repository import GLib
 from systemimage.api import Mediator
+from systemimage.config import config
+from systemimage.helpers import last_update_date, version_detail
 from systemimage.settings import Settings
 
 
@@ -157,6 +159,14 @@ class Service(Object):
             return 'No update has been downloaded'
         self._api.reboot()
         return ''
+
+    @method('com.canonical.SystemImage', out_signature='isssa{ss}')
+    def Info(self):
+        return (config.build_number,
+                config.device,
+                config.channel,
+                last_update_date(),
+                version_detail())
 
     @method('com.canonical.SystemImage', in_signature='ss')
     def SetSetting(self, key, value):
