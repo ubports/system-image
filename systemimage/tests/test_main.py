@@ -52,366 +52,295 @@ TIMESTAMP = datetime(2013, 8, 1, 12, 11, 10).timestamp()
 class TestCLIMain(unittest.TestCase):
     maxDiff = None
 
+    def setUp(self):
+        super().setUp()
+        self._resources = ExitStack()
+        try:
+            self._stdout = StringIO()
+            self._stderr = StringIO()
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            self._resources.enter_context(
+                patch('builtins.print', partial(print, file=self._stdout)))
+            # Patch argparse's stderr to capture its error messages.
+            self._resources.enter_context(
+                patch('argparse._sys.stderr', self._stderr))
+        except:
+            self._resources.close()
+            raise
+
+    def tearDown(self):
+        self._resources.close()
+        super().tearDown()
+
     def test_config_file_good_path(self):
         # The default configuration file exists.
-        with ExitStack() as stack:
-            # Ignore printed output.
-            stack.enter_context(patch('builtins.print'))
-            # Patch arguments to something harmless.
-            stack.enter_context(
-                patch('systemimage.main.sys.argv', ['argv0', '--info']))
-            # Patch default configuration file.
-            tempdir = stack.enter_context(temporary_directory())
-            ini_path = os.path.join(tempdir, 'client.ini')
-            shutil.copy(
-                resource_filename('systemimage.data', 'client.ini'), tempdir)
-            stack.enter_context(
-                patch('systemimage.main.DEFAULT_CONFIG_FILE', ini_path))
-            # Mock out the initialize() call so that the main() doesn't try to
-            # create a log file in a non-existent system directory.
-            stack.enter_context(patch('systemimage.main.initialize'))
-            cli_main()
-            self.assertEqual(config.config_file, ini_path)
-            self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv', ['argv0', '--info']))
+        # Patch default configuration file.
+        tempdir = self._resources.enter_context(temporary_directory())
+        ini_path = os.path.join(tempdir, 'client.ini')
+        shutil.copy(
+            resource_filename('systemimage.data', 'client.ini'), tempdir)
+        self._resources.enter_context(
+            patch('systemimage.main.DEFAULT_CONFIG_FILE', ini_path))
+        # Mock out the initialize() call so that the main() doesn't try to
+        # create a log file in a non-existent system directory.
+        self._resources.enter_context(patch('systemimage.main.initialize'))
+        cli_main()
+        self.assertEqual(config.config_file, ini_path)
+        self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
 
     def test_missing_default_config_file(self):
         # The default configuration file is missing.
-        with ExitStack() as stack:
-            # Capture sys.stderr messages.
-            stderr = StringIO()
-            stack.enter_context(patch('argparse._sys.stderr', stderr))
-            # Patch arguments to be empty, otherwise the unittest arguments
-            # will leak through.
-            stack.enter_context(patch('systemimage.main.sys.argv', ['argv0']))
-            # Patch default configuration file.
-            stack.enter_context(
-                patch('systemimage.main.DEFAULT_CONFIG_FILE',
-                      '/does/not/exist/client.ini'))
-            with self.assertRaises(SystemExit) as cm:
-                cli_main()
-            self.assertEqual(cm.exception.code, 2)
-            self.assertEqual(
-                stderr.getvalue().splitlines()[-1],
-                'Configuration file not found: /does/not/exist/client.ini')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv', ['argv0']))
+        # Patch default configuration file.
+        self._resources.enter_context(
+            patch('systemimage.main.DEFAULT_CONFIG_FILE',
+                  '/does/not/exist/client.ini'))
+        with self.assertRaises(SystemExit) as cm:
+            cli_main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual(
+            self._stderr.getvalue().splitlines()[-1],
+            'Configuration file not found: /does/not/exist/client.ini')
 
     def test_missing_explicit_config_file(self):
         # An explicit configuration file given with -C is missing.
-        with ExitStack() as stack:
-            # Capture sys.stderr messages.
-            stderr = StringIO()
-            stack.enter_context(patch('argparse._sys.stderr', stderr))
-            # Patch arguments.
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', '/does/not/exist.ini']))
-            with self.assertRaises(SystemExit) as cm:
-                cli_main()
-            self.assertEqual(cm.exception.code, 2)
-            self.assertEqual(
-                stderr.getvalue().splitlines()[-1],
-                'Configuration file not found: /does/not/exist.ini')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', '/does/not/exist.ini']))
+        with self.assertRaises(SystemExit) as cm:
+            cli_main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual(
+            self._stderr.getvalue().splitlines()[-1],
+            'Configuration file not found: /does/not/exist.ini')
 
     def test_ensure_directories_exist(self):
         # The temporary and var directories are created if they don't exist.
-        with ExitStack() as stack:
-            dir_1 = stack.enter_context(temporary_directory())
-            dir_2 = stack.enter_context(temporary_directory())
-            # Create a configuration file with directories that point to
-            # non-existent locations.
-            config_ini = os.path.join(dir_1, 'client.ini')
-            with open(data_path('config_00.ini'), encoding='utf-8') as fp:
-                template = fp.read()
-            # These paths look something like they would on the real system.
-            tmpdir = os.path.join(dir_2, 'tmp', 'system-image')
-            vardir = os.path.join(dir_2, 'var', 'lib', 'system-image')
-            configuration = template.format(tmpdir=tmpdir, vardir=vardir)
-            with open(config_ini, 'wt', encoding='utf-8') as fp:
-                fp.write(configuration)
-            # Invoke main() in such a way that the directories will be
-            # created.  We don't care about the output.
-            stack.enter_context(patch('builtins.print'))
-            # Patch arguments to something harmless.
-            stack.enter_context(patch(
-                'systemimage.main.sys.argv',
-                ['argv0', '-C', config_ini, '--info']))
-            self.assertFalse(os.path.exists(tmpdir))
-            cli_main()
-            self.assertTrue(os.path.exists(tmpdir))
+        dir_1 = self._resources.enter_context(temporary_directory())
+        dir_2 = self._resources.enter_context(temporary_directory())
+        # Create a configuration file with directories that point to
+        # non-existent locations.
+        config_ini = os.path.join(dir_1, 'client.ini')
+        with open(data_path('config_00.ini'), encoding='utf-8') as fp:
+            template = fp.read()
+        # These paths look something like they would on the real system.
+        tmpdir = os.path.join(dir_2, 'tmp', 'system-image')
+        vardir = os.path.join(dir_2, 'var', 'lib', 'system-image')
+        configuration = template.format(tmpdir=tmpdir, vardir=vardir)
+        with open(config_ini, 'wt', encoding='utf-8') as fp:
+            fp.write(configuration)
+        # Invoking main() creates the directories.
+        self._resources.enter_context(patch(
+            'systemimage.main.sys.argv',
+            ['argv0', '-C', config_ini, '--info']))
+        self.assertFalse(os.path.exists(tmpdir))
+        cli_main()
+        self.assertTrue(os.path.exists(tmpdir))
 
     @configuration
     def test_info(self, ini_file):
         # -i/--info gives information about the device, including the current
         # build number, channel, and device name.
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--info']))
-            # Set up the build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(20130701, TIMESTAMP)
-            cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""\
-                current build number: 20130701
-                device name: nexus7
-                channel: stable
-                last update: 2013-08-01 12:11:10
-                """))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--info']))
+        # Set up the build number.
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(20130701, TIMESTAMP)
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20130701
+            device name: nexus7
+            channel: stable
+            last update: 2013-08-01 12:11:10
+            """))
 
     @configuration
     def test_info_last_update_channel_ini(self, ini_file):
         # --info's last update date uses the mtime of channel.ini even when
         # /etc/ubuntu-build exists.
         channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
-        shutil.copy(
-            resource_filename('systemimage.tests.data', 'channel_01.ini'),
-            channel_ini)
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--info']))
-            # Set up the build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(20130701)
-            timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
-            os.utime(config.system.build_file, (timestamp_1, timestamp_1))
-            timestamp_2 = int(datetime(2011, 8, 1, 5, 6, 7).timestamp())
-            os.utime(channel_ini, (timestamp_2, timestamp_2))
-            cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""\
-                current build number: 20130833
-                device name: nexus7
-                channel: proposed
-                last update: 2011-08-01 05:06:07
-                """))
+        head, tail = os.path.split(channel_ini)
+        copy('channel_01.ini', head, tail)
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--info']))
+        # Set up the build number.
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(20130701)
+        timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
+        os.utime(config.system.build_file, (timestamp_1, timestamp_1))
+        timestamp_2 = int(datetime(2011, 8, 1, 5, 6, 7).timestamp())
+        os.utime(channel_ini, (timestamp_2, timestamp_2))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20130833
+            device name: nexus7
+            channel: proposed
+            last update: 2011-08-01 05:06:07
+            """))
 
     @configuration
     def test_info_last_update_date_fallback(self, ini_file):
         # --info's last update date falls back to the mtime of
         # /etc/ubuntu-build when no channel.ini file exists.
         channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--info']))
-            # Set up the build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(20130701)
-            timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
-            os.utime(config.system.build_file, (timestamp_1, timestamp_1))
-            self.assertFalse(os.path.exists(channel_ini))
-            cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""\
-                current build number: 20130701
-                device name: nexus7
-                channel: stable
-                last update: 2011-01-08 02:03:04
-                """))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--info']))
+        # Set up the build number.
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(20130701)
+        timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
+        os.utime(config.system.build_file, (timestamp_1, timestamp_1))
+        self.assertFalse(os.path.exists(channel_ini))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20130701
+            device name: nexus7
+            channel: stable
+            last update: 2011-01-08 02:03:04
+            """))
 
     @configuration
     def test_build_number(self, ini_file):
         # -b/--build overrides the build number.
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            # Set up the default build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(20130701, TIMESTAMP)
-            # Use --build to override the default build number.
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file,
-                       '--build', '20250801',
-                       '--info']))
-            cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""\
-                current build number: 20250801
-                device name: nexus7
-                channel: stable
-                last update: 2013-08-01 12:11:10
-                """))
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(20130701, TIMESTAMP)
+        # Use --build to override the default build number.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--build', '20250801',
+                   '--info']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20250801
+            device name: nexus7
+            channel: stable
+            last update: 2013-08-01 12:11:10
+            """))
 
     @configuration
     def test_device_name(self, ini_file):
         # -d/--device overrides the device type.
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            # Set up the default build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(20130701, TIMESTAMP)
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file,
-                       '--device', 'phablet',
-                       '--info']))
-            cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""\
-                current build number: 20130701
-                device name: phablet
-                channel: stable
-                last update: 2013-08-01 12:11:10
-                """))
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(20130701, TIMESTAMP)
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--device', 'phablet',
+                   '--info']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20130701
+            device name: phablet
+            channel: stable
+            last update: 2013-08-01 12:11:10
+            """))
 
     @configuration
     def test_channel_name(self, ini_file):
         # -c/--channel overrides the channel.
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            # Set up the default build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(20130701, TIMESTAMP)
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file,
-                       '--channel', 'daily-proposed',
-                       '--info']))
-            cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""\
-                current build number: 20130701
-                device name: nexus7
-                channel: daily-proposed
-                last update: 2013-08-01 12:11:10
-                """))
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(20130701, TIMESTAMP)
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--channel', 'daily-proposed',
+                   '--info']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20130701
+            device name: nexus7
+            channel: daily-proposed
+            last update: 2013-08-01 12:11:10
+            """))
 
     @configuration
     def test_all_overrides(self, ini_file):
         # Use -b -d and -c together.
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            # Set up the default build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(20130701, TIMESTAMP)
-            # Use --build to override the default build number.
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file,
-                       '-b', '20250801',
-                       '-c', 'daily-proposed',
-                       '-d', 'phablet',
-                       '--info']))
-            cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""\
-                current build number: 20250801
-                device name: phablet
-                channel: daily-proposed
-                last update: 2013-08-01 12:11:10
-                """))
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(20130701, TIMESTAMP)
+        # Use --build to override the default build number.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '-b', '20250801',
+                   '-c', 'daily-proposed',
+                   '-d', 'phablet',
+                   '--info']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20250801
+            device name: phablet
+            channel: daily-proposed
+            last update: 2013-08-01 12:11:10
+            """))
 
     @configuration
     def test_bad_build_number_override(self, ini_file):
         # -b/--build requires an integer.
-        with ExitStack() as stack:
-            stderr = StringIO()
-            stack.enter_context(patch('argparse._sys.stderr', stderr))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--build', 'bogus']))
-            with self.assertRaises(SystemExit) as cm:
-                cli_main()
-            self.assertEqual(cm.exception.code, 2)
-            self.assertEqual(
-              stderr.getvalue().splitlines()[-1],
-              'system-image-cli: error: -b/--build requires an integer: bogus')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--build', 'bogus']))
+        with self.assertRaises(SystemExit) as cm:
+            cli_main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual(
+          self._stderr.getvalue().splitlines()[-1],
+          'system-image-cli: error: -b/--build requires an integer: bogus')
 
     @configuration
     def test_channel_ini_override_build_number(self, ini_file):
         # The channel.ini file can override the build number.
-        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
-        shutil.copy(
-            resource_filename('systemimage.tests.data', 'channel_01.ini'),
-            channel_ini)
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '-i']))
-            # Set up the build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(20130701, TIMESTAMP)
-            cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""\
-                current build number: 20130833
-                device name: nexus7
-                channel: proposed
-                last update: 2013-08-01 12:11:10
-                """))
+        copy('channel_01.ini', os.path.dirname(ini_file), 'channel.ini')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '-i']))
+        # Set up the build number.
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(20130701, TIMESTAMP)
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20130833
+            device name: nexus7
+            channel: proposed
+            last update: 2013-08-01 12:11:10
+            """))
 
     @configuration
     def test_channel_ini_override_channel(self, ini_file):
         # The channel.ini file can override the channel.
         channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
-        shutil.copy(
-            resource_filename('systemimage.tests.data', 'channel_01.ini'),
-            channel_ini)
+        head, tail = os.path.split(channel_ini)
+        copy('channel_01.ini', head, tail)
         os.utime(channel_ini, (TIMESTAMP, TIMESTAMP))
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            config = Configuration()
-            config.load(ini_file)
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '-i']))
-            cli_main()
-            self.assertEqual(capture.getvalue(), dedent("""\
-                current build number: 20130833
-                device name: nexus7
-                channel: proposed
-                last update: 2013-08-01 12:11:10
-                """))
+        config = Configuration()
+        config.load(ini_file)
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '-i']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20130833
+            device name: nexus7
+            channel: proposed
+            last update: 2013-08-01 12:11:10
+            """))
 
     @configuration
     def test_log_file(self, ini_file):
@@ -426,11 +355,12 @@ class TestCLIMain(unittest.TestCase):
                 return self
             def __next__(self):
                 raise StopIteration
-        with ExitStack() as stack:
-            stack.enter_context(patch('systemimage.main.sys.argv',
-                                      ['argv0', '-C', ini_file]))
-            stack.enter_context(patch('systemimage.main.State', FakeState))
-            cli_main()
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+            ['argv0', '-C', ini_file]))
+        self._resources.enter_context(
+            patch('systemimage.main.State', FakeState))
+        cli_main()
         self.assertTrue(os.path.exists(config.system.logfile))
         with open(config.system.logfile, encoding='utf-8') as fp:
             logged = fp.read()
@@ -441,21 +371,54 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_bad_filter_type(self, ini_file):
         # --filter option where value is not `full` or `delta` is an error.
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            stderr = StringIO()
-            stack.enter_context(patch('argparse._sys.stderr', stderr))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--filter', 'bogus']))
-            with self.assertRaises(SystemExit) as cm:
-                cli_main()
-            self.assertEqual(cm.exception.code, 2)
-            self.assertEqual(
-                stderr.getvalue().splitlines()[-1],
-                'system-image-cli: error: Bad filter type: bogus')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--filter', 'bogus']))
+        with self.assertRaises(SystemExit) as cm:
+            cli_main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual(
+            self._stderr.getvalue().splitlines()[-1],
+            'system-image-cli: error: Bad filter type: bogus')
+
+    @configuration
+    def test_version_detail(self, ini_file):
+        # --info where channel.ini has [service]version_detail
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        head, tail = os.path.split(channel_ini)
+        copy('channel_03.ini', head, tail)
+        os.utime(channel_ini, (TIMESTAMP, TIMESTAMP))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '-i']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20130833
+            device name: nexus7
+            channel: proposed
+            last update: 2013-08-01 12:11:10
+            version ubuntu: 123
+            version mako: 456
+            version custom: 789
+            """))
+
+    @configuration
+    def test_no_version_detail(self, ini_file):
+        # --info where channel.ini does not hav [service]version_detail
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        head, tail = os.path.split(channel_ini)
+        copy('channel_01.ini', head, tail)
+        os.utime(channel_ini, (TIMESTAMP, TIMESTAMP))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '-i']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 20130833
+            device name: nexus7
+            channel: proposed
+            last update: 2013-08-01 12:11:10
+            """))
 
 
 class TestCLIMainDryRun(_StateTestsBase):

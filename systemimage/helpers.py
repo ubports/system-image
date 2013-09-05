@@ -25,6 +25,7 @@ __all__ = [
     'makedirs',
     'safe_remove',
     'temporary_directory',
+    'version_detail',
     ]
 
 
@@ -197,8 +198,27 @@ def last_update_date():
         try:
             # Local time, since we can't know the timezone.
             timestamp = datetime.fromtimestamp(os.stat(path).st_mtime)
+            # Seconds resolution.
+            timestamp = timestamp.replace(microsecond=0)
             return str(timestamp)
         except FileNotFoundError:
             pass
     else:
         return 'Unknown'
+
+
+def version_detail():
+    """Return a dictionary of the version details."""
+    # Avoid circular imports.
+    from systemimage.config import config
+    version_details = getattr(config.service, 'version_detail', None)
+    if version_details is None:
+        return {}
+    details = {}
+    if version_details is not None:
+        for item in version_details.strip().split(','):
+            name, equals, version = item.partition('=')
+            if equals != '=':
+                continue
+            details[name] = version
+    return details

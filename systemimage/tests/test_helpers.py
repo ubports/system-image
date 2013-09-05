@@ -27,10 +27,11 @@ import logging
 import unittest
 
 from datetime import datetime, timedelta
-from systemimage.config import Configuration
+from systemimage.config import Configuration, config
 from systemimage.helpers import (
-    Bag, as_loglevel, as_object, as_timedelta, last_update_date)
-from systemimage.testing.helpers import configuration, touch_build
+    Bag, as_loglevel, as_object, as_timedelta, last_update_date,
+    version_detail)
+from systemimage.testing.helpers import configuration, data_path, touch_build
 
 
 class TestConverters(unittest.TestCase):
@@ -124,3 +125,29 @@ class TestLastUpdateDate(unittest.TestCase):
         self.assertFalse(os.path.exists(channel_ini))
         self.assertFalse(os.path.exists(config.system.build_file))
         self.assertEqual(last_update_date(), 'Unknown')
+
+    @configuration
+    def test_date_no_microseconds(self, ini_file):
+        # Resolution is seconds.
+        channel_ini = os.path.join(
+            os.path.dirname(ini_file), 'channel.ini')
+        with open(channel_ini, 'w', encoding='utf-8'):
+            pass
+        timestamp = datetime(2013, 12, 11, 10, 9, 8, 7).timestamp()
+        # We need nanoseconds.
+        timestamp *= 1000000000
+        os.utime(channel_ini, ns=(timestamp, timestamp))
+        self.assertEqual(last_update_date(), '2013-12-11 10:09:08')
+
+    @configuration
+    def test_version_details(self, ini_file):
+        channel_ini = data_path('channel_03.ini')
+        config.load(channel_ini, override=True)
+        self.assertEqual(version_detail(),
+                         dict(ubuntu='123', mako='456', custom='789'))
+
+    @configuration
+    def test_no_version_detail(self, ini_file):
+        channel_ini = data_path('channel_01.ini')
+        config.load(channel_ini, override=True)
+        self.assertEqual(version_detail(), {})

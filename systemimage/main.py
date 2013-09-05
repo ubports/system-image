@@ -30,7 +30,7 @@ from pkg_resources import resource_string as resource_bytes
 from systemimage.bindings import DBusClient
 from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
-from systemimage.helpers import last_update_date, makedirs
+from systemimage.helpers import last_update_date, makedirs, version_detail
 from systemimage.logging import initialize
 from systemimage.state import State
 from textwrap import dedent
@@ -149,6 +149,12 @@ def main():
                 config.channel,
                 last_update_date(),
                 ))
+        # If there's additional version details, print this out now too.  We
+        # sort the keys in reverse order because we want 'ubuntu' to generally
+        # come first.
+        details = version_detail()
+        for key in sorted(details, reverse=True):
+            print('version {}: {}'.format(key, details[key]))
         return 0
 
     # We can either run the API directly or through DBus.

@@ -6,9 +6,11 @@ NEWS for system-image updater
 ================
  * `system-image-cli --dry-run -c <bad-channel>` no longer produces a
    traceback.  You get "Already up-to-date", but use `-v` for more info.
- * `system-image-cli --info` now includes last update time (i.e. the mtime of
-   `/etc/system-image/channel.ini` falling back to the mtime of
-   `/etc/ubuntu-build1).
+ * `system-image-cli --info` prints additional information:
+    - last update time (i.e. the mtime of `/etc/system-image/channel.ini`
+      falling back to the mtime of `/etc/ubuntu-build`).
+    - version details for ubuntu, the device, and any custom version, if the
+      `/etc/system-image/channel.ini` file contains these details.
  * The D-Bus API signal `UpdateAvailableStatus` field `last_update_date` has a
    changed format.  It's still ISO 8601, but with a space instead of a 'T'
    separating the date from the time.
