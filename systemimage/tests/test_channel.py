@@ -19,6 +19,7 @@ __all__ = [
     'TestChannels',
     'TestLoadChannel',
     'TestLoadChannelOverHTTPS',
+    'TestChannelsNewFormat',
     ]
 
 
@@ -36,35 +37,34 @@ from systemimage.testing.helpers import (
 
 
 class TestChannels(unittest.TestCase):
-    def setUp(self):
-        self.channels = get_channels('channels_01.json')
-
     def test_channels(self):
         # Test that parsing a simple top level channels.json file produces the
         # expected set of channels.  The Nexus 7 daily images have a device
         # specific keyring.
-        self.assertEqual(self.channels.daily.nexus7.index,
+        channels = get_channels('channels_01.json')
+        self.assertEqual(channels.daily.devices.nexus7.index,
                          '/daily/nexus7/index.json')
-        self.assertEqual(self.channels.daily.nexus7.keyring.path,
+        self.assertEqual(channels.daily.devices.nexus7.keyring.path,
                          '/daily/nexus7/device-keyring.tar.xz')
-        self.assertEqual(self.channels.daily.nexus7.keyring.signature,
+        self.assertEqual(channels.daily.devices.nexus7.keyring.signature,
                          '/daily/nexus7/device-keyring.tar.xz.asc')
-        self.assertEqual(self.channels.daily.nexus4.index,
+        self.assertEqual(channels.daily.devices.nexus4.index,
                          '/daily/nexus4/index.json')
-        self.assertIsNone(getattr(self.channels.daily.nexus4, 'keyring', None))
-        self.assertEqual(self.channels.stable.nexus7.index,
+        self.assertIsNone(
+            getattr(channels.daily.devices.nexus4, 'keyring', None))
+        self.assertEqual(channels.stable.devices.nexus7.index,
                          '/stable/nexus7/index.json')
 
     def test_getattr_failure(self):
         # Test the getattr syntax on an unknown channel or device combination.
-        self.assertRaises(AttributeError, getattr, self.channels, 'bleeding')
-        self.assertRaises(AttributeError,
-                          getattr, self.channels.stable, 'nexus3')
+        channels = get_channels('channels_01.json')
+        self.assertRaises(AttributeError, getattr, channels, 'bleeding')
+        self.assertRaises(AttributeError, getattr, channels.stable, 'nexus3')
 
     def test_daily_proposed(self):
         # The channel name has a dash in it.
         channels = get_channels('channels_07.json')
-        self.assertEqual(channels['daily-proposed'].grouper.index,
+        self.assertEqual(channels['daily-proposed'].devices.grouper.index,
                          '/daily-proposed/grouper/index.json')
 
     def test_bad_getitem(self):
@@ -75,13 +75,13 @@ class TestChannels(unittest.TestCase):
     def test_channel_version(self):
         # The channel name has a dot in it.
         channels = get_channels('channels_08.json')
-        self.assertEqual(channels['13.10'].grouper.index,
+        self.assertEqual(channels['13.10'].devices.grouper.index,
                          '/13.10/grouper/index.json')
 
     def test_channel_version_proposed(self):
         # The channel name has both a dot and a dash in it.
         channels = get_channels('channels_08.json')
-        self.assertEqual(channels['14.04-proposed'].grouper.index,
+        self.assertEqual(channels['14.04-proposed'].devices.grouper.index,
                          '/14.04-proposed/grouper/index.json')
 
 
@@ -111,10 +111,9 @@ class TestLoadChannel(unittest.TestCase):
         # (blacklist -> channels)
         sign(self._channels_path, 'image-signing.gpg')
         setup_keyrings()
-        next(self._state)
-        next(self._state)
+        self._state.run_thru('get_channel')
         channels = self._state.channels
-        self.assertEqual(channels.daily.nexus7.keyring.signature,
+        self.assertEqual(channels.daily.devices.nexus7.keyring.signature,
                          '/daily/nexus7/device-keyring.tar.xz.asc')
 
     @configuration
@@ -124,8 +123,7 @@ class TestLoadChannel(unittest.TestCase):
         # (blacklist -> channels -> signing_key)
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
-        next(self._state)
-        next(self._state)
+        self._state.run_thru('get_channel')
         self.assertRaises(SignatureError, next, self._state)
 
     @configuration
@@ -138,8 +136,7 @@ class TestLoadChannel(unittest.TestCase):
         setup_keyring_txz(
             'image-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        next(self._state)
-        next(self._state)
+        self._state.run_thru('get_channel')
         self.assertRaises(SignatureError, next, self._state)
 
     @configuration
@@ -151,16 +148,14 @@ class TestLoadChannel(unittest.TestCase):
         # (blacklist -> channels)
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
-        next(self._state)
-        next(self._state)
+        self._state.run_thru('get_channel')
         self.assertRaises(SignatureError, next, self._state)
         sign(self._channels_path, 'image-signing.gpg')
         # Two state transitions are necessary (blacklist -> channels).
         state = State()
-        next(state)
-        next(state)
+        state.run_thru('get_channel')
         channels = state.channels
-        self.assertEqual(channels.daily.nexus7.keyring.signature,
+        self.assertEqual(channels.daily.devices.nexus7.keyring.signature,
                          '/daily/nexus7/device-keyring.tar.xz.asc')
 
 
@@ -194,3 +189,49 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
         # This will fail to get the channels.json file.
         with make_http_server(self._serverdir, 8943):
             self.assertRaises(FileNotFoundError, next, state)
+
+
+class TestChannelsNewFormat(unittest.TestCase):
+    """LP: #1221841 introduces a new format to channels.json."""
+    def test_channels(self):
+        # We can parse new-style channels.json files.
+        channels = get_channels('channels_09.json')
+        self.assertEqual(channels.daily.alias, 'saucy')
+        self.assertEqual(channels.daily.devices.grouper.index,
+                         '/daily/grouper/index.json')
+        self.assertEqual(channels.daily.devices.mako.index,
+                         '/daily/mako/index.json')
+        # 'saucy' channel has no alias.
+        self.assertRaises(AttributeError, getattr, channels.saucy, 'alias')
+        self.assertEqual(channels.saucy.devices.mako.index,
+                         '/saucy/mako/index.json')
+        # 'saucy-proposed' has a hidden field.
+        self.assertTrue(channels.saucy_proposed.hidden)
+        self.assertEqual(channels.saucy_proposed.devices.maguro.index,
+                         '/saucy-proposed/maguro/index.json')
+        # Device specific keyrings are still supported.
+        self.assertEqual(channels.saucy.devices.manta.keyring.path,
+                         '/saucy/manta/device-signing.tar.xz')
+
+    def test_hidden_defaults_to_false(self):
+        # If a channel does not have a hidden field, it defaults to false.
+        channels = get_channels('channels_09.json')
+        self.assertFalse(channels.daily.hidden)
+
+    def test_getattr_failure(self):
+        # Test the getattr syntax on an unknown channel or device combination.
+        channels = get_channels('channels_09.json')
+        self.assertRaises(AttributeError, getattr, channels, 'bleeding')
+        self.assertRaises(
+            AttributeError, getattr, channels.daily.devices, 'nexus3')
+
+    def test_daily_proposed(self):
+        # The channel name has a dash in it.
+        channels = get_channels('channels_09.json')
+        self.assertEqual(channels['saucy-proposed'].devices.grouper.index,
+                         '/saucy-proposed/grouper/index.json')
+
+    def test_bad_getitem(self):
+        # Trying to get a channel via getitem which doesn't exist.
+        channels = get_channels('channels_09.json')
+        self.assertRaises(KeyError, getitem, channels, 'daily-testing')

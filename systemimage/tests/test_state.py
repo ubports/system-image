@@ -23,6 +23,7 @@ __all__ = [
     'TestPersistence',
     'TestRebooting',
     'TestState',
+    'TestStateNewChannelsFormat',
     ]
 
 
@@ -38,7 +39,7 @@ from systemimage.gpg import SignatureError
 from systemimage.state import State
 from systemimage.testing.demo import DemoDevice
 from systemimage.testing.helpers import (
-    configuration, copy, get_index, make_http_server, setup_index,
+    configuration, copy, data_path, get_index, make_http_server, setup_index,
     setup_keyring_txz, setup_keyrings, sign, temporary_directory, touch_build)
 from unittest.mock import patch
 
@@ -93,8 +94,7 @@ class TestState(unittest.TestCase):
         # signed correctly, new state transitions will be added to re-aquire a
         # new image signing key.
         state = State()
-        next(state)
-        next(state)
+        state.run_thru('get_channel')
         # Where we would expect a channels object, there is none.
         self.assertIsNone(state.channels)
         # Just to prove that the image signing key is going to change, let's
@@ -110,7 +110,7 @@ class TestState(unittest.TestCase):
         # valid channels object.
         sign(self._channels_path, 'image-signing.gpg')
         next(state)
-        self.assertEqual(state.channels.stable.nexus7.index,
+        self.assertEqual(state.channels.stable.devices.nexus7.index,
                          '/stable/nexus7/index.json')
 
     @configuration
@@ -130,8 +130,7 @@ class TestState(unittest.TestCase):
         # signed correctly, new state transitions will be added to re-aquire a
         # new image signing key.
         state = State()
-        next(state)
-        next(state)
+        state.run_thru('get_channel')
         # Where we would expect a channels object, there is none.
         self.assertIsNone(state.channels)
         # Just to prove that the image signing key is not going to change,
@@ -272,8 +271,7 @@ class TestState(unittest.TestCase):
         self.assertFalse(os.path.exists(config.gpg.image_master))
         self.assertFalse(os.path.exists(config.gpg.image_signing))
         state = State()
-        next(state)
-        next(state)
+        state.run_thru('get_channel')
         # Now the image master and signing keys exist.
         self.assertTrue(os.path.exists(config.gpg.image_master))
         self.assertTrue(os.path.exists(config.gpg.image_signing))
@@ -300,8 +298,7 @@ class TestState(unittest.TestCase):
         # Run the state machine three times:
         # blacklist -(sig fail)-> get master -> blacklist (sig fail)
         state = State()
-        next(state)
-        next(state)
+        state.run_thru('get_master_key')
         self.assertRaises(SignatureError, next, state)
 
 
@@ -708,3 +705,41 @@ class TestFilters(_StateTestsBase):
         state = State(candidate_filter=filter_out_everything)
         state.run_thru('calculate_winner')
         self.assertEqual(len(state.winner), 0)
+
+
+class TestStateNewChannelsFormat(_StateTestsBase):
+    CHANNEL_FILE = 'channels_09.json'
+    CHANNEL = 'saucy'
+    DEVICE = 'manta'
+    INDEX_FILE = 'index_21.json'
+
+    @configuration
+    def test_full_reboot(self, ini_file):
+        # Test that state transitions through reboot work for the new channel
+        # format.  Also check that the right files get moved into place.
+        self._stack.enter_context(patch('systemimage.device.check_output',
+                                        return_value='manta'))
+        config.load(data_path('channel_04.ini'), override=True)
+        self._setup_keyrings()
+        state = State()
+        state.run_until('reboot')
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
+        got_reboot = False
+        def reboot_mock(self):
+            nonlocal got_reboot
+            got_reboot = True
+        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
+            list(state)
+        self.assertTrue(got_reboot)

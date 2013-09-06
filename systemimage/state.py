@@ -30,7 +30,6 @@ import logging
 
 from collections import deque
 from contextlib import ExitStack
-from datetime import datetime
 from functools import partial
 from itertools import islice
 from systemimage.candidates import get_candidates, iter_path
@@ -261,7 +260,7 @@ class State:
             return
         log.info('got channel: {}', config.channel)
         try:
-            device = channel[config.device]
+            device = channel.devices[config.device]
         except KeyError:
             log.info('no matching device: {}', config.device)
             return
