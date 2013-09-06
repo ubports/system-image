@@ -38,12 +38,16 @@ from systemimage.testing.helpers import data_path, reset_envar
 
 SPACE = ' '
 SERVICES = [
-    'com.canonical.SystemImage',
+    ('com.canonical.SystemImage',
+     '{python} -m systemimage.service -C {self.ini_path} --testing {self.mode}'
+    ),
+    ('ubuntu-download-manager',
+     '/usr/bin/ubuntu-download-manager'),
     ]
 
 
 class Controller:
-    """Start and stop the SystemImage dbus service under test."""
+    """Start and stop D-Bus service under test."""
 
     def __init__(self):
         self._stack = ExitStack()
@@ -52,6 +56,7 @@ class Controller:
         self.ini_path = None
         self.serverdir = self._stack.enter_context(temporary_directory())
         self.daemon_pid = None
+        self.mode = 'live'
         # Set up the dbus-daemon system configuration file.
         path = data_path('dbus-system.conf.in')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -70,28 +75,27 @@ class Controller:
             print(template.format(tmpdir=ini_tmpdir, vardir=ini_vardir),
                   file=fp)
 
-    def set_testing_mode(self, mode):
-        """Set up a new testing mode and SIGHUP dbus-daemon."""
+    def _configure_services(self):
         # Now we have to set up the .service files.  We use the Python
         # executable used to run the tests, executing the entry point as would
         # happen in a deployed script or virtualenv.
-        command = [sys.executable,
-                   '-m', 'systemimage.service',
-                   '-C', self.ini_path,
-                   '--testing', mode,
-                   ]
-        for service in SERVICES:
+        for service, command_template in SERVICES:
+            command = command_template.format(python=sys.executable, self=self)
             service_file = service + '.service'
             path = data_path(service_file + '.in')
             with open(path, 'r', encoding='utf-8') as fp:
                 template = fp.read()
-            config = template.format(command=SPACE.join(command))
+            config = template.format(command=command)
             service_path = os.path.join(self.tmpdir, service_file)
             with open(service_path, 'w', encoding='utf-8') as fp:
                 fp.write(config)
-        # Only if the daemon is already running.
+        # If the daemon is already running, HUP it for the new configs.
         if self.daemon_pid is not None:
             os.kill(self.daemon_pid, signal.SIGHUP)
+
+    def set_testing_mode(self, mode):
+        self.mode = mode
+        self._configure_services()
 
     def _start(self):
         """Start the SystemImage service in a subprocess.
@@ -127,6 +131,7 @@ class Controller:
         os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = dbus_address
 
     def start(self):
+        self._configure_services()
         if self.daemon_pid is not None:
             # Already started.
             return
@@ -148,5 +153,5 @@ class Controller:
                 break
         self.daemon_pid = None
 
-    def shutdown(self):
+    def stop(self):
         self._stack.close()

@@ -30,13 +30,11 @@ import logging
 
 from collections import deque
 from contextlib import ExitStack
-from datetime import datetime
 from functools import partial
 from itertools import islice
 from systemimage.candidates import get_candidates, iter_path
 from systemimage.channel import Channels
 from systemimage.config import config
-from systemimage.download import get_files
 from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import makedirs
 from systemimage.index import Index
@@ -231,7 +229,7 @@ class State:
         asc_path = os.path.join(config.system.tempdir, 'channels.json.asc')
         log.info('Looking for: {}', channels_url)
         with ExitStack() as stack:
-            get_files([
+            config.hooks.downloader().get_files([
                 (channels_url, channels_path),
                 (asc_url, asc_path),
                 ])
@@ -328,7 +326,7 @@ class State:
         index_path = os.path.join(config.system.tempdir, 'index.json')
         asc_path = index_path + '.asc'
         with ExitStack() as stack:
-            get_files([
+            config.hooks.downloader().get_files([
                 (index_url, index_path),
                 (asc_url, asc_path),
                 ])
@@ -414,7 +412,7 @@ class State:
         if os.path.exists(config.gpg.device_signing):
             keyrings.append(config.gpg.device_signing)
         # Now, download all the files, providing logging feedback on progress.
-        get_files(downloads, self._callback, sizes)
+        config.hooks.downloader(self._callback).get_files(downloads, sizes)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets
             # raised or if the checksums don't match.  If everything's okay,

@@ -19,6 +19,7 @@ __all__ = [
     'configuration',
     'copy',
     'data_path',
+    'debug',
     'get_channels',
     'get_index',
     'make_http_server',
@@ -340,3 +341,9 @@ def touch_build(version, timestamp=None):
             os.utime(channel_ini, (timestamp, timestamp))
         except FileNotFoundError:
             pass
+
+
+@contextmanager
+def debug():
+    with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+        yield partial(print, file=fp)

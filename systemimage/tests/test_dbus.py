@@ -99,7 +99,7 @@ def setUpModule():
     global _controller, _stack
     _stack = ExitStack()
     _controller = Controller()
-    _stack.callback(_controller.shutdown)
+    _stack.callback(_controller.stop)
     DBusGMainLoop(set_as_default=True)
 
 

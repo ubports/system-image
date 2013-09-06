@@ -87,7 +87,8 @@ class Configuration:
         self.updater = Bag(**parser['updater'])
         self.hooks = Bag(converters=dict(device=as_object,
                                          scorer=as_object,
-                                         reboot=as_object),
+                                         reboot=as_object,
+                                         downloader=as_object),
                          **parser['hooks'])
         self.dbus = Bag(converters=dict(lifetime=as_timedelta),
                         **parser['dbus'])

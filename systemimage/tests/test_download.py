@@ -16,7 +16,6 @@
 """Test asynchronous downloads."""
 
 __all__ = [
-    'TestCancel',
     'TestDownloads',
     'TestHTTPSDownloads',
     'TestRegressions',
@@ -32,10 +31,10 @@ from collections import defaultdict
 from contextlib import ExitStack
 from functools import partial
 from systemimage.config import config
-from systemimage.download import CHUNK_SIZE, Downloader, get_files
+from systemimage.download import BuiltInDownloadManager, CHUNK_SIZE, Downloader
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
-    configuration, data_path, make_http_server, temporary_directory)
+    configuration, data_path, make_http_server)
 from threading import Event
 from unittest.mock import patch
 from urllib.error import URLError
@@ -84,7 +83,7 @@ class TestDownloads(unittest.TestCase):
     @configuration
     def test_download_good_path(self):
         # Download a bunch of files that exist.  No callback.
-        get_files(self._abspathify([
+        BuiltInDownloadManager().get_files(self._abspathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ]))
@@ -99,10 +98,10 @@ class TestDownloads(unittest.TestCase):
         def callback(*args):
             print('CALLBACK:', args)
             results.append(args)
-        get_files(self._abspathify([
+        BuiltInDownloadManager(callback).get_files(self._abspathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
-            ]), callback=callback)
+            ]))
         self.assertEqual(
             set(os.listdir(config.system.tempdir)),
             set(['channels.json', 'index.json']))
@@ -130,10 +129,10 @@ class TestDownloads(unittest.TestCase):
             # Record all the sizes here.  Later, we'll assert that they're all
             # the same and of the right value.
             results.setdefault(dst, []).append(size)
-        get_files(self._abspathify([
+        BuiltInDownloadManager(callback).get_files(self._abspathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
-            ]), callback=callback, sizes=(456, 99))
+            ]), sizes=(456, 99))
         self.assertEqual(len(results), 2)
         for dst, sizes in results.items():
             first_size = sizes[0]
@@ -147,10 +146,10 @@ class TestDownloads(unittest.TestCase):
         results = defaultdict(list)
         def callback(url, dst, size):
             results[url].append(size)
-        get_files(self._abspathify([
+        BuiltInDownloadManager(callback).get_files(self._abspathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
-            ]), callback=callback)
+            ]))
         channels = sorted(
             results[urljoin(config.service.http_base, 'channels_01.json')])
         self.assertEqual(channels, [i * 10 for i in range(1, 46)] + [456])
@@ -162,7 +161,9 @@ class TestDownloads(unittest.TestCase):
     def test_download_404(self):
         # Try to download a file which doesn't exist.  Since it's all or
         # nothing, the temp directory will be empty.
-        self.assertRaises(FileNotFoundError, get_files, self._abspathify([
+        self.assertRaises(FileNotFoundError,
+                          BuiltInDownloadManager().get_files,
+                          self._abspathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ('missing.txt', 'missing.txt'),
@@ -198,8 +199,8 @@ class TestHTTPSDownloads(unittest.TestCase):
             stack.push(make_http_server(
                 self._directory, 8943, 'cert.pem', 'key.pem'))
             channels_path = os.path.join(tempdir, 'channels.json')
-            get_files([('https://localhost:8943/channels_01.json',
-                        channels_path)])
+            BuiltInDownloadManager().get_files(
+                [('https://localhost:8943/channels_01.json', channels_path)])
             with open(channels_path, encoding='utf-8') as fp:
                 data = json.loads(fp.read())
             self.assertIn('daily', data)
@@ -224,8 +225,9 @@ class TestHTTPSDownloads(unittest.TestCase):
                 selfsign=False))
             self.assertRaises(
                 FileNotFoundError,
-                get_files, [('https://localhost:8943/channels_01.json',
-                             os.path.join(tempdir, 'channels.json'))])
+                BuiltInDownloadManager().get_files,
+                [('https://localhost:8943/channels_01.json',
+                  os.path.join(tempdir, 'channels.json'))])
 
     def test_http_masquerades_as_https(self):
         # There's an HTTP server pretending to be an HTTPS server.  This
@@ -246,8 +248,9 @@ class TestHTTPSDownloads(unittest.TestCase):
             stack.push(make_http_server(self._directory, 8943))
             self.assertRaises(
                 FileNotFoundError,
-                get_files, [('https://localhost:8943/channels_01.json',
-                            os.path.join(tempdir, 'channels.json'))])
+                BuiltInDownloadManager().get_files,
+                [('https://localhost:8943/channels_01.json',
+                  os.path.join(tempdir, 'channels.json'))])
 
     def test_expired(self):
         # The HTTPS server has an expired certificate (mocked so that its CA
@@ -266,8 +269,9 @@ class TestHTTPSDownloads(unittest.TestCase):
                 self._directory, 8943, 'expired_cert.pem', 'expired_key.pem'))
             self.assertRaises(
                 FileNotFoundError,
-                get_files, [('https://localhost:8943/channels_01.json',
-                             os.path.join(tempdir, 'channels.json'))])
+                BuiltInDownloadManager().get_files,
+                [('https://localhost:8943/channels_01.json',
+                  os.path.join(tempdir, 'channels.json'))])
 
     def test_bad_host(self):
         # The HTTPS server has a certificate with a non-matching hostname
@@ -286,8 +290,9 @@ class TestHTTPSDownloads(unittest.TestCase):
                 self._directory, 8943, 'nasty_cert.pem', 'nasty_key.pem'))
             self.assertRaises(
                 FileNotFoundError,
-                get_files, [('https://localhost:8943/channels_01.json',
-                             os.path.join(tempdir, 'channels.json'))])
+                BuiltInDownloadManager().get_files,
+                [('https://localhost:8943/channels_01.json',
+                  os.path.join(tempdir, 'channels.json'))])
 
     def test_cancel(self):
         # Try to cancel the download of a big file.
@@ -320,7 +325,8 @@ class TestHTTPSDownloads(unittest.TestCase):
                 ('http://localhost:8980/bigfile_2.dat',
                  os.path.join(dstdir, 'bigfile_2.dat')),
                 ]
-            self.assertRaises(Cancel, get_files, downloads, callback)
+            self.assertRaises(
+                Cancel, BuiltInDownloadManager(callback).get_files, downloads)
             # The event got fired.
             self.assertTrue(event.is_set())
             # No file will have read more than 2x CHUNK_SIZE.  Why?  Let's say
@@ -364,6 +370,6 @@ class TestRegressions(unittest.TestCase):
             dst = os.path.join(config.system.tempdir, file_name)
             downloads.append((url, dst))
         self.assertEqual(len(os.listdir(config.system.tempdir)), 0)
-        get_files(downloads)
+        BuiltInDownloadManager().get_files(downloads)
         self.assertEqual(len(os.listdir(config.system.tempdir)),
                          len(downloads))
