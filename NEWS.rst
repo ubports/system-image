@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+1.6 (2013-XX-XX)
+================
+
 1.5 (2013-09-06)
 ================
  * `system-image-cli --dry-run -c <bad-channel>` no longer produces a
