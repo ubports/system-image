@@ -2,7 +2,11 @@
 NEWS for system-image updater
 =============================
 
-1.5 (2013-XX-XX)
+1.5.1 (2013-09-08)
+==================
+ * Fix test for 32 bit systems.
+
+1.5 (2013-09-06)
 ================
  * `system-image-cli --dry-run -c <bad-channel>` no longer produces a
    traceback.  You get "Already up-to-date", but use `-v` for more info.
@@ -17,6 +21,8 @@ NEWS for system-image updater
       date from the time.
    - New `Info()` method returns data similar to `system-image-cli --info`.
      (LP: #1215959)
+ * Support the new channels.json file format with backward compatibility (for
+   now) with the old format.  (LP: #1221841)
 
 1.4 (2013-08-30)
 ================

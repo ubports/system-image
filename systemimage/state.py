@@ -259,7 +259,7 @@ class State:
             return
         log.info('got channel: {}', config.channel)
         try:
-            device = channel[config.device]
+            device = channel.devices[config.device]
         except KeyError:
             log.info('no matching device: {}', config.device)
             return

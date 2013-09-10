@@ -1309,11 +1309,11 @@ class TestDBusInfoNoDetails(_LiveTesting):
     def test_info_no_version_details(self):
         # .Info() where there is no channel.ini with version details.
         self._set_build(45)
-        timestamp = datetime(2099, 8, 1, 4, 45, 45).timestamp()
+        timestamp = datetime(2022, 8, 1, 4, 45, 45).timestamp()
         os.utime(self.config.system.build_file, (timestamp, timestamp))
         buildno, device, channel, last_update, details = self.iface.Info()
         self.assertEqual(buildno, 45)
         self.assertEqual(device, 'nexus7')
         self.assertEqual(channel, 'stable')
-        self.assertEqual(last_update, '2099-08-01 04:45:45')
+        self.assertEqual(last_update, '2022-08-01 04:45:45')
         self.assertEqual(details, {})
