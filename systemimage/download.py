@@ -21,6 +21,9 @@ __all__ = [
     ]
 
 
+import os
+import dbus
+import shutil
 import socket
 import logging
 
@@ -28,6 +31,8 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from datetime import timedelta
 from ssl import CertificateError
+from systemimage.config import config
+from systemimage.dbus import Reactor
 from systemimage.helpers import atomic, safe_remove
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -35,13 +40,18 @@ from urllib.request import Request, urlopen
 
 # Parameterized for testing purposes.
 CHUNK_SIZE = 4096
+DOWNLOADER_INTERFACE = 'com.canonical.applications.Downloader'
+MANAGER_INTERFACE = 'com.canonical.applications.DownloaderManager'
+OBJECT_NAME = 'com.canonical.applications.Downloader'
+OBJECT_INTERFACE = 'com.canonical.applications.GroupDownload'
+SIGNALS = ('started', 'paused', 'resumed', 'canceled', 'finished',
+           'error', 'progress')
 USER_AGENT = 'Ubuntu System Image Upgrade Client; Build {}'
+
 log = logging.getLogger('systemimage')
 
 
 def _headers():
-    # Avoid circular imports.
-    from systemimage.config import config
     return {'User-Agent': USER_AGENT.format(config.build_number)}
 
 
@@ -172,8 +182,6 @@ class BuiltInDownloadManager(DownloadManager):
 
         The API is a little funky for backward compatibility reasons.
         """
-        # Avoid circular imports.
-        from systemimage.config import config
         # Sanity check arguments.
         if sizes is not None:
             assert len(sizes) == len(downloads), (
@@ -230,5 +238,62 @@ class BuiltInDownloadManager(DownloadManager):
             stack.pop_all()
 
 
+class DownloadReactor(Reactor):
+    def __init__(self, movers, bus):
+        super().__init__(bus)
+        self._movers = movers
+        self.react_to('canceled')
+        self.react_to('error')
+        self.react_to('finished')
+        self.react_to('paused')
+        self.react_to('progress')
+        self.react_to('resumed')
+        self.react_to('started')
+
+    def _do_finished(self, signal, path, local_paths):
+        for actual_path in local_paths:
+            head, tail = os.path.split(actual_path)
+            real_destination = self._movers.pop(tail)
+            # We can't guarantee that both paths are on the same device, so
+            # use shutil.copy() instead of os.rename().
+            shutil.move(actual_path, real_destination)
+        self.quit()
+
+    def _default(self, *args, **kws):
+        import sys
+        print('SIGNAL:', args, kws, file=sys.stderr)
+
+
 class DBusDownloadManager(DownloadManager):
-    pass
+    def __init__(self, callback=None):
+        super().__init__(callback)
+        self._reactor = None
+
+    def get_files(self, downloads, sizes=None):
+        # For now, ignore sizes.
+        bus = dbus.SessionBus()
+        service = bus.get_object(DOWNLOADER_INTERFACE, '/')
+        iface = dbus.Interface(service, MANAGER_INTERFACE)
+        # LP: #1224641 - Local filesystem destination locations are ignored,
+        # so we have to craft something that the reactor can use to move the
+        # actual destination files to where we really want them to be.
+        #
+        # This is a mapping from final path component (which the 'finished'
+        # signal will provide) to the destination we want.
+        movers = {}
+        group = []
+        for url, dst in downloads:
+            # For now, no hashes.
+            group.append((url, dst, ''))
+            head, tail = os.path.split(url)
+            movers[tail] = dst
+        object_path = iface.createDownloadGroup(
+            group, '', False,                       # Don't allow GSM.
+            # https://bugs.freedesktop.org/show_bug.cgi?id=55594
+            dbus.Dictionary(signature='sv'),
+            _headers())
+        download = bus.get_object(OBJECT_NAME, object_path)
+        dl_iface = dbus.Interface(download, OBJECT_INTERFACE)
+        self._reactor = DownloadReactor(movers, bus)
+        self._reactor.schedule(dl_iface.start)
+        self._reactor.run()

@@ -88,6 +88,20 @@ def _sortkey(item):
     return order.get(item[-1])
 
 
+class _Called:
+    # Defer importing named object until it's actually called.  This should
+    # reduce the instances of circular imports.
+    def __init__(self, path):
+        self._path = path
+
+    def __call__(self, *args, **kws):
+        path, dot, name = self._path.rpartition('.')
+        if dot != '.':
+            raise ValueError
+        module = import_module(path)
+        return getattr(module, name)(*args, **kws)
+
+
 def as_object(value):
     """Convert a Python dotted-path specification to an object.
 
@@ -99,11 +113,7 @@ def as_object(value):
     :raises AttributeError: if the name after the right-most dot doesn't exist
         in the named module.
     """
-    path, dot, name = value.rpartition('.')
-    if dot != '.':
-        raise ValueError
-    module = import_module(path)
-    return getattr(module, name)
+    return _Called(value)
 
 
 def as_timedelta(value):
