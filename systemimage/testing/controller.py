@@ -41,9 +41,11 @@ SERVICES = [
     ('com.canonical.SystemImage',
      '{python} -m systemimage.service -C {self.ini_path} --testing {self.mode}'
     ),
-    ('ubuntu-download-manager',
-     '/usr/bin/ubuntu-download-manager'),
     ]
+
+# also, remember to set the -disable-timeout flag so that the daemon does not
+# kill itself.  that way if you started it with the self-signed certs it will
+# remain alive.
 
 
 class Controller:

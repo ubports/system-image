@@ -104,12 +104,17 @@ def make_http_server(directory, port, certpem=None, keypem=None,
             # Please shut up.
             pass
 
-        def do_ECHO(self):
-            # This is a little hack for testing the User-Agent header.
-            self.send_response(200)
-            self.send_header('User-Agent-Echo',
-                             self.headers.get('User-Agent', 'No-User-Agent'))
-            self.end_headers()
+        def do_GET(self):
+            # If we requested the magic 'user-agent.txt' file, send back the
+            # value of the User-Agent header.  Otherwise, vend as normal.
+            if self.path == '/user-agent.txt':
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/plain')
+                user_agent = self.headers.get('user-agent', 'no agent')
+                self.end_headers()
+                self.wfile.write(user_agent.encode('utf-8'))
+            else:
+                super().do_GET()
     # Create the server in the main thread, but start it in the sub-thread.
     # This lets the main thread call .shutdown() to stop everything.  Return
     # just the shutdown method to the caller.

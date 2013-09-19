@@ -43,70 +43,15 @@ import unittest
 from contextlib import ExitStack
 from datetime import datetime, timedelta
 from dbus.exceptions import DBusException
-from dbus.mainloop.glib import DBusGMainLoop
 from functools import partial
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
 from systemimage.dbus import Reactor
 from systemimage.helpers import safe_remove
-from systemimage.testing.controller import Controller
 from systemimage.testing.helpers import (
     copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
     sign)
-
-
-_stack = None
-_controller = None
-
-# Why are these tests set up this?
-#
-# LP: #1205163 provides the impetus.  Here's the problem: we have to start a
-# dbus-daemon child process which will create an isolated system bus on which
-# our com.canonical.SystemImage service will be started via dbus-activatiion.
-# This closely mimics how the real system starts up our service.
-#
-# We ask dbus-daemon to return us its pid and the dbus address it's listening
-# on.  We need the address because we have to ensure that the dbus client,
-# i.e. this foreground test process, can communicate with the isolated
-# service.  To do this, the foreground process sets the environment variable
-# DBUS_SYSTEM_BUS_ADDRESS to the address that dbus-daemon gave us.
-#
-# The problem is that the low-level dbus client library only consults that
-# envar when it initializes, which it only does once per process.  There's no
-# way to get the library to listen on a new DBUS_SYSTEM_BUS_ADDRESS later on.
-#
-# This means that our first approach, which involved killing the granchild
-# system-image-dbus process, and the child dbus-daemon process, and then
-# restarting a new dbus-daemon process on a new address, doesn't work.
-#
-# We need a new system-image-dbus process for each of the TestCases below
-# because we have to start them up in different testing modes, and there's no
-# way to do that without exiting them and restarting them.  The grandchild
-# processes get started via different com.canonical.SystemImage.service files
-# with different commands.
-#
-# So, we have to restart the system-image-dbus process, but *not* the
-# dbus-daemon process because for all of these tests, it must be listening on
-# the same system bus.  Fortunately, dbus-daemon responds to SIGHUP, which
-# tells it to re-read its configuration files, including its .service files.
-# So how this works is that at the end of each test class, we tell the dbus
-# service to .Exit(), wait until it has, then write a new .service file with
-# the new command, HUP the dbus-daemon, and now the next time it activates the
-# service, it will do so with the correct (i.e. newly written) command.
-
-
-def setUpModule():
-    global _controller, _stack
-    _stack = ExitStack()
-    _controller = Controller()
-    _stack.callback(_controller.stop)
-    DBusGMainLoop(set_as_default=True)
-
-
-def tearDownModule():
-    global _controller, _stack
-    _stack.close()
-    _controller = None
+from systemimage.testing.nose import SystemImagePlugin
 
 
 class SignalCapturingReactor(Reactor):
@@ -156,8 +101,7 @@ class _TestBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        _controller.set_testing_mode(cls.mode)
-        _controller.start()
+        SystemImagePlugin.controller.set_testing_mode(cls.mode)
 
     @classmethod
     def tearDownClass(cls):
@@ -178,7 +122,7 @@ class _TestBase(unittest.TestCase):
                 break
         # Clear out the temporary directory.
         config = Configuration()
-        config.load(_controller.ini_path)
+        config.load(SystemImagePlugin.controller.ini_path)
         try:
             shutil.rmtree(config.system.tempdir)
         except FileNotFoundError:
@@ -216,7 +160,7 @@ class _LiveTesting(_TestBase):
         # Set up the http/https servers that the dbus client will talk to.
         # Start up both an HTTPS and HTTP server.  The data files are vended
         # over the latter, everything else, over the former.
-        serverdir = _controller.serverdir
+        serverdir = SystemImagePlugin.controller.serverdir
         try:
             cls._resources.push(
                 make_http_server(serverdir, 8943, 'cert.pem', 'key.pem'))
@@ -230,7 +174,7 @@ class _LiveTesting(_TestBase):
             # signatures end up in the proper location after the state machine
             # runs to completion.
             config = Configuration()
-            config.load(_controller.ini_path)
+            config.load(SystemImagePlugin.controller.ini_path)
             setup_keyrings('archive-master', use_config=config)
             setup_keyring_txz(
                 'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
@@ -262,7 +206,7 @@ class _LiveTesting(_TestBase):
         self._prepare_index('index_13.json')
         # We need a configuration file that agrees with the dbus client.
         self.config = Configuration()
-        self.config.load(_controller.ini_path)
+        self.config.load(SystemImagePlugin.controller.ini_path)
         # For testing reboot preparation.
         self.command_file = os.path.join(
             self.config.updater.cache_partition, 'ubuntu_command')
@@ -289,12 +233,12 @@ class _LiveTesting(_TestBase):
         super().tearDown()
 
     def _prepare_index(self, index_file):
-        index_path = os.path.join(
-            _controller.serverdir, 'stable', 'nexus7', 'index.json')
+        serverdir = SystemImagePlugin.controller.serverdir
+        index_path = os.path.join(serverdir, 'stable', 'nexus7', 'index.json')
         head, tail = os.path.split(index_path)
         copy(index_file, head, tail)
         sign(index_path, 'device-signing.gpg')
-        setup_index(index_file, _controller.serverdir, 'device-signing.gpg')
+        setup_index(index_file, serverdir, 'device-signing.gpg')
 
     def _set_build(self, version):
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
@@ -377,7 +321,8 @@ class TestDBusCheckForUpdate(_LiveTesting):
         # Fake that there was a previous update.
         timestamp = int(datetime(2013, 1, 20, 12, 1, 45).timestamp())
         channel_ini = os.path.join(
-            os.path.dirname(_controller.ini_path), 'channel.ini')
+            os.path.dirname(SystemImagePlugin.controller.ini_path),
+            'channel.ini')
         self._more_resources.callback(safe_remove, channel_ini)
         with open(channel_ini, 'w', encoding='utf-8'):
             pass
@@ -550,7 +495,8 @@ unmount system
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         # Cause the update to fail by deleting a file from the server.
-        os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
+        os.remove(os.path.join(SystemImagePlugin.controller.serverdir,
+                               '4/5/6.txt.asc'))
         reactor = SignalCapturingReactor('UpdateFailed')
         reactor.run(self.iface.DownloadUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -592,7 +538,8 @@ class TestDBusApply(_LiveTesting):
         self.download_manually()
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
-        os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
+        os.remove(os.path.join(SystemImagePlugin.controller.serverdir,
+                               '4/5/6.txt.asc'))
         reactor = SignalCapturingReactor('UpdateFailed')
         reactor.run(self.iface.DownloadUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -1072,7 +1019,7 @@ class TestDBusMain(_TestBase):
     def test_temp_directory(self):
         # The temporary directory gets created if it doesn't exist.
         config = Configuration()
-        config.load(_controller.ini_path)
+        config.load(SystemImagePlugin.controller.ini_path)
         self.assertFalse(os.path.exists(config.system.tempdir))
         # DBus activate the service, which should create the directory.
         bus = dbus.SystemBus()
@@ -1104,7 +1051,8 @@ class TestDBusClient(_LiveTesting):
         # For some reason <wink>, the update fails.
         #
         # Cause the update to fail by deleting a file from the server.
-        os.remove(os.path.join(_controller.serverdir, '4/5/6.txt.asc'))
+        os.remove(os.path.join(SystemImagePlugin.controller.serverdir,
+                               '4/5/6.txt.asc'))
         self._client.check_for_update()
         self.assertTrue(self._client.is_available)
         self.assertFalse(self._client.downloaded)
@@ -1130,13 +1078,12 @@ class TestDBusRegressions(_LiveTesting):
         # This test requires that the download take more than 50ms, since
         # that's the quickest we can issue the cancel, so make one of the
         # files huge.
-        index_path = os.path.join(
-            _controller.serverdir, 'stable', 'nexus7', 'index.json')
-        file_path = os.path.join(_controller.serverdir, '5', '6', '7.txt')
+        serverdir = SystemImagePlugin.controller.serverdir
+        index_path = os.path.join(serverdir, 'stable', 'nexus7', 'index.json')
+        file_path = os.path.join(serverdir, '5', '6', '7.txt')
         # This index file has a 5/6/7/txt checksum equal to the one we're
         # going to create below.
-        setup_index(
-            'index_18.json', _controller.serverdir, 'device-signing.gpg')
+        setup_index('index_18.json', serverdir, 'device-signing.gpg')
         head, tail = os.path.split(index_path)
         copy('index_18.json', head, tail)
         sign(index_path, 'device-signing.gpg')

@@ -24,55 +24,38 @@ __all__ = [
 
 import os
 import ssl
-import json
+import random
 import unittest
 
-from collections import defaultdict
 from contextlib import ExitStack
-from dbus.mainloop.glib import DBusGMainLoop
-from functools import partial
 from systemimage.config import config
 from systemimage.download import (
     BuiltInDownloadManager, CHUNK_SIZE, DBusDownloadManager, Downloader)
 from systemimage.helpers import temporary_directory
-from systemimage.testing.controller import Controller
 from systemimage.testing.helpers import (
     configuration, data_path, make_http_server)
 from threading import Event
-from unittest.mock import patch
 from urllib.error import URLError
 from urllib.parse import urljoin
-from urllib.request import Request
 
 MiB = 1024 * 1024
 
 
-_stack = None
-_controller = None
+def _http_pathify(downloads):
+    return [
+        (urljoin(config.service.http_base, url),
+         os.path.join(config.system.tempdir, filename)
+        ) for url, filename in downloads]
 
 
-def setUpModule():
-    global _controller, _stack
-    _stack = ExitStack()
-    _controller = Controller()
-    _stack.callback(_controller.stop)
-    DBusGMainLoop(set_as_default=True)
-
-
-def tearDownModule():
-    global _controller, _stack
-    _stack.close()
-    _controller = None
+def _https_pathify(downloads):
+    return [
+        (urljoin(config.service.https_base, url),
+         os.path.join(config.system.tempdir, filename)
+        ) for url, filename in downloads]
 
 
 class TestDownloads(unittest.TestCase):
-    maxDiff = None
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        _controller.start()
-
     def setUp(self):
         self._stack = ExitStack()
         try:
@@ -87,30 +70,10 @@ class TestDownloads(unittest.TestCase):
     def tearDown(self):
         self._stack.close()
 
-    def _abspathify(self, downloads):
-        return [
-            (urljoin(config.service.http_base, url),
-             os.path.join(config.system.tempdir, filename)
-            ) for url, filename in downloads]
-
-    @unittest.skip('for now')
     @configuration
-    def test_user_agent(self):
-        # The User-Agent contains the build number.
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print('20130100', file=fp)
-        EchoRequest = partial(Request, method='ECHO')
-        with patch('systemimage.download.Request', EchoRequest), \
-                Downloader('http://localhost:8980/ignore.txt') as response:
-             response.read()
-             self.assertEqual(
-                 response.headers['User-Agent-Echo'],
-                 'Ubuntu System Image Upgrade Client; Build 20130100')
-
-    @configuration
-    def test_download_good_path(self):
+    def test_good_path(self):
         # Download a bunch of files that exist.  No callback.
-        DBusDownloadManager().get_files(self._abspathify([
+        DBusDownloadManager().get_files(_http_pathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ]))
@@ -118,83 +81,51 @@ class TestDownloads(unittest.TestCase):
             set(os.listdir(config.system.tempdir)),
             set(['channels.json', 'index.json']))
 
-    @unittest.skip('for now')
+    @configuration
+    def test_user_agent(self):
+        # The User-Agent request header contains the build number.
+        version = random.randint(0, 99)
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(version, file=fp)
+        # Download a magic path which the server will interpret to return us
+        # the User-Agent header value.
+        DBusDownloadManager().get_files(_http_pathify([
+            ('user-agent.txt', 'user-agent.txt'),
+            ]))
+        path = os.path.join(config.system.tempdir, 'user-agent.txt')
+        with open(path, 'r', encoding='utf-8') as fp:
+            user_agent = fp.read()
+        self.assertEqual(
+            user_agent,
+            'Ubuntu System Image Upgrade Client; Build {}'.format(version))
+
     @configuration
     def test_download_with_callback(self):
         # Downloading calls the callback with some arguments.
-        results = []
-        def callback(*args):
-            print('CALLBACK:', args)
-            results.append(args)
-        BuiltInDownloadManager(callback).get_files(self._abspathify([
+        received_bytes = 0
+        total_bytes = 0
+        def callback(received, total):
+            nonlocal received_bytes, total_bytes
+            import sys; print(received, total, file=sys.stderr)
+            received_bytes = received
+            total_bytes = total
+        DBusDownloadManager(callback).get_files(_http_pathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ]))
         self.assertEqual(
             set(os.listdir(config.system.tempdir)),
             set(['channels.json', 'index.json']))
-        # Because we're doing async i/o, even though it's to localhost,
-        # there's no guarantee about the order of things in the results list,
-        # nor of their count.  It's *likely* that there's exactly one entry
-        # with the full byte count for each file.  But just in case, we'll
-        # tally up all the bytes for all the urls and verify they total what
-        # we expect.
-        byte_totals = defaultdict(int)
-        for url, dst, size in results:
-            byte_totals[url] += size
-        self.assertEqual(byte_totals, {
-            urljoin(config.service.http_base, 'channels_01.json'): 456,
-            urljoin(config.service.http_base, 'index_01.json'): 99,
-            })
+        self.assertEqual(received_bytes, 555)
+        self.assertEqual(total_bytes, 555)
 
-    @unittest.skip('for now')
-    @configuration
-    def test_download_with_callback_and_sizes(self):
-        # Now we're providing a sequence of expected sizes of the source
-        # files.  This will get passed to the callback so that more useful
-        # progress can be provided.
-        results = {}
-        def callback(src, dst, bytes_read, size):
-            # Record all the sizes here.  Later, we'll assert that they're all
-            # the same and of the right value.
-            results.setdefault(dst, []).append(size)
-        BuiltInDownloadManager(callback).get_files(self._abspathify([
-            ('channels_01.json', 'channels.json'),
-            ('index_01.json', 'index.json'),
-            ]), sizes=(456, 99))
-        self.assertEqual(len(results), 2)
-        for dst, sizes in results.items():
-            first_size = sizes[0]
-            self.assertTrue(all(size == first_size for size in sizes))
-
-    @unittest.skip('for now')
-    @configuration
-    @patch('systemimage.download.CHUNK_SIZE', 10)
-    def test_download_chunks(self):
-        # Similar to the above test, but makes sure that the chunking reads in
-        # _get_one_file() work as expected.
-        results = defaultdict(list)
-        def callback(url, dst, size):
-            results[url].append(size)
-        BuiltInDownloadManager(callback).get_files(self._abspathify([
-            ('channels_01.json', 'channels.json'),
-            ('index_01.json', 'index.json'),
-            ]))
-        channels = sorted(
-            results[urljoin(config.service.http_base, 'channels_01.json')])
-        self.assertEqual(channels, [i * 10 for i in range(1, 46)] + [456])
-        index = sorted(
-            results[urljoin(config.service.http_base, 'index_01.json')])
-        self.assertEqual(index, [i * 10 for i in range(1, 10)] + [99])
-
-    @unittest.skip('for now')
     @configuration
     def test_download_404(self):
         # Try to download a file which doesn't exist.  Since it's all or
         # nothing, the temp directory will be empty.
         self.assertRaises(FileNotFoundError,
-                          BuiltInDownloadManager().get_files,
-                          self._abspathify([
+                          DBusDownloadManager().get_files,
+                          _http_pathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ('missing.txt', 'missing.txt'),
@@ -203,49 +134,36 @@ class TestDownloads(unittest.TestCase):
 
 
 class TestHTTPSDownloads(unittest.TestCase):
-    maxDiff = None
-
     def setUp(self):
         self._directory = os.path.dirname(data_path('__init__.py'))
 
-    @unittest.skip('for now')
-    def test_https_good_path(self):
-        # The HTTPS server has a valid certificate (mocked so that its CA is
-        # in the system's trusted path), so downloading over https succeeds
-        # (i.e. the good path).
+    @configuration
+    def test_good_path(self):
+        # The HTTPS server has a valid self-signed certificate, so downloading
+        # over https succeeds.
         with ExitStack() as stack:
             stack.push(make_http_server(
                 self._directory, 8943, 'cert.pem', 'key.pem'))
-            response = stack.enter_context(Downloader(
-                'https://localhost:8943/channels_01.json'))
-            data = json.loads(response.read().decode('utf-8'))
-            self.assertIn('daily', data)
-            self.assertIn('stable', data)
+            DBusDownloadManager().get_files(_https_pathify([
+                ('channels_01.json', 'channels.json'),
+                ]))
+            self.assertEqual(
+                set(os.listdir(config.system.tempdir)),
+                set(['channels.json']))
 
-    def test_get_files_https_good_path(self):
-        # The HTTPS server has a valid certificate (mocked so that its CA is
-        # in the system's trusted path), so downloading over https succeeds
-        # (i.e. the good path).
-        with ExitStack() as stack:
-            tempdir = stack.enter_context(temporary_directory())
-            stack.push(make_http_server(
-                self._directory, 8943, 'cert.pem', 'key.pem'))
-            channels_path = os.path.join(tempdir, 'channels.json')
-            DBusDownloadManager().get_files(
-                [('https://localhost:8943/channels_01.json', channels_path)])
-            with open(channels_path, encoding='utf-8') as fp:
-                data = json.loads(fp.read())
-            self.assertIn('daily', data)
-            self.assertIn('stable', data)
-
+    @configuration
     def test_https_cert_not_in_capath(self):
         # The self-signed certificate fails because it's not in the system's
         # CApath (no known-good CA).
         with make_http_server(
                 self._directory, 8943, 'cert.pem', 'key.pem',
                 selfsign=False):
-            dl = Downloader('https://localhost:8943/channels_01.json')
-            self.assertRaises(URLError, dl.__enter__)
+            self.assertRaises(
+                FileNotFoundError,
+                DBusDownloadManager().get_files,
+                _https_pathify([
+                    ('channels_01.json', 'channels.json'),
+                    ]))
 
     def test_get_files_https_cert_not_in_capath(self):
         # The self-signed certificate fails because it's not in the system's

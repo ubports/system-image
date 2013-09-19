@@ -10,23 +10,36 @@ DBusGMainLoop(set_as_default=True)
 
 DOWNLOADS = [
     # File 1.
-    ('http://www.python.org/ftp/python/3.4.0/Python-3.4.0a2.tgz',
-     '/tmp/Python-3.4.0a2.tgz',
+    ## ('http://www.python.org/ftp/python/3.4.0/Python-3.4.0a2.tgz',
+    ##  '/tmp/Python-3.4.0a2.tgz',
+    ##  ''),
+    ##  #'e6e81242a32e6f63d224254d24edbd2f'),
+    ## # File 2
+    ## ('http://www.python.org/ftp/python/3.4.0/Python-3.4.0a2.tar.xz',
+    ##  '/tmp/Python-3.4.0a2.tar.xz',
+    ##  ''),
+    ##  #'36c941d1466730a70d0ae92442cc3fcf'),
+    # File 3
+    ('http://system-image.ubuntu.com/channels.json',
+     '/tmp/channels.json',
      ''),
-     #'e6e81242a32e6f63d224254d24edbd2f'),
-    # File 2
-    ('http://www.python.org/ftp/python/3.4.0/Python-3.4.0a2.tar.xz',
-     '/tmp/Python-3.4.0a2.tar.xz',
+    # File 4
+    ('http://system-image.ubuntu.com/daily-proposed/grouper/index.json',
+     '/tmp/index.json',
      ''),
-     #'36c941d1466730a70d0ae92442cc3fcf'),
+    # File 5
+    ('http://system-image.ubuntu.com/gpg/archive-master.tar.xz.asc',
+     '/tmp/archive-master.tar.xz.asc',
+     ''),
     ]
 
 
 class Reactor:
     """A reactor base class for DBus signals."""
 
-    def __init__(self, bus):
+    def __init__(self, bus, iface=None):
         self._bus = bus
+        self._iface = iface
         self._loop = None
         self._quitters = []
         self._signal_matches = []
@@ -43,10 +56,16 @@ class Reactor:
             method(signal, path, *args, **kws)
 
     def react_to(self, signal):
-        signal_match = self._bus.add_signal_receiver(
-            self._handle_signal, signal_name=signal,
-            member_keyword='member',
-            path_keyword='path')
+        if self._iface is None:
+            signal_match = self._bus.add_signal_receiver(
+                self._handle_signal, signal_name=signal,
+                member_keyword='member',
+                path_keyword='path')
+        else:
+            signal_match = self._iface.connect_to_signal(
+                signal, self._handle_signal,
+                member_keyword='member',
+                path_keyword='path')
         self._signal_matches.append(signal_match)
 
     def schedule(self, method, milliseconds=50):
@@ -69,9 +88,10 @@ class Reactor:
 
 
 class DownloadReactor(Reactor):
-    def __init__(self, movers, bus):
-        super().__init__(bus)
+    def __init__(self, movers, bus, iface=None):
+        super().__init__(bus, iface)
         self._movers = movers
+        self.received_bytes = 0
         self.react_to('canceled')
         self.react_to('error')
         self.react_to('finished')
@@ -90,6 +110,10 @@ class DownloadReactor(Reactor):
             shutil.move(actual_path, real_destination)
         self.quit()
 
+    def _do_progress(self, signal, path, received, total):
+        self.received_bytes += received
+        print('PROGRESS:', received, 'of', total, file=sys.stderr)
+
     def _default(self, *args, **kws):
         print('SIGNAL:', args, kws, file=sys.stderr)
 
@@ -106,7 +130,7 @@ if __name__ == '__main__':
         movers[tail] = dst
 
     path = i.createDownloadGroup(
-        DOWNLOADS, 'md5',
+        DOWNLOADS, '', #'md5',
         # Don't allow GSM,
         False,
         # https://bugs.freedesktop.org/show_bug.cgi?id=55594
@@ -117,6 +141,6 @@ if __name__ == '__main__':
     dl = b.get_object('com.canonical.applications.Downloader', path)
     dl_i = Interface(dl, 'com.canonical.applications.GroupDownload')
 
-    reactor = DownloadReactor(movers, b)
+    reactor = DownloadReactor(movers, b, dl_i)
     reactor.schedule(dl_i.start)
     reactor.run()

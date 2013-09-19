@@ -21,9 +21,7 @@ __all__ = [
     ]
 
 
-import os
 import dbus
-import shutil
 import socket
 import logging
 
@@ -41,7 +39,7 @@ from urllib.request import Request, urlopen
 # Parameterized for testing purposes.
 CHUNK_SIZE = 4096
 DOWNLOADER_INTERFACE = 'com.canonical.applications.Downloader'
-MANAGER_INTERFACE = 'com.canonical.applications.DownloaderManager'
+MANAGER_INTERFACE = 'com.canonical.applications.DownloadManager'
 OBJECT_NAME = 'com.canonical.applications.Downloader'
 OBJECT_INTERFACE = 'com.canonical.applications.GroupDownload'
 SIGNALS = ('started', 'paused', 'resumed', 'canceled', 'finished',
@@ -239,9 +237,10 @@ class BuiltInDownloadManager(DownloadManager):
 
 
 class DownloadReactor(Reactor):
-    def __init__(self, movers, bus):
+    def __init__(self, bus, callback=None):
         super().__init__(bus)
-        self._movers = movers
+        self._callback = callback
+        self.error = None
         self.react_to('canceled')
         self.react_to('error')
         self.react_to('finished')
@@ -250,18 +249,27 @@ class DownloadReactor(Reactor):
         self.react_to('resumed')
         self.react_to('started')
 
+    def _print(*args, **kws):
+        import sys; kws['file'] = sys.stderr
+        print(*args, **kws)
+
     def _do_finished(self, signal, path, local_paths):
-        for actual_path in local_paths:
-            head, tail = os.path.split(actual_path)
-            real_destination = self._movers.pop(tail)
-            # We can't guarantee that both paths are on the same device, so
-            # use shutil.copy() instead of os.rename().
-            shutil.move(actual_path, real_destination)
+        self._print('FINISHED:', local_paths)
         self.quit()
 
+    def _do_error(self, signal, path, error_message):
+        self._print('ERROR:', error_message)
+        log.error(error_message)
+        self.error = error_message
+        self.quit()
+
+    def _do_progress(self, signal, path, received, total):
+        self._print('PROGRESS:', received, total)
+        if self._callback is not None:
+            self._callback(received, total)
+
     def _default(self, *args, **kws):
-        import sys
-        print('SIGNAL:', args, kws, file=sys.stderr)
+        self._print('SIGNAL:', args, kws)
 
 
 class DBusDownloadManager(DownloadManager):
@@ -269,31 +277,21 @@ class DBusDownloadManager(DownloadManager):
         super().__init__(callback)
         self._reactor = None
 
-    def get_files(self, downloads, sizes=None):
-        # For now, ignore sizes.
+    def get_files(self, downloads):
         bus = dbus.SessionBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
         iface = dbus.Interface(service, MANAGER_INTERFACE)
-        # LP: #1224641 - Local filesystem destination locations are ignored,
-        # so we have to craft something that the reactor can use to move the
-        # actual destination files to where we really want them to be.
-        #
-        # This is a mapping from final path component (which the 'finished'
-        # signal will provide) to the destination we want.
-        movers = {}
-        group = []
-        for url, dst in downloads:
-            # For now, no hashes.
-            group.append((url, dst, ''))
-            head, tail = os.path.split(url)
-            movers[tail] = dst
         object_path = iface.createDownloadGroup(
-            group, '', False,                       # Don't allow GSM.
+            [(url, dst, '') for url, dst in downloads],
+            '',           # No hashes yet.
+            False,        # Don't allow GSM yet.
             # https://bugs.freedesktop.org/show_bug.cgi?id=55594
             dbus.Dictionary(signature='sv'),
             _headers())
         download = bus.get_object(OBJECT_NAME, object_path)
         dl_iface = dbus.Interface(download, OBJECT_INTERFACE)
-        self._reactor = DownloadReactor(movers, bus)
+        self._reactor = DownloadReactor(bus, self._callback)
         self._reactor.schedule(dl_iface.start)
         self._reactor.run()
+        if self._reactor.error is not None:
+            raise FileNotFoundError(self._reactor.error)
