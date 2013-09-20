@@ -24,41 +24,72 @@ __all__ = [
 import os
 import pwd
 import sys
-import time
+import dbus
 import signal
-import datetime
 import subprocess
 
 from contextlib import ExitStack
 from distutils.spawn import find_executable
 from pkg_resources import resource_string as resource_bytes
 from systemimage.helpers import temporary_directory
-from systemimage.testing.helpers import data_path, reset_envar
+from systemimage.testing.helpers import data_path, patience, reset_envar
+
+
+def stop_system_image():
+    try:
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        iface.Exit()
+    except dbus.DBusException:
+        # The process might not be running at all.
+        return
+    with patience(dbus.DBusException):
+        iface.Exit()
+
+
+def stop_downloader():
+    try:
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.applications.Downloader', '/')
+        iface = dbus.Interface(
+        service, 'com.canonical.applications.DownloadManager')
+        iface.exit()
+    except dbus.DBusException:
+        # The process might not be running at all.
+        return
+    with patience(dbus.DBusException):
+        iface.exit()
 
 
 SPACE = ' '
 SERVICES = [
-    ('com.canonical.SystemImage',
-     '{python} -m systemimage.service -C {self.ini_path} --testing {self.mode}'
-    ),
-    ]
-
-# also, remember to set the -disable-timeout flag so that the daemon does not
-# kill itself.  that way if you started it with the self-signed certs it will
-# remain alive.
+   ('com.canonical.SystemImage',
+    '{python} -m systemimage.service -C {self.ini_path} --testing {self.mode}',
+    stop_system_image,
+   ),
+   ('com.canonical.applications.Downloader',
+    '/bin/sh /home/barry/projects/phone/stoppable/runme {self.certs}',
+    stop_downloader,
+   ),
+   ]
 
 
 class Controller:
     """Start and stop D-Bus service under test."""
 
     def __init__(self):
+        # Non-public.
         self._stack = ExitStack()
+        self._stoppers = []
+        # Public.
         self.tmpdir = self._stack.enter_context(temporary_directory())
         self.config_path = os.path.join(self.tmpdir, 'dbus-system.conf')
         self.ini_path = None
         self.serverdir = self._stack.enter_context(temporary_directory())
         self.daemon_pid = None
         self.mode = 'live'
+        self.certs = ''
         # Set up the dbus-daemon system configuration file.
         path = data_path('dbus-system.conf.in')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -78,10 +109,11 @@ class Controller:
                   file=fp)
 
     def _configure_services(self):
+        del self._stoppers[:]
         # Now we have to set up the .service files.  We use the Python
         # executable used to run the tests, executing the entry point as would
         # happen in a deployed script or virtualenv.
-        for service, command_template in SERVICES:
+        for service, command_template, stopper in SERVICES:
             command = command_template.format(python=sys.executable, self=self)
             service_file = service + '.service'
             path = data_path(service_file + '.in')
@@ -91,12 +123,19 @@ class Controller:
             service_path = os.path.join(self.tmpdir, service_file)
             with open(service_path, 'w', encoding='utf-8') as fp:
                 fp.write(config)
-        # If the daemon is already running, HUP it for the new configs.
+            self._stoppers.append(stopper)
+        # If the daemon is already running, kill all the children and HUP the
+        # daemon to reset dbus activation.
         if self.daemon_pid is not None:
+            for stopper in self._stoppers:
+                stopper()
             os.kill(self.daemon_pid, signal.SIGHUP)
 
-    def set_testing_mode(self, mode):
-        self.mode = mode
+    def set_mode(self, *, cert_pem=None, service_mode=''):
+        self.mode = service_mode
+        self.certs = (
+            '' if cert_pem is None
+            else '-self-signed-certs ' + data_path(cert_pem))
         self._configure_services()
 
     def _start(self):
@@ -127,32 +166,28 @@ class Controller:
         dbus_address = lines[0].strip()
         self.daemon_pid = int(lines[1].strip())
         self._stack.callback(self._kill, self.daemon_pid)
-        print("DBUS_SYSTEM_BUS_ADDRESS='{}'".format(dbus_address))
+        #print("DBUS_SYSTEM_BUS_ADDRESS='{}'".format(dbus_address))
         # Set the service's address into the environment for rendezvous.
         self._stack.enter_context(reset_envar('DBUS_SYSTEM_BUS_ADDRESS'))
         os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = dbus_address
 
     def start(self):
-        self._configure_services()
         if self.daemon_pid is not None:
             # Already started.
             return
         try:
+            self._configure_services()
             self._start()
         except:
             self._stack.close()
             raise
 
     def _kill(self, pid):
+        for stopper in self._stoppers:
+            stopper()
         os.kill(pid, signal.SIGTERM)
-        # Wait for it to die.
-        until = datetime.datetime.now() + datetime.timedelta(seconds=10)
-        while datetime.datetime.now() < until:
-            time.sleep(0.1)
-            try:
-                os.kill(pid, 0)
-            except ProcessLookupError:
-                break
+        with patience(ProcessLookupError):
+            os.kill(pid, 0)
         self.daemon_pid = None
 
     def stop(self):

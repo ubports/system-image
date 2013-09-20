@@ -18,24 +18,20 @@
 __all__ = [
     'TestDownloads',
     'TestHTTPSDownloads',
-    'TestRegressions',
     ]
 
 
 import os
-import ssl
 import random
 import unittest
 
 from contextlib import ExitStack
 from systemimage.config import config
-from systemimage.download import (
-    BuiltInDownloadManager, CHUNK_SIZE, DBusDownloadManager, Downloader)
+from systemimage.download import Canceled, DBusDownloadManager
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
     configuration, data_path, make_http_server)
-from threading import Event
-from urllib.error import URLError
+from systemimage.testing.nose import SystemImagePlugin
 from urllib.parse import urljoin
 
 MiB = 1024 * 1024
@@ -56,6 +52,10 @@ def _https_pathify(downloads):
 
 
 class TestDownloads(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode()
+
     def setUp(self):
         self._stack = ExitStack()
         try:
@@ -106,7 +106,6 @@ class TestDownloads(unittest.TestCase):
         total_bytes = 0
         def callback(received, total):
             nonlocal received_bytes, total_bytes
-            import sys; print(received, total, file=sys.stderr)
             received_bytes = received
             total_bytes = total
         DBusDownloadManager(callback).get_files(_http_pathify([
@@ -134,6 +133,10 @@ class TestDownloads(unittest.TestCase):
 
 
 class TestHTTPSDownloads(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
+
     def setUp(self):
         self._directory = os.path.dirname(data_path('__init__.py'))
 
@@ -151,13 +154,20 @@ class TestHTTPSDownloads(unittest.TestCase):
                 set(os.listdir(config.system.tempdir)),
                 set(['channels.json']))
 
+
+class TestHTTPSDownloadsNoSelfSigned(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode()
+
+    def setUp(self):
+        self._directory = os.path.dirname(data_path('__init__.py'))
+
     @configuration
     def test_https_cert_not_in_capath(self):
         # The self-signed certificate fails because it's not in the system's
         # CApath (no known-good CA).
-        with make_http_server(
-                self._directory, 8943, 'cert.pem', 'key.pem',
-                selfsign=False):
+        with make_http_server(self._directory, 8943, 'cert.pem', 'key.pem'):
             self.assertRaises(
                 FileNotFoundError,
                 DBusDownloadManager().get_files,
@@ -165,161 +175,88 @@ class TestHTTPSDownloads(unittest.TestCase):
                     ('channels_01.json', 'channels.json'),
                     ]))
 
-    def test_get_files_https_cert_not_in_capath(self):
-        # The self-signed certificate fails because it's not in the system's
-        # CApath (no known-good CA).
-        with ExitStack() as stack:
-            tempdir = stack.enter_context(temporary_directory())
-            stack.push(make_http_server(
-                self._directory, 8943, 'cert.pem', 'key.pem',
-                selfsign=False))
-            self.assertRaises(
-                FileNotFoundError,
-                BuiltInDownloadManager().get_files,
-                [('https://localhost:8943/channels_01.json',
-                  os.path.join(tempdir, 'channels.json'))])
-
     def test_http_masquerades_as_https(self):
         # There's an HTTP server pretending to be an HTTPS server.  This
         # should fail to download over https URLs.
-        with make_http_server(self._directory, 8943):
-            # By not providing an SSL context wrapped socket, this isn't
-            # really an https server.
-            dl = Downloader('https://localhost:8943/channels_01.json')
-            self.assertRaises(URLError, dl.__enter__)
-
-    def test_get_files_http_masquerades_as_https(self):
-        # There's an HTTP server pretending to be an HTTPS server.  This
-        # should fail to download over https URLs.
         with ExitStack() as stack:
-            tempdir = stack.enter_context(temporary_directory())
             # By not providing an SSL context wrapped socket, this isn't
             # really an https server.
             stack.push(make_http_server(self._directory, 8943))
             self.assertRaises(
                 FileNotFoundError,
-                BuiltInDownloadManager().get_files,
-                [('https://localhost:8943/channels_01.json',
-                  os.path.join(tempdir, 'channels.json'))])
+                DBusDownloadManager().get_files,
+                _https_pathify([
+                    ('channels_01.json', 'channels.json'),
+                    ]))
+
+    @configuration
+    def test_cancel(self):
+        # Try to cancel the download of a big file.
+        self.assertEqual(os.listdir(config.system.tempdir), [])
+        with ExitStack() as stack:
+            serverdir = stack.enter_context(temporary_directory())
+            stack.push(make_http_server(serverdir, 8980))
+            # Create a couple of big files to download.
+            with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
+                fp.write(b'x' * 100 * MiB)
+            with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
+                fp.write(b'x' * 1000 * MiB)
+            # This callback will force a cancel after 1MB has been downloaded.
+            downloader = None
+            def callback(received, total):
+                import sys
+                print('CALLBACK:', received, total, file=sys.stderr)
+                if received > 1024 * 1024:
+                    print('CANCELLING', file=sys.stderr)
+                    downloader.cancel()
+            downloader = DBusDownloadManager(callback)
+            self.assertRaises(
+                Canceled, downloader.get_files, _http_pathify([
+                    ('bigfile_1.dat', 'bigfile_1.dat'),
+                    ('bigfile_2.dat', 'bigfile_2.dat'),
+                    ]))
+            self.assertEqual(os.listdir(config.system.tempdir), [])
+
+
+class TestHTTPSDownloadsExpired(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode(cert_pem='expired_cert.pem')
+
+    def setUp(self):
+        self._directory = os.path.dirname(data_path('__init__.py'))
 
     def test_expired(self):
         # The HTTPS server has an expired certificate (mocked so that its CA
         # is in the system's trusted path).
-        with make_http_server(
-                self._directory, 8943, 'expired_cert.pem', 'expired_key.pem'):
-            dl = Downloader('https://localhost:8943/channels_01.json')
-            self.assertRaises(URLError, dl.__enter__)
-
-    def test_get_files_expired(self):
-        # The HTTPS server has an expired certificate (mocked so that its CA
-        # is in the system's trusted path).
         with ExitStack() as stack:
-            tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
                 self._directory, 8943, 'expired_cert.pem', 'expired_key.pem'))
             self.assertRaises(
                 FileNotFoundError,
-                BuiltInDownloadManager().get_files,
-                [('https://localhost:8943/channels_01.json',
-                  os.path.join(tempdir, 'channels.json'))])
+                DBusDownloadManager().get_files,
+                _https_pathify([
+                    ('channels_01.json', 'channels.json'),
+                    ]))
+
+
+class TestHTTPSDownloadsNasty(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode(cert_pem='nasty_cert.pem')
+
+    def setUp(self):
+        self._directory = os.path.dirname(data_path('__init__.py'))
 
     def test_bad_host(self):
         # The HTTPS server has a certificate with a non-matching hostname
         # (mocked so that its CA is in the system's trusted path).
-        with make_http_server(
-                self._directory, 8943, 'nasty_cert.pem', 'nasty_key.pem'):
-            dl = Downloader('https://localhost:8943/channels_01.json')
-            self.assertRaises(ssl.CertificateError, dl.__enter__)
-
-    def test_get_files_bad_host(self):
-        # The HTTPS server has a certificate with a non-matching hostname
-        # (mocked so that its CA is in the system's trusted path).
         with ExitStack() as stack:
-            tempdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(
                 self._directory, 8943, 'nasty_cert.pem', 'nasty_key.pem'))
             self.assertRaises(
                 FileNotFoundError,
-                BuiltInDownloadManager().get_files,
-                [('https://localhost:8943/channels_01.json',
-                  os.path.join(tempdir, 'channels.json'))])
-
-    def test_cancel(self):
-        # Try to cancel the download of a big file.
-        with ExitStack() as stack:
-            serverdir = stack.enter_context(temporary_directory())
-            dstdir = stack.enter_context(temporary_directory())
-            stack.push(make_http_server(serverdir, 8980, selfsign=False))
-            # Create a couple of big files to download.
-            with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
-                fp.write(b'x' * CHUNK_SIZE * 10)
-            with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
-                fp.write(b'x' * CHUNK_SIZE * 10)
-            # Here's an exception class we'll raise to cancel the download.
-            class Cancel(BaseException):
-                pass
-            # Here's the event that will be used to cancel the download.
-            event = Event()
-            # Here's the callback that checks the event.
-            seen = {}
-            def callback(url, dst, bytes_read, *ignore):
-                seen[url] = bytes_read
-                if event.is_set():
-                    raise Cancel
-                elif bytes_read >= CHUNK_SIZE:
-                    event.set()
-            # Do the download.
-            downloads = [
-                ('http://localhost:8980/bigfile_1.dat',
-                 os.path.join(dstdir, 'bigfile_1.dat')),
-                ('http://localhost:8980/bigfile_2.dat',
-                 os.path.join(dstdir, 'bigfile_2.dat')),
-                ]
-            self.assertRaises(
-                Cancel, BuiltInDownloadManager(callback).get_files, downloads)
-            # The event got fired.
-            self.assertTrue(event.is_set())
-            # No file will have read more than 2x CHUNK_SIZE.  Why?  Let's say
-            # we read only one file.  The first read will give us CHUNK_SIZE
-            # bytes and set the event.  The second read won't call the
-            # callback until the second chunk is fully read.  The the callback
-            # will see the set event and raise the cancel.
-            for url, bytes_read in seen.items():
-                self.assertLessEqual(bytes_read, CHUNK_SIZE * 2)
-            # But because the exception got raised, no download files exist.
-            self.assertEqual(os.listdir(dstdir), [])
-
-
-class TestRegressions(unittest.TestCase):
-    maxDiff = None
-
-    def setUp(self):
-        self._stack = ExitStack()
-        try:
-            # Start the HTTP server running, vending files out of a temporary
-            # directory.
-            self._serverdir = self._stack.enter_context(temporary_directory())
-            self._stack.push(make_http_server(self._serverdir, 8980))
-        except:
-            self._stack.close()
-            raise
-
-    def tearDown(self):
-        self._stack.close()
-
-    @configuration
-    def test_lp1199361(self):
-        # Downloading more files than there are threads causes a timeout error.
-        downloads = []
-        for i in range(config.system.threads * 2):
-            file_name = '{:02d}.dat'.format(i)
-            server_path = os.path.join(self._serverdir, file_name)
-            with open(server_path, 'wb') as fp:
-                fp.write(b'x' * 20 * MiB)
-            url = urljoin(config.service.http_base, file_name)
-            dst = os.path.join(config.system.tempdir, file_name)
-            downloads.append((url, dst))
-        self.assertEqual(len(os.listdir(config.system.tempdir)), 0)
-        BuiltInDownloadManager().get_files(downloads)
-        self.assertEqual(len(os.listdir(config.system.tempdir)),
-                         len(downloads))
+                DBusDownloadManager().get_files,
+                _https_pathify([
+                    ('channels_01.json', 'channels.json'),
+                    ]))

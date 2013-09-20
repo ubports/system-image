@@ -2,7 +2,7 @@ import os
 import sys
 import shutil
 
-from dbus import SessionBus, Interface, Dictionary
+from dbus import SystemBus, Interface, Dictionary
 from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 
@@ -10,15 +10,15 @@ DBusGMainLoop(set_as_default=True)
 
 DOWNLOADS = [
     # File 1.
-    ## ('http://www.python.org/ftp/python/3.4.0/Python-3.4.0a2.tgz',
-    ##  '/tmp/Python-3.4.0a2.tgz',
-    ##  ''),
-    ##  #'e6e81242a32e6f63d224254d24edbd2f'),
-    ## # File 2
-    ## ('http://www.python.org/ftp/python/3.4.0/Python-3.4.0a2.tar.xz',
-    ##  '/tmp/Python-3.4.0a2.tar.xz',
-    ##  ''),
-    ##  #'36c941d1466730a70d0ae92442cc3fcf'),
+    ('http://www.python.org/ftp/python/3.4.0/Python-3.4.0a2.tgz',
+     '/tmp/Python-3.4.0a2.tgz',
+     ''),
+     #'e6e81242a32e6f63d224254d24edbd2f'),
+    # File 2
+    ('http://www.python.org/ftp/python/3.4.0/Python-3.4.0a2.tar.xz',
+     '/tmp/Python-3.4.0a2.tar.xz',
+     ''),
+     #'36c941d1466730a70d0ae92442cc3fcf'),
     # File 3
     ('http://system-image.ubuntu.com/channels.json',
      '/tmp/channels.json',
@@ -30,6 +30,10 @@ DOWNLOADS = [
     # File 5
     ('http://system-image.ubuntu.com/gpg/archive-master.tar.xz.asc',
      '/tmp/archive-master.tar.xz.asc',
+     ''),
+    # File 6
+    ('http://system-image.ubuntu.com/no-such-file.txt',
+     '/tmp/no-such-file.txt',
      ''),
     ]
 
@@ -114,14 +118,18 @@ class DownloadReactor(Reactor):
         self.received_bytes += received
         print('PROGRESS:', received, 'of', total, file=sys.stderr)
 
+    def _do_error(self, signal, path, error_message):
+        print('ERROR:', error_message, file=sys.stderr)
+        self.quit()
+
     def _default(self, *args, **kws):
         print('SIGNAL:', args, kws, file=sys.stderr)
 
 
 if __name__ == '__main__':
-    b = SessionBus()
+    b = SystemBus()
     m = b.get_object('com.canonical.applications.Downloader', '/')
-    i = Interface(m, 'com.canonical.applications.DownloaderManager')
+    i = Interface(m, 'com.canonical.applications.DownloadManager')
 
     # LP: #1224641
     movers = {}

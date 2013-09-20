@@ -27,7 +27,6 @@ from datetime import timedelta
 from pkg_resources import resource_filename
 from systemimage.config import Configuration
 from systemimage.device import SystemProperty
-from systemimage.download import DBusDownloadManager
 from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import configuration, data_path, touch_build
@@ -61,7 +60,6 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.hooks.device, SystemProperty)
         self.assertEqual(config.hooks.scorer, WeightedScorer)
         self.assertEqual(config.hooks.reboot, Reboot)
-        self.assertEqual(config.hooks.downloader, DBusDownloadManager)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
                          '/etc/system-image/archive-master.tar.xz')
@@ -112,7 +110,6 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.hooks.device, SystemProperty)
         self.assertEqual(config.hooks.scorer, WeightedScorer)
         self.assertEqual(config.hooks.reboot, Reboot)
-        self.assertEqual(config.hooks.downloader, DBusDownloadManager)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
                          '/etc/phablet/archive-master.tar.xz')

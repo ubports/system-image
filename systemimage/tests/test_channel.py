@@ -119,8 +119,6 @@ class TestLoadChannel(unittest.TestCase):
     @configuration
     def test_load_channel_bad_signature(self):
         # We get an error if the signature on the channels.json file is bad.
-        # The state machine needs three transitions:
-        # (blacklist -> channels -> signing_key)
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
         self._state.run_thru('get_channel')

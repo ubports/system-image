@@ -30,6 +30,7 @@ import tarfile
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from systemimage.config import config
+from systemimage.download import get_files
 from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import makedirs
 from urllib.parse import urljoin
@@ -92,7 +93,7 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
     ascxz_dst = tarxz_dst + '.asc'
     with ExitStack() as stack:
         # Let FileNotFoundError percolate up.
-        config.hooks.downloader().get_files([
+        get_files([
             (tarxz_src, tarxz_dst),
             (ascxz_src, ascxz_dst),
             ])
