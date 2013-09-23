@@ -92,14 +92,24 @@ class _Called:
     # Defer importing named object until it's actually called.  This should
     # reduce the instances of circular imports.
     def __init__(self, path):
-        self._path = path
-
-    def __call__(self, *args, **kws):
-        path, dot, name = self._path.rpartition('.')
+        self._path, dot, self._name = path.rpartition('.')
         if dot != '.':
             raise ValueError
-        module = import_module(path)
-        return getattr(module, name)(*args, **kws)
+
+    def _dig(self):
+        module = import_module(self._path)
+        return getattr(module, self._name)
+
+    def __call__(self, *args, **kws):
+        return self._dig()(*args, **kws)
+
+    def __eq__(self, other):
+        # Let class equality (and in-equality) work.
+        myself = self._dig()
+        return myself == other
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 
 def as_object(value):

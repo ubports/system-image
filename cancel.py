@@ -62,4 +62,6 @@ def make_http_server(directory, port):
         # The caller is responsible for closing the new ExitStack.
         return stack.pop_all()
 
-
+def main():
+    with ExitStack() as stack:
+        serverdir = stack.enter

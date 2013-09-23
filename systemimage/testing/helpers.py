@@ -113,7 +113,12 @@ def make_http_server(directory, port, certpem=None, keypem=None):
                 self.end_headers()
                 self.wfile.write(user_agent.encode('utf-8'))
             else:
-                super().do_GET()
+                try:
+                    super().do_GET()
+                except BrokenPipeError:
+                    # Canceling a download can cause our internal server to
+                    # see a broken pipe.  No worries.
+                    pass
     # Create the server in the main thread, but start it in the sub-thread.
     # This lets the main thread call .shutdown() to stop everything.  Return
     # just the shutdown method to the caller.
@@ -140,7 +145,11 @@ def make_http_server(directory, port, certpem=None, keypem=None):
         thread = Thread(target=server.serve_forever)
         thread.daemon = True
         def shutdown():
+            import time; start = time.time()
             server.shutdown()
+            end = time.time()
+            if end - start > 5:
+                import sys; print('SLOW', end - start, file=sys.stderr)
             thread.join()
         stack.callback(shutdown)
         thread.start()

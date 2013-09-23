@@ -22,6 +22,7 @@ __all__ = [
 
 import re
 import sys
+import atexit
 
 from dbus.mainloop.glib import DBusGMainLoop
 from nose.plugins import Plugin
@@ -88,6 +89,7 @@ class SystemImagePlugin(Plugin):
         # addresses after the initial one is set.
         SystemImagePlugin.controller = Controller()
         SystemImagePlugin.controller.start()
+        atexit.register(SystemImagePlugin.controller.stop)
 
     def finalize(self, result):
         SystemImagePlugin.controller.stop()

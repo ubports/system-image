@@ -30,9 +30,14 @@ from systemimage.config import config
 from systemimage.testing.helpers import (
     configuration, copy, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, temporary_directory, touch_build)
+from systemimage.testing.nose import SystemImagePlugin
 
 
 class TestAPI(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
+
     def setUp(self):
         self._stack = ExitStack()
         try:

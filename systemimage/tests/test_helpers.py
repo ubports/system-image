@@ -42,12 +42,20 @@ class TestConverters(unittest.TestCase):
         self.assertRaises(ValueError, as_object, 'foo')
 
     def test_as_object_import_error(self):
-        self.assertRaises(ImportError, as_object,
-                          'systemimage.doesnotexist.Foo')
+        # Because as_object() returns a proxy in order to avoid circular
+        # imports, we actually have to call the return value of as_object() in
+        # order to trigger the module lookup.
+        self.assertRaises(
+            ImportError,
+            as_object('systemimage.doesnotexist.Foo'))
 
     def test_as_object_attribute_error(self):
-        self.assertRaises(AttributeError, as_object,
-                          'systemimage.tests.test_helpers.NoSuchTest')
+        # Because as_object() returns a proxy in order to avoid circular
+        # imports, we actually have to call the return value of as_object() in
+        # order to trigger the module lookup.
+        self.assertRaises(
+            AttributeError,
+            as_object('systemimage.tests.test_helpers.NoSuchTest'))
 
     def test_as_timedelta_seconds(self):
         self.assertEqual(as_timedelta('2s'), timedelta(seconds=2))

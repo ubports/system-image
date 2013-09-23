@@ -1,8 +1,6 @@
-import os
 import sys
-import shutil
 
-from dbus import SystemBus, Interface, Dictionary
+from dbus import SessionBus, SystemBus, Interface, Dictionary
 from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 
@@ -92,9 +90,8 @@ class Reactor:
 
 
 class DownloadReactor(Reactor):
-    def __init__(self, movers, bus, iface=None):
+    def __init__(self, bus, iface=None):
         super().__init__(bus, iface)
-        self._movers = movers
         self.received_bytes = 0
         self.react_to('canceled')
         self.react_to('error')
@@ -106,12 +103,6 @@ class DownloadReactor(Reactor):
 
     def _do_finished(self, signal, path, local_paths):
         print('FINISHED', file=sys.stderr)
-        for actual_path in local_paths:
-            head, tail = os.path.split(actual_path)
-            real_destination = self._movers.pop(tail)
-            # We can't guarantee that both paths are on the same device, so
-            # use shutil.move() instead of os.rename().
-            shutil.move(actual_path, real_destination)
         self.quit()
 
     def _do_progress(self, signal, path, received, total):
@@ -127,15 +118,10 @@ class DownloadReactor(Reactor):
 
 
 if __name__ == '__main__':
-    b = SystemBus()
+    #b = SystemBus()
+    b = SessionBus()
     m = b.get_object('com.canonical.applications.Downloader', '/')
     i = Interface(m, 'com.canonical.applications.DownloadManager')
-
-    # LP: #1224641
-    movers = {}
-    for url, dst, md5sum in DOWNLOADS:
-        head, tail = os.path.split(url)
-        movers[tail] = dst
 
     path = i.createDownloadGroup(
         DOWNLOADS, '', #'md5',
@@ -149,6 +135,6 @@ if __name__ == '__main__':
     dl = b.get_object('com.canonical.applications.Downloader', path)
     dl_i = Interface(dl, 'com.canonical.applications.GroupDownload')
 
-    reactor = DownloadReactor(movers, b, dl_i)
+    reactor = DownloadReactor(b, dl_i)
     reactor.schedule(dl_i.start)
     reactor.run()

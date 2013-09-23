@@ -16,8 +16,12 @@
 """Test asynchronous downloads."""
 
 __all__ = [
+    'TestDownloadBigFiles',
     'TestDownloads',
     'TestHTTPSDownloads',
+    'TestHTTPSDownloadsExpired',
+    'TestHTTPSDownloadsNasty',
+    'TestHTTPSDownloadsNoSelfSigned',
     ]
 
 
@@ -32,6 +36,7 @@ from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
     configuration, data_path, make_http_server)
 from systemimage.testing.nose import SystemImagePlugin
+from unittest.mock import patch
 from urllib.parse import urljoin
 
 MiB = 1024 * 1024
@@ -118,19 +123,6 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(received_bytes, 555)
         self.assertEqual(total_bytes, 555)
 
-    @configuration
-    def test_download_404(self):
-        # Try to download a file which doesn't exist.  Since it's all or
-        # nothing, the temp directory will be empty.
-        self.assertRaises(FileNotFoundError,
-                          DBusDownloadManager().get_files,
-                          _http_pathify([
-            ('channels_01.json', 'channels.json'),
-            ('index_01.json', 'index.json'),
-            ('missing.txt', 'missing.txt'),
-            ]))
-        self.assertEqual(os.listdir(config.system.tempdir), [])
-
 
 class TestHTTPSDownloads(unittest.TestCase):
     @classmethod
@@ -189,34 +181,6 @@ class TestHTTPSDownloadsNoSelfSigned(unittest.TestCase):
                     ('channels_01.json', 'channels.json'),
                     ]))
 
-    @configuration
-    def test_cancel(self):
-        # Try to cancel the download of a big file.
-        self.assertEqual(os.listdir(config.system.tempdir), [])
-        with ExitStack() as stack:
-            serverdir = stack.enter_context(temporary_directory())
-            stack.push(make_http_server(serverdir, 8980))
-            # Create a couple of big files to download.
-            with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
-                fp.write(b'x' * 100 * MiB)
-            with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
-                fp.write(b'x' * 1000 * MiB)
-            # This callback will force a cancel after 1MB has been downloaded.
-            downloader = None
-            def callback(received, total):
-                import sys
-                print('CALLBACK:', received, total, file=sys.stderr)
-                if received > 1024 * 1024:
-                    print('CANCELLING', file=sys.stderr)
-                    downloader.cancel()
-            downloader = DBusDownloadManager(callback)
-            self.assertRaises(
-                Canceled, downloader.get_files, _http_pathify([
-                    ('bigfile_1.dat', 'bigfile_1.dat'),
-                    ('bigfile_2.dat', 'bigfile_2.dat'),
-                    ]))
-            self.assertEqual(os.listdir(config.system.tempdir), [])
-
 
 class TestHTTPSDownloadsExpired(unittest.TestCase):
     @classmethod
@@ -260,3 +224,62 @@ class TestHTTPSDownloadsNasty(unittest.TestCase):
                 _https_pathify([
                     ('channels_01.json', 'channels.json'),
                     ]))
+
+
+class TestDownloadBigFiles(unittest.TestCase):
+    @configuration
+    def test_cancel(self):
+        # Try to cancel the download of a big file.
+        self.assertEqual(os.listdir(config.system.tempdir), [])
+        with ExitStack() as stack:
+            serverdir = stack.enter_context(temporary_directory())
+            stack.push(make_http_server(serverdir, 8980))
+            # Create a couple of big files to download.
+            with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
+                fp.write(b'x' * 100 * MiB)
+            with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
+                fp.write(b'x' * 1000 * MiB)
+            # The download service doesn't provide reliable cancel
+            # granularity, so instead, we mock the 'started' signal to
+            # immediately cancel the download.
+            downloader = DBusDownloadManager()
+            def cancel_on_start(self, signal, path, started):
+                if started:
+                    downloader.cancel()
+            stack.enter_context(patch(
+                'systemimage.download.DownloadReactor._do_started',
+                cancel_on_start))
+            self.assertRaises(
+                Canceled, downloader.get_files, _http_pathify([
+                    ('bigfile_1.dat', 'bigfile_1.dat'),
+                    ('bigfile_2.dat', 'bigfile_2.dat'),
+                    ]))
+            self.assertEqual(os.listdir(config.system.tempdir), [])
+
+    @configuration
+    def test_download_404(self):
+        # Start a group download of some big files.   One of the files won't
+        # exist, so the entire group download should fail, and none of the
+        # files should exist in the destination.
+        self.assertEqual(os.listdir(config.system.tempdir), [])
+        with ExitStack() as stack:
+            serverdir = stack.enter_context(temporary_directory())
+            stack.push(make_http_server(serverdir, 8980))
+            # Create a couple of big files to download.
+            with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
+                fp.write(b'x' * 1000 * MiB)
+            with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
+                fp.write(b'x' * 1000 * MiB)
+            with open(os.path.join(serverdir, 'bigfile_3.dat'), 'wb') as fp:
+                fp.write(b'x' * 1000 * MiB)
+            downloads = _http_pathify([
+                ('bigfile_1.dat', 'bigfile_1.dat'),
+                ('bigfile_2.dat', 'bigfile_2.dat'),
+                ('bigfile_3.dat', 'bigfile_3.dat'),
+                ('missing.txt', 'missing.txt'),
+                ])
+            self.assertRaises(FileNotFoundError,
+                              DBusDownloadManager().get_files,
+                              downloads)
+            # The temporary directory is empty.
+            self.assertEqual(os.listdir(config.system.tempdir), [])

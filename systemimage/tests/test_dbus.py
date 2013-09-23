@@ -46,8 +46,8 @@ from dbus.exceptions import DBusException
 from functools import partial
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
-from systemimage.dbus import Reactor
 from systemimage.helpers import safe_remove
+from systemimage.reactor import Reactor
 from systemimage.testing.helpers import (
     copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
     sign)
@@ -101,7 +101,7 @@ class _TestBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        SystemImagePlugin.controller.set_testing_mode(cls.mode)
+        SystemImagePlugin.controller.set_mode(service_mode=cls.mode)
 
     @classmethod
     def tearDownClass(cls):

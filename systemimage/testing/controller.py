@@ -53,7 +53,7 @@ def stop_downloader():
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.applications.Downloader', '/')
         iface = dbus.Interface(
-        service, 'com.canonical.applications.DownloadManager')
+            service, 'com.canonical.applications.DownloadManager')
         iface.exit()
     except dbus.DBusException:
         # The process might not be running at all.

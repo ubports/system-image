@@ -51,7 +51,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
-        self.assertEqual(config.system.loglevel, logging.ERROR)
+        self.assertEqual(config.system.loglevel, logging.INFO)
         self.assertEqual(config.system.state_file,
                          '/var/lib/system-image/state.pck')
         self.assertEqual(config.system.settings_db,

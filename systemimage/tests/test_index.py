@@ -32,10 +32,13 @@ from systemimage.state import State
 from systemimage.testing.helpers import (
     configuration, copy, get_index, make_http_server, makedirs,
     setup_keyring_txz, setup_keyrings, sign)
+from systemimage.testing.nose import SystemImagePlugin
 
 
 class TestIndex(unittest.TestCase):
-    maxDiff = None
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def test_index_global(self):
         index = get_index('index_01.json')
@@ -110,6 +113,10 @@ class TestIndex(unittest.TestCase):
 
 class TestDownloadIndex(unittest.TestCase):
     maxDiff = None
+
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def setUp(self):
         # Start the HTTPS server running.  Vend it out of a temporary
