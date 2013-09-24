@@ -22,7 +22,6 @@ __all__ = [
 
 
 import os
-import math
 #import pickle
 import shutil
 import hashlib
@@ -35,7 +34,7 @@ from itertools import islice
 from systemimage.candidates import get_candidates, iter_path
 from systemimage.channel import Channels
 from systemimage.config import config
-from systemimage.download import get_files
+from systemimage.download import DBusDownloadManager
 from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import makedirs
 from systemimage.index import Index
@@ -52,22 +51,11 @@ class ChecksumError(Exception):
     """Exception raised when a file's checksum does not match."""
 
 
-def _download_feedback(url, dst, bytes_read, size):
-    if size:
-        digits = math.floor(math.log10(abs(size))) + 1
-        fmt = '[{{:{0}d}}/{{:>{0}}}]'.format(digits)
-        progress = fmt.format(bytes_read, size)
-    else:
-        progress = '[{}d bytes]'.format(bytes_read)
-    log.debug('download {} {} -> {}', progress, url, dst)
-
-
 class State:
-    def __init__(self, callback=None, candidate_filter=None):
+    def __init__(self, candidate_filter=None):
         # Variables which manage state transitions.
         self._next = deque()
         self._debug_step = 1
-        self._callback = (_download_feedback if callback is None else callback)
         self._filter = candidate_filter
         # Variables which represent things we've learned.
         self.blacklist = None
@@ -75,6 +63,7 @@ class State:
         self.index = None
         self.winner = None
         self.files = []
+        self.downloader = DBusDownloadManager()
         # See if there is a state file to unpickle.
         first_step = self._get_blacklist_1
         ## try:
@@ -230,7 +219,7 @@ class State:
         asc_path = os.path.join(config.system.tempdir, 'channels.json.asc')
         log.info('Looking for: {}', channels_url)
         with ExitStack() as stack:
-            get_files([
+            self.downloader.get_files([
                 (channels_url, channels_path),
                 (asc_url, asc_path),
                 ])
@@ -327,7 +316,7 @@ class State:
         index_path = os.path.join(config.system.tempdir, 'index.json')
         asc_path = index_path + '.asc'
         with ExitStack() as stack:
-            get_files([
+            self.downloader.get_files([
                 (index_url, index_path),
                 (asc_url, asc_path),
                 ])
@@ -413,7 +402,7 @@ class State:
         if os.path.exists(config.gpg.device_signing):
             keyrings.append(config.gpg.device_signing)
         # Now, download all the files, providing logging feedback on progress.
-        get_files(downloads, self._callback)
+        self.downloader.get_files(downloads)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets
             # raised or if the checksums don't match.  If everything's okay,

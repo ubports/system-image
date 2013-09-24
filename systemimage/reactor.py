@@ -71,5 +71,3 @@ class Reactor:
         for source_id in self._quitters:
             GLib.source_remove(source_id)
         del self._quitters[:]
-
-

@@ -236,9 +236,9 @@ class TestDownloadBigFiles(unittest.TestCase):
             stack.push(make_http_server(serverdir, 8980))
             # Create a couple of big files to download.
             with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
-                fp.write(b'x' * 100 * MiB)
+                fp.write(b'x' * 10 * MiB)
             with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
-                fp.write(b'x' * 1000 * MiB)
+                fp.write(b'x' * 10 * MiB)
             # The download service doesn't provide reliable cancel
             # granularity, so instead, we mock the 'started' signal to
             # immediately cancel the download.
@@ -267,11 +267,11 @@ class TestDownloadBigFiles(unittest.TestCase):
             stack.push(make_http_server(serverdir, 8980))
             # Create a couple of big files to download.
             with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
-                fp.write(b'x' * 1000 * MiB)
+                fp.write(b'x' * 10 * MiB)
             with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
-                fp.write(b'x' * 1000 * MiB)
+                fp.write(b'x' * 10 * MiB)
             with open(os.path.join(serverdir, 'bigfile_3.dat'), 'wb') as fp:
-                fp.write(b'x' * 1000 * MiB)
+                fp.write(b'x' * 10 * MiB)
             downloads = _http_pathify([
                 ('bigfile_1.dat', 'bigfile_1.dat'),
                 ('bigfile_2.dat', 'bigfile_2.dat'),

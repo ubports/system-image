@@ -135,8 +135,16 @@ def make_http_server(directory, port, certpem=None, keypem=None):
         ssl_context.load_cert_chain(certfile=certpem, keyfile=keypem)
     # Define a small class with a method that arranges for the self-signed
     # certificates to be valid in the client.
+    import sys
+    connections = []
+    class S(HTTPServer):
+        def get_request(self):
+            conn, addr = super().get_request()
+            #print('CONN:', conn, 'ADDR:', addr, file=sys.stderr)
+            connections.append(conn)
+            return conn, addr
     with ExitStack() as stack:
-        server = HTTPServer(('localhost', port), RequestHandler)
+        server = S(('localhost', port), RequestHandler)
         server.allow_reuse_address = True
         stack.callback(server.server_close)
         if ssl_context is not None:
@@ -145,7 +153,11 @@ def make_http_server(directory, port, certpem=None, keypem=None):
         thread = Thread(target=server.serve_forever)
         thread.daemon = True
         def shutdown():
+            #import sys; print('SHUTDOWN', file=sys.stderr); sys.stderr.flush()
             import time; start = time.time()
+            #print('CONN:', connections, file=sys.stderr)
+            for conn in connections:
+                conn.close()
             server.shutdown()
             end = time.time()
             if end - start > 5:

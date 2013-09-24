@@ -26,7 +26,6 @@ import dbus
 import logging
 
 from systemimage.config import config
-from systemimage.helpers import safe_remove
 from systemimage.reactor import Reactor
 
 
@@ -118,6 +117,7 @@ class DBusDownloadManager:
         self._callback = callback
         self._iface = None
         self._reactor = None
+        self._queued_cancel = False
 
     def get_files(self, downloads):
         """Download a bunch of files concurrently.
@@ -149,6 +149,9 @@ class DBusDownloadManager:
 
         The API is a little funky for backward compatibility reasons.
         """
+        if self._queued_cancel:
+            # A cancel is queued, so don't actually download anything.
+            raise Canceled
         bus = dbus.SystemBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
         iface = dbus.Interface(service, MANAGER_INTERFACE)
@@ -165,18 +168,25 @@ class DBusDownloadManager:
         self._reactor.schedule(self._iface.start)
         self._reactor.run()
         if self._reactor.error is not None:
-            # LP: #1229413 - when a 404 occurs for some files in a group
-            # download, all the destination files should be deleted.  This
-            # only happens sometimes.
-            for url, dst in downloads:
-                safe_remove(dst)
             raise FileNotFoundError(self._reactor.error)
         if self._reactor.canceled:
             raise Canceled
+        # This download is complete so the object path is no longer
+        # applicable.  Setting this to None will cause subsequent cancels to
+        # be queued.
+        self._iface = None
 
     def cancel(self):
         """Cancel any current downloads."""
-        if self._iface is not None:
+        if self._iface is None:
+            # Since there's no download in progress right now, there's nothing
+            # to cancel.  Setting this flag queues the cancel signal once the
+            # reactor starts running again.  Yes, this is a bit weird, but if
+            # we don't do it this way, the caller will immediately get a
+            # Canceled exception, which isn't helpful because it's expecting
+            # one when the next download begins.
+            self._queued_cancel = True
+        else:
             self._iface.cancel()
 
 

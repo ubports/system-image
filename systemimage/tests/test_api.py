@@ -25,8 +25,9 @@ import os
 import unittest
 
 from contextlib import ExitStack
-from systemimage.api import Cancel, Mediator
+from systemimage.api import Mediator
 from systemimage.config import config
+from systemimage.download import Canceled
 from systemimage.testing.helpers import (
     configuration, copy, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, temporary_directory, touch_build)
@@ -243,4 +244,4 @@ unmount system
         mediator = Mediator()
         mediator.check_for_update()
         mediator.cancel()
-        self.assertRaises(Cancel, mediator.download)
+        self.assertRaises(Canceled, mediator.download)

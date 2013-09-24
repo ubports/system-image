@@ -69,7 +69,7 @@ SERVICES = [
     stop_system_image,
    ),
    ('com.canonical.applications.Downloader',
-    '/bin/sh /home/barry/projects/phone/stoppable/runme {self.certs}',
+    '/bin/sh /home/barry/projects/phone/runme {self.certs}',
     stop_downloader,
    ),
    ]
