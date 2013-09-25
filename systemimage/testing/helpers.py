@@ -53,6 +53,7 @@ from systemimage.helpers import atomic, makedirs, temporary_directory
 from systemimage.index import Index
 from threading import Thread
 from unittest.mock import patch
+from socket import SHUT_RDWR
 
 
 EMPTYSTRING = ''
@@ -157,6 +158,8 @@ def make_http_server(directory, port, certpem=None, keypem=None):
             import time; start = time.time()
             #print('CONN:', connections, file=sys.stderr)
             for conn in connections:
+                if conn.fileno() != -1:
+                    conn.shutdown(SHUT_RDWR)
                 conn.close()
             server.shutdown()
             end = time.time()
