@@ -69,7 +69,8 @@ SERVICES = [
     stop_system_image,
    ),
    ('com.canonical.applications.Downloader',
-    '/bin/sh /home/barry/projects/phone/runme {self.certs}',
+    #'/bin/sh /home/barry/projects/phone/runme {self.certs}',
+    '/usr/bin/ubuntu-download-manager {self.certs} -disable-timeout -stoppable',
     stop_downloader,
    ),
    ]
@@ -155,6 +156,7 @@ class Controller:
             daemon_exe,
             #'/usr/lib/x86_64-linux-gnu/dbus-1.0/debug-build/bin/dbus-daemon',
             '--fork',
+            #'--nofork',
             '--config-file=' + self.config_path,
             # Return the address and pid on stdout.
             '--print-address=1',
@@ -166,7 +168,7 @@ class Controller:
         dbus_address = lines[0].strip()
         self.daemon_pid = int(lines[1].strip())
         self._stack.callback(self._kill, self.daemon_pid)
-        #print("DBUS_SYSTEM_BUS_ADDRESS='{}'".format(dbus_address))
+        print("DBUS_SYSTEM_BUS_ADDRESS='{}'".format(dbus_address))
         # Set the service's address into the environment for rendezvous.
         self._stack.enter_context(reset_envar('DBUS_SYSTEM_BUS_ADDRESS'))
         os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = dbus_address

@@ -155,6 +155,7 @@ class DBusDownloadManager:
         bus = dbus.SystemBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
         iface = dbus.Interface(service, MANAGER_INTERFACE)
+        log.info('Requesting group download:', downloads)
         object_path = iface.createDownloadGroup(
             [(url, dst, '') for url, dst in downloads],
             '',           # No hashes yet.
@@ -166,7 +167,10 @@ class DBusDownloadManager:
         self._iface = dbus.Interface(download, OBJECT_INTERFACE)
         self._reactor = DownloadReactor(bus, self._callback)
         self._reactor.schedule(self._iface.start)
+        log.info('Running group download reactor')
         self._reactor.run()
+        log.info('Group download reactor done (err/cancel):',
+                 self._reactor.error, self._reactor.canceled)
         if self._reactor.error is not None:
             raise FileNotFoundError(self._reactor.error)
         if self._reactor.canceled:

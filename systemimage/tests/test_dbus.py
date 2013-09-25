@@ -49,17 +49,19 @@ from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
 from systemimage.reactor import Reactor
 from systemimage.testing.helpers import (
-    copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
-    sign)
+    copy, data_path, make_http_server, setup_index, setup_keyring_txz,
+    setup_keyrings, sign)
 from systemimage.testing.nose import SystemImagePlugin
 
 
 class SignalCapturingReactor(Reactor):
-    def __init__(self, *signals):
+    def __init__(self, *signals, timeout=None):
         super().__init__(dbus.SystemBus())
         for signal in signals:
             self.react_to(signal)
         self.signals = []
+        if timeout is not None:
+            self.timeout = timeout
 
     def _default(self, signal, path, *args, **kws):
         self.signals.append(args)
@@ -101,7 +103,9 @@ class _TestBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        SystemImagePlugin.controller.set_mode(service_mode=cls.mode)
+        SystemImagePlugin.controller.set_mode(
+            cert_pem='cert.pem',
+            service_mode=cls.mode)
 
     @classmethod
     def tearDownClass(cls):
@@ -217,7 +221,7 @@ class _LiveTesting(_TestBase):
     def tearDown(self):
         self.iface.CancelUpdate()
         # Consume the UpdateFailed that results from the cancellation.
-        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor = SignalCapturingReactor('UpdateFailed', timeout=10)
         reactor.run()
         safe_remove(self.config.system.build_file)
         for updater_dir in (self.config.updater.cache_partition,
@@ -245,7 +249,6 @@ class _LiveTesting(_TestBase):
             print(version, file=fp)
 
 
-@unittest.skip('failing')
 class TestDBusCheckForUpdate(_LiveTesting):
     """Test the SystemImage dbus service."""
 
@@ -328,7 +331,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
         with open(channel_ini, 'w', encoding='utf-8'):
             pass
         os.utime(channel_ini, (timestamp, timestamp))
-        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor = SignalCapturingReactor('UpdateAvailableStatus', timeout=60)
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         (is_available, downloading, available_version, update_size,
@@ -1144,7 +1147,6 @@ class TestDBusRegressions(_LiveTesting):
         self.assertTrue(os.path.exists(self.command_file))
 
 
-@unittest.skip('failing')
 class TestDBusGetSet(_TestBase):
     """Test the DBus client's key/value settings."""
 
@@ -1237,16 +1239,15 @@ class TestDBusGetSet(_TestBase):
         self.assertEqual(key, 'foo')
         self.assertEqual(new_value, 'yes')
         # The value did not change.
-        reactor = SignalCapturingReactor('SettingChanged')
+        reactor = SignalCapturingReactor('SettingChanged', timeout=10)
         reactor.run(partial(self.iface.SetSetting, 'foo', 'yes'))
-        reactor.run()
         self.assertEqual(len(reactor.signals), 0)
         # This is the default value, so nothing changes.
-        reactor = SignalCapturingReactor('SettingChanged')
+        reactor = SignalCapturingReactor('SettingChanged', timeout=10)
         reactor.run(partial(self.iface.SetSetting, 'auto_download', '0'))
         self.assertEqual(len(reactor.signals), 0)
         # This is a bogus value, so nothing changes.
-        reactor = SignalCapturingReactor('SettingChanged')
+        reactor = SignalCapturingReactor('SettingChanged', timeout=10)
         reactor.run(partial(self.iface.SetSetting, 'min_battery', '200'))
         self.assertEqual(len(reactor.signals), 0)
         # Change back.
@@ -1265,7 +1266,6 @@ class TestDBusGetSet(_TestBase):
         self.assertEqual(new_value, '30')
 
 
-@unittest.skip('failing')
 class TestDBusInfo(_TestBase):
     mode = 'more-info'
 
@@ -1279,7 +1279,6 @@ class TestDBusInfo(_TestBase):
         self.assertEqual(details, dict(ubuntu='123', mako='456', custom='789'))
 
 
-@unittest.skip('failing')
 class TestDBusInfoNoDetails(_LiveTesting):
     def test_info_no_version_details(self):
         # .Info() where there is no channel.ini with version details.
