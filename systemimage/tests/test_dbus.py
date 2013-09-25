@@ -49,8 +49,8 @@ from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
 from systemimage.reactor import Reactor
 from systemimage.testing.helpers import (
-    copy, data_path, make_http_server, setup_index, setup_keyring_txz,
-    setup_keyrings, sign)
+    copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
+    sign)
 from systemimage.testing.nose import SystemImagePlugin
 
 
@@ -369,7 +369,6 @@ class TestDBusCheckForUpdate(_LiveTesting):
             }])
 
 
-@unittest.skip('failing')
 class TestDBusDownload(_LiveTesting):
     def test_auto_download(self):
         # When always auto-downloading, and there is an update available, the
@@ -407,6 +406,7 @@ update 5.txt 5.txt.asc
 unmount system
 """)
 
+    @unittest.skip('for now')
     def test_nothing_to_auto_download(self):
         # We're auto-downloading, but there's no update available.
         self.download_always()
@@ -428,6 +428,7 @@ unmount system
         self.assertEqual(len(reactor.signals), 0)
         self.assertFalse(os.path.exists(self.command_file))
 
+    @unittest.skip('for now')
     def test_manual_download(self):
         # When manually downloading, and there is an update available, the
         # update does not get downloaded until we explicitly ask it to be.
@@ -467,6 +468,7 @@ update 5.txt 5.txt.asc
 unmount system
 """)
 
+    @unittest.skip('for now')
     def test_nothing_to_manually_download(self):
         # We're manually downloading, but there's no update available.
         self.download_manually()
@@ -494,6 +496,7 @@ unmount system
         self.assertEqual(len(reactor.signals), 0)
         self.assertFalse(os.path.exists(self.command_file))
 
+    @unittest.skip('for now')
     def test_update_failed_signal(self):
         # A signal is issued when the update failed.
         self.download_manually()
@@ -511,12 +514,12 @@ unmount system
         self.assertNotEqual(last_reason, '')
 
 
-@unittest.skip('failing')
 class TestDBusApply(_LiveTesting):
     def setUp(self):
         super().setUp()
         self.download_always()
 
+    @unittest.skip('for now')
     def test_reboot(self):
         # Apply the update, which reboots the device.
         self.assertFalse(os.path.exists(self.reboot_log))
@@ -539,6 +542,7 @@ class TestDBusApply(_LiveTesting):
         self.assertNotEqual(response, '')
         self.assertFalse(os.path.exists(self.reboot_log))
 
+    @unittest.skip('for now')
     def test_reboot_after_update_failed(self):
         # Cause the update to fail by deleting a file from the server.
         self.download_manually()
@@ -670,7 +674,6 @@ class MockReactor(Reactor):
             self.quit()
 
 
-@unittest.skip('failing')
 class TestDBusMockUpdateAutoSuccess(_TestBase):
     mode = 'update-auto-success'
 
@@ -792,7 +795,6 @@ class TestDBusMockUpdateAutoSuccess(_TestBase):
         self.assertEqual(len(reactor.failed), 0)
 
 
-@unittest.skip('failing')
 class TestDBusMockUpdateManualSuccess(_TestBase):
     mode = 'update-manual-success'
 
@@ -838,7 +840,6 @@ class TestDBusMockUpdateManualSuccess(_TestBase):
         self.assertEqual(self.iface.ApplyUpdate(), '')
 
 
-@unittest.skip('failing')
 class TestDBusMockUpdateFailed(_TestBase):
     mode = 'update-failed'
 
@@ -873,7 +874,6 @@ class TestDBusMockUpdateFailed(_TestBase):
         self.assertEqual(reason, 'You need some network for downloading')
 
 
-@unittest.skip('failing')
 class TestDBusMockFailApply(_TestBase):
     mode = 'fail-apply'
 
@@ -907,7 +907,6 @@ class TestDBusMockFailApply(_TestBase):
                          'Not enough battery, you need to plug in your phone')
 
 
-@unittest.skip('failing')
 class TestDBusMockFailResume(_TestBase):
     mode = 'fail-resume'
 
@@ -950,7 +949,6 @@ class TestDBusMockFailResume(_TestBase):
         self.assertEqual(reason, 'You need some network for downloading')
 
 
-@unittest.skip('failing')
 class TestDBusMockFailPause(_TestBase):
     mode = 'fail-pause'
 
@@ -989,7 +987,6 @@ class TestDBusMockFailPause(_TestBase):
         self.assertEqual(reason, 'no no, not now')
 
 
-@unittest.skip('failing')
 class TestDBusMockNoUpdate(_TestBase):
     mode = 'no-update'
 
@@ -1017,7 +1014,6 @@ class TestDBusMockNoUpdate(_TestBase):
         self.assertIsNotNone(reactor.status)
 
 
-@unittest.skip('failing')
 class TestDBusMain(_TestBase):
     mode = 'live'
 
@@ -1030,6 +1026,7 @@ class TestDBusMain(_TestBase):
         # We didn't call setUp() so don't call tearDown().
         pass
 
+    @unittest.skip('fails')
     def test_temp_directory(self):
         # The temporary directory gets created if it doesn't exist.
         config = Configuration()
@@ -1041,7 +1038,6 @@ class TestDBusMain(_TestBase):
         self.assertTrue(os.path.exists(config.system.tempdir))
 
 
-@unittest.skip('failing')
 class TestDBusClient(_LiveTesting):
     """Test the DBus client (used with --dbus)."""
 
@@ -1062,6 +1058,7 @@ class TestDBusClient(_LiveTesting):
         self.assertFalse(self._client.is_available)
         self.assertFalse(self._client.downloaded)
 
+    @unittest.skip('fails')
     def test_update_failed(self):
         # For some reason <wink>, the update fails.
         #
@@ -1073,6 +1070,7 @@ class TestDBusClient(_LiveTesting):
         self.assertFalse(self._client.downloaded)
         self.assertTrue(self._client.failed)
 
+    @unittest.skip('for now')
     def test_reboot(self):
         # After a successful update, we can reboot.
         self._client.check_for_update()
