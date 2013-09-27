@@ -22,7 +22,7 @@ from gi.repository import GLib
 log = logging.getLogger('systemimage')
 
 
-TIMEOUT_SECONDS = 120
+TIMEOUT_SECONDS = 30
 
 
 class Reactor:
@@ -60,7 +60,7 @@ class Reactor:
     def run(self, timeout=None):
         timeout = (self.timeout if timeout is None else timeout)
         self._loop = GLib.MainLoop()
-        source_id = GLib.timeout_add_seconds(timeout, self.quit)
+        source_id = GLib.timeout_add_seconds(timeout, self._quit_with_error)
         self._quitters.append(source_id)
         self._loop.run()
 
@@ -72,3 +72,7 @@ class Reactor:
         for source_id in self._quitters:
             GLib.source_remove(source_id)
         del self._quitters[:]
+
+    def _quit_with_error(self):
+        self.quit()
+        raise TimeoutError('Reactor timed out')
