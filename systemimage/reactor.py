@@ -22,7 +22,7 @@ from gi.repository import GLib
 log = logging.getLogger('systemimage')
 
 
-TIMEOUT_SECONDS = 600
+TIMEOUT_SECONDS = 120
 
 
 class Reactor:
@@ -57,9 +57,10 @@ class Reactor:
     def schedule(self, method, milliseconds=50):
         GLib.timeout_add(milliseconds, method)
 
-    def run(self):
+    def run(self, timeout=None):
+        timeout = (self.timeout if timeout is None else timeout)
         self._loop = GLib.MainLoop()
-        source_id = GLib.timeout_add_seconds(self.timeout, self.quit)
+        source_id = GLib.timeout_add_seconds(timeout, self.quit)
         self._quitters.append(source_id)
         self._loop.run()
 

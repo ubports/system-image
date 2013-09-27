@@ -55,25 +55,20 @@ from systemimage.testing.nose import SystemImagePlugin
 
 
 class SignalCapturingReactor(Reactor):
-    def __init__(self, *signals, timeout=None):
+    def __init__(self, *signals):
         super().__init__(dbus.SystemBus())
         for signal in signals:
             self.react_to(signal)
         self.signals = []
-        if timeout is not None:
-            self.timeout = timeout
 
     def _default(self, signal, path, *args, **kws):
         self.signals.append(args)
         self.quit()
 
-    def run(self, method=None):
+    def run(self, method=None, timeout=None):
         if method is not None:
             self.schedule(method)
-        super().run()
-
-    def clear(self):
-        del self.signals[:]
+        super().run(timeout=timeout)
 
 
 class AutoDownloadCancelingReactor(Reactor):
@@ -221,8 +216,8 @@ class _LiveTesting(_TestBase):
     def tearDown(self):
         self.iface.CancelUpdate()
         # Consume the UpdateFailed that results from the cancellation.
-        reactor = SignalCapturingReactor('UpdateFailed', timeout=10)
-        reactor.run()
+        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.run(timeout=15)
         safe_remove(self.config.system.build_file)
         for updater_dir in (self.config.updater.cache_partition,
                             self.config.updater.data_partition):
@@ -331,7 +326,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
         with open(channel_ini, 'w', encoding='utf-8'):
             pass
         os.utime(channel_ini, (timestamp, timestamp))
-        reactor = SignalCapturingReactor('UpdateAvailableStatus', timeout=60)
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         (is_available, downloading, available_version, update_size,
@@ -406,7 +401,6 @@ update 5.txt 5.txt.asc
 unmount system
 """)
 
-    @unittest.skip('for now')
     def test_nothing_to_auto_download(self):
         # We're auto-downloading, but there's no update available.
         self.download_always()
@@ -422,13 +416,12 @@ unmount system
          error_reason) = reactor.signals[0]
         self.assertFalse(is_available)
         self.assertFalse(downloading)
-        # Now, wait for the UpdateDownloaded signal.
+        # Now, wait for the UpdateDownloaded signal, which isn't coming.
         reactor = SignalCapturingReactor('UpdateDownloaded')
-        reactor.run()
+        reactor.run(timeout=15)
         self.assertEqual(len(reactor.signals), 0)
         self.assertFalse(os.path.exists(self.command_file))
 
-    @unittest.skip('for now')
     def test_manual_download(self):
         # When manually downloading, and there is an update available, the
         # update does not get downloaded until we explicitly ask it to be.
@@ -448,11 +441,11 @@ unmount system
         self.assertFalse(os.path.exists(self.command_file))
         # No UpdateDownloaded signal is coming.
         reactor = SignalCapturingReactor('UpdateDownloaded')
-        reactor.run()
+        reactor.run(timeout=15)
         self.assertEqual(len(reactor.signals), 0)
         self.assertFalse(os.path.exists(self.command_file))
         # Now we download manually and wait again for the signal.
-        reactor.clear()
+        reactor = SignalCapturingReactor('UpdateDownloaded')
         reactor.run(self.iface.DownloadUpdate)
         with open(self.command_file, 'r', encoding='utf-8') as fp:
             command = fp.read()
@@ -468,7 +461,6 @@ update 5.txt 5.txt.asc
 unmount system
 """)
 
-    @unittest.skip('for now')
     def test_nothing_to_manually_download(self):
         # We're manually downloading, but there's no update available.
         self.download_manually()
@@ -487,16 +479,15 @@ unmount system
         self.assertFalse(downloading)
         # No UpdateDownloaded signal is coming
         reactor = SignalCapturingReactor('UpdateDownloaded')
-        reactor.run()
+        reactor.run(timeout=15)
         self.assertEqual(len(reactor.signals), 0)
         self.assertFalse(os.path.exists(self.command_file))
         # Now we download manually, but no signal is coming.
-        reactor.clear()
-        reactor.run(self.iface.DownloadUpdate)
+        reactor = SignalCapturingReactor('UpdateDownloaded')
+        reactor.run(self.iface.DownloadUpdate, timeout=15)
         self.assertEqual(len(reactor.signals), 0)
         self.assertFalse(os.path.exists(self.command_file))
 
-    @unittest.skip('for now')
     def test_update_failed_signal(self):
         # A signal is issued when the update failed.
         self.download_manually()
@@ -519,8 +510,10 @@ class TestDBusApply(_LiveTesting):
         super().setUp()
         self.download_always()
 
-    @unittest.skip('for now')
     def test_reboot(self):
+        from systemimage.testing.helpers import debug
+        with debug() as ddlog:
+            ddlog('\n\ntest_reboot')
         # Apply the update, which reboots the device.
         self.assertFalse(os.path.exists(self.reboot_log))
         reactor = SignalCapturingReactor('UpdateDownloaded')
@@ -542,7 +535,6 @@ class TestDBusApply(_LiveTesting):
         self.assertNotEqual(response, '')
         self.assertFalse(os.path.exists(self.reboot_log))
 
-    @unittest.skip('for now')
     def test_reboot_after_update_failed(self):
         # Cause the update to fail by deleting a file from the server.
         self.download_manually()
@@ -557,6 +549,26 @@ class TestDBusApply(_LiveTesting):
         self.assertEqual(failure_count, 1)
         self.assertNotEqual(reason, '')
         # The reboot fails, so we get an error message.
+        self.assertNotEqual(self.iface.ApplyUpdate(), '')
+
+    def test_auto_download_cancel(self):
+        # While automatically downloading, cancel the update.
+        self.download_always()
+        reactor = AutoDownloadCancelingReactor(self.iface)
+        reactor.schedule(self.iface.CheckForUpdate)
+        reactor.run()
+        self.assertTrue(reactor.got_update_available_status)
+        self.assertTrue(reactor.got_update_failed)
+
+    def test_exit(self):
+        self.iface.Exit()
+        self.assertRaises(DBusException, self.iface.Info)
+        # Re-establish a new connection.
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        # There's no update to apply, so we'll get an error string instead of
+        # the empty string for this call.  But it will restart the server.
         self.assertNotEqual(self.iface.ApplyUpdate(), '')
 
     def test_cancel_manual(self):
@@ -595,26 +607,6 @@ class TestDBusApply(_LiveTesting):
         reactor = SignalCapturingReactor('UpdateDownloaded')
         reactor.run(self.iface.DownloadUpdate)
         self.assertEqual(len(reactor.signals), 1)
-
-    def test_auto_download_cancel(self):
-        # While automatically downloading, cancel the update.
-        self.download_always()
-        reactor = AutoDownloadCancelingReactor(self.iface)
-        reactor.schedule(self.iface.CheckForUpdate)
-        reactor.run()
-        self.assertTrue(reactor.got_update_available_status)
-        self.assertTrue(reactor.got_update_failed)
-
-    def test_exit(self):
-        self.iface.Exit()
-        self.assertRaises(DBusException, self.iface.Info)
-        # Re-establish a new connection.
-        bus = dbus.SystemBus()
-        service = bus.get_object('com.canonical.SystemImage', '/Service')
-        self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        # There's no update to apply, so we'll get an error string instead of
-        # the empty string for this call.  But it will restart the server.
-        self.assertNotEqual(self.iface.ApplyUpdate(), '')
 
 
 class MockReactor(Reactor):
@@ -1017,24 +1009,17 @@ class TestDBusMockNoUpdate(_TestBase):
 class TestDBusMain(_TestBase):
     mode = 'live'
 
-    def setUp(self):
-        # Don't call super's setUp() since that will start the service, thus
-        # creating the temporary directory.
-        pass
-
-    def tearDown(self):
-        # We didn't call setUp() so don't call tearDown().
-        pass
-
-    @unittest.skip('fails')
+    @unittest.skip('nose prevents this from working')
     def test_temp_directory(self):
         # The temporary directory gets created if it doesn't exist.
         config = Configuration()
         config.load(SystemImagePlugin.controller.ini_path)
-        self.assertFalse(os.path.exists(config.system.tempdir))
+        shutil.rmtree(config.system.tempdir)
         # DBus activate the service, which should create the directory.
         bus = dbus.SystemBus()
-        bus.get_object('com.canonical.SystemImage', '/Service')
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        iface.Info()
         self.assertTrue(os.path.exists(config.system.tempdir))
 
 
@@ -1058,7 +1043,6 @@ class TestDBusClient(_LiveTesting):
         self.assertFalse(self._client.is_available)
         self.assertFalse(self._client.downloaded)
 
-    @unittest.skip('fails')
     def test_update_failed(self):
         # For some reason <wink>, the update fails.
         #
@@ -1070,7 +1054,6 @@ class TestDBusClient(_LiveTesting):
         self.assertFalse(self._client.downloaded)
         self.assertTrue(self._client.failed)
 
-    @unittest.skip('for now')
     def test_reboot(self):
         # After a successful update, we can reboot.
         self._client.check_for_update()
@@ -1082,7 +1065,6 @@ class TestDBusClient(_LiveTesting):
         self.assertEqual(reboot, '/sbin/reboot -f recovery')
 
 
-@unittest.skip('failing')
 class TestDBusRegressions(_LiveTesting):
     """Test that various regressions have been fixed."""
 
@@ -1117,11 +1099,9 @@ class TestDBusRegressions(_LiveTesting):
         self.assertTrue(is_available)
         self.assertFalse(downloading)
         self.assertFalse(os.path.exists(self.command_file))
-        # Pre-cancel the download.  This works because cancelling currently
-        # just sets an event.  XXX This test will have to change once LP:
-        # #1196991 is fixed.
-        self.iface.CancelUpdate()
+        # Arrange for the download to be canceled after it starts.
         reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.schedule(self.iface.CancelUpdate)
         reactor.run(self.iface.DownloadUpdate)
         self.assertEqual(len(reactor.signals), 1)
         failure_count, reason = reactor.signals[0]
@@ -1237,16 +1217,18 @@ class TestDBusGetSet(_TestBase):
         self.assertEqual(key, 'foo')
         self.assertEqual(new_value, 'yes')
         # The value did not change.
-        reactor = SignalCapturingReactor('SettingChanged', timeout=10)
-        reactor.run(partial(self.iface.SetSetting, 'foo', 'yes'))
+        reactor = SignalCapturingReactor('SettingChanged')
+        reactor.run(partial(self.iface.SetSetting, 'foo', 'yes'), timeout=15)
         self.assertEqual(len(reactor.signals), 0)
         # This is the default value, so nothing changes.
-        reactor = SignalCapturingReactor('SettingChanged', timeout=10)
-        reactor.run(partial(self.iface.SetSetting, 'auto_download', '0'))
+        reactor = SignalCapturingReactor('SettingChanged')
+        reactor.run(partial(self.iface.SetSetting, 'auto_download', '0'),
+                    timeout=15)
         self.assertEqual(len(reactor.signals), 0)
         # This is a bogus value, so nothing changes.
-        reactor = SignalCapturingReactor('SettingChanged', timeout=10)
-        reactor.run(partial(self.iface.SetSetting, 'min_battery', '200'))
+        reactor = SignalCapturingReactor('SettingChanged')
+        reactor.run(partial(self.iface.SetSetting, 'min_battery', '200'),
+                    timeout=15)
         self.assertEqual(len(reactor.signals), 0)
         # Change back.
         reactor = SignalCapturingReactor('SettingChanged')

@@ -370,6 +370,9 @@ class State:
 
     def _download_files(self):
         """Download and verify all the winning upgrade path's files."""
+        from systemimage.testing.helpers import debug
+        with debug() as ddlog:
+            ddlog('TEMPDIR:', os.listdir(config.system.tempdir))
         downloads = []
         signatures = []
         sizes = []
@@ -456,8 +459,11 @@ class State:
         # Now move all the downloaded data files to the cache.
         for src, (image_number, order) in self.files:
             dst = os.path.join(cache_dir, os.path.basename(src))
-            shutil.copy(src, dst)
+            shutil.move(src, dst)
         # Issue the reboot.
+        from systemimage.testing.helpers import debug
+        with debug() as ddlog:
+            ddlog('TEMPDIR:', os.listdir(config.system.tempdir))
         self._next.append(self._prepare_recovery)
 
     def _prepare_recovery(self):

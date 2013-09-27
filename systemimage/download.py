@@ -171,14 +171,15 @@ class DBusDownloadManager:
         self._reactor.run()
         log.info('Group download reactor done (err/cancel):',
                  self._reactor.error, self._reactor.canceled)
-        if self._reactor.error is not None:
-            raise FileNotFoundError(self._reactor.error)
-        if self._reactor.canceled:
-            raise Canceled
         # This download is complete so the object path is no longer
         # applicable.  Setting this to None will cause subsequent cancels to
         # be queued.
         self._iface = None
+        # Report any other problems.
+        if self._reactor.error is not None:
+            raise FileNotFoundError(self._reactor.error)
+        if self._reactor.canceled:
+            raise Canceled
 
     def cancel(self):
         """Cancel any current downloads."""

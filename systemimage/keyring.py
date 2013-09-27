@@ -100,6 +100,7 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
         stack.callback(os.remove, tarxz_dst)
         stack.callback(os.remove, ascxz_dst)
         signing_keyring = getattr(config.gpg, sigkr.replace('-', '_'))
+        #import pdb; pdb.set_trace()
         with Context(signing_keyring, blacklist=blacklist) as ctx:
             if not ctx.verify(ascxz_dst, tarxz_dst):
                 raise SignatureError

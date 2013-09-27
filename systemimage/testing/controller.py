@@ -69,8 +69,8 @@ SERVICES = [
     stop_system_image,
    ),
    ('com.canonical.applications.Downloader',
-    #'/bin/sh /home/barry/projects/phone/runme {self.certs}',
-    '/usr/bin/ubuntu-download-manager {self.certs} -disable-timeout -stoppable',
+    '/bin/sh /home/barry/projects/phone/runme {self.certs}',
+    #'/usr/bin/ubuntu-download-manager {self.certs} -disable-timeout -stoppable',
     stop_downloader,
    ),
    ]
