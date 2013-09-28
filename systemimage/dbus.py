@@ -103,42 +103,29 @@ class Service(Object):
         GLib.timeout_add(50, self._check_for_update)
 
     def _download(self):
-        from systemimage.testing.helpers import debug
-        with debug() as ddlog:
-            ddlog('_download')
         if (self._downloading                        # Already in progress.
             or self._update is None                  # Not yet checked.
             or not self._update.is_available         # No update available.
             ):
             return
-        with debug() as ddlog:
-            ddlog('continuing')
         if self._failure_count > 0:
             self._failure_count += 1
             self.UpdateFailed(self._failure_count, self._last_error)
             return
-        with debug() as ddlog:
-            ddlog('downloading')
         self._downloading = True
         try:
             self._api.download()
         except Exception as error:
-            with debug() as ddlog:
-                ddlog('oops', repr(error))
             self._failure_count += 1
             self._last_error = str(error)
             self.UpdateFailed(self._failure_count, self._last_error)
         else:
-            with debug() as ddlog:
-                ddlog('UD')
             self.UpdateDownloaded()
             self._failure_count = 0
             self._last_error = ''
             self._rebootable = True
         self._downloading = False
         # Stop GLib from calling this method again.
-        with debug() as ddlog:
-            ddlog('done', error)
         return False
 
     @method('com.canonical.SystemImage')

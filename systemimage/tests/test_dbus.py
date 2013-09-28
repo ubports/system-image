@@ -511,9 +511,6 @@ class TestDBusApply(_LiveTesting):
         self.download_always()
 
     def test_reboot(self):
-        from systemimage.testing.helpers import debug
-        with debug() as ddlog:
-            ddlog('\n\ntest_reboot')
         # Apply the update, which reboots the device.
         self.assertFalse(os.path.exists(self.reboot_log))
         reactor = SignalCapturingReactor('UpdateDownloaded')
