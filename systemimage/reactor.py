@@ -22,7 +22,8 @@ from gi.repository import GLib
 log = logging.getLogger('systemimage')
 
 
-TIMEOUT_SECONDS = 30
+# production = 600
+TIMEOUT_SECONDS = 60
 
 
 class Reactor:
@@ -34,6 +35,7 @@ class Reactor:
         self._quitters = []
         self._signal_matches = []
         self.timeout = TIMEOUT_SECONDS
+        self.timed_out = False
 
     def _handle_signal(self, *args, **kws):
         signal = kws.pop('member')
@@ -74,5 +76,5 @@ class Reactor:
         del self._quitters[:]
 
     def _quit_with_error(self):
+        self.timed_out = True
         self.quit()
-        raise TimeoutError('Reactor timed out')

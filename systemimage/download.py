@@ -180,6 +180,8 @@ class DBusDownloadManager:
             raise FileNotFoundError(self._reactor.error)
         if self._reactor.canceled:
             raise Canceled
+        if self._reactor.timed_out:
+            raise TimeoutError
 
     def cancel(self):
         """Cancel any current downloads."""
