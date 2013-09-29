@@ -47,6 +47,7 @@ from datetime import datetime, timedelta
 from functools import partial, wraps
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
+from socket import SHUT_RDWR
 from systemimage.channel import Channels
 from systemimage.config import Configuration, config
 from systemimage.helpers import atomic, makedirs, temporary_directory
@@ -133,10 +134,24 @@ def make_http_server(directory, port, certpem=None, keypem=None):
             keypem = os.path.join(data_dir, keypem)
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         ssl_context.load_cert_chain(certfile=certpem, keyfile=keypem)
+    # This subclass specializes connection requests so that we can keep track
+    # of connections and force shutting down both sides of the socket.  The
+    # download service has a hack to clear its connection hack during the test
+    # suite (specifically, when -stoppable is given), but this just ensures
+    # that we do everything we can on our end to close the connections.  If we
+    # don't our HTTP/S servers hang around for 2+ minutes due to issues with
+    # the Qt networking stack, causing huge slowdowns on our test teardown
+    # methods.
+    connections = []
+    class Server(HTTPServer):
+        def get_request(self):
+            conn, addr = super().get_request()
+            connections.append(conn)
+            return conn, addr
     # Define a small class with a method that arranges for the self-signed
     # certificates to be valid in the client.
     with ExitStack() as stack:
-        server = HTTPServer(('localhost', port), RequestHandler)
+        server = Server(('localhost', port), RequestHandler)
         server.allow_reuse_address = True
         stack.callback(server.server_close)
         if ssl_context is not None:
@@ -145,6 +160,11 @@ def make_http_server(directory, port, certpem=None, keypem=None):
         thread = Thread(target=server.serve_forever)
         thread.daemon = True
         def shutdown():
+            for conn in connections:
+                if conn.fileno() != -1:
+                    # Disallow sends and receives.
+                    conn.shutdown(SHUT_RDWR)
+                conn.close()
             server.shutdown()
             thread.join()
         stack.callback(shutdown)
