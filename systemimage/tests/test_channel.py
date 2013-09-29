@@ -108,7 +108,6 @@ class TestLoadChannel(unittest.TestCase):
     @configuration
     def test_load_channel_good_path(self):
         # A channels.json file signed by the image signing key, no blacklist.
-        # (blacklist -> channels)
         sign(self._channels_path, 'image-signing.gpg')
         setup_keyrings()
         self._state.run_thru('get_channel')
@@ -119,8 +118,6 @@ class TestLoadChannel(unittest.TestCase):
     @configuration
     def test_load_channel_bad_signature(self):
         # We get an error if the signature on the channels.json file is bad.
-        # The state machine needs three transitions:
-        # (blacklist -> channels -> signing_key)
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
         self._state.run_thru('get_channel')
@@ -130,7 +127,6 @@ class TestLoadChannel(unittest.TestCase):
     def test_load_channel_blacklisted_signature(self):
         # We get an error if the signature on the channels.json file is good
         # but the key is blacklisted.
-        # (blacklist -> channels -> signing_key)
         sign(self._channels_path, 'image-signing.gpg')
         setup_keyrings()
         setup_keyring_txz(
@@ -143,15 +139,11 @@ class TestLoadChannel(unittest.TestCase):
     def test_load_channel_bad_signature_gets_fixed(self):
         # The first load gets a bad signature, but the second one fixes the
         # signature and everything is fine.
-        # (blacklist -> channels -> signing_key: FAIL)
-        # ...then, re-sign and...
-        # (blacklist -> channels)
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
         self._state.run_thru('get_channel')
         self.assertRaises(SignatureError, next, self._state)
         sign(self._channels_path, 'image-signing.gpg')
-        # Two state transitions are necessary (blacklist -> channels).
         state = State()
         state.run_thru('get_channel')
         channels = state.channels

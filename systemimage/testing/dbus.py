@@ -24,15 +24,12 @@ __all__ = [
 import os
 
 from dbus.service import method
-from functools import partial
 from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.dbus import Service
 from systemimage.helpers import makedirs, safe_remove
-from systemimage.testing.helpers import data_path
 from unittest.mock import patch
-from urllib.request import urlopen
 
 
 SPACE = ' '
@@ -51,12 +48,6 @@ class _ActionLog:
 
 def instrument(config, stack):
     """Instrument the system for testing."""
-    # The testing infrastructure requires that the built-in downloader
-    # accept self-signed certificates.  We have to invoke the context
-    # manager here so that the function actually gets patched.
-    stack.enter_context(
-        patch('systemimage.download.urlopen',
-              partial(urlopen, cafile=data_path('cert.pem'))))
     # Patch the subprocess call to write the reboot command to a log
     # file which the testing parent process can open and read.
     safe_reboot = _ActionLog('reboot.log')

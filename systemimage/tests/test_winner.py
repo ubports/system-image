@@ -32,12 +32,15 @@ from systemimage.state import ChecksumError, State
 from systemimage.testing.helpers import (
     configuration, copy, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, touch_build)
+from systemimage.testing.nose import SystemImagePlugin
 
 
 class TestWinnerDownloads(unittest.TestCase):
     """Test full end-to-end downloads through index.json."""
 
-    maxDiff = None
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def setUp(self):
         # Start both an HTTP and an HTTPS server running.  The former is for
@@ -280,12 +283,12 @@ class TestWinnerDownloads(unittest.TestCase):
         txtfiles = set(filename
                        for filename in os.listdir(config.system.tempdir)
                        if os.path.splitext(filename)[1] == '.txt')
-        self.assertEqual(len(txtfiles), 0)
+        self.assertEqual(len(txtfiles), 0, txtfiles)
 
     @configuration
     def test_no_download_winners_with_bad_signature(self):
         # If one of the download files has a bad a signature, none of the
-        # files get downloaded and get_files() fails.
+        # downloaded files are available.
         setup_keyrings()
         state = State()
         touch_build(20120100)

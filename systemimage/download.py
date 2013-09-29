@@ -16,164 +16,179 @@
 """Download files."""
 
 __all__ = [
-    'Downloader',
-    'get_files',
+    'Canceled',
+    'DBusDownloadManager',
     ]
 
 
-import socket
+import dbus
 import logging
 
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack
-from datetime import timedelta
-from ssl import CertificateError
 from systemimage.config import config
-from systemimage.helpers import atomic, safe_remove
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from systemimage.reactor import Reactor
 
 
 # Parameterized for testing purposes.
-CHUNK_SIZE = 4096
+DOWNLOADER_INTERFACE = 'com.canonical.applications.Downloader'
+MANAGER_INTERFACE = 'com.canonical.applications.DownloadManager'
+OBJECT_NAME = 'com.canonical.applications.Downloader'
+OBJECT_INTERFACE = 'com.canonical.applications.GroupDownload'
 USER_AGENT = 'Ubuntu System Image Upgrade Client; Build {}'
+
+
 log = logging.getLogger('systemimage')
 
 
-class Downloader:
-    def __init__(self, url, timeout=None):
-        self.url = url
-        # This is the hidden default for urlopen().
-        self.timeout = (socket.getdefaulttimeout()
-                        if timeout is None else timeout)
-        self._stack = ExitStack()
-
-    def __enter__(self):
-        try:
-            # Set a custom User-Agent which includes the system build number.
-            headers = {'User-Agent': USER_AGENT.format(config.build_number)}
-            request = Request(self.url, headers=headers)
-            # Make sure to fallback to the system certificate store.
-            return self._stack.enter_context(
-                urlopen(request, timeout=self.timeout, cadefault=True))
-        except:
-            self._stack.close()
-            raise
-
-    def __exit__(self, *exc_details):
-        self._stack.close()
-        # Don't swallow exceptions.
-        return False
+def _headers():
+    return {'User-Agent': USER_AGENT.format(config.build_number)}
 
 
-def _get_one_file(args):
-    timeout, url, dst, size, callback = args
-    bytes_read = 0
-    log.info('downloading {} -> {}', url, dst)
-    with ExitStack() as stack:
-        response = stack.enter_context(Downloader(url, timeout))
-        out = stack.enter_context(atomic(dst, encoding=None))
-        while True:
-            chunk = response.read(CHUNK_SIZE)
-            if len(chunk) == 0:
-                break
-            bytes_read += len(chunk)
-            out.write(chunk)
-            if callback is not None:
-                args = [url, dst, bytes_read]
-                if size is not None:
-                    args.append(size)
-                callback(*args)
+class Canceled(BaseException):
+    """Raised when the download was canceled."""
 
 
-def get_files(downloads, callback=None, sizes=None):
-    """Download a bunch of files concurrently.
 
-    The files named in `downloads` are downloaded in separate threads,
-    concurrently using asynchronous I/O.  Occasionally, the callback is
-    called to report on progress.  This function blocks until all files
-    have been downloaded or an exception occurs.  In the latter case,
-    the download directory will be cleared of the files that succeeded
-    and the exception will be re-raised.
+class DownloadReactor(Reactor):
+    def __init__(self, bus, callback=None):
+        super().__init__(bus)
+        self._callback = callback
+        self.error = None
+        self.canceled = False
+        self.react_to('canceled')
+        self.react_to('error')
+        self.react_to('finished')
+        self.react_to('paused')
+        self.react_to('progress')
+        self.react_to('resumed')
+        self.react_to('started')
 
-    This means that 1) the function blocks until all files are
-    downloaded, but at least we do that concurrently; 2) this is an
-    all-or-nothing function.  Either you get all the requested files or
-    none of them.
+    def _print(*args, **kws):
+        ## import sys; kws['file'] = sys.stderr
+        ## print(*args, **kws)
+        pass
 
-    :param downloads: A list of 2-tuples where the first item is the url to
-        download, and the second item is the destination file.
-    :type downloads: List of 2-tuples.
-    :param callback: If given, a function that's called every so often in all
-        the download threads - so it must be prepared to be called
-        asynchronously.  You don't have to worry about thread safety though
-        because of the GIL.
-    :type callback: A function that takes three (optionally four) arguments:
-        the full source url including the base, the absolute path of the
-        destination, and the total number of bytes read so far from this url.
-        The optional fourth argument is the total size of the source file, and
-        is only present if the `sizes` argument was given (see below).
-    :param sizes: Optional sequence of sizes of the files being downloaded.
-        If given, then the callback is called with a fourth argument, which is
-        the size of the source file.  `sizes` is unused if there is no
-        callback; this option is primarily for better progress feedback.
-    :param sizes: Sequence of integers which must be the same length as the
-        number of arguments given in `download`.
-    :raises: FileNotFoundError if any download error occurred.  In this case,
-        all download files are deleted.
+    def _do_started(self, signal, path, started):
+        self._print('STARTED:', started)
 
-    The API is a little funky for backward compatibility reasons.
-    """
-    # Sanity check arguments.
-    if sizes is not None:
-        assert len(sizes) == len(downloads), (
-            'sizes argument is different length than downloads')
-    else:
-        sizes = [None] * len(downloads)
-    # Download all the files, blocking until we get them all.
-    if config.system.timeout <= timedelta():
-        # E.g. -1s or 0s or 0d etc.
-        timeout = None
-    else:
-        timeout = config.system.timeout.total_seconds()
-    # Repack the downloads so that the _get_one_file() function will be called
-    # with the proper set of arguments.
-    args = [(timeout, url, dst, size, callback)
-            for (url, dst), size
-            in zip(downloads, sizes)]
-    with ExitStack() as stack:
-        # Arrange for all the downloaded files to be remove when the stack
-        # exits due to an exception.  It's okay if some of the files don't
-        # exist.  If everything gets downloaded just fine, we'll clear the
-        # stack *without* calling the close() method so that the files won't
-        # be deleted.  This is why we run the ThreadPoolExecutor in its own
-        # context manager.
-        for url, path in downloads:
-            stack.callback(safe_remove, path)
-        with ThreadPoolExecutor(max_workers=config.system.threads) as tpe:
-            # All we need to do is iterate over the returned generator in
-            # order to complete all the requests.  There's really nothing to
-            # return.  Either all the files got downloaded, or they didn't.
-            #
-            # BAW 2013-05-02: There is a subtle bug lurking here, caused by
-            # the fact that the individual files are moved atomically, but
-            # get_files() makes global atomic promises.  Let's say you're
-            # downloading files A and B, but file A already exists.  File A
-            # downloads just fine and gets moved into place.  The download of
-            # file B fails though so it never gets moved into place, however
-            # the except code below will proceed to remove the new A without
-            # restoring the old A.
-            #
-            # In practice I think this won't hurt us because we shouldn't be
-            # overwriting any existing files that we care about anyway.
-            # Something to be aware of though.  The easiest fix is probably to
-            # stash any existing files away and restore them if the download
-            # fails, rather than os.remove()'ing them.
-            try:
-                list(tpe.map(_get_one_file, args))
-            except (HTTPError, URLError, CertificateError) as error:
-                raise FileNotFoundError(str(error)) from error
-            # Check all the signed files.  First, grab the blacklists file if
-            # there is one available.
-        # Everything's fine so do *not* delete the downloaded files.
-        stack.pop_all()
+    def _do_finished(self, signal, path, local_paths):
+        self._print('FINISHED:', local_paths)
+        self.quit()
+
+    def _do_error(self, signal, path, error_message):
+        self._print('ERROR:', error_message)
+        log.error(error_message)
+        self.error = error_message
+        self.quit()
+
+    def _do_progress(self, signal, path, received, total):
+        self._print('PROGRESS:', received, total)
+        if self._callback is not None:
+            self._callback(received, total)
+
+    def _do_canceled(self, signal, path, canceled):
+        # Why would we get this signal if it *wasn't* canceled?  Anyway,
+        # this'll be a D-Bus data type so converted it to a vanilla Python
+        # boolean.
+        self._print('CANCELED:', canceled)
+        self.canceled = bool(canceled)
+        self.quit()
+
+    def _default(self, *args, **kws):
+        self._print('SIGNAL:', args, kws)
+
+
+class DBusDownloadManager:
+    def __init__(self, callback=None):
+        """
+        :param callback: If given, a function that's called every so often in
+            all the download threads - so it must be prepared to be called
+            asynchronously.  You don't have to worry about thread safety though
+            because of the GIL.
+        :type callback: A function that takes three or four arguments:
+            the full source url including the base, the absolute path of the
+            destination, and the total number of bytes read so far from this
+            url. The optional fourth argument is the total size of the source
+            file, and is only present if the `sizes` argument was given (see
+            below).
+        """
+        self._callback = callback
+        self._iface = None
+        self._reactor = None
+        self._queued_cancel = False
+
+    def get_files(self, downloads):
+        """Download a bunch of files concurrently.
+
+        The files named in `downloads` are downloaded in separate threads,
+        concurrently using asynchronous I/O.  Occasionally, the callback is
+        called to report on progress.  This function blocks until all files
+        have been downloaded or an exception occurs.  In the latter case,
+        the download directory will be cleared of the files that succeeded
+        and the exception will be re-raised.
+
+        This means that 1) the function blocks until all files are
+        downloaded, but at least we do that concurrently; 2) this is an
+        all-or-nothing function.  Either you get all the requested files or
+        none of them.
+
+        :param downloads: A list of 2-tuples where the first item is the url to
+            download, and the second item is the destination file.
+        :type downloads: List of 2-tuples.
+        :param sizes: Optional sequence of sizes of the files being downloaded.
+            If given, then the callback is called with a fourth argument,
+            which is the size of the source file.  `sizes` is unused if there
+            is no callback; this option is primarily for better progress
+            feedback.
+        :param sizes: Sequence of integers which must be the same length as the
+            number of arguments given in `download`.
+        :raises: FileNotFoundError if any download error occurred.  In this
+            case, all download files are deleted.
+
+        The API is a little funky for backward compatibility reasons.
+        """
+        if self._queued_cancel:
+            # A cancel is queued, so don't actually download anything.
+            raise Canceled
+        bus = dbus.SystemBus()
+        service = bus.get_object(DOWNLOADER_INTERFACE, '/')
+        iface = dbus.Interface(service, MANAGER_INTERFACE)
+        log.info('Requesting group download:', downloads)
+        object_path = iface.createDownloadGroup(
+            [(url, dst, '') for url, dst in downloads],
+            '',           # No hashes yet.
+            False,        # Don't allow GSM yet.
+            # https://bugs.freedesktop.org/show_bug.cgi?id=55594
+            dbus.Dictionary(signature='sv'),
+            _headers())
+        download = bus.get_object(OBJECT_NAME, object_path)
+        self._iface = dbus.Interface(download, OBJECT_INTERFACE)
+        self._reactor = DownloadReactor(bus, self._callback)
+        self._reactor.schedule(self._iface.start)
+        log.info('Running group download reactor')
+        self._reactor.run()
+        log.info('Group download reactor done (err/cancel):',
+                 self._reactor.error, self._reactor.canceled)
+        # This download is complete so the object path is no longer
+        # applicable.  Setting this to None will cause subsequent cancels to
+        # be queued.
+        self._iface = None
+        # Report any other problems.
+        if self._reactor.error is not None:
+            raise FileNotFoundError(self._reactor.error)
+        if self._reactor.canceled:
+            raise Canceled
+        if self._reactor.timed_out:
+            raise TimeoutError
+
+    def cancel(self):
+        """Cancel any current downloads."""
+        if self._iface is None:
+            # Since there's no download in progress right now, there's nothing
+            # to cancel.  Setting this flag queues the cancel signal once the
+            # reactor starts running again.  Yes, this is a bit weird, but if
+            # we don't do it this way, the caller will immediately get a
+            # Canceled exception, which isn't helpful because it's expecting
+            # one when the next download begins.
+            self._queued_cancel = True
+        else:
+            self._iface.cancel()

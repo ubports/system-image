@@ -88,22 +88,40 @@ def _sortkey(item):
     return order.get(item[-1])
 
 
+class _Called:
+    # Defer importing named object until it's actually called.  This should
+    # reduce the instances of circular imports.
+    def __init__(self, path):
+        self._path, dot, self._name = path.rpartition('.')
+        if dot != '.':
+            raise ValueError
+
+    def _dig(self):
+        module = import_module(self._path)
+        return getattr(module, self._name)
+
+    def __call__(self, *args, **kws):
+        return self._dig()(*args, **kws)
+
+    def __eq__(self, other):
+        # Let class equality (and in-equality) work.
+        myself = self._dig()
+        return myself == other
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
 def as_object(value):
     """Convert a Python dotted-path specification to an object.
 
     :param value: A dotted-path specification,
         e.g. the string `systemimage.scores.WeightedScorer`
+    :return: A proxy object that when called, performs the import and calls
+        the underyling object.
     :raises ValueError: when `value` is not dotted.
-    :raises ImportError: if the named module (i.e. up to the right-most dot)
-        does not exist.
-    :raises AttributeError: if the name after the right-most dot doesn't exist
-        in the named module.
     """
-    path, dot, name = value.rpartition('.')
-    if dot != '.':
-        raise ValueError
-    module = import_module(path)
-    return getattr(module, name)
+    return _Called(value)
 
 
 def as_timedelta(value):

@@ -19,9 +19,11 @@ __all__ = [
     'configuration',
     'copy',
     'data_path',
+    'debug',
     'get_channels',
     'get_index',
     'make_http_server',
+    'patience',
     'reset_envar',
     'setup_index',
     'setup_keyring_txz',
@@ -34,12 +36,14 @@ __all__ = [
 import os
 import ssl
 import json
+import time
 import gnupg
 import shutil
 import inspect
 import tarfile
 
 from contextlib import ExitStack, contextmanager
+from datetime import datetime, timedelta
 from functools import partial, wraps
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
@@ -49,7 +53,6 @@ from systemimage.helpers import atomic, makedirs, temporary_directory
 from systemimage.index import Index
 from threading import Thread
 from unittest.mock import patch
-from urllib.request import urlopen
 
 
 EMPTYSTRING = ''
@@ -70,8 +73,7 @@ def data_path(filename):
         resource_filename('systemimage.tests.data', filename))
 
 
-def make_http_server(directory, port, certpem=None, keypem=None,
-                     *, selfsign=True):
+def make_http_server(directory, port, certpem=None, keypem=None):
     """Create an HTTP/S server to vend from the file system.
 
     :param directory: The file system directory to vend files from.
@@ -82,8 +84,6 @@ def make_http_server(directory, port, certpem=None, keypem=None,
     :param keypem: For HTTPS servers, the path to the key PEM file.  If the
         file name does not start with a slash, it is considered relative to
         the test data directory.
-    :param selfsign: Flag indicating whether or not `urlopen()` should be
-        patched to accept the self-signed certificate in certpem.
     :return: A context manager that when closed, stops the server.
     """
     # We need an HTTP/S server to vend the file system, or at least parts of
@@ -103,12 +103,22 @@ def make_http_server(directory, port, certpem=None, keypem=None,
             # Please shut up.
             pass
 
-        def do_ECHO(self):
-            # This is a little hack for testing the User-Agent header.
-            self.send_response(200)
-            self.send_header('User-Agent-Echo',
-                             self.headers.get('User-Agent', 'No-User-Agent'))
-            self.end_headers()
+        def do_GET(self):
+            # If we requested the magic 'user-agent.txt' file, send back the
+            # value of the User-Agent header.  Otherwise, vend as normal.
+            if self.path == '/user-agent.txt':
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/plain')
+                user_agent = self.headers.get('user-agent', 'no agent')
+                self.end_headers()
+                self.wfile.write(user_agent.encode('utf-8'))
+            else:
+                try:
+                    super().do_GET()
+                except BrokenPipeError:
+                    # Canceling a download can cause our internal server to
+                    # see a broken pipe.  No worries.
+                    pass
     # Create the server in the main thread, but start it in the sub-thread.
     # This lets the main thread call .shutdown() to stop everything.  Return
     # just the shutdown method to the caller.
@@ -139,9 +149,6 @@ def make_http_server(directory, port, certpem=None, keypem=None,
             thread.join()
         stack.callback(shutdown)
         thread.start()
-        if selfsign and ssl_context is not None:
-            stack.enter_context(patch('systemimage.download.urlopen',
-                                      partial(urlopen, cafile=certpem)))
         # Everything succeeded, so transfer the resource management to a new
         # ExitStack().  This way, when the with statement above completes, the
         # server will still be running and urlopen() will still be patched.
@@ -340,3 +347,22 @@ def touch_build(version, timestamp=None):
             os.utime(channel_ini, (timestamp, timestamp))
         except FileNotFoundError:
             pass
+
+
+@contextmanager
+def debug():
+    with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+        yield partial(print, file=fp)
+
+
+@contextmanager
+def patience(exception):
+    until = datetime.now() + timedelta(seconds=60)
+    while datetime.now() < until:
+        time.sleep(0.1)
+        try:
+            yield
+        except exception:
+            break
+    else:
+        raise RuntimeError('Process did not exit')

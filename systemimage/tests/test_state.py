@@ -41,11 +41,16 @@ from systemimage.testing.demo import DemoDevice
 from systemimage.testing.helpers import (
     configuration, copy, data_path, get_index, make_http_server, setup_index,
     setup_keyring_txz, setup_keyrings, sign, temporary_directory, touch_build)
+from systemimage.testing.nose import SystemImagePlugin
 from unittest.mock import patch
 
 
 class TestState(unittest.TestCase):
     """Test various state transitions."""
+
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def setUp(self):
         self._stack = ExitStack()
@@ -311,6 +316,10 @@ class _StateTestsBase(unittest.TestCase):
 
     # For more detailed output.
     maxDiff = None
+
+    @classmethod
+    def setUpClass(self):
+        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def setUp(self):
         self._stack = ExitStack()

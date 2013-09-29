@@ -2,6 +2,13 @@
 NEWS for system-image updater
 =============================
 
+1.6 (2013-09-29)
+================
+ * Use the new ubuntu-download-manager to manage all requested downloads.
+   (LP: #1196991)
+ * Default D-Bus service timeout is now 1 hour.
+ * Default D-Bus logging level is now `info`.
+
 1.5.1 (2013-09-08)
 ==================
  * Fix test for 32 bit systems.
