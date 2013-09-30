@@ -35,12 +35,17 @@ class Reactor:
         # all the signal matching callbacks.  Once the reactor run loop quits,
         # we want to remove all callbacks so they can't accidentally be called
         # again later.
-        self._quitters = []
+        self._quitter = None
         self._signal_matches = []
+        self._active_timeout = None
         self.timeout = TIMEOUT_SECONDS
         self.timed_out = False
 
     def _handle_signal(self, *args, **kws):
+        # We've seen some activity from the D-Bus service, so reset our
+        # timeout loop.
+        self._reset_timeout()
+        # Now dispatch the signal.
         signal = kws.pop('member')
         path = kws.pop('path')
         method = getattr(self, '_do_' + signal, None)
@@ -51,6 +56,14 @@ class Reactor:
             log.info('No handler for signal {}: {} {}', signal, args, kws)
         else:
             method(signal, path, *args, **kws)
+
+    def _reset_timeout(self, *, try_again=True):
+        if self._quitter is not None:
+            GLib.source_remove(self._quitter)
+            self._quitter = None
+        if try_again:
+            self._quitter = GLib.timeout_add_seconds(
+                self._active_timeout, self._quit_with_error)
 
     def react_to(self, signal):
         signal_match = self._bus.add_signal_receiver(
@@ -63,10 +76,9 @@ class Reactor:
         GLib.timeout_add(milliseconds, method)
 
     def run(self, timeout=None):
-        timeout = (self.timeout if timeout is None else timeout)
+        self._active_timeout = (self.timeout if timeout is None else timeout)
         self._loop = GLib.MainLoop()
-        source_id = GLib.timeout_add_seconds(timeout, self._quit_with_error)
-        self._quitters.append(source_id)
+        self._reset_timeout()
         self._loop.run()
 
     def quit(self):
@@ -74,9 +86,9 @@ class Reactor:
         for match in self._signal_matches:
             match.remove()
         del self._signal_matches[:]
-        for source_id in self._quitters:
-            GLib.source_remove(source_id)
-        del self._quitters[:]
+        self._reset_timeout(try_again=False)
+        self._quitter = None
+        self._active_timeout = None
 
     def _quit_with_error(self):
         self.timed_out = True

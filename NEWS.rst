@@ -2,8 +2,11 @@
 NEWS for system-image updater
 =============================
 
-1.7 (2013-XX-XX)
+1.7 (2013-09-30)
 ================
+ * Fix test suite failure on 32 bit systems.  Again.
+ * Reset the D-Bus reactor timeout every time we see an active signal from the
+   D-Bus service we're talking to.  (LP: #1233379)
 
 1.6 (2013-09-30)
 ================

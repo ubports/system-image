@@ -90,12 +90,12 @@ class TestLastUpdateDate(unittest.TestCase):
             userdata_path = os.path.join(tmpdir, '.last_update')
             stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
                                       userdata_path))
-            timestamp = int(datetime(2112, 11, 10, 9, 8, 7).timestamp())
+            timestamp = int(datetime(2012, 11, 10, 9, 8, 7).timestamp())
             with open(userdata_path, 'w'):
                 # i.e. touch(1)
                 pass
             os.utime(userdata_path, (timestamp, timestamp))
-            self.assertEqual(last_update_date(), '2112-11-10 09:08:07')
+            self.assertEqual(last_update_date(), '2012-11-10 09:08:07')
 
     @configuration
     def test_date_from_channel_ini(self, ini_file):
@@ -190,17 +190,17 @@ class TestLastUpdateDate(unittest.TestCase):
             with open(userdata_path, 'w'):
                 # i.e. touch(1)
                 pass
-            timestamp = int(datetime(2110, 9, 8, 7, 6, 5).timestamp())
+            timestamp = int(datetime(2010, 9, 8, 7, 6, 5).timestamp())
             os.utime(userdata_path, (timestamp, timestamp))
             # /etc/channel.ini
             channel_ini = os.path.join(
                 os.path.dirname(ini_file), 'channel.ini')
             with open(channel_ini, 'w'):
                 pass
-            timestamp = int(datetime(2111, 10, 9, 8, 7, 6).timestamp())
+            timestamp = int(datetime(2011, 10, 9, 8, 7, 6).timestamp())
             os.utime(channel_ini, (timestamp, timestamp))
             # /etc/ubuntu-build.
-            timestamp = int(datetime(2112, 11, 10, 9, 8, 7).timestamp())
+            timestamp = int(datetime(2012, 11, 10, 9, 8, 7).timestamp())
             touch_build(2, timestamp)
             # Run the test.
-            self.assertEqual(last_update_date(), '2110-09-08 07:06:05')
+            self.assertEqual(last_update_date(), '2010-09-08 07:06:05')

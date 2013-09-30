@@ -116,9 +116,9 @@ def make_http_server(directory, port, certpem=None, keypem=None):
             else:
                 try:
                     super().do_GET()
-                except BrokenPipeError:
+                except (BrokenPipeError, ConnectionResetError):
                     # Canceling a download can cause our internal server to
-                    # see a broken pipe.  No worries.
+                    # see various ignorable errors.  No worries.
                     pass
     # Create the server in the main thread, but start it in the sub-thread.
     # This lets the main thread call .shutdown() to stop everything.  Return
