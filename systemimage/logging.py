@@ -44,6 +44,13 @@ class FormattingLogRecord(logging.LogRecord):
 
 def initialize(*, verbosity=0):
     """Initialize the loggers."""
+    level = {
+        0: logging.ERROR,
+        1: logging.INFO,
+        2: logging.DEBUG,
+        3: logging.CRITICAL,
+        }.get(verbosity, logging.ERROR)
+    level = min(level, config.system.loglevel)
     # We're not going to propagate to the root logger anyway.
     logging.basicConfig(style='{')
     # Make sure logging uses {}-style messages.
@@ -54,7 +61,7 @@ def initialize(*, verbosity=0):
     makedirs(os.path.dirname(config.system.logfile))
     # Our handler will output in UTF-8 using {} style logging.
     handler = logging.FileHandler(config.system.logfile, encoding='utf-8')
-    handler.setLevel(config.system.loglevel)
+    handler.setLevel(level)
     formatter = logging.Formatter(style='{', fmt=MSG_FMT, datefmt=DATE_FMT)
     handler.setFormatter(formatter)
     log.addHandler(handler)
@@ -62,20 +69,14 @@ def initialize(*, verbosity=0):
     # If we want more verbosity, add a stream handler.
     if verbosity == 0:
         # Set the log level.
-        log.setLevel(config.system.loglevel)
+        log.setLevel(level)
         return
-    level = {
-        0: logging.ERROR,
-        1: logging.INFO,
-        2: logging.DEBUG,
-        3: logging.CRITICAL,
-        }.get(verbosity, logging.ERROR)
     handler = logging.StreamHandler(stream=sys.stderr)
     handler.setLevel(level)
     handler.setFormatter(formatter)
     log.addHandler(handler)
     # Set the overall level on the log object to the minimum level.
-    log.setLevel(min(level, config.system.loglevel))
+    log.setLevel(level)
     # Please be quiet gnupg.
     gnupg_log = logging.getLogger('gnupg')
     gnupg_log.propagate = False

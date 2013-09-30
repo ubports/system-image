@@ -26,6 +26,7 @@ import sys
 import logging
 import argparse
 
+from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
 from systemimage.bindings import DBusClient
 from systemimage.candidates import delta_filter, full_filter
@@ -174,6 +175,7 @@ def main():
         # We probably won't get here..
         return 0
 
+    DBusGMainLoop(set_as_default=True)
     state = State(candidate_filter=candidate_filter)
     if args.dry_run:
         state.run_thru('persist')

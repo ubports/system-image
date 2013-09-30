@@ -24,9 +24,14 @@ __all__ = [
     ]
 
 
+import logging
+
+from io import StringIO
 from itertools import count
 
+log = logging.getLogger('systemimage')
 
+COLON = ':'
 MiB = 2 ** 20
 
 
@@ -62,7 +67,18 @@ class Scorer:
         #
         # Be sure that after all is said and done we return the list of Images
         # though!
-        return sorted(zip(self.score(candidates), count(), candidates))[0][2]
+        scores = sorted(zip(self.score(candidates), count(), candidates))
+        fp = StringIO()
+        print('{} path scores (last one wins):'.format(
+            self.__class__.__name__),
+            file=fp)
+        for score, i, candidate in reversed(scores):
+            print('\t[{:4d}] -> {}'.format(
+                score,
+                COLON.join(str(image.version) for image in candidate)),
+                file=fp)
+        log.debug('{}'.format(fp.getvalue()))
+        return scores[0][2]
 
     def score(self, candidates):
         """Like `choose()` except returns the candidate path scores.

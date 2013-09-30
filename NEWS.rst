@@ -8,6 +8,10 @@ NEWS for system-image updater
    (LP: #1196991)
  * Default D-Bus service timeout is now 1 hour.
  * Default D-Bus logging level is now `info`.
+ * Verbose (i.e. `debug`) logging now includes the scores and paths for all
+   upgrade candidates, from highest score (biggest loser) to lowest score
+   (winner) last.
+ * --verbose logging level is now properly propagated to the log file.
 
 1.5.1 (2013-09-08)
 ==================
