@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-1.6 (2013-09-29)
+1.6 (2013-09-30)
 ================
  * Use the new ubuntu-download-manager to manage all requested downloads.
    (LP: #1196991)
