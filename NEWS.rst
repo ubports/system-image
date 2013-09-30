@@ -6,6 +6,8 @@ NEWS for system-image updater
 ================
  * Use the new ubuntu-download-manager to manage all requested downloads.
    (LP: #1196991)
+ * Use /userdata/.last_update file as the "last upgrade date" if the file
+   exists.  (LP: #1215943)
  * Default D-Bus service timeout is now 1 hour.
  * Default D-Bus logging level is now `info`.
  * Verbose (i.e. `debug`) logging now includes the scores and paths for all

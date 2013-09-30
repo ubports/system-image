@@ -42,6 +42,9 @@ from importlib import import_module
 from systemimage.bag import Bag
 
 
+LAST_UPDATE_FILE = '/userdata/.last_update'
+
+
 def safe_remove(path):
     """Like os.remove() but don't complain if the file doesn't exist."""
     try:
@@ -204,15 +207,20 @@ def makedirs(dir):
 def last_update_date():
     """Return the last update date.
 
-    Taken from the mtime of /etc/system-image/channel.ini first, with fallback
-    to /etc/ubuntu-build if that file doesn't exist.
+    Taken from the mtime of the following files, in order:
+
+    - /userdata/.last_update
+    - /etc/system-image/channel.ini
+    - /etc/ubuntu-build
+
+    First existing path wins.
     """
     # Avoid circular imports.
     from systemimage.config import config
     channel_ini = os.path.join(
         os.path.dirname(config.config_file), 'channel.ini')
     ubuntu_build = config.system.build_file
-    for path in (channel_ini, ubuntu_build):
+    for path in (LAST_UPDATE_FILE, channel_ini, ubuntu_build):
         try:
             # Local time, since we can't know the timezone.
             timestamp = datetime.fromtimestamp(os.stat(path).st_mtime)

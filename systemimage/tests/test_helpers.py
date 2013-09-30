@@ -26,12 +26,14 @@ import os
 import logging
 import unittest
 
+from contextlib import ExitStack
 from datetime import datetime, timedelta
 from systemimage.config import Configuration, config
 from systemimage.helpers import (
     Bag, as_loglevel, as_object, as_timedelta, last_update_date,
-    version_detail)
+    temporary_directory, version_detail)
 from systemimage.testing.helpers import configuration, data_path, touch_build
+from unittest.mock import patch
 
 
 class TestConverters(unittest.TestCase):
@@ -81,12 +83,27 @@ class TestConverters(unittest.TestCase):
 
 class TestLastUpdateDate(unittest.TestCase):
     @configuration
+    def test_date_from_userdata(self):
+        # The last upgrade data can come from /userdata/.last_update.
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            userdata_path = os.path.join(tmpdir, '.last_update')
+            stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
+                                      userdata_path))
+            timestamp = int(datetime(2112, 11, 10, 9, 8, 7).timestamp())
+            with open(userdata_path, 'w'):
+                # i.e. touch(1)
+                pass
+            os.utime(userdata_path, (timestamp, timestamp))
+            self.assertEqual(last_update_date(), '2112-11-10 09:08:07')
+
+    @configuration
     def test_date_from_channel_ini(self, ini_file):
         # The last update date can come from the mtime of the channel.ini
         # file, which lives next to the configuration file.
         channel_ini = os.path.join(
             os.path.dirname(ini_file), 'channel.ini')
-        with open(channel_ini, 'w', encoding='utf-8'):
+        with open(channel_ini, 'w'):
             pass
         timestamp = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
         os.utime(channel_ini, (timestamp, timestamp))
@@ -159,3 +176,31 @@ class TestLastUpdateDate(unittest.TestCase):
         channel_ini = data_path('channel_01.ini')
         config.load(channel_ini, override=True)
         self.assertEqual(version_detail(), {})
+
+    @configuration
+    def test_date_from_userdata_ignoring_fallbacks(self, ini_file):
+        # Even when /etc/system-image/channel.ini and /etc/ubuntu-build exist,
+        # if there's a /userdata/.last_update file, that takes precedence.
+        with ExitStack() as stack:
+            # /userdata/.last_update
+            tmpdir = stack.enter_context(temporary_directory())
+            userdata_path = os.path.join(tmpdir, '.last_update')
+            stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
+                                      userdata_path))
+            with open(userdata_path, 'w'):
+                # i.e. touch(1)
+                pass
+            timestamp = int(datetime(2110, 9, 8, 7, 6, 5).timestamp())
+            os.utime(userdata_path, (timestamp, timestamp))
+            # /etc/channel.ini
+            channel_ini = os.path.join(
+                os.path.dirname(ini_file), 'channel.ini')
+            with open(channel_ini, 'w'):
+                pass
+            timestamp = int(datetime(2111, 10, 9, 8, 7, 6).timestamp())
+            os.utime(channel_ini, (timestamp, timestamp))
+            # /etc/ubuntu-build.
+            timestamp = int(datetime(2112, 11, 10, 9, 8, 7).timestamp())
+            touch_build(2, timestamp)
+            # Run the test.
+            self.assertEqual(last_update_date(), '2110-09-08 07:06:05')
