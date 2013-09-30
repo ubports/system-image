@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+1.8 (2013-XX-XX)
+================
+
 1.7 (2013-09-30)
 ================
  * Fix test suite failure on 32 bit systems.  Again.
