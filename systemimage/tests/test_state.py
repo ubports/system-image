@@ -16,6 +16,7 @@
 """Test the state machine."""
 
 __all__ = [
+    'TestChannelAlias',
     'TestCommandFileDelta',
     'TestCommandFileFull',
     'TestDailyProposed',
@@ -752,3 +753,108 @@ unmount system
         with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
             list(state)
         self.assertTrue(got_reboot)
+
+
+class TestChannelAlias(_StateTestsBase):
+    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+    INDEX_FILE = 'index_20.json'
+
+    @configuration
+    def test_channel_alias_switch(self, ini_file):
+        # Channels in the channel.json files can have an optional "alias" key,
+        # which if set, describes the other channel this channel is based on
+        # (only in a server-side generated way; the client sees all channels
+        # as fully "stocked").
+        #
+        # The channel.ini file can have a channel_target key which names the
+        # channel alias this device has been tracking.  If the channel_target
+        # does not match the channel alias, then the client considers its
+        # internal version number to be 0 and does a full update.
+        #
+        # This is used to support version downgrades when changing the alias
+        # to point to a different series (LP: #1221844).
+        #
+        # Here's an example.  Let's say a device has been tracking the 'daily'
+        # channel, which is aliased to 'saucy'.  Suddenly, Tubular Tapir is
+        # released and the 'daily' channel is aliased to 'tubular'.  When the
+        # device goes to update, it sees that it was tracking the saucy alias
+        # and now must track the tubular alias, so it needs to do a full
+        # upgrade from build number 0 to get on the right track.
+        #
+        # To test this condition, we calculate the upgrade path first in the
+        # absence of a channels.ini file.  The device is tracking the daily
+        # channel, and there isno channel_target attribute, so we get the
+        # latest build on that channel.
+        self._stack.enter_context(patch('systemimage.device.check_output',
+                                        return_value='manta'))
+        self._setup_keyrings()
+        touch_build(300)
+        config.channel = 'daily'
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual([image.version for image in state.winner],
+                         [301, 304])
+        # Here's what the upgrade path would be if we were using a build
+        # number of 0 (ignoring any channel alias switching).
+        del config.build_number
+        touch_build(0)
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual([image.version for image in state.winner],
+                         [200, 201, 304])
+        # Set the build number back to 300 for the next test.
+        del config.build_number
+        touch_build(300)
+        # Now we pretend there was a channel.ini file, and load it.  This also
+        # tells us the current build number is 300, but through the
+        # channel_target field it tells us that the previous daily channel
+        # alias was saucy.  Now (via the channels.json file) it's tubular, and
+        # the upgrade path starting at build 0 is different.
+        config.load(data_path('channel_05.ini'), override=True)
+        # All things being equal to the first test above, except that now
+        # we're in the middle of an alias switch.  The upgrade path is exactly
+        # the same as if we were upgrading from build 0.
+        self.assertEqual(config.build_number, 300)
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual([image.version for image in state.winner],
+                         [200, 201, 304])
+
+    @configuration
+    def test_channel_alias_switch_with_cli_option(self, ini_file):
+        # Like the above test, but in similating the use of `system-image-cli
+        # --build 300`, we set the build number explicitly.  This prevent the
+        # channel alias squashing of the build number to 0.
+        self._stack.enter_context(patch('systemimage.device.check_output',
+                                        return_value='manta'))
+        self._setup_keyrings()
+        # This sets the build number via the /etc/ubuntu_build file.
+        touch_build(300)
+        config.channel = 'daily'
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual([image.version for image in state.winner],
+                         [301, 304])
+        # Now we pretend there was a channel.ini file, and load it.  This also
+        # tells us the current build number is 300, but through the
+        # channel_target field it tells us that the previous daily channel
+        # alias was saucy.  Now (via the channels.json file) it's tubular.
+        config.load(data_path('channel_05.ini'), override=True)
+        # All things being equal to the first test above, except that now
+        # we're in the middle of an alias switch.  The upgrade path is exactly
+        # the same as if we were upgrading from build 0.
+        del config.build_number
+        self.assertEqual(config.build_number, 300)
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual([image.version for image in state.winner],
+                         [200, 201, 304])
+        # Finally, this mimic the effect of --build 300, thus giving us back
+        # the original upgrade path.
+        config.build_number = 300
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual([image.version for image in state.winner],
+                         [301, 304])
