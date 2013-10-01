@@ -1,0 +1,64 @@
+{
+    "daily": {
+        "alias": "tubular",
+        "devices": {
+            "grouper": {
+                "index": "/daily/grouper/index.json"
+            },
+            "maguro": {
+                "index": "/daily/maguro/index.json"
+            },
+            "mako": {
+                "index": "/daily/mako/index.json"
+            },
+            "manta": {
+                "index": "/daily/manta/index.json",
+                "keyring": {
+                    "path": "/daily/manta/device-signing.tar.xz",
+                    "signature": "/daily/manta/device-signing.tar.xz.asc"
+                }
+            }
+        }
+    },
+    "saucy": {
+        "devices": {
+            "grouper": {
+                "index": "/saucy/grouper/index.json"
+            },
+            "maguro": {
+                "index": "/saucy/maguro/index.json"
+            },
+            "mako": {
+                "index": "/saucy/mako/index.json"
+            },
+            "manta": {
+                "index": "/saucy/manta/index.json",
+                "keyring": {
+                    "path": "/saucy/manta/device-signing.tar.xz",
+                    "signature": "/saucy/manta/device-signing.tar.xz.asc"
+                }
+            }
+        }
+    },
+    "tubular": {
+        "hidden": true,
+        "devices": {
+            "grouper": {
+                "index": "/tubular/grouper/index.json"
+            },
+            "maguro": {
+                "index": "/tubular/maguro/index.json"
+            },
+            "mako": {
+                "index": "/tubular/mako/index.json"
+            },
+            "manta": {
+                "index": "/tubular/manta/index.json",
+                "keyring": {
+                    "path": "/tubular/manta/device-signing.tar.xz",
+                    "signature": "/tubular/manta/device-signing.tar.xz.asc"
+                }
+            }
+        }
+    }
+}

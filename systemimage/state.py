@@ -341,8 +341,21 @@ class State:
 
     def _calculate_winner(self):
         """Given an index, calculate the paths and score a winner."""
-        # Store these as attributes for debugging and testing.
-        candidates = get_candidates(self.index, config.build_number)
+        # If we were tracking a channel alias, and that channel alias has
+        # changed, squash the build number to 0 before calculating the
+        # winner.  Otherwise, trust the configured build number.
+        channel = self.channels[config.channel]
+        channel_alias = getattr(channel, 'alias', None)
+        channel_target = getattr(config.service, 'channel_target', None)
+        if (    channel_alias is None or
+                channel_target is None or
+                channel_alias == channel_target):
+            build_number = config.build_number
+        else:
+            # An explicit --build on the command line still takes precedence.
+            build_number = (0 if config.build_number_cli is None
+                            else config.build_number_cli)
+        candidates = get_candidates(self.index, build_number)
         if self._filter is not None:
             candidates = self._filter(candidates)
         self.winner = config.hooks.scorer().choose(candidates)

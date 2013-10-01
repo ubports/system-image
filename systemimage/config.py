@@ -96,13 +96,13 @@ class Configuration:
     def build_number(self):
         if self._build_number is None:
             if self._override:
-                self._build_number = self.service.build_number
+                return self.service.build_number
             else:
                 try:
                     with open(self.system.build_file, encoding='utf-8') as fp:
-                        self._build_number = int(fp.read().strip())
+                        return int(fp.read().strip())
                 except FileNotFoundError:
-                    self._build_number = 0
+                    return 0
         return self._build_number
 
     @build_number.setter
@@ -115,6 +115,10 @@ class Configuration:
     @build_number.deleter
     def build_number(self):
         self._build_number = None
+
+    @property
+    def build_number_cli(self):
+        return self._build_number
 
     @property
     def device(self):

@@ -166,8 +166,11 @@ class DBusDownloadManager:
         self._reactor.schedule(self._iface.start)
         log.info('Running group download reactor')
         self._reactor.run()
-        log.info('Group download reactor done (err/cancel):',
-                 self._reactor.error, self._reactor.canceled)
+        log.info('Group download reactor done')
+        if self._reactor.error is not None:
+            log.error('Reactor error: {}'.format(self._reactor.error))
+        if self._reactor.canceled:
+            log.info('Reactor canceled')
         # This download is complete so the object path is no longer
         # applicable.  Setting this to None will cause subsequent cancels to
         # be queued.

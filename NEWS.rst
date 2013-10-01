@@ -4,6 +4,11 @@ NEWS for system-image updater
 
 1.8 (2013-XX-XX)
 ================
+ * Support channel alias tracking.  If the channel.ini file has a
+   `channel_target` key, and the channel spec in the channel.json file has an
+   `alias` key, and these don't match, then the channel alias has changed, and
+   we squash the build number to 0 for upgrade path calculation.  An explicit
+   `--build` option for system-image-cli still overrides this.  (LP: #1221844)
 
 1.7 (2013-09-30)
 ================
