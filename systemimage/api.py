@@ -68,9 +68,10 @@ class Mediator:
     DBus layer to satisfy that interface.
     """
 
-    def __init__(self):
+    def __init__(self, callback=None):
         self._state = State()
         self._update = None
+        self._callback = callback
 
     def cancel(self):
         self._state.downloader.cancel()
@@ -88,7 +89,13 @@ class Mediator:
 
     def download(self):
         """Download the available update."""
-        self._state.run_until('reboot')
+        # We only want callback progress during the actual download.
+        callback = self._state.downloader.callback
+        try:
+            self._state.downloader.callback = self._callback
+            self._state.run_until('reboot')
+        finally:
+            self._state.downloader.callback = callback
 
     def reboot(self):
         """Issue the reboot."""

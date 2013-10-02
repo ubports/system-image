@@ -175,8 +175,12 @@ def main():
         # We probably won't get here..
         return 0
 
+    def callback(received, total):
+        log.debug('received: {} of {} bytes', received, total)
+
     DBusGMainLoop(set_as_default=True)
     state = State(candidate_filter=candidate_filter)
+    state.downloader.callback = callback
     if args.dry_run:
         state.run_thru('persist')
         # Say -c <no-such-channel> was given.  This will fail.

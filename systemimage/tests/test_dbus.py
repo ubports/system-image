@@ -30,6 +30,7 @@ __all__ = [
     'TestDBusMockNoUpdate',
     'TestDBusMockUpdateAutoSuccess',
     'TestDBusMockUpdateManualSuccess',
+    'TestDBusProgress',
     'TestDBusRegressions',
     ]
 
@@ -87,6 +88,20 @@ class AutoDownloadCancelingReactor(Reactor):
     def _do_UpdateFailed(self, signal, path, *args, **kws):
         self.got_update_failed = True
         self.quit()
+
+
+class ProgressRecordingReactor(Reactor):
+    def __init__(self):
+        super().__init__(dbus.SystemBus())
+        self.react_to('UpdateDownloaded')
+        self.react_to('UpdateProgress')
+        self.progress = []
+
+    def _do_UpdateDownloaded(self, signal, path, *args, **kws):
+        self.quit()
+
+    def _do_UpdateProgress(self, signal, path, *args, **kws):
+        self.progress.append(args)
 
 
 class _TestBase(unittest.TestCase):
@@ -1268,3 +1283,27 @@ class TestDBusInfoNoDetails(_LiveTesting):
         self.assertEqual(channel, 'stable')
         self.assertEqual(last_update, '2022-08-01 04:45:45')
         self.assertEqual(details, {})
+
+
+class TestDBusProgress(_LiveTesting):
+    def test_progress(self):
+        self.download_always()
+        self._set_build(0)
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        # Start the download and watch the progress meters.
+        reactor = ProgressRecordingReactor()
+        reactor.schedule(self.iface.DownloadUpdate)
+        reactor.run()
+        # The only progress we can count on is the first and last ones.  All
+        # will have an eta of 0, since that value is not calculatable right
+        # now.  The first progress will have percentage 0 and the last will
+        # have percentage 100.
+        self.assertGreaterEqual(len(reactor.progress), 2)
+        percentage, eta = reactor.progress[0]
+        self.assertEqual(percentage, 0)
+        self.assertEqual(eta, 0)
+        percentage, eta = reactor.progress[-1]
+        self.assertEqual(percentage, 100)
+        self.assertEqual(eta, 0)

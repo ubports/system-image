@@ -245,3 +245,24 @@ unmount system
         mediator.check_for_update()
         mediator.cancel()
         self.assertRaises(Canceled, mediator.download)
+
+    @configuration
+    def test_callback(self):
+        # When downloading, we get callbacks.
+        self._setup_keyrings()
+        received_bytes = 0
+        total_bytes = 0
+        def callback(received, total):
+            nonlocal received_bytes, total_bytes
+            received_bytes = received
+            total_bytes = total
+        mediator = Mediator(callback)
+        mediator.check_for_update()
+        # Checking for updates does not trigger the callback.
+        self.assertEqual(received_bytes, 0)
+        self.assertEqual(total_bytes, 0)
+        mediator.download()
+        # We don't know exactly how many bytes got downloaded, but we know
+        # some did.
+        self.assertNotEqual(received_bytes, 0)
+        self.assertNotEqual(total_bytes, 0)

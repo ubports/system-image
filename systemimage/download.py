@@ -24,6 +24,7 @@ __all__ = [
 import dbus
 import logging
 
+from io import StringIO
 from systemimage.config import config
 from systemimage.reactor import Reactor
 
@@ -62,9 +63,10 @@ class DownloadReactor(Reactor):
         self.react_to('resumed')
         self.react_to('started')
 
-    def _print(*args, **kws):
-        ## import sys; kws['file'] = sys.stderr
-        ## print(*args, **kws)
+    def _print(self, *args, **kws):
+        ## from systemimage.testing.helpers import debug
+        ## with debug() as ddlog:
+        ##     ddlog(*args, **kws)
         pass
 
     def _do_started(self, signal, path, started):
@@ -100,21 +102,16 @@ class DownloadReactor(Reactor):
 class DBusDownloadManager:
     def __init__(self, callback=None):
         """
-        :param callback: If given, a function that's called every so often in
-            all the download threads - so it must be prepared to be called
-            asynchronously.  You don't have to worry about thread safety though
-            because of the GIL.
-        :type callback: A function that takes three or four arguments:
-            the full source url including the base, the absolute path of the
-            destination, and the total number of bytes read so far from this
-            url. The optional fourth argument is the total size of the source
-            file, and is only present if the `sizes` argument was given (see
-            below).
+        :param callback: If given, a function that is called every so often
+            during downloading.
+        :type callback: A function that takes two arguments, the number
+            of bytes received so far, and the total amount of bytes to be
+            downloaded.
         """
-        self._callback = callback
         self._iface = None
         self._reactor = None
         self._queued_cancel = False
+        self.callback = callback
 
     def get_files(self, downloads):
         """Download a bunch of files concurrently.
@@ -134,13 +131,6 @@ class DBusDownloadManager:
         :param downloads: A list of 2-tuples where the first item is the url to
             download, and the second item is the destination file.
         :type downloads: List of 2-tuples.
-        :param sizes: Optional sequence of sizes of the files being downloaded.
-            If given, then the callback is called with a fourth argument,
-            which is the size of the source file.  `sizes` is unused if there
-            is no callback; this option is primarily for better progress
-            feedback.
-        :param sizes: Sequence of integers which must be the same length as the
-            number of arguments given in `download`.
         :raises: FileNotFoundError if any download error occurred.  In this
             case, all download files are deleted.
 
@@ -152,7 +142,12 @@ class DBusDownloadManager:
         bus = dbus.SystemBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
         iface = dbus.Interface(service, MANAGER_INTERFACE)
-        log.info('Requesting group download:', downloads)
+        # Better logging of the requested downloads.
+        fp = StringIO()
+        print('Requesting group download:', file=fp)
+        for url, dst in downloads:
+            print('\t{} -> {}'.format(url, dst), file=fp)
+        log.info('{}'.format(fp.getvalue()))
         object_path = iface.createDownloadGroup(
             [(url, dst, '') for url, dst in downloads],
             '',           # No hashes yet.
@@ -162,7 +157,7 @@ class DBusDownloadManager:
             _headers())
         download = bus.get_object(OBJECT_NAME, object_path)
         self._iface = dbus.Interface(download, OBJECT_INTERFACE)
-        self._reactor = DownloadReactor(bus, self._callback)
+        self._reactor = DownloadReactor(bus, self.callback)
         self._reactor.schedule(self._iface.start)
         log.info('Running group download reactor')
         self._reactor.run()

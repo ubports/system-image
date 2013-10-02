@@ -14,6 +14,8 @@ NEWS for system-image updater
    (LP: #1231628)
  * Switch the default `auto_download` value back to '1', i.e. download
    automatically but only over wifi.  (LP: #1229807)
+ * Plumb progress signals from ubuntu-download-manager through the
+   system-image D-Bus API.  (LP: #1204618)
 
 1.7 (2013-09-30)
 ================

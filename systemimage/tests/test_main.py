@@ -42,7 +42,7 @@ from systemimage.testing.helpers import (
 # This should be moved and refactored.
 from systemimage.tests.test_state import _StateTestsBase
 from textwrap import dedent
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 DBUS_LAUNCH = find_executable('dbus-launch')
@@ -350,7 +350,7 @@ class TestCLIMain(unittest.TestCase):
         self.assertFalse(os.path.exists(config.system.logfile))
         class FakeState:
             def __init__(self, candidate_filter):
-                pass
+                self.downloader = MagicMock()
             def __iter__(self):
                 return self
             def __next__(self):

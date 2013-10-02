@@ -113,7 +113,8 @@ class TestDownloads(unittest.TestCase):
             nonlocal received_bytes, total_bytes
             received_bytes = received
             total_bytes = total
-        DBusDownloadManager(callback).get_files(_http_pathify([
+        downloader = DBusDownloadManager(callback)
+        downloader.get_files(_http_pathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ]))

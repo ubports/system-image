@@ -92,10 +92,18 @@ class Service(Object):
         # Reset any failure or in-progress state.
         self._failure_count = 0
         self._last_error = ''
-        self._api = Mediator()
+        self._api = Mediator(self._progress_callback)
         # Arrange for the actual check to happen in a little while, so that
         # this method can return immediately.
         GLib.timeout_add(50, self._check_for_update)
+
+    def _progress_callback(self, received, total):
+        # Plumb the progress through our own D-Bus API.  Our API is defined as
+        # signalling a percentage and an eta.  We can calculate the percentage
+        # easily, but the eta is harder.  For now, we just send 0 as the eta.
+        percentage = received * 100 // total
+        eta = 0
+        self.UpdateProgress(percentage, eta)
 
     def _download(self):
         if (self._downloading                        # Already in progress.
@@ -109,6 +117,9 @@ class Service(Object):
             return
         self._downloading = True
         try:
+            # Always start by sending a UpdateProgress(0, 0).  This is enough
+            # to get the u/i's attention.
+            self.UpdateProgress(0, 0)
             self._api.download()
         except Exception as error:
             self._failure_count += 1
