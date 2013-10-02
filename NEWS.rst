@@ -12,6 +12,8 @@ NEWS for system-image updater
  * Support *phased updates* where we can ignore some images if their
    'phased-percentage' key is less than a machine-specific value.
    (LP: #1231628)
+ * Switch the default `auto_download` value back to '1', i.e. download
+   automatically but only over wifi.  (LP: #1229807)
 
 1.7 (2013-09-30)
 ================

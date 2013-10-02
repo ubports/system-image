@@ -1192,19 +1192,19 @@ class TestDBusGetSet(_TestBase):
         # auto_download requires an integer between 0 and 2.  Don't forget
         # that it gets pre-populated when the database is created.
         self.iface.SetSetting('auto_download', 'standby')
-        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
         self.iface.SetSetting('auto_download', '-1')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+        self.iface.SetSetting('auto_download', '0')
         self.assertEqual(self.iface.GetSetting('auto_download'), '0')
-        self.iface.SetSetting('auto_download', '1')
-        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
         self.iface.SetSetting('auto_download', '3')
-        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
         self.iface.SetSetting('auto_download', '2')
         self.assertEqual(self.iface.GetSetting('auto_download'), '2')
 
     def test_prepopulated_settings(self):
         # Some settings are pre-populated.
-        self.assertEqual(self.iface.GetSetting('auto_download'), '0')
+        self.assertEqual(self.iface.GetSetting('auto_download'), '1')
 
     def test_setting_changed_signal(self):
         reactor = SignalCapturingReactor('SettingChanged')
@@ -1219,7 +1219,7 @@ class TestDBusGetSet(_TestBase):
         self.assertEqual(len(reactor.signals), 0)
         # This is the default value, so nothing changes.
         reactor = SignalCapturingReactor('SettingChanged')
-        reactor.run(partial(self.iface.SetSetting, 'auto_download', '0'),
+        reactor.run(partial(self.iface.SetSetting, 'auto_download', '1'),
                     timeout=15)
         self.assertEqual(len(reactor.signals), 0)
         # This is a bogus value, so nothing changes.
@@ -1229,11 +1229,11 @@ class TestDBusGetSet(_TestBase):
         self.assertEqual(len(reactor.signals), 0)
         # Change back.
         reactor = SignalCapturingReactor('SettingChanged')
-        reactor.run(partial(self.iface.SetSetting, 'auto_download', '1'))
+        reactor.run(partial(self.iface.SetSetting, 'auto_download', '0'))
         self.assertEqual(len(reactor.signals), 1)
         key, new_value = reactor.signals[0]
         self.assertEqual(key, 'auto_download')
-        self.assertEqual(new_value, '1')
+        self.assertEqual(new_value, '0')
         # Change back.
         reactor = SignalCapturingReactor('SettingChanged')
         reactor.run(partial(self.iface.SetSetting, 'min_battery', '30'))

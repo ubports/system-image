@@ -71,4 +71,4 @@ class TestSettings(unittest.TestCase):
     @configuration
     def test_prepopulated(self):
         # Some keys are pre-populated with default values.
-        self.assertEqual(Settings().get('auto_download'), '0')
+        self.assertEqual(Settings().get('auto_download'), '1')

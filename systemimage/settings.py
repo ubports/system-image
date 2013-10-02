@@ -26,8 +26,7 @@ from contextlib import contextmanager
 from systemimage.config import config
 
 SCHEMA_VERSION = '1'
-# Download manually by default for now until LP: #1196991
-AUTO_DOWNLOAD_DEFAULT = '0'
+AUTO_DOWNLOAD_DEFAULT = '1'
 
 
 class Settings:
