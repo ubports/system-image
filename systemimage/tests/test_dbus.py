@@ -229,10 +229,9 @@ class _LiveTesting(_TestBase):
             self.config.updater.cache_partition, 'reboot.log')
 
     def tearDown(self):
-        self.iface.CancelUpdate()
         # Consume the UpdateFailed that results from the cancellation.
-        reactor = SignalCapturingReactor('UpdateFailed')
-        reactor.run(timeout=15)
+        reactor = SignalCapturingReactor('TornDown')
+        reactor.run(self.iface.TearDown, timeout=15)
         safe_remove(self.config.system.build_file)
         for updater_dir in (self.config.updater.cache_partition,
                             self.config.updater.data_partition):
@@ -583,19 +582,29 @@ class TestDBusApply(_LiveTesting):
         # the empty string for this call.  But it will restart the server.
         self.assertNotEqual(self.iface.ApplyUpdate(), '')
 
+    def test_cancel_while_not_downloading(self):
+        # If we call CancelUpdate() when we're not downloading anything, no
+        # UpdateFailed signal is sent.
+        self.download_manually()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        # Since we're downloading manually, no signal will be sent.
+        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.run(self.iface.CancelUpdate, timeout=15)
+        self.assertEqual(len(reactor.signals), 0)
+
     def test_cancel_manual(self):
         # While manually downloading, cancel the update.
         self.download_manually()
         # The downloads can be canceled when there is an update available.
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
-        # Cancel future operations.
+        # Cancel future operations.  However, since no download is in
+        # progress, we will not get a signal.
         reactor = SignalCapturingReactor('UpdateFailed')
-        reactor.run(self.iface.CancelUpdate)
-        self.assertEqual(len(reactor.signals), 1)
-        failure_count, reason = reactor.signals[0]
-        self.assertEqual(failure_count, 1)
-        self.assertNotEqual(reason, '')
+        reactor.run(self.iface.CancelUpdate, timeout=15)
+        self.assertEqual(len(reactor.signals), 0)
         self.assertFalse(os.path.exists(self.command_file))
         # Try to download the update again, though this will fail again.
         reactor = SignalCapturingReactor('UpdateFailed')

@@ -23,7 +23,7 @@ __all__ = [
 
 import os
 
-from dbus.service import method
+from dbus.service import method, signal
 from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
@@ -71,6 +71,17 @@ class _LiveTestableService(Service):
         del config.build_number
         safe_remove(config.system.state_file)
         safe_remove(config.system.settings_db)
+
+    @method('com.canonical.SystemImage')
+    def TearDown(self):
+        # Like CancelUpdate() except it sends a different signal that's only
+        # useful for the test suite.
+        self._api.cancel()
+        self.TornDown()
+
+    @signal('com.canonical.SystemImage')
+    def TornDown(self):
+        pass
 
 
 class _UpdateAutoSuccess(Service):

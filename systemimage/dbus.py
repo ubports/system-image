@@ -158,7 +158,9 @@ class Service(Object):
         # We're now in a failure state until the next CheckForUpdate.
         self._failure_count += 1
         self._last_error = 'Canceled'
-        self.UpdateFailed(self._failure_count, self._last_error)
+        # Only send this signal if we were in the middle of downloading.
+        if self._downloading:
+            self.UpdateFailed(self._failure_count, self._last_error)
         # XXX 2013-08-22: If we can't cancel the current download, return the
         # reason in this string.
         return ''

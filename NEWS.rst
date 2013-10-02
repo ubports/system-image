@@ -16,6 +16,10 @@ NEWS for system-image updater
    automatically but only over wifi.  (LP: #1229807)
  * Plumb progress signals from ubuntu-download-manager through the
    system-image D-Bus API.  (LP: #1204618)
+ * Only send the `UpdateFailed` signal in response to a `CancelUpdate()` call
+   if a download is already in progress.  No signal is sent if there's no
+   download in progress.  Getting the files to determine whether an update is
+   available or not does not count as a "download in progress". (LP: #1215946)
 
 1.7 (2013-09-30)
 ================
