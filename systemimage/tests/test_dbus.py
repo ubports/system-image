@@ -229,10 +229,9 @@ class _LiveTesting(_TestBase):
             self.config.updater.cache_partition, 'reboot.log')
 
     def tearDown(self):
-        self.iface.CancelUpdate()
         # Consume the UpdateFailed that results from the cancellation.
-        reactor = SignalCapturingReactor('UpdateFailed')
-        reactor.run(timeout=15)
+        reactor = SignalCapturingReactor('TornDown')
+        reactor.run(self.iface.TearDown, timeout=15)
         safe_remove(self.config.system.build_file)
         for updater_dir in (self.config.updater.cache_partition,
                             self.config.updater.data_partition):
