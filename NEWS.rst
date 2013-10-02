@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-1.8 (2013-XX-XX)
+1.8 (2013-10-02)
 ================
  * Support channel alias tracking.  If the channel.ini file has a
    `channel_target` key, and the channel spec in the channel.json file has an
