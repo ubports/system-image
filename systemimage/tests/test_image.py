@@ -68,6 +68,16 @@ class TestImage(unittest.TestCase):
         image_2 = Image(type='delta', version=20130400, base=20130300)
         self.assertNotEqual(image_1, image_2)
 
+    def test_default_phased_percentage(self):
+        image = Image(type='full', version=10)
+        self.assertEqual(image.phased_percentage, 100)
+
+    def test_explicit_phased_percentage(self):
+        kws = dict(type='full', version=10)
+        kws['phased-percentage'] = '39'
+        image = Image(**kws)
+        self.assertEqual(image.phased_percentage, 39)
+
 
 class TestNewVersionRegime(unittest.TestCase):
     """LP: #1218612"""

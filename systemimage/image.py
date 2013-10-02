@@ -75,6 +75,10 @@ def _new_hash(version):
 
 
 class Image(Bag):
+    def __init__(self, **kws):
+        converters = {'phased-percentage': int}
+        super().__init__(converters=converters, **kws)
+
     def __hash__(self):
         # BAW 2013-04-30: We don't currently enforce immutability of attribute
         # values.  See Bag.__init__().
@@ -113,3 +117,7 @@ class Image(Bag):
     def __repr__(self):
         return '<Image: {}>'.format(COMMASPACE.join(sorted(
             key for key in self.__dict__ if not key.startswith('_'))))
+
+    @property
+    def phased_percentage(self):
+        return self.__untranslated__.get('phased-percentage', 100)

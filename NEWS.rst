@@ -9,6 +9,9 @@ NEWS for system-image updater
    `alias` key, and these don't match, then the channel alias has changed, and
    we squash the build number to 0 for upgrade path calculation.  An explicit
    `--build` option for system-image-cli still overrides this.  (LP: #1221844)
+ * Support *phased updates* where we can ignore some images if their
+   'phased-percentage' key is less than a machine-specific value.
+   (LP: #1231628)
 
 1.7 (2013-09-30)
 ================

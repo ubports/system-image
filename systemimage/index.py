@@ -24,6 +24,7 @@ import json
 
 from datetime import datetime, timezone
 from systemimage.bag import Bag
+from systemimage.helpers import phased_percentage
 from systemimage.image import Image
 
 
@@ -48,6 +49,7 @@ class Index(Bag):
         global_ = Bag(generated_at=generated_at)
         # Parse the images.
         images = []
+        percentage = phased_percentage()
         for image_data in mapping['images']:
             # Descriptions can be any of:
             #
@@ -65,7 +67,9 @@ class Index(Bag):
                     descriptions[key] = image_data.pop(key)
             files = image_data.pop('files', [])
             bundles = [Bag(**bundle_data) for bundle_data in files]
-            images.append(Image(files=bundles,
-                                descriptions=descriptions,
-                                **image_data))
+            image = Image(files=bundles,
+                          descriptions=descriptions,
+                          **image_data)
+            if percentage <= image.phased_percentage:
+                images.append(image)
         return cls(global_=global_, images=images)

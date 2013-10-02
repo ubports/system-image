@@ -23,6 +23,7 @@ __all__ = [
     'atomic',
     'last_update_date',
     'makedirs',
+    'phased_percentage',
     'safe_remove',
     'temporary_directory',
     'version_detail',
@@ -32,6 +33,8 @@ __all__ = [
 import os
 import re
 import json
+import time
+import random
 import shutil
 import logging
 import tempfile
@@ -43,6 +46,7 @@ from systemimage.bag import Bag
 
 
 LAST_UPDATE_FILE = '/userdata/.last_update'
+UNIQUE_MACHINE_ID_FILE = '/var/lib/dbus/machine-id'
 
 
 def safe_remove(path):
@@ -248,3 +252,21 @@ def version_detail():
                 continue
             details[name] = version
     return details
+
+
+_pp_cache = None
+
+def phased_percentage(*, reset=False):
+    global _pp_cache
+    if _pp_cache is None:
+        with open(UNIQUE_MACHINE_ID_FILE, 'rb') as fp:
+            data = fp.read()
+        now = str(time.time()).encode('us-ascii')
+        r = random.Random()
+        r.seed(data + now)
+        _pp_cache = r.randint(0, 100)
+    try:
+        return _pp_cache
+    finally:
+        if reset:
+            _pp_cache = None

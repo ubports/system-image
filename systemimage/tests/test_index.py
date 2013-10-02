@@ -33,6 +33,9 @@ from systemimage.testing.helpers import (
     configuration, copy, get_index, make_http_server, makedirs,
     setup_keyring_txz, setup_keyrings, sign)
 from systemimage.testing.nose import SystemImagePlugin
+# FIXME
+from systemimage.tests.test_candidates import _descriptions
+from unittest.mock import patch
 
 
 class TestIndex(unittest.TestCase):
@@ -109,6 +112,45 @@ class TestIndex(unittest.TestCase):
             'description-xx': 'Oh delta, my delta',
             'description-xx_CC': 'This hyar is the delta B.2',
             })
+
+    def test_image_phased_percentage(self):
+        # This index has two full updates with a phased-percentage value and
+        # one without (which defaults to 100).  We'll set the system's
+        # percentage right in the middle of the two so that the one with 50%
+        # will not show up in the list of images.
+        with patch('systemimage.index.phased_percentage', return_value=66):
+            index = get_index('index_22.json')
+        descriptions = set(_descriptions(index.images))
+        # This one does not have a phased-percentage, so using the default of
+        # 100, it gets in.
+        self.assertIn('Full A', descriptions)
+        # This one has a phased-percentage of 50 so it gets ignored.
+        self.assertNotIn('Full B', descriptions)
+        # This one has a phased-percentage of 75 so it gets added.
+        self.assertIn('Full C', descriptions)
+
+    def test_image_phased_percentage_100(self):
+        # Like above, but with a system percentage of 100, so nothing but the
+        # default gets in.
+        with patch('systemimage.index.phased_percentage', return_value=100):
+            index = get_index('index_22.json')
+        descriptions = set(_descriptions(index.images))
+        # This one does not have a phased-percentage, so using the default of
+        # 100, it gets in.
+        self.assertIn('Full A', descriptions)
+        # This one has a phased-percentage of 50 so it gets ignored.
+        self.assertNotIn('Full B', descriptions)
+        # This one has a phased-percentage of 75 so it gets added.
+        self.assertNotIn('Full C', descriptions)
+
+    def test_image_phased_percentage_0(self):
+        # Like above, but with a system percentage of 0, everything gets in.
+        with patch('systemimage.index.phased_percentage', return_value=0):
+            index = get_index('index_22.json')
+        descriptions = set(_descriptions(index.images))
+        self.assertIn('Full A', descriptions)
+        self.assertIn('Full B', descriptions)
+        self.assertIn('Full C', descriptions)
 
 
 class TestDownloadIndex(unittest.TestCase):

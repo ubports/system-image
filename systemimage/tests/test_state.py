@@ -22,6 +22,7 @@ __all__ = [
     'TestDailyProposed',
     'TestFileOrder',
     'TestPersistence',
+    'TestPhasedUpdates',
     'TestRebooting',
     'TestState',
     'TestStateNewChannelsFormat',
@@ -43,6 +44,8 @@ from systemimage.testing.helpers import (
     configuration, copy, data_path, get_index, make_http_server, setup_index,
     setup_keyring_txz, setup_keyrings, sign, temporary_directory, touch_build)
 from systemimage.testing.nose import SystemImagePlugin
+# FIXME
+from systemimage.tests.test_candidates import _descriptions
 from unittest.mock import patch
 
 
@@ -724,7 +727,7 @@ class TestStateNewChannelsFormat(_StateTestsBase):
     INDEX_FILE = 'index_21.json'
 
     @configuration
-    def test_full_reboot(self, ini_file):
+    def test_full_reboot(self):
         # Test that state transitions through reboot work for the new channel
         # format.  Also check that the right files get moved into place.
         self._stack.enter_context(patch('systemimage.device.check_output',
@@ -762,7 +765,7 @@ class TestChannelAlias(_StateTestsBase):
     INDEX_FILE = 'index_20.json'
 
     @configuration
-    def test_channel_alias_switch(self, ini_file):
+    def test_channel_alias_switch(self):
         # Channels in the channel.json files can have an optional "alias" key,
         # which if set, describes the other channel this channel is based on
         # (only in a server-side generated way; the client sees all channels
@@ -823,7 +826,7 @@ class TestChannelAlias(_StateTestsBase):
                          [200, 201, 304])
 
     @configuration
-    def test_channel_alias_switch_with_cli_option(self, ini_file):
+    def test_channel_alias_switch_with_cli_option(self):
         # Like the above test, but in similating the use of `system-image-cli
         # --build 300`, we set the build number explicitly.  This prevent the
         # channel alias squashing of the build number to 0.
@@ -858,3 +861,56 @@ class TestChannelAlias(_StateTestsBase):
         state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
                          [301, 304])
+
+
+class TestPhasedUpdates(_StateTestsBase):
+    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+    INDEX_FILE = 'index_22.json'
+
+    @configuration
+    def test_phased_updates(self):
+        # With our threshold at 66, the "Full B" image is suppressed, thus the
+        # upgrade path is different than it normally would be.  In this case,
+        # the 'A' path is taken (in fact, the B path isn't even considered).
+        self._stack.enter_context(patch('systemimage.device.check_output',
+                                        return_value='manta'))
+        self._setup_keyrings()
+        self._stack.enter_context(patch('systemimage.index.phased_percentage',
+                                        return_value=66))
+        config.channel = 'daily'
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual(_descriptions(state.winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
+
+    @configuration
+    def test_phased_updates_0(self):
+        # With our threshold at 0, all images are good, so it's a "normal"
+        # update path.
+        self._stack.enter_context(patch('systemimage.device.check_output',
+                                        return_value='manta'))
+        self._setup_keyrings()
+        self._stack.enter_context(patch('systemimage.index.phased_percentage',
+                                        return_value=0))
+        config.channel = 'daily'
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual(_descriptions(state.winner),
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
+
+    @configuration
+    def test_phased_updates_100(self):
+        # With our threshold at 100, only the image without a specific
+        # phased-percentage key is allowed.  That's the 'A' path again.
+        self._stack.enter_context(patch('systemimage.device.check_output',
+                                        return_value='manta'))
+        self._setup_keyrings()
+        self._stack.enter_context(patch('systemimage.index.phased_percentage',
+                                        return_value=77))
+        config.channel = 'daily'
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual(_descriptions(state.winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])

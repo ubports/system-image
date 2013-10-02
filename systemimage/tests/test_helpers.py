@@ -19,6 +19,7 @@
 __all__ = [
     'TestConverters',
     'TestLastUpdateDate',
+    'TestPhasedPercentage',
     ]
 
 
@@ -31,7 +32,7 @@ from datetime import datetime, timedelta
 from systemimage.config import Configuration, config
 from systemimage.helpers import (
     Bag, as_loglevel, as_object, as_timedelta, last_update_date,
-    temporary_directory, version_detail)
+    phased_percentage, temporary_directory, version_detail)
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
 
@@ -204,3 +205,53 @@ class TestLastUpdateDate(unittest.TestCase):
             touch_build(2, timestamp)
             # Run the test.
             self.assertEqual(last_update_date(), '2010-09-08 07:06:05')
+
+
+class TestPhasedPercentage(unittest.TestCase):
+    def setUp(self):
+        phased_percentage(reset=True)
+
+    def tearDown(self):
+        phased_percentage(reset=True)
+
+    def test_phased_percentage(self):
+        # This function returns a percentage between 0 and 100.  If this value
+        # is greater than a similar value in the index.json's 'image' section,
+        # that image is completely ignored.
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            path = os.path.join(tmpdir, 'machine-id')
+            stack.enter_context(patch(
+                'systemimage.helpers.UNIQUE_MACHINE_ID_FILE',
+                path))
+            stack.enter_context(patch(
+                'systemimage.helpers.time.time',
+                return_value=1380659512.983512))
+            with open(path, 'wb') as fp:
+                fp.write(b'0123456789abcdef\n')
+            self.assertEqual(phased_percentage(), 81)
+            # The value is cached, so it's always the same for the life of the
+            # process, at least until we reset it.
+            self.assertEqual(phased_percentage(), 81)
+
+    def test_phased_percentage_reset(self):
+        # Test the reset API.
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            path = os.path.join(tmpdir, 'machine-id')
+            stack.enter_context(patch(
+                'systemimage.helpers.UNIQUE_MACHINE_ID_FILE',
+                path))
+            stack.enter_context(patch(
+                'systemimage.helpers.time.time',
+                return_value=1380659512.983512))
+            with open(path, 'wb') as fp:
+                fp.write(b'0123456789abcdef\n')
+            self.assertEqual(phased_percentage(), 81)
+            # The value is cached, so it's always the same for the life of the
+            # process, at least until we reset it.
+            with open(path, 'wb') as fp:
+                fp.write(b'x0123456789abcde\n')
+            self.assertEqual(phased_percentage(reset=True), 81)
+            # The next one will have a different value.
+            self.assertEqual(phased_percentage(), 17)
