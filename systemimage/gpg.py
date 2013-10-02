@@ -23,9 +23,7 @@ __all__ = [
 
 import os
 import gnupg
-import shutil
 import tarfile
-import tempfile
 
 from contextlib import ExitStack
 from systemimage.config import config
