@@ -310,7 +310,7 @@ def setup_keyrings(*keyrings, use_config=None):
             signing_kr = 'image-signing.gpg'
         else:
             raise AssertionError('unknown key type: {}'.format(keyring))
-        # The local keyrings life in the .gpg file with the same keyring name
+        # The local keyrings live in the .gpg file with the same keyring name
         # as the .tar.xz file, but cached in the temporary directory.
         copy(keyring + '.gpg', (config.system.tempdir if use_config is None
                                 else use_config.system.tempdir))
