@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+1.9 (2013-XX-XX)
+================
+
 1.8 (2013-10-02)
 ================
  * Support channel alias tracking.  If the channel.ini file has a
