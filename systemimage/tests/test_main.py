@@ -24,34 +24,57 @@ __all__ = [
 
 import os
 import sys
+import dbus
 import time
+import psutil
 import shutil
 import unittest
-import subprocess
 
 from contextlib import ExitStack
 from datetime import datetime
-from distutils.spawn import find_executable
 from functools import partial
 from io import StringIO
-from pkg_resources import resource_filename
+from pkg_resources import resource_filename, resource_string as resource_bytes
 from systemimage.config import Configuration, config
 from systemimage.main import main as cli_main
 from systemimage.testing.helpers import (
     configuration, copy, data_path, temporary_directory, touch_build)
+from systemimage.testing.nose import SystemImagePlugin
 # This should be moved and refactored.
 from systemimage.tests.test_state import _StateTestsBase
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
 
-DBUS_LAUNCH = find_executable('dbus-launch')
+SPACE = ' '
 TIMESTAMP = datetime(2013, 8, 1, 12, 11, 10).timestamp()
 
 
-class TestCLIMain(unittest.TestCase):
-    maxDiff = None
+def _find_dbus_proc(ini_path):
+    # This method searches all processes for the one matching the
+    # system-image-dbus service.  This is harder than it should be because
+    # while dbus-launch gives us the PID of the dbus-launch process itself,
+    # that can't be used to find the appropriate child process, because
+    # D-Bus activated processes are orphaned to init as their parent.
+    #
+    # This then does a brute-force search over all the processes, looking one
+    # that has a particular command line indicating that it's the
+    # system-image-dbus service.  We don't run this latter by that name
+    # though, since that's a wrapper created by setup.py's entry points.
+    #
+    # To make doubly certain we're not going to get the wrong process (in case
+    # there are multiple system-image-dbus processes running), we'll also look
+    # for the specific ini_path for the instance we care about.  Yeah, this
+    # all kind of sucks, but should be effective in finding the one we need to
+    # track.
+    for process in psutil.process_iter():
+        cmdline = SPACE.join(process.cmdline)
+        if 'systemimage.service' in cmdline and ini_path in cmdline:
+            return process
+    return None
 
+
+class TestCLIMain(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._resources = ExitStack()
@@ -539,24 +562,59 @@ class TestCLIFilters(_StateTestsBase):
             self.assertEqual(capture.getvalue(), 'Upgrade path is 20130600\n')
 
 
-@unittest.skip('dbus-launch only supports session bus (LP: #1206588)')
-@unittest.skipUnless(DBUS_LAUNCH is not None, 'dbus-launch not found')
 class TestDBusMain(unittest.TestCase):
+    def setUp(self):
+        self._stack = ExitStack()
+        try:
+            old_ini = SystemImagePlugin.controller.ini_path
+            self._stack.callback(
+                setattr, SystemImagePlugin.controller, 'ini_path', old_ini)
+        except:
+            self._stack.close()
+            raise
+
+    def tearDown(self):
+        self._stack.close()
+
     def test_service_exits(self):
         # The dbus service automatically exits after a set amount of time.
-        with temporary_directory() as tmpdir:
-            # This has a timeout of 3 seconds.
-            copy('config_02.ini', tmpdir, 'client.ini')
-            start = time.time()
-            subprocess.check_call(
-                [DBUS_LAUNCH,
-                 sys.executable, '-m', 'systemimage.service', '-C',
-                 os.path.join(tmpdir, 'client.ini')
-                 ], timeout=6)
-            end = time.time()
-            self.assertLess(end - start, 6)
+        tmpdir = self._stack.enter_context(temporary_directory())
+        template = resource_bytes(
+            'systemimage.tests.data', 'config_04.ini').decode('utf-8')
+        ini_path = os.path.join(tmpdir, 'client.ini')
+        with open(ini_path, 'w', encoding='utf-8') as fp:
+            print(template.format(tmpdir=tmpdir, vardir=tmpdir), file=fp)
+        SystemImagePlugin.controller.ini_path = ini_path
+        SystemImagePlugin.controller.set_mode()
+        # Nothing has been spawned yet.
+        self.assertIsNone(_find_dbus_proc(ini_path))
+        # Start the D-Bus service.
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        iface.Info()
+        process = _find_dbus_proc(ini_path)
+        self.assertTrue(process.is_running())
+        # Now wait for the process to self-terminate.  If this times out
+        # before the process exits, a TimeoutExpired exception will be
+        # raised.  Let this propagate up as a test failure.
+        process.wait(timeout=6)
+        self.assertFalse(process.is_running())
 
     @unittest.skip('XXX FIXME')
     def test_channel_ini_override(self):
         # An optional channel.ini can override the build number and channel.
         pass
+
+    @unittest.skip('nose prevents this from working')
+    def test_temp_directory(self):
+        # The temporary directory gets created if it doesn't exist.
+        config = Configuration()
+        config.load(SystemImagePlugin.controller.ini_path)
+        shutil.rmtree(config.system.tempdir)
+        # DBus activate the service, which should create the directory.
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        iface.Info()
+        self.assertTrue(os.path.exists(config.system.tempdir))

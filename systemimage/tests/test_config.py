@@ -104,7 +104,6 @@ class TestConfiguration(unittest.TestCase):
                          '/var/lib/phablet/state.pck')
         self.assertEqual(config.system.settings_db,
                          '/var/lib/phablet/settings.db')
-        self.assertEqual(config.system.threads, 5)
         self.assertEqual(config.system.timeout, timedelta(seconds=10))
         # [hooks]
         self.assertEqual(config.hooks.device, SystemProperty)

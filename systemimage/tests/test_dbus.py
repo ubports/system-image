@@ -23,7 +23,6 @@ __all__ = [
     'TestDBusGetSet',
     'TestDBusInfo',
     'TestDBusInfoNoDetails',
-    'TestDBusMain',
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
     'TestDBusMockFailResume',
@@ -1025,23 +1024,6 @@ class TestDBusMockNoUpdate(_TestBase):
         reactor.run()
         self.assertEqual(len(reactor.failed), 0)
         self.assertIsNotNone(reactor.status)
-
-
-class TestDBusMain(_TestBase):
-    mode = 'live'
-
-    @unittest.skip('nose prevents this from working')
-    def test_temp_directory(self):
-        # The temporary directory gets created if it doesn't exist.
-        config = Configuration()
-        config.load(SystemImagePlugin.controller.ini_path)
-        shutil.rmtree(config.system.tempdir)
-        # DBus activate the service, which should create the directory.
-        bus = dbus.SystemBus()
-        service = bus.get_object('com.canonical.SystemImage', '/Service')
-        iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        iface.Info()
-        self.assertTrue(os.path.exists(config.system.tempdir))
 
 
 class TestDBusClient(_LiveTesting):

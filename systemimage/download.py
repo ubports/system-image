@@ -116,23 +116,22 @@ class DBusDownloadManager:
     def get_files(self, downloads):
         """Download a bunch of files concurrently.
 
-        The files named in `downloads` are downloaded in separate threads,
-        concurrently using asynchronous I/O.  Occasionally, the callback is
-        called to report on progress.  This function blocks until all files
-        have been downloaded or an exception occurs.  In the latter case,
-        the download directory will be cleared of the files that succeeded
-        and the exception will be re-raised.
+        Occasionally, the callback is called to report on progress.
+        This function blocks until all files have been downloaded or an
+        exception occurs.  In the latter case, the download directory
+        will be cleared of the files that succeeded and the exception
+        will be re-raised.
 
         This means that 1) the function blocks until all files are
         downloaded, but at least we do that concurrently; 2) this is an
-        all-or-nothing function.  Either you get all the requested files or
-        none of them.
+        all-or-nothing function.  Either you get all the requested files
+        or none of them.
 
         :param downloads: A list of 2-tuples where the first item is the url to
-            download, and the second item is the destination file.
+        download, and the second item is the destination file.
         :type downloads: List of 2-tuples.
-        :raises: FileNotFoundError if any download error occurred.  In this
-            case, all download files are deleted.
+        :raises: FileNotFoundError if any download error occurred.  In
+        this case, all download files are deleted.
 
         The API is a little funky for backward compatibility reasons.
         """

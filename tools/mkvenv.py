@@ -44,7 +44,6 @@ def main():
 base: system-image.ubuntu.com
 http_port: 80
 https_port: 443
-threads: 5
 timeout: 1m
 
 [system]
