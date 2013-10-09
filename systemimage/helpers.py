@@ -201,9 +201,9 @@ def temporary_directory(*args, **kws):
         shutil.rmtree(tempdir)
 
 
-def makedirs(dir):
+def makedirs(dir, mode=0o02700):
     try:
-        os.makedirs(dir, exist_ok=True)
+        os.makedirs(dir, mode=mode, exist_ok=True)
     except (FileExistsError, PermissionError):
         pass
 

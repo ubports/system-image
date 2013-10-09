@@ -23,6 +23,7 @@ __all__ = [
 
 import os
 import sys
+import stat
 import logging
 
 from contextlib import contextmanager
@@ -32,6 +33,7 @@ from systemimage.helpers import makedirs
 
 DATE_FMT = '%b %d %H:%M:%S %Y'
 MSG_FMT = '[{name}] {asctime} ({process:d}) {message}'
+LOGFILE_PERMISSIONS = stat.S_IRUSR | stat.S_IWUSR
 
 
 class FormattingLogRecord(logging.LogRecord):
@@ -57,8 +59,13 @@ def initialize(*, verbosity=0):
     logging.setLogRecordFactory(FormattingLogRecord)
     # Now configure the application level logger based on the ini file.
     log = logging.getLogger('systemimage')
-    # Make sure the log directory exists.
+    # Make sure the log directory exists, and that the log file has safe
+    # permissions.
     makedirs(os.path.dirname(config.system.logfile))
+    # touch(1) - but preserve in case file already exists.
+    with open(config.system.logfile, 'a', encoding='utf-8'):
+        pass
+    os.chmod(config.system.logfile, LOGFILE_PERMISSIONS)
     # Our handler will output in UTF-8 using {} style logging.
     handler = logging.FileHandler(config.system.logfile, encoding='utf-8')
     handler.setLevel(level)

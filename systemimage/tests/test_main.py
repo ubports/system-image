@@ -24,6 +24,7 @@ __all__ = [
 
 import os
 import dbus
+import stat
 import psutil
 import shutil
 import unittest
@@ -162,6 +163,38 @@ class TestCLIMain(unittest.TestCase):
         self.assertFalse(os.path.exists(tmpdir))
         cli_main()
         self.assertTrue(os.path.exists(tmpdir))
+
+    def test_permissions(self):
+        # LP: #1235975 - Various directories and files have unsafe
+        # permissions.
+        dir_1 = self._resources.enter_context(temporary_directory())
+        dir_2 = self._resources.enter_context(temporary_directory())
+        # Create a configuration file with directories that point to
+        # non-existent locations.
+        config_ini = os.path.join(dir_1, 'client.ini')
+        with open(data_path('config_04.ini'), encoding='utf-8') as fp:
+            template = fp.read()
+        # These paths look something like they would on the real system.
+        tmpdir = os.path.join(dir_2, 'tmp', 'system-image')
+        vardir = os.path.join(dir_2, 'var', 'lib', 'system-image')
+        configuration = template.format(tmpdir=tmpdir, vardir=vardir)
+        with open(config_ini, 'w', encoding='utf-8') as fp:
+            fp.write(configuration)
+        # Invoking main() creates the directories.
+        config = Configuration()
+        config.load(config_ini)
+        self.assertFalse(os.path.exists(config.system.tempdir))
+        self.assertFalse(os.path.exists(config.system.logfile))
+        self._resources.enter_context(patch(
+            'systemimage.main.sys.argv',
+            ['argv0', '-C', config_ini, '--info']))
+        cli_main()
+        mode = os.stat(config.system.tempdir).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx------')
+        mode = os.stat(os.path.dirname(config.system.logfile)).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx------')
+        mode = os.stat(config.system.logfile).st_mode
+        self.assertEqual(stat.filemode(mode), '-rw-------')
 
     @configuration
     def test_info(self, ini_file):
@@ -581,18 +614,25 @@ class TestDBusMain(unittest.TestCase):
             raise
 
     def tearDown(self):
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        iface.Exit()
         self._stack.close()
+
+    def _activate(self):
+        # Start the D-Bus service.
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        return iface.Info()
 
     def test_service_exits(self):
         # The dbus service automatically exits after a set amount of time.
         #
         # Nothing has been spawned yet.
         self.assertIsNone(_find_dbus_proc(self.ini_path))
-        # Start the D-Bus service.
-        bus = dbus.SystemBus()
-        service = bus.get_object('com.canonical.SystemImage', '/Service')
-        iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        iface.Info()
+        self._activate()
         process = _find_dbus_proc(self.ini_path)
         self.assertTrue(process.is_running())
         # Now wait for the process to self-terminate.  If this times out
@@ -613,10 +653,7 @@ class TestDBusMain(unittest.TestCase):
         # Now, write a channel.ini file to override both of these.
         dirname = os.path.dirname(self.ini_path)
         copy('channel_04.ini', dirname, 'channel.ini')
-        bus = dbus.SystemBus()
-        service = bus.get_object('com.canonical.SystemImage', '/Service')
-        iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        info = iface.Info()
+        info = self._activate()
         # The build number.
         self.assertEqual(info[0], 1)
         # The channel
@@ -634,9 +671,19 @@ class TestDBusMain(unittest.TestCase):
         # below to re-active the process and thus re-create the directory.
         shutil.rmtree(config.system.tempdir)
         self.assertFalse(os.path.exists(config.system.tempdir))
-        # DBus activate the service, which should create the directory.
-        bus = dbus.SystemBus()
-        service = bus.get_object('com.canonical.SystemImage', '/Service')
-        iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        iface.Info()
+        self._activate()
         self.assertTrue(os.path.exists(config.system.tempdir))
+
+    def test_permissions(self):
+        # LP: #1235975 - The created tempdir had unsafe permissions.
+        config = Configuration()
+        config.load(self.ini_path)
+        shutil.rmtree(config.system.tempdir)
+        os.remove(config.system.logfile)
+        self._activate()
+        mode = os.stat(config.system.tempdir).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx------')
+        mode = os.stat(os.path.dirname(config.system.logfile)).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx------')
+        mode = os.stat(config.system.logfile).st_mode
+        self.assertEqual(stat.filemode(mode), '-rw-------')
