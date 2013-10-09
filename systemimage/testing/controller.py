@@ -165,7 +165,7 @@ class Controller:
         lines = stdout.splitlines()
         dbus_address = lines[0].strip()
         self.daemon_pid = int(lines[1].strip())
-        print('DBUS_LAUNCH PID:', self.daemon_pid)
+        #print('DBUS_LAUNCH PID:', self.daemon_pid)
         self._stack.callback(self._kill, self.daemon_pid)
         #print("DBUS_SYSTEM_BUS_ADDRESS='{}'".format(dbus_address))
         # Set the service's address into the environment for rendezvous.

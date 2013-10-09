@@ -23,9 +23,7 @@ __all__ = [
 
 
 import os
-import sys
 import dbus
-import time
 import psutil
 import shutil
 import unittest
@@ -569,6 +567,15 @@ class TestDBusMain(unittest.TestCase):
             old_ini = SystemImagePlugin.controller.ini_path
             self._stack.callback(
                 setattr, SystemImagePlugin.controller, 'ini_path', old_ini)
+            self.tmpdir = self._stack.enter_context(temporary_directory())
+            template = resource_bytes(
+                'systemimage.tests.data', 'config_04.ini').decode('utf-8')
+            self.ini_path = os.path.join(self.tmpdir, 'client.ini')
+            with open(self.ini_path, 'w', encoding='utf-8') as fp:
+                print(template.format(tmpdir=self.tmpdir, vardir=self.tmpdir),
+                      file=fp)
+            SystemImagePlugin.controller.ini_path = self.ini_path
+            SystemImagePlugin.controller.set_mode()
         except:
             self._stack.close()
             raise
@@ -578,22 +585,15 @@ class TestDBusMain(unittest.TestCase):
 
     def test_service_exits(self):
         # The dbus service automatically exits after a set amount of time.
-        tmpdir = self._stack.enter_context(temporary_directory())
-        template = resource_bytes(
-            'systemimage.tests.data', 'config_04.ini').decode('utf-8')
-        ini_path = os.path.join(tmpdir, 'client.ini')
-        with open(ini_path, 'w', encoding='utf-8') as fp:
-            print(template.format(tmpdir=tmpdir, vardir=tmpdir), file=fp)
-        SystemImagePlugin.controller.ini_path = ini_path
-        SystemImagePlugin.controller.set_mode()
+        #
         # Nothing has been spawned yet.
-        self.assertIsNone(_find_dbus_proc(ini_path))
+        self.assertIsNone(_find_dbus_proc(self.ini_path))
         # Start the D-Bus service.
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         iface = dbus.Interface(service, 'com.canonical.SystemImage')
         iface.Info()
-        process = _find_dbus_proc(ini_path)
+        process = _find_dbus_proc(self.ini_path)
         self.assertTrue(process.is_running())
         # Now wait for the process to self-terminate.  If this times out
         # before the process exits, a TimeoutExpired exception will be
@@ -601,17 +601,39 @@ class TestDBusMain(unittest.TestCase):
         process.wait(timeout=6)
         self.assertFalse(process.is_running())
 
-    @unittest.skip('XXX FIXME')
     def test_channel_ini_override(self):
         # An optional channel.ini can override the build number and channel.
-        pass
+        #
+        # The config.ini file names the `stable` channel.  Let's create an
+        # ubuntu-build file with a fake version number.
+        config = Configuration()
+        config.load(self.ini_path)
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(33, file=fp)
+        # Now, write a channel.ini file to override both of these.
+        dirname = os.path.dirname(self.ini_path)
+        copy('channel_04.ini', dirname, 'channel.ini')
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        info = iface.Info()
+        # The build number.
+        self.assertEqual(info[0], 1)
+        # The channel
+        self.assertEqual(info[2], 'saucy')
 
-    @unittest.skip('nose prevents this from working')
     def test_temp_directory(self):
         # The temporary directory gets created if it doesn't exist.
         config = Configuration()
-        config.load(SystemImagePlugin.controller.ini_path)
+        config.load(self.ini_path)
+        # Delete the temporary directory, which will have been created by the
+        # .set_mode() call in the setUp().  That invokes a 'stopper' for the
+        # -dbus process, which has the perverse effect of first D-Bus
+        # activating the process, and thus creating the temporary directory
+        # before calling .Exit().  Deleting it now will allow the .Info() call
+        # below to re-active the process and thus re-create the directory.
         shutil.rmtree(config.system.tempdir)
+        self.assertFalse(os.path.exists(config.system.tempdir))
         # DBus activate the service, which should create the directory.
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
