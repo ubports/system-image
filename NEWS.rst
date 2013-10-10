@@ -9,7 +9,8 @@ NEWS for system-image updater
    have 0600 permission.  (LP: #1235975)
  * Remove all references to the [system]threads variable since it is no longer
    used, after the integration of the download manager.
- * Through the use of psutils library, re-enable some previously skipped tests.
+ * Through the use of psutils library, re-enable some previously skipped
+   tests.  (LP: #1206588)
 
 1.8 (2013-10-02)
 ================
