@@ -196,6 +196,40 @@ class TestCLIMain(unittest.TestCase):
         mode = os.stat(config.system.logfile).st_mode
         self.assertEqual(stat.filemode(mode), '-rw-------')
 
+    def test_permission_fixes(self):
+        # LP: #1235975 - Fix permissions if the paths already exist.
+        dir_1 = self._resources.enter_context(temporary_directory())
+        dir_2 = self._resources.enter_context(temporary_directory())
+        # Create a configuration file with directories that point to
+        # non-existent locations.
+        config_ini = os.path.join(dir_1, 'client.ini')
+        with open(data_path('config_04.ini'), encoding='utf-8') as fp:
+            template = fp.read()
+        # These paths look something like they would on the real system.
+        tmpdir = os.path.join(dir_2, 'tmp', 'system-image')
+        vardir = os.path.join(dir_2, 'var', 'lib', 'system-image')
+        configuration = template.format(tmpdir=tmpdir, vardir=vardir)
+        with open(config_ini, 'w', encoding='utf-8') as fp:
+            fp.write(configuration)
+        # Invoking main() creates the directories.
+        config = Configuration()
+        config.load(config_ini)
+        os.makedirs(config.system.tempdir, mode=0o0777)
+        os.makedirs(os.path.dirname(config.system.logfile), mode=0o0777)
+        with open(config.system.logfile, 'w', encoding='utf-8'):
+            pass
+        os.chmod(config.system.logfile, 0o0666)
+        self._resources.enter_context(patch(
+            'systemimage.main.sys.argv',
+            ['argv0', '-C', config_ini, '--info']))
+        cli_main()
+        mode = os.stat(config.system.tempdir).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(os.path.dirname(config.system.logfile)).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(config.system.logfile).st_mode
+        self.assertEqual(stat.filemode(mode), '-rw-------')
+
     @configuration
     def test_info(self, ini_file):
         # -i/--info gives information about the device, including the current
@@ -682,8 +716,27 @@ class TestDBusMain(unittest.TestCase):
         os.remove(config.system.logfile)
         self._activate()
         mode = os.stat(config.system.tempdir).st_mode
-        self.assertEqual(stat.filemode(mode), 'drwx------')
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
         mode = os.stat(os.path.dirname(config.system.logfile)).st_mode
-        self.assertEqual(stat.filemode(mode), 'drwx------')
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(config.system.logfile).st_mode
+        self.assertEqual(stat.filemode(mode), '-rw-------')
+
+    def test_permission_fixes(self):
+        # LP: #1235975 - Fix permissions if the paths already exist.
+        config = Configuration()
+        config.load(self.ini_path)
+        # The files already exist with bad permissions.
+        self.assertTrue(os.path.exists(config.system.tempdir))
+        os.chmod(config.system.tempdir, 0o0777)
+        self.assertTrue(os.path.exists(config.system.logfile))
+        os.chmod(config.system.logfile, 0o0666)
+        os.chmod(os.path.dirname(config.system.logfile), 0o0777)
+        self._activate()
+        # Now the permissions are fixed.
+        mode = os.stat(config.system.tempdir).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(os.path.dirname(config.system.logfile)).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
         mode = os.stat(config.system.logfile).st_mode
         self.assertEqual(stat.filemode(mode), '-rw-------')

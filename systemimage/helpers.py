@@ -204,7 +204,10 @@ def temporary_directory(*args, **kws):
 def makedirs(dir, mode=0o02700):
     try:
         os.makedirs(dir, mode=mode, exist_ok=True)
-    except (FileExistsError, PermissionError):
+    except FileExistsError:
+        # Ensure the proper mode.
+        os.chmod(dir, mode)
+    except PermissionError:
         pass
 
 
