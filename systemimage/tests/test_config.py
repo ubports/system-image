@@ -47,7 +47,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.channel, 'daily')
         self.assertEqual(config.service.build_number, 0)
         # [system]
-        self.assertEqual(config.system.tempdir, '/tmp/system-image')
+        self.assertEqual(config.system.tempdir, '/var/cache/system-image')
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')

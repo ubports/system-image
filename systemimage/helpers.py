@@ -16,6 +16,7 @@
 """Various and sundry helpers."""
 
 __all__ = [
+    'DEFAULT_DIRMODE',
     'ExtendedEncoder',
     'as_loglevel',
     'as_object',
@@ -47,6 +48,7 @@ from systemimage.bag import Bag
 
 LAST_UPDATE_FILE = '/userdata/.last_update'
 UNIQUE_MACHINE_ID_FILE = '/var/lib/dbus/machine-id'
+DEFAULT_DIRMODE = 0o02700
 
 
 def safe_remove(path):
@@ -194,14 +196,15 @@ def temporary_directory(*args, **kws):
     The directory and all its contents are deleted when the context manager
     exits.  All positional and keyword arguments are passed to mkdtemp().
     """
+    tempdir = tempfile.mkdtemp(*args, **kws)
+    os.chmod(tempdir, kws.get('mode', DEFAULT_DIRMODE))
     try:
-        tempdir = tempfile.mkdtemp(*args, **kws)
         yield tempdir
     finally:
         shutil.rmtree(tempdir)
 
 
-def makedirs(dir, mode=0o02700):
+def makedirs(dir, mode=DEFAULT_DIRMODE):
     try:
         os.makedirs(dir, mode=mode, exist_ok=True)
     except FileExistsError:

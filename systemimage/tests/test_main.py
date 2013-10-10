@@ -190,9 +190,9 @@ class TestCLIMain(unittest.TestCase):
             ['argv0', '-C', config_ini, '--info']))
         cli_main()
         mode = os.stat(config.system.tempdir).st_mode
-        self.assertEqual(stat.filemode(mode), 'drwx------')
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
         mode = os.stat(os.path.dirname(config.system.logfile)).st_mode
-        self.assertEqual(stat.filemode(mode), 'drwx------')
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
         mode = os.stat(config.system.logfile).st_mode
         self.assertEqual(stat.filemode(mode), '-rw-------')
 

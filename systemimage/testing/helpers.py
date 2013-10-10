@@ -202,13 +202,14 @@ def configuration(function):
                                       vardir=temp_vardir), file=fp)
             config = Configuration()
             config.load(ini_file)
+            # Make sure the temporary directory exists.
+            makedirs(config.system.tempdir)
             stack.enter_context(patch('systemimage.config._config', config))
             stack.enter_context(patch('systemimage.device.check_output',
                                       return_value='nexus7'))
-            # 2013-07-23 BAW: Okay, this is wicked.  If the test method takes
-            # an 'ini_file' argument, pass the temporary ini file path to it
-            # as a keyword argument.  Mostly I do this so that I don't have to
-            # change the signature of every existing test method.
+            # The method under test is allowed to specify some additional
+            # keyword arguments, in order to pass some variables in from the
+            # wrapper.
             signature = inspect.signature(function)
             if 'ini_file' in signature.parameters:
                 kws['ini_file'] = ini_file
