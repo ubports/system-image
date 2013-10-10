@@ -47,7 +47,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.channel, 'daily')
         self.assertEqual(config.service.build_number, 0)
         # [system]
-        self.assertEqual(config.system.tempdir, '/tmp/system-image')
+        self.assertEqual(config.system.tempdir, '/var/cache/system-image')
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
@@ -104,7 +104,6 @@ class TestConfiguration(unittest.TestCase):
                          '/var/lib/phablet/state.pck')
         self.assertEqual(config.system.settings_db,
                          '/var/lib/phablet/settings.db')
-        self.assertEqual(config.system.threads, 5)
         self.assertEqual(config.system.timeout, timedelta(seconds=10))
         # [hooks]
         self.assertEqual(config.hooks.device, SystemProperty)

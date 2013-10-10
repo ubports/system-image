@@ -4,6 +4,12 @@ NEWS for system-image updater
 
 1.9 (2013-XX-XX)
 ================
+ * Fix file and directory permissions.  The temporary directory is moved to
+   /var/cache/system-image and will have 02700 permission.  The log file will
+   have 0600 permission.  (LP: #1235975)
+ * Remove all references to the [system]threads variable since it is no longer
+   used, after the integration of the download manager.
+ * Through the use of psutils library, re-enable some previously skipped tests.
 
 1.8 (2013-10-02)
 ================

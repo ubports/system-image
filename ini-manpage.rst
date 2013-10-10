@@ -91,10 +91,6 @@ loglevel
     verbose: ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``.  The
     value of this variable is case insensitive.
 
-threads
-    The number of parallel download threads that can be spawned.  This allows
-    multiple files to be downloaded in parallel.
-
 timeout
     The maximum allowed time interval for downloading the individual files.
     The actual time to complete the downloading of all required files may be

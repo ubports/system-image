@@ -23,35 +23,57 @@ __all__ = [
 
 
 import os
-import sys
-import time
+import dbus
+import stat
+import psutil
 import shutil
 import unittest
-import subprocess
 
 from contextlib import ExitStack
 from datetime import datetime
-from distutils.spawn import find_executable
 from functools import partial
 from io import StringIO
-from pkg_resources import resource_filename
+from pkg_resources import resource_filename, resource_string as resource_bytes
 from systemimage.config import Configuration, config
 from systemimage.main import main as cli_main
 from systemimage.testing.helpers import (
     configuration, copy, data_path, temporary_directory, touch_build)
+from systemimage.testing.nose import SystemImagePlugin
 # This should be moved and refactored.
 from systemimage.tests.test_state import _StateTestsBase
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
 
-DBUS_LAUNCH = find_executable('dbus-launch')
+SPACE = ' '
 TIMESTAMP = datetime(2013, 8, 1, 12, 11, 10).timestamp()
 
 
-class TestCLIMain(unittest.TestCase):
-    maxDiff = None
+def _find_dbus_proc(ini_path):
+    # This method searches all processes for the one matching the
+    # system-image-dbus service.  This is harder than it should be because
+    # while dbus-launch gives us the PID of the dbus-launch process itself,
+    # that can't be used to find the appropriate child process, because
+    # D-Bus activated processes are orphaned to init as their parent.
+    #
+    # This then does a brute-force search over all the processes, looking one
+    # that has a particular command line indicating that it's the
+    # system-image-dbus service.  We don't run this latter by that name
+    # though, since that's a wrapper created by setup.py's entry points.
+    #
+    # To make doubly certain we're not going to get the wrong process (in case
+    # there are multiple system-image-dbus processes running), we'll also look
+    # for the specific ini_path for the instance we care about.  Yeah, this
+    # all kind of sucks, but should be effective in finding the one we need to
+    # track.
+    for process in psutil.process_iter():
+        cmdline = SPACE.join(process.cmdline)
+        if 'systemimage.service' in cmdline and ini_path in cmdline:
+            return process
+    return None
 
+
+class TestCLIMain(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._resources = ExitStack()
@@ -141,6 +163,72 @@ class TestCLIMain(unittest.TestCase):
         self.assertFalse(os.path.exists(tmpdir))
         cli_main()
         self.assertTrue(os.path.exists(tmpdir))
+
+    def test_permissions(self):
+        # LP: #1235975 - Various directories and files have unsafe
+        # permissions.
+        dir_1 = self._resources.enter_context(temporary_directory())
+        dir_2 = self._resources.enter_context(temporary_directory())
+        # Create a configuration file with directories that point to
+        # non-existent locations.
+        config_ini = os.path.join(dir_1, 'client.ini')
+        with open(data_path('config_04.ini'), encoding='utf-8') as fp:
+            template = fp.read()
+        # These paths look something like they would on the real system.
+        tmpdir = os.path.join(dir_2, 'tmp', 'system-image')
+        vardir = os.path.join(dir_2, 'var', 'lib', 'system-image')
+        configuration = template.format(tmpdir=tmpdir, vardir=vardir)
+        with open(config_ini, 'w', encoding='utf-8') as fp:
+            fp.write(configuration)
+        # Invoking main() creates the directories.
+        config = Configuration()
+        config.load(config_ini)
+        self.assertFalse(os.path.exists(config.system.tempdir))
+        self.assertFalse(os.path.exists(config.system.logfile))
+        self._resources.enter_context(patch(
+            'systemimage.main.sys.argv',
+            ['argv0', '-C', config_ini, '--info']))
+        cli_main()
+        mode = os.stat(config.system.tempdir).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(os.path.dirname(config.system.logfile)).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(config.system.logfile).st_mode
+        self.assertEqual(stat.filemode(mode), '-rw-------')
+
+    def test_permission_fixes(self):
+        # LP: #1235975 - Fix permissions if the paths already exist.
+        dir_1 = self._resources.enter_context(temporary_directory())
+        dir_2 = self._resources.enter_context(temporary_directory())
+        # Create a configuration file with directories that point to
+        # non-existent locations.
+        config_ini = os.path.join(dir_1, 'client.ini')
+        with open(data_path('config_04.ini'), encoding='utf-8') as fp:
+            template = fp.read()
+        # These paths look something like they would on the real system.
+        tmpdir = os.path.join(dir_2, 'tmp', 'system-image')
+        vardir = os.path.join(dir_2, 'var', 'lib', 'system-image')
+        configuration = template.format(tmpdir=tmpdir, vardir=vardir)
+        with open(config_ini, 'w', encoding='utf-8') as fp:
+            fp.write(configuration)
+        # Invoking main() creates the directories.
+        config = Configuration()
+        config.load(config_ini)
+        os.makedirs(config.system.tempdir, mode=0o0777)
+        os.makedirs(os.path.dirname(config.system.logfile), mode=0o0777)
+        with open(config.system.logfile, 'w', encoding='utf-8'):
+            pass
+        os.chmod(config.system.logfile, 0o0666)
+        self._resources.enter_context(patch(
+            'systemimage.main.sys.argv',
+            ['argv0', '-C', config_ini, '--info']))
+        cli_main()
+        mode = os.stat(config.system.tempdir).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(os.path.dirname(config.system.logfile)).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(config.system.logfile).st_mode
+        self.assertEqual(stat.filemode(mode), '-rw-------')
 
     @configuration
     def test_info(self, ini_file):
@@ -539,24 +627,116 @@ class TestCLIFilters(_StateTestsBase):
             self.assertEqual(capture.getvalue(), 'Upgrade path is 20130600\n')
 
 
-@unittest.skip('dbus-launch only supports session bus (LP: #1206588)')
-@unittest.skipUnless(DBUS_LAUNCH is not None, 'dbus-launch not found')
 class TestDBusMain(unittest.TestCase):
+    def setUp(self):
+        self._stack = ExitStack()
+        try:
+            old_ini = SystemImagePlugin.controller.ini_path
+            self._stack.callback(
+                setattr, SystemImagePlugin.controller, 'ini_path', old_ini)
+            self.tmpdir = self._stack.enter_context(temporary_directory())
+            template = resource_bytes(
+                'systemimage.tests.data', 'config_04.ini').decode('utf-8')
+            self.ini_path = os.path.join(self.tmpdir, 'client.ini')
+            with open(self.ini_path, 'w', encoding='utf-8') as fp:
+                print(template.format(tmpdir=self.tmpdir, vardir=self.tmpdir),
+                      file=fp)
+            SystemImagePlugin.controller.ini_path = self.ini_path
+            SystemImagePlugin.controller.set_mode()
+        except:
+            self._stack.close()
+            raise
+
+    def tearDown(self):
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        iface.Exit()
+        self._stack.close()
+
+    def _activate(self):
+        # Start the D-Bus service.
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        return iface.Info()
+
     def test_service_exits(self):
         # The dbus service automatically exits after a set amount of time.
-        with temporary_directory() as tmpdir:
-            # This has a timeout of 3 seconds.
-            copy('config_02.ini', tmpdir, 'client.ini')
-            start = time.time()
-            subprocess.check_call(
-                [DBUS_LAUNCH,
-                 sys.executable, '-m', 'systemimage.service', '-C',
-                 os.path.join(tmpdir, 'client.ini')
-                 ], timeout=6)
-            end = time.time()
-            self.assertLess(end - start, 6)
+        #
+        # Nothing has been spawned yet.
+        self.assertIsNone(_find_dbus_proc(self.ini_path))
+        self._activate()
+        process = _find_dbus_proc(self.ini_path)
+        self.assertTrue(process.is_running())
+        # Now wait for the process to self-terminate.  If this times out
+        # before the process exits, a TimeoutExpired exception will be
+        # raised.  Let this propagate up as a test failure.
+        process.wait(timeout=6)
+        self.assertFalse(process.is_running())
 
-    @unittest.skip('XXX FIXME')
     def test_channel_ini_override(self):
         # An optional channel.ini can override the build number and channel.
-        pass
+        #
+        # The config.ini file names the `stable` channel.  Let's create an
+        # ubuntu-build file with a fake version number.
+        config = Configuration()
+        config.load(self.ini_path)
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(33, file=fp)
+        # Now, write a channel.ini file to override both of these.
+        dirname = os.path.dirname(self.ini_path)
+        copy('channel_04.ini', dirname, 'channel.ini')
+        info = self._activate()
+        # The build number.
+        self.assertEqual(info[0], 1)
+        # The channel
+        self.assertEqual(info[2], 'saucy')
+
+    def test_temp_directory(self):
+        # The temporary directory gets created if it doesn't exist.
+        config = Configuration()
+        config.load(self.ini_path)
+        # Delete the temporary directory, which will have been created by the
+        # .set_mode() call in the setUp().  That invokes a 'stopper' for the
+        # -dbus process, which has the perverse effect of first D-Bus
+        # activating the process, and thus creating the temporary directory
+        # before calling .Exit().  Deleting it now will allow the .Info() call
+        # below to re-active the process and thus re-create the directory.
+        shutil.rmtree(config.system.tempdir)
+        self.assertFalse(os.path.exists(config.system.tempdir))
+        self._activate()
+        self.assertTrue(os.path.exists(config.system.tempdir))
+
+    def test_permissions(self):
+        # LP: #1235975 - The created tempdir had unsafe permissions.
+        config = Configuration()
+        config.load(self.ini_path)
+        shutil.rmtree(config.system.tempdir)
+        os.remove(config.system.logfile)
+        self._activate()
+        mode = os.stat(config.system.tempdir).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(os.path.dirname(config.system.logfile)).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(config.system.logfile).st_mode
+        self.assertEqual(stat.filemode(mode), '-rw-------')
+
+    def test_permission_fixes(self):
+        # LP: #1235975 - Fix permissions if the paths already exist.
+        config = Configuration()
+        config.load(self.ini_path)
+        # The files already exist with bad permissions.
+        self.assertTrue(os.path.exists(config.system.tempdir))
+        os.chmod(config.system.tempdir, 0o0777)
+        self.assertTrue(os.path.exists(config.system.logfile))
+        os.chmod(config.system.logfile, 0o0666)
+        os.chmod(os.path.dirname(config.system.logfile), 0o0777)
+        self._activate()
+        # Now the permissions are fixed.
+        mode = os.stat(config.system.tempdir).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(os.path.dirname(config.system.logfile)).st_mode
+        self.assertEqual(stat.filemode(mode), 'drwx--S---')
+        mode = os.stat(config.system.logfile).st_mode
+        self.assertEqual(stat.filemode(mode), '-rw-------')

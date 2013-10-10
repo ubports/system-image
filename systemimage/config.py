@@ -76,7 +76,6 @@ class Configuration:
         if override:
             return
         self.system = Bag(converters=dict(timeout=as_timedelta,
-                                          threads=int,
                                           build_file=expand_path,
                                           loglevel=as_loglevel,
                                           settings_db=expand_path,
