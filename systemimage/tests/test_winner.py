@@ -123,7 +123,38 @@ class TestWinnerDownloads(unittest.TestCase):
         state.run_thru('download_files')
         # The B path files contain their checksums.
         def assert_file_contains(filename, contents):
-            path = os.path.join(config.system.tempdir, filename)
+            path = os.path.join(config.updater.cache_partition, filename)
+            with open(path, encoding='utf-8') as fp:
+                self.assertEqual(fp.read(), contents)
+        assert_file_contains('5.txt', '345')
+        assert_file_contains('6.txt', '456')
+        assert_file_contains('7.txt', '567')
+        # Delta B.1 files.
+        assert_file_contains('8.txt', '678')
+        assert_file_contains('9.txt', '789')
+        assert_file_contains('a.txt', '89a')
+        # Delta B.2 files.
+        assert_file_contains('b.txt', '9ab')
+        assert_file_contains('d.txt', 'fed')
+        assert_file_contains('c.txt', 'edc')
+
+    @configuration
+    def test_download_winners_overwrite(self):
+        # Check that all the winning path's files are downloaded, even if
+        # those files already exist in their destination paths.
+        setup_keyrings()
+        state = State()
+        touch_build(20120100)
+        # Run the state machine until we download the files.
+        for basename in '56789abcd':
+            base = os.path.join(config.updater.cache_partition, basename)
+            path = base + '.txt'
+            with open(path, 'w', encoding='utf-8') as fp:
+                print('stale', file=fp)
+        state.run_thru('download_files')
+        # The B path files contain their checksums.
+        def assert_file_contains(filename, contents):
+            path = os.path.join(config.updater.cache_partition, filename)
             with open(path, encoding='utf-8') as fp:
                 self.assertEqual(fp.read(), contents)
         assert_file_contains('5.txt', '345')
@@ -164,7 +195,7 @@ class TestWinnerDownloads(unittest.TestCase):
         state.run_thru('download_files')
         # The B path files contain their checksums.
         def assert_file_contains(filename, contents):
-            path = os.path.join(config.system.tempdir, filename)
+            path = os.path.join(config.updater.cache_partition, filename)
             with open(path, encoding='utf-8') as fp:
                 self.assertEqual(fp.read(), contents)
         assert_file_contains('5.txt', '345')
@@ -204,7 +235,7 @@ class TestWinnerDownloads(unittest.TestCase):
         state.run_thru('download_files')
         # The B path files contain their checksums.
         def assert_file_contains(filename, contents):
-            path = os.path.join(config.system.tempdir, filename)
+            path = os.path.join(config.updater.cache_partition, filename)
             with open(path, encoding='utf-8') as fp:
                 self.assertEqual(fp.read(), contents)
         assert_file_contains('5.txt', '345')
@@ -262,7 +293,7 @@ class TestWinnerDownloads(unittest.TestCase):
         self.assertRaises(SignatureError, next, state)
         # There are no downloaded files.
         txtfiles = set(filename
-                       for filename in os.listdir(config.system.tempdir)
+                       for filename in os.listdir(config.tempdir)
                        if os.path.splitext(filename)[1] == '.txt')
         self.assertEqual(len(txtfiles), 0)
 
@@ -281,7 +312,7 @@ class TestWinnerDownloads(unittest.TestCase):
         self.assertRaises(FileNotFoundError, next, state)
         # There are no downloaded files.
         txtfiles = set(filename
-                       for filename in os.listdir(config.system.tempdir)
+                       for filename in os.listdir(config.tempdir)
                        if os.path.splitext(filename)[1] == '.txt')
         self.assertEqual(len(txtfiles), 0, txtfiles)
 
@@ -300,6 +331,6 @@ class TestWinnerDownloads(unittest.TestCase):
         self.assertRaises(SignatureError, next, state)
         # There are no downloaded files.
         txtfiles = set(filename
-                       for filename in os.listdir(config.system.tempdir)
+                       for filename in os.listdir(config.tempdir)
                        if os.path.splitext(filename)[1] == '.txt')
         self.assertEqual(len(txtfiles), 0)

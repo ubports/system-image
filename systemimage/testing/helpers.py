@@ -179,12 +179,12 @@ def make_http_server(directory, port, certpem=None, keypem=None):
 def configuration(function):
     """Decorator that produces a temporary configuration for testing.
 
-    The config_00.ini template is copied to a temporary file and the
-    [system]tempdir variable is filled in with the location for a, er,
-    temporary temporary directory.  This temporary configuration file is
-    loaded up and the global configuration object is patched so that all
-    other code will see it instead of the default global configuration
-    object.
+    The config_00.ini template is copied to a temporary file and the the
+    various file system locations are filled in with the location for a,
+    er, temporary temporary directory.  This temporary configuration
+    file is loaded up and the global configuration object is patched so
+    that all other code will see it instead of the default global
+    configuration object.
 
     Everything is properly cleaned up after the test method exits.
     """

@@ -36,7 +36,7 @@ from systemimage.channel import Channels
 from systemimage.config import config
 from systemimage.download import DBusDownloadManager
 from systemimage.gpg import Context, SignatureError
-from systemimage.helpers import makedirs
+from systemimage.helpers import makedirs, safe_remove
 from systemimage.index import Index
 from systemimage.keyring import KeyringError, get_keyring
 from urllib.parse import urljoin
@@ -419,6 +419,10 @@ class State:
         keyrings = [config.gpg.image_signing]
         if os.path.exists(config.gpg.device_signing):
             keyrings.append(config.gpg.device_signing)
+        # We must make sure that none of the destination file paths exist,
+        # otherwise the downloader will throw exceptions.
+        for url, dst in downloads:
+            safe_remove(dst)
         # Now, download all the files, providing logging feedback on progress.
         self.downloader.get_files(downloads)
         with ExitStack() as stack:
