@@ -8,9 +8,9 @@ Ubuntu System Image Upgrader configuration file
 -----------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2013-07-31
+:Date: 2013-10-11
 :Copyright: 2013 Canonical Ltd.
-:Version: 1.0
+:Version: 1.9
 :Manual section: 5
 
 
@@ -79,8 +79,9 @@ build_file
     number.
 
 tempdir
-    A directory on the local file system that can be used to store temporary
-    files.
+    The base temporary directory on the local file system.  When any of the
+    system-image processes run, a secure subdirectory inside `tempdir` will be
+    created for the duration of the process.
 
 logfile
     The file where logging output will be sent.
