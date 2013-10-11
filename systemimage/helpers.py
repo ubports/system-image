@@ -28,7 +28,6 @@ __all__ = [
     'safe_remove',
     'temporary_directory',
     'version_detail',
-    'working_directory',
     ]
 
 
@@ -202,7 +201,10 @@ def temporary_directory(*args, **kws):
     try:
         yield tempdir
     finally:
-        shutil.rmtree(tempdir)
+        try:
+            shutil.rmtree(tempdir)
+        except FileNotFoundError:
+            pass
 
 
 def makedirs(dir, mode=DEFAULT_DIRMODE):
@@ -277,13 +279,3 @@ def phased_percentage(*, reset=False):
     finally:
         if reset:
             _pp_cache = None
-
-
-@contextmanager
-def working_directory(dir):
-    cwd = os.getcwd()
-    try:
-        os.chdir(dir)
-        yield
-    finally:
-        os.chdir(cwd)

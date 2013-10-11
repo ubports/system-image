@@ -18,7 +18,6 @@
 
 __all__ = [
     'TestConverters',
-    'TestHelpers',
     'TestLastUpdateDate',
     'TestPhasedPercentage',
     ]
@@ -33,7 +32,7 @@ from datetime import datetime, timedelta
 from systemimage.config import Configuration, config
 from systemimage.helpers import (
     Bag, as_loglevel, as_object, as_timedelta, last_update_date,
-    phased_percentage, temporary_directory, version_detail, working_directory)
+    phased_percentage, temporary_directory, version_detail)
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
 
@@ -256,18 +255,3 @@ class TestPhasedPercentage(unittest.TestCase):
             self.assertEqual(phased_percentage(reset=True), 81)
             # The next one will have a different value.
             self.assertEqual(phased_percentage(), 17)
-
-
-class TestHelpers(unittest.TestCase):
-    def test_working_directory(self):
-        # Working directory context manager.
-        with ExitStack() as stack:
-            tmpdir = stack.enter_context(temporary_directory())
-            cwd = os.getcwd()
-            self.assertNotEqual(cwd, tmpdir)
-            # This context manager changes the current working directory.
-            with working_directory(tmpdir):
-                self.assertEqual(os.getcwd(), tmpdir)
-            # After leaving the context manager, it gets reset.
-            self.assertNotEqual(os.getcwd(), tmpdir)
-            self.assertEqual(os.getcwd(), cwd)

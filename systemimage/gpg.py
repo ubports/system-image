@@ -54,14 +54,13 @@ class Context:
             base, dot, tarxz = os.path.basename(path).partition('.')
             assert dot == '.' and tarxz == 'tar.xz', (
                 'Expected a .tar.xz path, got: {}'.format(path))
-            keyring_path = os.path.join(
-                config.system.tempdir, base + '.gpg')
+            keyring_path = os.path.join(config.tempdir, base + '.gpg')
             if not os.path.exists(keyring_path):
                 with tarfile.open(path, 'r:xz') as tf:
-                    tf.extract('keyring.gpg', config.system.tempdir)
+                    tf.extract('keyring.gpg', config.tempdir)
                     os.rename(
-                        os.path.join(config.system.tempdir, 'keyring.gpg'),
-                        os.path.join(config.system.tempdir, keyring_path))
+                        os.path.join(config.tempdir, 'keyring.gpg'),
+                        os.path.join(config.tempdir, keyring_path))
             self._keyrings.append(keyring_path)
         # Since python-gnupg doesn't do this for us, verify that all the
         # keyrings and blacklist files exist.  Yes, this introduces a race
@@ -84,7 +83,8 @@ class Context:
             # Use a temporary directory for the $GNUPGHOME, but be sure to
             # arrange for the tempdir to be deleted no matter what.
             home = self._stack.enter_context(
-                temporary_directory(prefix='.otaupdate'))
+                temporary_directory(prefix='si-gnupghome',
+                                    dir=config.tempdir))
             self._ctx = gnupg.GPG(gnupghome=home, keyring=self._keyrings)
             self._stack.callback(setattr, self, '_ctx', None)
         except:
