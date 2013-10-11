@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from systemimage.config import config
 from systemimage.download import DBusDownloadManager
 from systemimage.gpg import Context, SignatureError
-from systemimage.helpers import makedirs
+from systemimage.helpers import makedirs, safe_remove
 from urllib.parse import urljoin
 
 
@@ -88,9 +88,18 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
         ascurl = urls + '.asc'
     tarxz_src = urljoin(config.service.https_base, srcurl)
     ascxz_src = urljoin(config.service.https_base, ascurl)
-    # Calculate the local paths to the temporary download files.
-    tarxz_dst = os.path.join(config.system.tempdir, 'keyring.tar.xz')
+    # Calculate the local paths to the temporary download files.  The
+    # blacklist goes to the data partition and all the other files go to the
+    # cache partition.
+    dstdir = (config.updater.data_partition
+              if keyring_type == 'blacklist'
+              else config.updater.cache_partition)
+    tarxz_dst = os.path.join(dstdir, 'keyring.tar.xz')
     ascxz_dst = tarxz_dst + '.asc'
+    # Delete any files that were previously present.  The download manager
+    # will raise an exception if it finds a file already there.
+    safe_remove(tarxz_dst)
+    safe_remove(ascxz_dst)
     with ExitStack() as stack:
         # Let FileNotFoundError percolate up.
         DBusDownloadManager().get_files([
@@ -105,10 +114,10 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
                 raise SignatureError
         # The signature is good, so now unpack the tarball, load the json file
         # and verify its contents.
-        keyring_gpg = os.path.join(config.system.tempdir, 'keyring.gpg')
-        keyring_json = os.path.join(config.system.tempdir, 'keyring.json')
+        keyring_gpg = os.path.join(config.tempdir, 'keyring.gpg')
+        keyring_json = os.path.join(config.tempdir, 'keyring.json')
         with tarfile.open(tarxz_dst, 'r:xz') as tf:
-            tf.extractall(config.system.tempdir)
+            tf.extractall(config.tempdir)
         stack.callback(os.remove, keyring_gpg)
         stack.callback(os.remove, keyring_json)
         with open(keyring_json, 'r', encoding='utf-8') as fp:
@@ -132,19 +141,27 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
             if expiry < timestamp:
                 # We've passed the expiration date for this keyring.
                 raise KeyringError('expired keyring timestamp')
-        # Everything checks out.  Move the .tar.xz and .tar.xz.asc files to
-        # their final destination and copy the .gpg file to its temporary
-        # cache location.
+        # Everything checks out.  We now have the generic keyring.tar.xz and
+        # keyring.tar.xz.asc files inside the cache (or data, in the case of
+        # the blacklist) partition, which is where they need to be for
+        # recovery.
+        #
+        # These files need to be renamed to their actual <keyring-type>.tar.xz
+        # and .asc file names.
+        #
+        # We also want copies of these latter files to live in /var/lib so
+        # that we don't have to download them again if we don't need to.
         if keyring_type == 'blacklist':
-            # This one is always temporary.
             tarxz_path = os.path.join(
-                config.system.tempdir, 'blacklist.tar.xz')
+                config.updater.data_partition, 'blacklist.tar.xz')
         else:
             tarxz_path = getattr(config.gpg, keyring_type.replace('-', '_'))
         ascxz_path = tarxz_path + '.asc'
-        gpg_path = os.path.join(config.system.tempdir, keyring_type + '.gpg')
-        # Ensure the target directory exists.
         makedirs(os.path.dirname(tarxz_path))
         shutil.copy(tarxz_dst, tarxz_path)
         shutil.copy(ascxz_dst, ascxz_path)
+        # For all keyrings, copy the extracted .gpg file to the tempdir.  We
+        # will always fallback to this path to avoid unpacking the .tar.xz
+        # file every single time.
+        gpg_path = os.path.join(config.tempdir, keyring_type + '.gpg')
         shutil.copy(keyring_gpg, gpg_path)
