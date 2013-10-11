@@ -28,6 +28,7 @@ __all__ = [
     'safe_remove',
     'temporary_directory',
     'version_detail',
+    'working_directory',
     ]
 
 
@@ -276,3 +277,13 @@ def phased_percentage(*, reset=False):
     finally:
         if reset:
             _pp_cache = None
+
+
+@contextmanager
+def working_directory(dir):
+    cwd = os.getcwd()
+    try:
+        os.chdir(dir)
+        yield
+    finally:
+        os.chdir(cwd)
