@@ -51,6 +51,12 @@ class ChecksumError(Exception):
     """Exception raised when a file's checksum does not match."""
 
 
+def _copy_if_missing(src, dstdir):
+    dst_path = os.path.join(dstdir, os.path.basename(src))
+    if not os.path.exists(dst_path):
+        shutil.copy(src, dstdir)
+
+
 class State:
     def __init__(self, candidate_filter=None):
         # Variables which manage state transitions.
@@ -168,11 +174,10 @@ class State:
             # There is no blacklist.
             log.info('No blacklist found')
         else:
-            # Move the keyring.gpg file to a safe place inside our temporary
-            # directory.  It is the responsibility of the code running the
-            # state machine to clear out the temporary directory.
+            # After successful download, the blacklist.tar.xz will be living
+            # in the data partition.
             self.blacklist = os.path.join(
-                config.system.tempdir, 'blacklist.tar.xz')
+                config.updater.data_partition, 'blacklist.tar.xz')
             log.info('Local blacklist file: {}', self.blacklist)
         self._next.append(self._get_channel)
 
@@ -195,11 +200,10 @@ class State:
         except FileNotFoundError:
             log.info('No blacklist found on second attempt')
         else:
-            # Move the keyring.gpg file to a safe place inside our temporary
-            # directory.  It is the responsibility of the code running the
-            # state machine to clear out the temporary directory.
+            # After successful download, the blacklist.tar.xz will be living
+            # in the data partition.
             self.blacklist = os.path.join(
-                config.system.tempdir, 'blacklist.tar.xz')
+                config.updater.data_partition, 'blacklist.tar.xz')
             log.info('Local blacklist file: {}', self.blacklist)
         self._next.append(self._get_channel)
 
@@ -214,9 +218,9 @@ class State:
             get_keyring(
                 'image-signing', 'gpg/image-signing.tar.xz', 'image-master')
         channels_url = urljoin(config.service.https_base, 'channels.json')
-        channels_path = os.path.join(config.system.tempdir, 'channels.json')
+        channels_path = os.path.join(config.tempdir, 'channels.json')
         asc_url = urljoin(config.service.https_base, 'channels.json.asc')
-        asc_path = os.path.join(config.system.tempdir, 'channels.json.asc')
+        asc_path = os.path.join(config.tempdir, 'channels.json.asc')
         log.info('Looking for: {}', channels_url)
         with ExitStack() as stack:
             self.downloader.get_files([
@@ -313,7 +317,7 @@ class State:
         """Get and verify the index.json file."""
         index_url = urljoin(config.service.https_base, index)
         asc_url = index_url + '.asc'
-        index_path = os.path.join(config.system.tempdir, 'index.json')
+        index_path = os.path.join(config.tempdir, 'index.json')
         asc_path = index_path + '.asc'
         with ExitStack() as stack:
             self.downloader.get_files([
@@ -391,7 +395,7 @@ class State:
             # Re-pack for arguments to get_files() and to collate the size,
             # signature path, and checksum for the downloadable file.
             dst = os.path.join(
-                config.system.tempdir, os.path.basename(filerec.path))
+                config.updater.cache_partition, os.path.basename(filerec.path))
             downloads.append((
                 urljoin(config.service.http_base, filerec.path),
                 dst,
@@ -400,7 +404,8 @@ class State:
             self.files.append((dst, (image_number, filerec.order)))
             # Add the signature file, and associate the two.
             asc = os.path.join(
-                config.system.tempdir, os.path.basename(filerec.signature))
+                config.updater.cache_partition,
+                os.path.basename(filerec.signature))
             downloads.append((
                 urljoin(config.service.http_base, filerec.signature),
                 asc))
@@ -440,7 +445,7 @@ class State:
                         raise ChecksumError(dst, got, checksum)
             # Everything is fine so nothing needs to be cleared.
             stack.pop_all()
-        log.info('all files available in {}', config.system.tempdir)
+        log.info('all files available in {}', config.updater.cache_partition)
         # Now, copy the files from the temporary directory into the location
         # for the upgrader.
         self._next.append(self._move_files)
@@ -448,28 +453,19 @@ class State:
     def _move_files(self):
         # The upgrader already has the archive-master, so we don't need to
         # copy it.  The image-master, image-signing, and device-signing (if
-        # there is one) keys go to the cache partition.
+        # there is one) keys go to the cache partition.  They may already be
+        # there if they had to be downloaded, but if not, they're in /var/lib
+        # and now need to be copied to the cache partition.  The blacklist
+        # keyring, if there is one, should already exist in the data partition.
         cache_dir = config.updater.cache_partition
-        data_dir = config.updater.data_partition
         makedirs(cache_dir)
-        makedirs(data_dir)
         # Copy the keyring.tar.xz and .asc files.
-        shutil.copy(config.gpg.image_master, cache_dir)
-        shutil.copy(config.gpg.image_master + '.asc', cache_dir)
-        shutil.copy(config.gpg.image_signing, cache_dir)
-        shutil.copy(config.gpg.image_signing + '.asc', cache_dir)
-        if os.path.exists(config.gpg.device_signing):
-            shutil.copy(config.gpg.device_signing, cache_dir)
-            shutil.copy(config.gpg.device_signing + '.asc', cache_dir)
-        # The blacklist file (if there is one) gets copied to the data
-        # partition.
-        if self.blacklist is not None:
-            shutil.copy(self.blacklist, data_dir)
-            shutil.copy(self.blacklist + '.asc', data_dir)
-        # Now move all the downloaded data files to the cache.
-        for src, (image_number, order) in self.files:
-            dst = os.path.join(cache_dir, os.path.basename(src))
-            shutil.move(src, dst)
+        _copy_if_missing(config.gpg.image_master, cache_dir)
+        _copy_if_missing(config.gpg.image_master + '.asc', cache_dir)
+        _copy_if_missing(config.gpg.image_signing, cache_dir)
+        _copy_if_missing(config.gpg.image_signing + '.asc', cache_dir)
+        _copy_if_missing(config.gpg.device_signing, cache_dir)
+        _copy_if_missing(config.gpg.device_signing + '.asc', cache_dir)
         # Issue the reboot.
         self._next.append(self._prepare_recovery)
 
