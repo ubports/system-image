@@ -202,8 +202,6 @@ def configuration(function):
                                       vardir=temp_vardir), file=fp)
             config = Configuration()
             config.load(ini_file)
-            # Make sure the temporary directory exists.
-            makedirs(config.system.tempdir)
             stack.enter_context(patch('systemimage.config._config', config))
             stack.enter_context(patch('systemimage.device.check_output',
                                       return_value='nexus7'))

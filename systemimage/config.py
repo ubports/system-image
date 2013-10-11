@@ -28,7 +28,7 @@ from configparser import ConfigParser
 from contextlib import ExitStack
 from pkg_resources import resource_filename
 from systemimage.helpers import (
-    Bag, as_loglevel, as_object, as_timedelta, temporary_directory)
+    Bag, as_loglevel, as_object, as_timedelta, makedirs, temporary_directory)
 
 
 def expand_path(path):
@@ -144,6 +144,7 @@ class Configuration:
     @property
     def tempdir(self):
         if self._tempdir is None:
+            makedirs(self.system.tempdir)
             self._tempdir = self._resources.enter_context(
                 temporary_directory(prefix='system-image-',
                                     dir=self.system.tempdir))

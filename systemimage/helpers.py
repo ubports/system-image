@@ -212,7 +212,13 @@ def makedirs(dir, mode=DEFAULT_DIRMODE):
         os.makedirs(dir, mode=mode, exist_ok=True)
     except FileExistsError:
         # Ensure the proper mode.
-        os.chmod(dir, mode)
+        try:
+            os.chmod(dir, mode)
+        except PermissionError:
+            # 2013-10-11 BAW: Hmm...  We seem to need this for the test suite,
+            # otherwise when dir is /tmp we'll fail.  I'm not sure this a
+            # great idea in general.
+            pass
     except PermissionError:
         pass
 
