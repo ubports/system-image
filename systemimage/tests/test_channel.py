@@ -177,7 +177,7 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
         state = State()
         # Try to get the blacklist.  This will fail silently since it's okay
         # not to find a blacklist.
-        next(state)
+        state.run_thru('get_blacklist_1')
         # This will fail to get the channels.json file.
         with make_http_server(self._serverdir, 8943):
             self.assertRaises(FileNotFoundError, next, state)

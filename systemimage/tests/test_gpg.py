@@ -61,7 +61,7 @@ class TestKeyrings(unittest.TestCase):
         # Unpacking the .tar.xz caches the .gpg file contained within, so it
         # only needs to be unpacked once.  Test that the cached .gpg file is
         # used by not actually having a .tar.xz file.
-        copy('archive-master.gpg', config.system.tempdir)
+        copy('archive-master.gpg', config.tempdir)
         self.assertFalse(os.path.exists(config.gpg.archive_master))
         with Context(config.gpg.archive_master) as ctx:
             self.assertEqual(
@@ -183,12 +183,12 @@ class TestKeyrings(unittest.TestCase):
         # The keyring file does not exist.
         self.assertRaises(
             FileNotFoundError, Context,
-            os.path.join(config.system.tempdir, 'does-not-exist.tar.xz'))
+            os.path.join(config.tempdir, 'does-not-exist.tar.xz'))
 
     @configuration
     def test_missing_blacklist(self):
         # The blacklist file does not exist.
-        blacklist = os.path.join(config.system.tempdir, 'no-blacklist.tar.xz')
+        blacklist = os.path.join(config.tempdir, 'no-blacklist.tar.xz')
         self.assertRaises(
             FileNotFoundError, Context, blacklist=blacklist)
 

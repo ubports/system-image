@@ -4,11 +4,19 @@ NEWS for system-image updater
 
 1.9 (2013-XX-XX)
 ================
- * Fix file and directory permissions.  The temporary directory is moved to
-   /var/cache/system-image and will have 02700 permission.  The log file will
-   have 0600 permission.  (LP: #1235975)
- * Remove all references to the [system]threads variable since it is no longer
-   used, after the integration of the download manager.
+ * Fix file and directory permissions.  A random temporary directory inside
+   /tmp (by default, see `[system]tempdir` in client.ini) is securely created
+   for actual ephemeral files.  The log file will have 0600 permission.
+   (LP: #1235975)
+ * Download files directly to the cache partition or data partition.
+   (LP: #1233521)
+ * Proactively remove files from the cache and data partitions before starting
+   to download anything (except `log` and `last_log` in the cache partition).
+   This avoid various problems that can occur if the reboot fails (LP:
+   #1238102) and improves the ability to recover from partial downloads
+   without rebooting (LP: #1233521).
+ * Remove all references to the `[system]threads` variable since it is no
+   longer used, after the integration of the download manager.
  * Through the use of psutils library, re-enable some previously skipped
    tests.  (LP: #1206588)
 

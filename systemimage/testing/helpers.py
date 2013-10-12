@@ -179,12 +179,12 @@ def make_http_server(directory, port, certpem=None, keypem=None):
 def configuration(function):
     """Decorator that produces a temporary configuration for testing.
 
-    The config_00.ini template is copied to a temporary file and the
-    [system]tempdir variable is filled in with the location for a, er,
-    temporary temporary directory.  This temporary configuration file is
-    loaded up and the global configuration object is patched so that all
-    other code will see it instead of the default global configuration
-    object.
+    The config_00.ini template is copied to a temporary file and the the
+    various file system locations are filled in with the location for a,
+    er, temporary temporary directory.  This temporary configuration
+    file is loaded up and the global configuration object is patched so
+    that all other code will see it instead of the default global
+    configuration object.
 
     Everything is properly cleaned up after the test method exits.
     """
@@ -202,11 +202,12 @@ def configuration(function):
                                       vardir=temp_vardir), file=fp)
             config = Configuration()
             config.load(ini_file)
-            # Make sure the temporary directory exists.
-            makedirs(config.system.tempdir)
             stack.enter_context(patch('systemimage.config._config', config))
             stack.enter_context(patch('systemimage.device.check_output',
                                       return_value='nexus7'))
+            # Make sure the cache_partition and data_partition exist.
+            makedirs(config.updater.cache_partition)
+            makedirs(config.updater.data_partition)
             # The method under test is allowed to specify some additional
             # keyword arguments, in order to pass some variables in from the
             # wrapper.
@@ -313,8 +314,8 @@ def setup_keyrings(*keyrings, use_config=None):
             raise AssertionError('unknown key type: {}'.format(keyring))
         # The local keyrings live in the .gpg file with the same keyring name
         # as the .tar.xz file, but cached in the temporary directory.
-        copy(keyring + '.gpg', (config.system.tempdir if use_config is None
-                                else use_config.system.tempdir))
+        copy(keyring + '.gpg', (config.tempdir if use_config is None
+                                else use_config.tempdir))
         # Now set up the .tar.xz and .tar.xz.asc files in the destination.
         json_data = dict(type=keyring)
         dst = getattr((config.gpg if use_config is None

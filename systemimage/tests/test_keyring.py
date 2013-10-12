@@ -138,8 +138,7 @@ class TestKeyring(unittest.TestCase):
             os.path.join(self._serverdir, 'gpg/blacklist.tar.xz'))
         url = 'gpg/blacklist.tar.xz'.format(config.channel, config.device)
         get_keyring('blacklist', url, 'image-master')
-        blacklist_path = os.path.join(
-            config.system.tempdir, 'blacklist.tar.xz')
+        blacklist_path = os.path.join(config.tempdir, 'blacklist.tar.xz')
         with Context(blacklist_path) as ctx:
             self.assertEqual(ctx.fingerprints,
                              set(['94BE2CECF8A5AF9F3A10E2A6526B7016C3D2FB44']))
@@ -186,8 +185,7 @@ class TestKeyring(unittest.TestCase):
         # Normally, the signature would be good, except that the fingerprint
         # of the device signing key is blacklisted.
         setup_keyrings('archive-master', 'image-master')
-        blacklist = os.path.join(
-            config.system.tempdir, 'gpg', 'blacklist.tar.xz')
+        blacklist = os.path.join(config.tempdir, 'gpg', 'blacklist.tar.xz')
         # Blacklist the image-master keyring.
         setup_keyring_txz(
             'image-master.gpg', 'image-master.gpg', dict(type='blacklist'),
@@ -314,7 +312,8 @@ class TestKeyring(unittest.TestCase):
             'spare.gpg', 'image-master.gpg',
             dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        txz_path = os.path.join(config.system.tempdir, 'blacklist.tar.xz')
+        txz_path = os.path.join(
+            config.updater.data_partition, 'blacklist.tar.xz')
         asc_path = txz_path + '.asc'
         self.assertFalse(os.path.exists(txz_path))
         self.assertFalse(os.path.exists(asc_path))

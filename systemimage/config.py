@@ -22,15 +22,13 @@ __all__ = [
 
 
 import os
+import atexit
 
-# BAW 2013-04-23: If we need something more sophisticated, lazr.config is the
-# way to go.  It provides a nice testing infrastruction (pushing/popping of
-# configurations), schema definition, and a slew of useful data type
-# conversion functions.  For now, we limit the non-stdlib dependencies and
-# roll our own.
 from configparser import ConfigParser
+from contextlib import ExitStack
 from pkg_resources import resource_filename
-from systemimage.helpers import Bag, as_object, as_timedelta, as_loglevel
+from systemimage.helpers import (
+    Bag, as_loglevel, as_object, as_timedelta, makedirs, temporary_directory)
 
 
 def expand_path(path):
@@ -48,6 +46,9 @@ class Configuration:
         self._device = None
         self._build_number = None
         self._channel = None
+        self._tempdir = None
+        self._resources = ExitStack()
+        atexit.register(self._resources.close)
 
     def load(self, path, *, override=False):
         parser = ConfigParser()
@@ -139,6 +140,15 @@ class Configuration:
     @channel.setter
     def channel(self, value):
         self._channel = value
+
+    @property
+    def tempdir(self):
+        if self._tempdir is None:
+            makedirs(self.system.tempdir)
+            self._tempdir = self._resources.enter_context(
+                temporary_directory(prefix='system-image-',
+                                    dir=self.system.tempdir))
+        return self._tempdir
 
 
 # Define the global configuration object.  Normal use can be as simple as:

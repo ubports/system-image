@@ -191,11 +191,8 @@ class TestDownloadIndex(unittest.TestCase):
         self._copysign(
             'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
         setup_keyrings()
-        # Since there is no device keyring, we know that three state changes
-        # will get us an index (blacklist -> channels -> index).
         state = State()
-        for i in range(3):
-            next(state)
+        state.run_thru('get_index')
         self.assertEqual(
             state.index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
@@ -215,11 +212,8 @@ class TestDownloadIndex(unittest.TestCase):
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
-        # Since there is a device keyring, four state changes are necessary to
-        # get us an index (blacklist -> channels -> index).
         state = State()
-        for i in range(4):
-            next(state)
+        state.run_thru('get_index')
         self.assertEqual(
             state.index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
@@ -240,11 +234,8 @@ class TestDownloadIndex(unittest.TestCase):
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
-        # Since there is a device keyring, four state changes are necessary to
-        # get us an index (blacklist -> channels -> index).
         state = State()
-        for i in range(4):
-            next(state)
+        state.run_thru('get_index')
         self.assertEqual(
             state.index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
@@ -264,11 +255,8 @@ class TestDownloadIndex(unittest.TestCase):
             'device-signing.gpg', 'image-signing.gpg',
             dict(type='device-signing'),
             os.path.join(self._serverdir, 'stable', 'nexus7', 'device.tar.xz'))
-        # Since there is a device keyring, four state changes are necessary to
-        # get us an index (blacklist -> channels -> index).
         state = State()
-        for i in range(3):
-            next(state)
+        state.run_until('get_index')
         self.assertRaises(SignatureError, next, state)
 
     @configuration
@@ -287,11 +275,8 @@ class TestDownloadIndex(unittest.TestCase):
         setup_keyring_txz(
             'device-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        # Since there is a device keyring, four state changes are necessary to
-        # get us an index (blacklist -> channels -> index).
         state = State()
-        for i in range(3):
-            next(state)
+        state.run_until('get_index')
         self.assertRaises(SignatureError, next, state)
 
     @configuration

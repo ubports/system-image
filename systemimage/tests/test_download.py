@@ -45,14 +45,14 @@ MiB = 1024 * 1024
 def _http_pathify(downloads):
     return [
         (urljoin(config.service.http_base, url),
-         os.path.join(config.system.tempdir, filename)
+         os.path.join(config.tempdir, filename)
         ) for url, filename in downloads]
 
 
 def _https_pathify(downloads):
     return [
         (urljoin(config.service.https_base, url),
-         os.path.join(config.system.tempdir, filename)
+         os.path.join(config.tempdir, filename)
         ) for url, filename in downloads]
 
 
@@ -83,7 +83,7 @@ class TestDownloads(unittest.TestCase):
             ('index_01.json', 'index.json'),
             ]))
         self.assertEqual(
-            set(os.listdir(config.system.tempdir)),
+            set(os.listdir(config.tempdir)),
             set(['channels.json', 'index.json']))
 
     @configuration
@@ -97,7 +97,7 @@ class TestDownloads(unittest.TestCase):
         DBusDownloadManager().get_files(_http_pathify([
             ('user-agent.txt', 'user-agent.txt'),
             ]))
-        path = os.path.join(config.system.tempdir, 'user-agent.txt')
+        path = os.path.join(config.tempdir, 'user-agent.txt')
         with open(path, 'r', encoding='utf-8') as fp:
             user_agent = fp.read()
         self.assertEqual(
@@ -119,7 +119,7 @@ class TestDownloads(unittest.TestCase):
             ('index_01.json', 'index.json'),
             ]))
         self.assertEqual(
-            set(os.listdir(config.system.tempdir)),
+            set(os.listdir(config.tempdir)),
             set(['channels.json', 'index.json']))
         self.assertEqual(received_bytes, 555)
         self.assertEqual(total_bytes, 555)
@@ -144,7 +144,7 @@ class TestHTTPSDownloads(unittest.TestCase):
                 ('channels_01.json', 'channels.json'),
                 ]))
             self.assertEqual(
-                set(os.listdir(config.system.tempdir)),
+                set(os.listdir(config.tempdir)),
                 set(['channels.json']))
 
 
@@ -231,7 +231,7 @@ class TestDownloadBigFiles(unittest.TestCase):
     @configuration
     def test_cancel(self):
         # Try to cancel the download of a big file.
-        self.assertEqual(os.listdir(config.system.tempdir), [])
+        self.assertEqual(os.listdir(config.tempdir), [])
         with ExitStack() as stack:
             serverdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(serverdir, 8980))
@@ -255,14 +255,14 @@ class TestDownloadBigFiles(unittest.TestCase):
                     ('bigfile_1.dat', 'bigfile_1.dat'),
                     ('bigfile_2.dat', 'bigfile_2.dat'),
                     ]))
-            self.assertEqual(os.listdir(config.system.tempdir), [])
+            self.assertEqual(os.listdir(config.tempdir), [])
 
     @configuration
     def test_download_404(self):
         # Start a group download of some big files.   One of the files won't
         # exist, so the entire group download should fail, and none of the
         # files should exist in the destination.
-        self.assertEqual(os.listdir(config.system.tempdir), [])
+        self.assertEqual(os.listdir(config.tempdir), [])
         with ExitStack() as stack:
             serverdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(serverdir, 8980))
@@ -283,4 +283,4 @@ class TestDownloadBigFiles(unittest.TestCase):
                               DBusDownloadManager().get_files,
                               downloads)
             # The temporary directory is empty.
-            self.assertEqual(os.listdir(config.system.tempdir), [])
+            self.assertEqual(os.listdir(config.tempdir), [])

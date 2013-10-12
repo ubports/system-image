@@ -182,7 +182,7 @@ def main():
     state = State(candidate_filter=candidate_filter)
     state.downloader.callback = callback
     if args.dry_run:
-        state.run_thru('persist')
+        state.run_until('download_files')
         # Say -c <no-such-channel> was given.  This will fail.
         if state.winner is None or len(state.winner) == 0:
             print('Already up-to-date')

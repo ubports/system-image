@@ -20,11 +20,15 @@ __all__ = [
     ]
 
 
+import os
+import sys
+import stat
 import logging
 import unittest
 
 from datetime import timedelta
 from pkg_resources import resource_filename
+from subprocess import check_output
 from systemimage.config import Configuration
 from systemimage.device import SystemProperty
 from systemimage.reboot import Reboot
@@ -47,7 +51,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.channel, 'daily')
         self.assertEqual(config.service.build_number, 0)
         # [system]
-        self.assertEqual(config.system.tempdir, '/var/cache/system-image')
+        self.assertEqual(config.system.tempdir, '/tmp')
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
@@ -95,7 +99,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.channel, 'stable')
         self.assertEqual(config.service.build_number, 0)
         # [system]
-        self.assertEqual(config.system.tempdir, '/var/tmp/system-image-update')
+        self.assertEqual(config.system.tempdir, '/tmp')
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
@@ -242,3 +246,32 @@ class TestConfiguration(unittest.TestCase):
             'systemimage.tests.data', 'channel_02.ini')
         config.load(channel_ini, override=True)
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
+
+    def test_tempdir(self):
+        # config.tempdir is randomly created.
+        default_ini = resource_filename('systemimage.data', 'client.ini')
+        config = Configuration()
+        config.load(default_ini)
+        self.assertEqual(config.tempdir[:18], '/tmp/system-image-')
+        self.assertEqual(stat.filemode(os.stat(config.tempdir).st_mode),
+                         'drwx--S---')
+
+    def test_tempdir_cleanup(self):
+        # config.tempdir gets cleaned up when the process exits gracefully.
+        #
+        # To test this, we invoke Python in a subprocess and ask it to print
+        # config.tempdir, letting that process exit normally.  Then check that
+        # the directory has been removed.  Note of course that *ungraceful*
+        # exits won't invoke the atexit handlers and thus won't clean up the
+        # directory.  Be sure [system]tempdir is on a tempfs and you'll be
+        # fine.
+        command = [
+            sys.executable,
+            '-c',
+            """from systemimage.config import config; import stat, os; \
+               print(stat.filemode(os.stat(config.tempdir).st_mode), \
+               config.tempdir)"""
+            ]
+        stdout = check_output(command, universal_newlines=True)
+        self.assertEqual(stdout[:29], 'drwx--S--- /tmp/system-image-')
+        self.assertFalse(os.path.exists(stdout.split()[1]))

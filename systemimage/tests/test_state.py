@@ -31,10 +31,12 @@ __all__ = [
 
 import os
 import hashlib
+import tempfile
 import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timezone
+from functools import partial
 from subprocess import CalledProcessError
 from systemimage.config import config
 from systemimage.gpg import SignatureError
@@ -72,6 +74,60 @@ class TestState(unittest.TestCase):
 
     def tearDown(self):
         self._stack.close()
+
+    @configuration
+    def test_cleanup(self):
+        # All residual files from the cache and data partitions are removed,
+        # except `log` and `last_log` in the cache partition.
+        wopen = partial(open, mode='w', encoding='utf-8')
+        cache_partition = config.updater.cache_partition
+        data_partition = config.updater.data_partition
+        for i in range(10):
+            fd, path = tempfile.mkstemp(dir=cache_partition)
+            os.close(fd)
+            with wopen(path) as fp:
+                print('stale', file=fp)
+            fd, path = tempfile.mkstemp(dir=data_partition)
+            os.close(fd)
+            with wopen(path) as fp:
+                print('stale', file=fp)
+        with wopen(os.path.join(cache_partition, 'log')) as fp:
+            print('logger keeper', file=fp)
+        with wopen(os.path.join(cache_partition, 'last_log')) as fp:
+            print('logger keeper', file=fp)
+        with wopen(os.path.join(data_partition, 'log')) as fp:
+            print('stale log', file=fp)
+        with wopen(os.path.join(data_partition, 'last_log')) as fp:
+            print('stale log', file=fp)
+        # Here are all the files before we start up the state machine.
+        self.assertEqual(len(os.listdir(cache_partition)), 12)
+        self.assertEqual(len(os.listdir(data_partition)), 12)
+        # Clean up step.
+        State().run_thru('cleanup')
+        # All of the data partition files have been removed, and all but the
+        # two preserved files in the cache partition have been removed.
+        self.assertEqual(set(os.listdir(cache_partition)),
+                         set(['log', 'last_log']))
+        self.assertEqual(len(os.listdir(data_partition)), 0)
+
+    @configuration
+    def test_cleanup_no_partition(self):
+        # If one or more of the partitions doesn't exist, no big deal.
+        #
+        # The cache partition doesn't exist.
+        os.rename(config.updater.cache_partition,
+                  config.updater.cache_partition + '.aside')
+        State().run_thru('cleanup')
+        # The data partition doesn't exist.
+        os.rename(config.updater.cache_partition + '.aside',
+                  config.updater.cache_partition)
+        os.rename(config.updater.data_partition,
+                  config.updater.data_partition + '.aside')
+        State().run_thru('cleanup')
+        # Neither partitions exist.
+        os.rename(config.updater.cache_partition,
+                  config.updater.cache_partition + '.aside')
+        State().run_thru('cleanup')
 
     @configuration
     def test_first_signature_fails_get_new_image_signing_key(self):
@@ -167,22 +223,23 @@ class TestState(unittest.TestCase):
         setup_keyring_txz(
             'spare.gpg', 'archive-master.gpg', dict(type='image-master'),
             os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
-        # Run the state machine once to grab the blacklist.  This should fail
-        # with a signature error (internally).  There will be no blacklist.
+        # Run the state machine long enough to grab the blacklist.  This
+        # should fail with a signature error (internally).  There will be no
+        # blacklist.
         state = State()
-        next(state)
+        state.run_thru('get_blacklist_1')
         self.assertIsNone(state.blacklist)
         # Just to prove that the system image master key is going to change,
         # let's calculate the current one's checksum.
         with open(config.gpg.image_master, 'rb') as fp:
             checksum = hashlib.md5(fp.read()).digest()
         # The next state transition should get us a new image master.
-        next(state)
+        state.run_until('get_blacklist_2')
         # Now we have a new system image master key.
         with open(config.gpg.image_master, 'rb') as fp:
             self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
         # Now the blacklist file's signature should be good.
-        next(state)
+        state.run_thru('get_blacklist_2')
         self.assertEqual(os.path.basename(state.blacklist), 'blacklist.tar.xz')
 
     @configuration
@@ -200,10 +257,11 @@ class TestState(unittest.TestCase):
         setup_keyring_txz(
             'spare.gpg', 'spare.gpg', dict(type='image-master'),
             os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
-        # Run the state machine once to grab the blacklist.  This should fail
-        # with a signature error (internally).  There will be no blacklist.
+        # Run the state machine long enough to grab the blacklist.  This
+        # should fail with a signature error (internally).  There will be no
+        # blacklist.
         state = State()
-        next(state)
+        state.run_thru('get_blacklist_1')
         self.assertIsNone(state.blacklist)
         # Just to provide that the system image master key is going to change,
         # let's calculate the current one's checksum.
@@ -211,7 +269,7 @@ class TestState(unittest.TestCase):
             checksum = hashlib.md5(fp.read()).digest()
         # The next state transition should get us a new image master, but its
         # signature is not good.
-        self.assertRaises(SignatureError, next, state)
+        self.assertRaises(SignatureError, state.run_until, 'get_blacklist_2')
         # And the old system image master key hasn't changed.
         with open(config.gpg.image_master, 'rb') as fp:
             self.assertEqual(checksum, hashlib.md5(fp.read()).digest())
@@ -226,11 +284,11 @@ class TestState(unittest.TestCase):
             'image-master.gpg', 'archive-master.gpg',
             dict(type='image-master'),
             os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
-        # Run the state machine once to get the blacklist.  This should
+        # Run the state machine long enough to get the blacklist.  This should
         # download the system image master key, which will be signed against
         # the archive master.  Prove that the image master doesn't exist yet.
         self.assertFalse(os.path.exists(config.gpg.image_master))
-        next(State())
+        State().run_thru('get_blacklist_1')
         # Now the image master key exists.
         self.assertTrue(os.path.exists(config.gpg.image_master))
 
@@ -248,11 +306,11 @@ class TestState(unittest.TestCase):
         setup_keyring_txz(
             'spare.gpg', 'spare.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        # Run the state machine once to get the blacklist.  This should
+        # Run the state machine log enough to get the blacklist.  This should
         # download the system image master key, which will be signed against
         # the archive master.  Prove that the image master doesn't exist yet.
         self.assertFalse(os.path.exists(config.gpg.image_master))
-        next(State())
+        State().run_thru('get_blacklist_1')
         # Now the image master key exists.
         self.assertTrue(os.path.exists(config.gpg.image_master))
 
