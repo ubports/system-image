@@ -25,6 +25,7 @@ __all__ = [
 import os
 import dbus
 import stat
+import time
 import psutil
 import shutil
 import unittest
@@ -674,6 +675,19 @@ class TestDBusMain(unittest.TestCase):
         # raised.  Let this propagate up as a test failure.
         process.wait(timeout=6)
         self.assertFalse(process.is_running())
+
+    def test_service_keepalive(self):
+        # Proactively calling methods on the service keeps it alive.
+        self.assertIsNone(_find_dbus_proc(self.ini_path))
+        self._activate()
+        process = _find_dbus_proc(self.ini_path)
+        self.assertTrue(process.is_running())
+        # Normally the process would exit after 3 seconds, but we'll keep it
+        # alive for a bit.
+        for i in range(3):
+            self._activate()
+            time.sleep(2)
+        self.assertTrue(process.is_running())
 
     def test_channel_ini_override(self):
         # An optional channel.ini can override the build number and channel.

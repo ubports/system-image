@@ -16,6 +16,7 @@
 """DBus service."""
 
 __all__ = [
+    'Loop',
     'Service',
     ]
 
@@ -26,6 +27,31 @@ from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.helpers import last_update_date, version_detail
 from systemimage.settings import Settings
+
+
+class Loop:
+    """Keep track of the main loop."""
+
+    def __init__(self):
+        self._loop = GLib.MainLoop()
+        self._quitter = None
+
+    def keepalive(self):
+        if self._quitter is not None:
+            GLib.source_remove(self._quitter)
+            self._quitter = None
+        self._quitter = GLib.timeout_add_seconds(
+            config.dbus.lifetime.total_seconds(),
+            self.quit)
+
+    def quit(self):
+        if self._quitter is not None:
+            GLib.source_remove(self._quitter)
+            self._quitter = None
+        self._loop.quit()
+
+    def run(self):
+        self._loop.run()
 
 
 class Service(Object):
@@ -85,6 +111,7 @@ class Service(Object):
         completes.  The argument to that signal is a boolean indicating
         whether the update is available or not.
         """
+        self._loop.keepalive()
         if self._checking:
             # Check is already in progress, so there's nothing more to do.
             return
@@ -142,6 +169,7 @@ class Service(Object):
         """
         # Arrange for the update to happen in a little while, so that this
         # method can return immediately.
+        self._loop.keepalive()
         GLib.timeout_add(50, self._download)
 
     @method('com.canonical.SystemImage')
@@ -149,11 +177,13 @@ class Service(Object):
         """Pause a downloading update."""
         # XXX 2013-08-22 We cannot currently pause downloads until we
         # integrate with the download service.  LP: #1196991
+        self._loop.keepalive()
         return ""
 
     @method('com.canonical.SystemImage', out_signature='s')
     def CancelUpdate(self):
         """Cancel a download."""
+        self._loop.keepalive()
         self._api.cancel()
         # We're now in a failure state until the next CheckForUpdate.
         self._failure_count += 1
@@ -168,6 +198,7 @@ class Service(Object):
     @method('com.canonical.SystemImage', out_signature='s')
     def ApplyUpdate(self):
         """Apply the update, rebooting the device."""
+        self._loop.keepalive()
         if not self._rebootable:
             return 'No update has been downloaded'
         self._api.reboot()
@@ -175,6 +206,7 @@ class Service(Object):
 
     @method('com.canonical.SystemImage', out_signature='isssa{ss}')
     def Info(self):
+        self._loop.keepalive()
         return (config.build_number,
                 config.device,
                 config.channel,
@@ -188,6 +220,7 @@ class Service(Object):
         Some values are special, e.g. min_battery and auto_downloads.
         Implement these special semantics here.
         """
+        self._loop.keepalive()
         if key == 'min_battery':
             try:
                 as_int = int(value)
@@ -212,6 +245,7 @@ class Service(Object):
     @method('com.canonical.SystemImage', in_signature='s', out_signature='s')
     def GetSetting(self, key):
         """Get a setting."""
+        self._loop.keepalive()
         return Settings().get(key)
 
     @method('com.canonical.SystemImage')
@@ -230,23 +264,29 @@ class Service(Object):
                               #descriptions,
                               error_reason):
         """Signal sent in response to a CheckForUpdate()."""
+        self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='id')
     def UpdateProgress(self, percentage, eta):
         """Download progress."""
+        self._loop.keepalive()
 
     @signal('com.canonical.SystemImage')
     def UpdateDownloaded(self):
         """The update has been successfully downloaded."""
+        self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='is')
     def UpdateFailed(self, consecutive_failure_count, last_reason):
         """The update failed for some reason."""
+        self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='i')
     def UpdatePaused(self, percentage):
         """The download got paused."""
+        self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='ss')
     def SettingChanged(self, key, new_value):
         """A setting value has change."""
+        self._loop.keepalive()

@@ -29,10 +29,9 @@ import argparse
 from contextlib import ExitStack
 from dbus.mainloop.glib import DBusGMainLoop
 from dbus.service import BusName
-from gi.repository import GLib
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import config
-from systemimage.dbus import Service
+from systemimage.dbus import Loop, Service
 from systemimage.helpers import makedirs
 from systemimage.logging import initialize
 from systemimage.main import DEFAULT_CONFIG_FILE
@@ -101,9 +100,7 @@ def main():
     bus_name = BusName('com.canonical.SystemImage', system_bus)
 
     with ExitStack() as stack:
-        loop = GLib.MainLoop()
-        GLib.timeout_add_seconds(
-            config.dbus.lifetime.total_seconds(), loop.quit)
+        loop = Loop()
         testing_mode = getattr(args, 'testing', None)
         if testing_mode:
             instrument(config, stack)

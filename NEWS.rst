@@ -15,6 +15,9 @@ NEWS for system-image updater
    This avoid various problems that can occur if the reboot fails (LP:
    #1238102) and improves the ability to recover from partial downloads
    without rebooting (LP: #1233521).
+ * Keep the D-Bus process alive as long as progress is being made (as tracked
+   by any calls, internally or externally to D-Bus methods or signals).
+   (LP: #1238290)
  * Remove all references to the `[system]threads` variable since it is no
    longer used, after the integration of the download manager.
  * Through the use of psutils library, re-enable some previously skipped
