@@ -312,8 +312,8 @@ unmount system
             mediator.download()
         except SignatureError:
             pass
-        # There should be at one pause and one resume event, separated by 3 or
-        # more seconds.
+        # There should be at one pause and one resume event, separated by
+        # about 3 seconds.
         self.assertEqual(len(pauses), 1)
         self.assertEqual(len(resumes), 1)
-        self.assertGreaterEqual(resumes[0] - pauses[0], timedelta(seconds=3))
+        self.assertGreaterEqual(resumes[0] - pauses[0], timedelta(seconds=2.5))
