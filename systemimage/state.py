@@ -434,7 +434,8 @@ class State:
         for url, dst in downloads:
             safe_remove(dst)
         # Now, download all the files, providing logging feedback on progress.
-        self.downloader.get_files(downloads)
+        # This download can be paused.
+        self.downloader.get_files(downloads, pausable=True)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets
             # raised or if the checksums don't match.  If everything's okay,
