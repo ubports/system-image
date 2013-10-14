@@ -95,16 +95,13 @@ class DownloadReactor(Reactor):
         self.quit()
 
     def _do_paused(self, signal, path, paused):
-        self._print('PAUSE:', paused)
-        if self._pausable:
+        self._print('PAUSE:', paused, self._pausable)
+        if self._pausable and config.dbus_service is not None:
             # We could plumb through the `service` object from service.py (the
             # main entry point for system-image-dbus, but that's actually a
             # bit of a pain, so do the expedient thing and grab the interface
             # here.
-            bus = dbus.SystemBus()
-            service = bus.get_object('com.canonical.SystemImage', '/Service')
-            iface = dbus.Interface(service, 'com.canonical.SystemImage')
-            iface.UpdatePaused(0)
+            config.dbus_service.UpdatePaused(0)
 
     def _do_resumed(self, signal, path, resumed):
         self._print('RESUME:', resumed)

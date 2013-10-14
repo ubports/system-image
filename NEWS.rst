@@ -18,6 +18,7 @@ NEWS for system-image updater
  * Keep the D-Bus process alive as long as progress is being made (as tracked
    by any calls, internally or externally to D-Bus methods or signals).
    (LP: #1238290)
+ * Pause/resume downloads. (LP: #1237360)
  * Remove all references to the `[system]threads` variable since it is no
    longer used, after the integration of the download manager.
  * Through the use of the psutil library, re-enable some previously skipped

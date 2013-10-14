@@ -292,9 +292,6 @@ unmount system
             if resumed:
                 resumes.append(datetime.now())
         def pause_on_start(self, signal, path, started):
-            from systemimage.testing.helpers import debug
-            with debug() as ddlog:
-                ddlog('-> pause_on_start', started, self._pausable)
             if started and self._pausable:
                 mediator.pause()
                 GLib.timeout_add_seconds(3, mediator.resume)

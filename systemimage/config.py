@@ -42,6 +42,14 @@ class Configuration:
         ini_path = resource_filename('systemimage.data', 'client.ini')
         self.load(ini_path)
         self._override = False
+        # 2013-10-14 BAW This is a placeholder for rendezvous between the
+        # downloader and the D-Bus service.  When running udner D-Bus and we
+        # get a `paused` signal from the download manager, we need this to
+        # plumb through an UpdatePaused signal to our clients.  It rather
+        # sucks that we need a global for this, but I can't get the plumbing
+        # to work otherwise.  This seems like the least horrible place to
+        # stash this global.
+        self.dbus_service = None
         # Cache/overrides.
         self._device = None
         self._build_number = None

@@ -104,9 +104,10 @@ def main():
         testing_mode = getattr(args, 'testing', None)
         if testing_mode:
             instrument(config, stack)
-            service = get_service(testing_mode, system_bus, '/Service', loop)
+            config.dbus_service = get_service(
+                testing_mode, system_bus, '/Service', loop)
         else:
-            service = Service(system_bus, '/Service', loop)
+            config.dbus_service = Service(system_bus, '/Service', loop)
         try:
             loop.run()
         except KeyboardInterrupt:
