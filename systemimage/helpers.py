@@ -55,7 +55,7 @@ def safe_remove(path):
     """Like os.remove() but don't complain if the file doesn't exist."""
     try:
         os.remove(path)
-    except FileNotFoundError:
+    except (FileNotFoundError, IsADirectoryError):
         pass
 
 

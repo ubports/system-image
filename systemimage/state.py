@@ -147,24 +147,21 @@ class State:
         Removes all residual files from the cache and data partitions except
         `log` and `last_log` in the cache partition.
         """
+        cache_dir = config.updater.cache_partition
+        data_dir = config.updater.data_partition
         try:
-            files = os.listdir(config.updater.cache_partition)
+            files = os.listdir(cache_dir)
         except FileNotFoundError:
             pass
         else:
             for filename in files:
                 if filename in ('log', 'last_log'):
                     continue
-                safe_remove(
-                    os.path.join(config.updater.cache_partition, filename))
-        try:
-            files = os.listdir(config.updater.data_partition)
-        except FileNotFoundError:
-            pass
-        else:
-            for filename in files:
-                safe_remove(
-                    os.path.join(config.updater.data_partition, filename))
+                safe_remove(os.path.join(cache_dir, filename))
+        # Remove only the blacklist files since these are the only ones that
+        # will be downloaded to this location.
+        safe_remove(os.path.join(data_dir, 'blacklist.tar.xz'))
+        safe_remove(os.path.join(data_dir, 'blacklist.tar.xz.asc'))
         self._next.append(self._get_blacklist_1)
 
     def _get_blacklist_1(self):

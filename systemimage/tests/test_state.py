@@ -99,16 +99,23 @@ class TestState(unittest.TestCase):
             print('stale log', file=fp)
         with wopen(os.path.join(data_partition, 'last_log')) as fp:
             print('stale log', file=fp)
+        with wopen(os.path.join(data_partition, 'blacklist.tar.xz')) as fp:
+            print('black list', file=fp)
+        with wopen(os.path.join(data_partition, 'blacklist.tar.xz.asc')) as fp:
+            print('black list', file=fp)
         # Here are all the files before we start up the state machine.
         self.assertEqual(len(os.listdir(cache_partition)), 12)
-        self.assertEqual(len(os.listdir(data_partition)), 12)
+        self.assertEqual(len(os.listdir(data_partition)), 14)
         # Clean up step.
         State().run_thru('cleanup')
-        # All of the data partition files have been removed, and all but the
-        # two preserved files in the cache partition have been removed.
+        # Two files in the cache partition are preserved.
         self.assertEqual(set(os.listdir(cache_partition)),
                          set(['log', 'last_log']))
-        self.assertEqual(len(os.listdir(data_partition)), 0)
+        # Only the blacklist files are removed from the data partition.
+        contents = os.listdir(data_partition)
+        self.assertEqual(len(contents), 12)
+        self.assertFalse('blacklist.tar.xz' in contents)
+        self.assertFalse('blacklist.tar.xz.asc' in contents)
 
     @configuration
     def test_cleanup_no_partition(self):
