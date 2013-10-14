@@ -30,6 +30,8 @@ import random
 import unittest
 
 from contextlib import ExitStack
+from datetime import datetime, timedelta
+from gi.repository import GLib
 from systemimage.config import config
 from systemimage.download import Canceled, DBusDownloadManager
 from systemimage.helpers import temporary_directory
@@ -284,3 +286,48 @@ class TestDownloadBigFiles(unittest.TestCase):
                               downloads)
             # The temporary directory is empty.
             self.assertEqual(os.listdir(config.tempdir), [])
+
+    @configuration
+    def test_download_pause_resume(self):
+        with ExitStack() as stack:
+            serverdir = stack.enter_context(temporary_directory())
+            stack.push(make_http_server(serverdir, 8980))
+            # Create a couple of big files to download.
+            with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
+                fp.write(b'x' * 10 * MiB)
+            with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
+                fp.write(b'x' * 10 * MiB)
+            with open(os.path.join(serverdir, 'bigfile_3.dat'), 'wb') as fp:
+                fp.write(b'x' * 10 * MiB)
+            downloads = _http_pathify([
+                ('bigfile_1.dat', 'bigfile_1.dat'),
+                ('bigfile_2.dat', 'bigfile_2.dat'),
+                ('bigfile_3.dat', 'bigfile_3.dat'),
+                ])
+            downloader = DBusDownloadManager()
+            pauses = []
+            def do_paused(self, signal, path, paused):
+                if paused:
+                    pauses.append(datetime.now())
+            resumes = []
+            def do_resumed(self, signal, path, resumed):
+                if resumed:
+                    resumes.append(datetime.now())
+            def pause_on_start(self, signal, path, started):
+                if started:
+                    downloader.pause()
+                    GLib.timeout_add_seconds(3, downloader.resume)
+            stack.enter_context(
+                patch('systemimage.download.DownloadReactor._do_paused',
+                      do_paused))
+            stack.enter_context(
+                patch('systemimage.download.DownloadReactor._do_resumed',
+                      do_resumed))
+            stack.enter_context(
+                patch('systemimage.download.DownloadReactor._do_started',
+                      pause_on_start))
+            downloader.get_files(downloads, pausable=True)
+            self.assertEqual(len(pauses), 1)
+            self.assertEqual(len(resumes), 1)
+            self.assertGreaterEqual(resumes[0] - pauses[0],
+                                    timedelta(seconds=3))
