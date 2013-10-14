@@ -25,13 +25,19 @@ import os
 import unittest
 
 from contextlib import ExitStack
+from datetime import datetime, timedelta
+from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
-from systemimage.download import Canceled
+from systemimage.download import Canceled, Status
+from systemimage.gpg import SignatureError
 from systemimage.testing.helpers import (
     configuration, copy, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, temporary_directory, touch_build)
 from systemimage.testing.nose import SystemImagePlugin
+
+
+MiB = 1024 * 1024
 
 
 class TestAPI(unittest.TestCase):
@@ -266,3 +272,47 @@ unmount system
         # some did.
         self.assertNotEqual(received_bytes, 0)
         self.assertNotEqual(total_bytes, 0)
+
+    @configuration
+    def test_pause_resume(self):
+        # Pause and resume the download.
+        self._setup_keyrings()
+        bigfile_path = os.path.join(self._serverdir, '3', '4', '5.txt')
+        with open(bigfile_path, 'wb') as fp:
+            fp.write(b'x' * 1000 * MiB)
+        progresses = []
+        pauses = []
+        resumes = []
+        mediator = None
+        def callback(received, total, status):
+            from systemimage.testing.helpers import debug
+            with debug() as ddlog:
+                ddlog('CALLBACK:', received, total, status)
+            if status is Status.progress:
+                progresses.append((received, total))
+                if len(pauses) == 0:
+                    with debug() as ddlog:
+                        ddlog('PAUSING!')
+                    mediator.pause()
+                    GLib.timeout.add_seconds(mediator.resume, 5)
+            elif status is Status.paused:
+                pauses.append(datetime.now())
+            elif status is Status.resumed:
+                resumes.append(datetime.now())
+            else:
+                raise AssertionError('Bad status: {}'.format(status))
+        mediator = Mediator(callback)
+        mediator.check_for_update()
+        # We'll get a signature error because we messed with 5.txt.  This
+        # isn't something we care about so ignore it.
+        try:
+            mediator.download()
+        except SignatureError:
+            pass
+        # There should be at one pause and one resume event, separated by 3 or
+        # more seconds.
+        self.assertEqual(len(pauses), 1)
+        self.assertEqual(len(resumes), 1)
+        self.assertGreaterEqual(resumes[0] - pauses[0], timedelta(seconds=3))
+        # There should also be at least one progress event.
+        self.assertGreaterEqual(len(progresses), 1)

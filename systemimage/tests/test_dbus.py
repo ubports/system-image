@@ -29,6 +29,7 @@ __all__ = [
     'TestDBusMockNoUpdate',
     'TestDBusMockUpdateAutoSuccess',
     'TestDBusMockUpdateManualSuccess',
+    'TestDBusPauseResume',
     'TestDBusProgress',
     'TestDBusRegressions',
     ]
@@ -1298,3 +1299,28 @@ class TestDBusProgress(_LiveTesting):
         percentage, eta = reactor.progress[-1]
         self.assertEqual(percentage, 100)
         self.assertEqual(eta, 0)
+
+
+class TestDBusPauseResume(_LiveTesting):
+    def test_pause(self):
+        self.download_manually()
+        self._set_build(0)
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        # We're ready to start downloading.  We schedule a pause to happen in
+        # a little bit and then ensure that we get the proper signal.
+        reactor = SignalCapturingReactor('UpdatePaused')
+        reactor.schedule(self.iface.PauseDownload)
+        reactor.run(self.iface.DownloadUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        # There was no error.
+        self.assertEqual(reactor.signals[0], '')
+        # Now let's resume the download.  We'll get some progress statuses and
+        # then the download will complete.
+        reactor = ProgressRecordingReactor()
+        reactor.schedule(self.iface.DownloadUpdate)
+        reactor.run()
+        self.assertGreaterEqual(len(reactor.progress), 1)
+        percentage, eta = reactor.progress[-1]
+        self.assertEqual(percentage, 100)

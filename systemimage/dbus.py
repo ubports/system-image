@@ -172,8 +172,8 @@ class Service(Object):
         self._loop.keepalive()
         GLib.timeout_add(50, self._download)
 
-    @method('com.canonical.SystemImage')
-    def PauseDownload(self, out_signature='s'):
+    @method('com.canonical.SystemImage', out_signature='s')
+    def PauseDownload(self):
         """Pause a downloading update."""
         # XXX 2013-08-22 We cannot currently pause downloads until we
         # integrate with the download service.  LP: #1196991

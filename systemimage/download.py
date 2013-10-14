@@ -18,12 +18,15 @@
 __all__ = [
     'Canceled',
     'DBusDownloadManager',
+    'Status',
     ]
 
 
 import dbus
+import inspect
 import logging
 
+from enum import Enum
 from io import StringIO
 from systemimage.config import config
 from systemimage.reactor import Reactor
@@ -48,6 +51,11 @@ class Canceled(BaseException):
     """Raised when the download was canceled."""
 
 
+class Status(Enum):
+    progress = 1
+    paused = 2
+    resumed = 3
+
 
 class DownloadReactor(Reactor):
     def __init__(self, bus, callback=None):
@@ -62,11 +70,19 @@ class DownloadReactor(Reactor):
         self.react_to('progress')
         self.react_to('resumed')
         self.react_to('started')
+        # For backward compatibility, the callback gets an optional 3rd
+        # argument with status if it accepts a keyword argument called
+        # `status`.
+        if callback is None:
+            self._include_status = False
+        else:
+            signature = inspect.signature(callback)
+            self._include_status = ('status' in signature.parameters)
 
     def _print(self, *args, **kws):
-        ## from systemimage.testing.helpers import debug
-        ## with debug() as ddlog:
-        ##     ddlog(*args, **kws)
+        from systemimage.testing.helpers import debug
+        with debug() as ddlog:
+            ddlog(*args, **kws)
         pass
 
     def _do_started(self, signal, path, started):
@@ -85,7 +101,10 @@ class DownloadReactor(Reactor):
     def _do_progress(self, signal, path, received, total):
         self._print('PROGRESS:', received, total)
         if self._callback is not None:
-            self._callback(received, total)
+            kws = {}
+            if self._include_status:
+                kws['status'] = Status.progress
+            self._callback(received, total, **kws)
 
     def _do_canceled(self, signal, path, canceled):
         # Why would we get this signal if it *wasn't* canceled?  Anyway,
@@ -94,6 +113,16 @@ class DownloadReactor(Reactor):
         self._print('CANCELED:', canceled)
         self.canceled = bool(canceled)
         self.quit()
+
+    def _do_paused(self, signal, path, paused):
+        self._print('PAUSE:', paused)
+        if paused and self._include_status:
+            self._callback(0, 0, Status.paused)
+
+    def _do_resumed(self, signal, path, resumed):
+        self._print('RESUME:', resumed)
+        if resumed and self._include_status:
+            self._callback(0, 0, Status.resumed)
 
     def _default(self, *args, **kws):
         self._print('SIGNAL:', args, kws)
@@ -106,7 +135,10 @@ class DBusDownloadManager:
             during downloading.
         :type callback: A function that takes two arguments, the number
             of bytes received so far, and the total amount of bytes to be
-            downloaded.
+            downloaded.  If the callback takes a keyword argument called
+            `status` then the callback will also be caused on pause and resume
+            events, and in all three cases an enum with the event status is
+            passed.
         """
         self._iface = None
         self._reactor = None
@@ -189,3 +221,19 @@ class DBusDownloadManager:
             self._queued_cancel = True
         else:
             self._iface.cancel()
+
+    def pause(self):
+        """Pause the download, but only if one is in progress."""
+        if self._iface is not None:
+            from systemimage.testing.helpers import debug
+            with debug() as ddlog:
+                ddlog('-> pausing')
+            self._iface.pause()
+
+    def resume(self):
+        """Resume the download, but only if one is in progress."""
+        if self._iface is not None:
+            from systemimage.testing.helpers import debug
+            with debug() as ddlog:
+                ddlog('-> resuming')
+            self._iface.resume()
