@@ -48,11 +48,11 @@ class Canceled(BaseException):
     """Raised when the download was canceled."""
 
 
-
 class DownloadReactor(Reactor):
-    def __init__(self, bus, callback=None):
+    def __init__(self, bus, callback=None, pausable=False):
         super().__init__(bus)
         self._callback = callback
+        self._pausable = pausable
         self.error = None
         self.canceled = False
         self.react_to('canceled')
@@ -95,6 +95,19 @@ class DownloadReactor(Reactor):
         self.canceled = bool(canceled)
         self.quit()
 
+    def _do_paused(self, signal, path, paused):
+        self._print('PAUSE:', paused, self._pausable)
+        if self._pausable and config.dbus_service is not None:
+            # We could plumb through the `service` object from service.py (the
+            # main entry point for system-image-dbus, but that's actually a
+            # bit of a pain, so do the expedient thing and grab the interface
+            # here.
+            config.dbus_service.UpdatePaused(0)
+
+    def _do_resumed(self, signal, path, resumed):
+        self._print('RESUME:', resumed)
+        # There currently is no UpdateResumed() signal.
+
     def _default(self, *args, **kws):
         self._print('SIGNAL:', args, kws)
 
@@ -113,7 +126,7 @@ class DBusDownloadManager:
         self._queued_cancel = False
         self.callback = callback
 
-    def get_files(self, downloads):
+    def get_files(self, downloads, *, pausable=False):
         """Download a bunch of files concurrently.
 
         Occasionally, the callback is called to report on progress.
@@ -128,12 +141,14 @@ class DBusDownloadManager:
         or none of them.
 
         :param downloads: A list of 2-tuples where the first item is the url to
-        download, and the second item is the destination file.
+            download, and the second item is the destination file.
         :type downloads: List of 2-tuples.
+        :param pausable: A flag specifying whether this download can be paused
+            or not.  In general, data file downloads are pausable, but
+            preliminary downloads are not.
+        :type pausable: bool
         :raises: FileNotFoundError if any download error occurred.  In
-        this case, all download files are deleted.
-
-        The API is a little funky for backward compatibility reasons.
+            this case, all download files are deleted.
         """
         if self._queued_cancel:
             # A cancel is queued, so don't actually download anything.
@@ -156,7 +171,7 @@ class DBusDownloadManager:
             _headers())
         download = bus.get_object(OBJECT_NAME, object_path)
         self._iface = dbus.Interface(download, OBJECT_INTERFACE)
-        self._reactor = DownloadReactor(bus, self.callback)
+        self._reactor = DownloadReactor(bus, self.callback, pausable)
         self._reactor.schedule(self._iface.start)
         log.info('Running group download reactor')
         self._reactor.run()
@@ -189,3 +204,13 @@ class DBusDownloadManager:
             self._queued_cancel = True
         else:
             self._iface.cancel()
+
+    def pause(self):
+        """Pause the download, but only if one is in progress."""
+        if self._iface is not None:
+            self._iface.pause()
+
+    def resume(self):
+        """Resume the download, but only if one is in progress."""
+        if self._iface is not None:
+            self._iface.resume()

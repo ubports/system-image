@@ -29,6 +29,7 @@ __all__ = [
     'TestDBusMockNoUpdate',
     'TestDBusMockUpdateAutoSuccess',
     'TestDBusMockUpdateManualSuccess',
+    'TestDBusPauseResume',
     'TestDBusProgress',
     'TestDBusRegressions',
     ]
@@ -101,6 +102,23 @@ class ProgressRecordingReactor(Reactor):
 
     def _do_UpdateProgress(self, signal, path, *args, **kws):
         self.progress.append(args)
+
+
+class PausingReactor(Reactor):
+    def __init__(self, iface):
+        super().__init__(dbus.SystemBus())
+        self._iface = iface
+        self.paused = False
+        self.react_to('UpdateProgress')
+        self.react_to('UpdatePaused')
+
+    def _do_UpdateProgress(self, signal, path, percentage, eta):
+        if percentage == 0:
+            self._iface.PauseDownload()
+
+    def _do_UpdatePaused(self, signal, path, percentage):
+        self.paused = True
+        self.quit()
 
 
 class _TestBase(unittest.TestCase):
@@ -1298,3 +1316,40 @@ class TestDBusProgress(_LiveTesting):
         percentage, eta = reactor.progress[-1]
         self.assertEqual(percentage, 100)
         self.assertEqual(eta, 0)
+
+
+class TestDBusPauseResume(_LiveTesting):
+    def setUp(self):
+        super().setUp()
+        # We have to hack the files to be rather large so that the download
+        # doesn't complete before we get a chance to pause it.
+        for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
+            full_path = os.path.join(
+                SystemImagePlugin.controller.serverdir, path)
+            with open(full_path, 'wb') as fp:
+                # 100 MiB
+                for i in range(25600):
+                    fp.write(b'x' * 4096)
+
+    def test_pause(self):
+        self.download_manually()
+        self._set_build(0)
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        # We're ready to start downloading.  We schedule a pause to happen in
+        # a little bit and then ensure that we get the proper signal.
+        reactor = PausingReactor(self.iface)
+        reactor.schedule(self.iface.DownloadUpdate)
+        reactor.run(timeout=15)
+        self.assertTrue(reactor.paused)
+        # Now let's resume the download.  Because we intentionally corrupted
+        # the downloaded files, we'll get an UpdateFailed signal instead of
+        # the successful UpdateDownloaded signal.  We can ignore that.
+        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.run(self.iface.DownloadUpdate, timeout=60)
+        self.assertEqual(len(reactor.signals), 1)
+        # We've gotten one error and the first file that filed is 5.txt.
+        failure_count, last_error = reactor.signals[0]
+        self.assertEqual(failure_count, 1)
+        self.assertEqual(os.path.basename(last_error), '5.txt')

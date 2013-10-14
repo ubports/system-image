@@ -64,6 +64,7 @@ class Service(Object):
         self._checking = False
         self._update = None
         self._downloading = False
+        self._paused = False
         self._rebootable = False
         self._failure_count = 0
         self._last_error = ''
@@ -133,6 +134,10 @@ class Service(Object):
         self.UpdateProgress(percentage, eta)
 
     def _download(self):
+        if self._downloading and self._paused:
+            self._api.resume()
+            self._paused = False
+            return
         if (self._downloading                        # Already in progress.
             or self._update is None                  # Not yet checked.
             or not self._update.is_available         # No update available.
@@ -172,13 +177,17 @@ class Service(Object):
         self._loop.keepalive()
         GLib.timeout_add(50, self._download)
 
-    @method('com.canonical.SystemImage')
-    def PauseDownload(self, out_signature='s'):
+    @method('com.canonical.SystemImage', out_signature='s')
+    def PauseDownload(self):
         """Pause a downloading update."""
-        # XXX 2013-08-22 We cannot currently pause downloads until we
-        # integrate with the download service.  LP: #1196991
         self._loop.keepalive()
-        return ""
+        if self._downloading:
+            self._api.pause()
+            self._paused = True
+            error_message = ''
+        else:
+            error_message = 'not downloading'
+        return error_message
 
     @method('com.canonical.SystemImage', out_signature='s')
     def CancelUpdate(self):

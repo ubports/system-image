@@ -25,13 +25,20 @@ import os
 import unittest
 
 from contextlib import ExitStack
+from datetime import datetime, timedelta
+from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.download import Canceled
+from systemimage.gpg import SignatureError
 from systemimage.testing.helpers import (
     configuration, copy, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, temporary_directory, touch_build)
 from systemimage.testing.nose import SystemImagePlugin
+from unittest.mock import patch
+
+
+MiB = 1024 * 1024
 
 
 class TestAPI(unittest.TestCase):
@@ -266,3 +273,47 @@ unmount system
         # some did.
         self.assertNotEqual(received_bytes, 0)
         self.assertNotEqual(total_bytes, 0)
+
+    @configuration
+    def test_pause_resume(self):
+        # Pause and resume the download.
+        self._setup_keyrings()
+        for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
+            full_path = os.path.join(self._serverdir, path)
+            with open(full_path, 'wb') as fp:
+                fp.write(b'x' * 100 * MiB)
+        mediator = Mediator()
+        pauses = []
+        def do_paused(self, signal, path, paused):
+            if paused:
+                pauses.append(datetime.now())
+        resumes = []
+        def do_resumed(self, signal, path, resumed):
+            if resumed:
+                resumes.append(datetime.now())
+        def pause_on_start(self, signal, path, started):
+            if started and self._pausable:
+                mediator.pause()
+                GLib.timeout_add_seconds(3, mediator.resume)
+        self._stack.enter_context(
+            patch('systemimage.download.DownloadReactor._do_paused',
+                  do_paused))
+        self._stack.enter_context(
+            patch('systemimage.download.DownloadReactor._do_resumed',
+                  do_resumed))
+        self._stack.enter_context(
+            patch('systemimage.download.DownloadReactor._do_started',
+                  pause_on_start))
+        mediator.check_for_update()
+        # We'll get a signature error because we messed with the file
+        # contents.  Since this check happens after all files are downloaded,
+        # this exception is inconsequential to the thing we're testing.
+        try:
+            mediator.download()
+        except SignatureError:
+            pass
+        # There should be at one pause and one resume event, separated by 3 or
+        # more seconds.
+        self.assertEqual(len(pauses), 1)
+        self.assertEqual(len(resumes), 1)
+        self.assertGreaterEqual(resumes[0] - pauses[0], timedelta(seconds=3))

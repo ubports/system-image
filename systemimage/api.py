@@ -76,6 +76,12 @@ class Mediator:
     def cancel(self):
         self._state.downloader.cancel()
 
+    def pause(self):
+        self._state.downloader.pause()
+
+    def resume(self):
+        self._state.downloader.resume()
+
     def check_for_update(self):
         """Is there an update available for this machine?
 
