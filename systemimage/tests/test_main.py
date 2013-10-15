@@ -688,13 +688,19 @@ class TestDBusMain(unittest.TestCase):
         # The temporary directory gets created if it doesn't exist.
         config = Configuration()
         config.load(self.ini_path)
-        # Delete the temporary directory, which will have been created by the
+        # The temporary directory may have already been created via the
         # .set_mode() call in the setUp().  That invokes a 'stopper' for the
         # -dbus process, which has the perverse effect of first D-Bus
         # activating the process, and thus creating the temporary directory
-        # before calling .Exit().  Deleting it now will allow the .Info() call
-        # below to re-active the process and thus re-create the directory.
-        shutil.rmtree(config.system.tempdir)
+        # before calling .Exit().  However, due to timing issues, it's
+        # possible we get here before the process was ever started, and thus
+        # the daemon won't be killed.  Conditionally deleting it now will
+        # allow the .Info() call below to re-active the process and thus
+        # re-create the directory.
+        try:
+            shutil.rmtree(config.system.tempdir)
+        except FileNotFoundError:
+            pass
         self.assertFalse(os.path.exists(config.system.tempdir))
         self._activate()
         self.assertTrue(os.path.exists(config.system.tempdir))
@@ -703,7 +709,11 @@ class TestDBusMain(unittest.TestCase):
         # LP: #1235975 - The created tempdir had unsafe permissions.
         config = Configuration()
         config.load(self.ini_path)
-        shutil.rmtree(config.system.tempdir)
+        # See above.
+        try:
+            shutil.rmtree(config.system.tempdir)
+        except FileNotFoundError:
+            pass
         os.remove(config.system.logfile)
         self._activate()
         mode = os.stat(config.system.tempdir).st_mode

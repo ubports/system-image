@@ -15,6 +15,7 @@
 
 """A D-Bus signal reactor class."""
 
+import os
 import logging
 
 from gi.repository import GLib
@@ -22,7 +23,17 @@ from gi.repository import GLib
 log = logging.getLogger('systemimage')
 
 
-TIMEOUT_SECONDS = 600
+# LP: #1240106 - We get intermittent and unreproducible TimeoutErrors in the
+# DEP 8 when the default timeout is used.  It seems like cranking this up to
+# 20 minutes makes the tests pass.  This must be some weird interaction
+# between ubuntu-download-manager and the autopkgtest environment because a
+# TimeoutError means we don't hear from u-d-m for 10 minutes... at all!  No
+# signals of any kind.  It's possible this is related to LP: #1240157 in
+# u-d-m, but as that won't likely get fixed for Saucy, this is a hack that
+# allows the DEP 8 tests to increase the timeout and hopefully succeed.
+
+OVERRIDE = os.environ.get('SYSTEMIMAGE_REACTOR_TIMEOUT')
+TIMEOUT_SECONDS = (600 if OVERRIDE is None else int(OVERRIDE))
 
 
 class Reactor:
