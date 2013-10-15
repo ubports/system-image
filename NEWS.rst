@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-1.9 (2013-XX-XX)
+1.9 (2013-10-14)
 ================
  * Fix file and directory permissions.  A random temporary directory inside
    /tmp (by default, see `[system]tempdir` in client.ini) is securely created
