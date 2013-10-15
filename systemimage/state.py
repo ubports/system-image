@@ -52,7 +52,7 @@ class ChecksumError(Exception):
 
 def _copy_if_missing(src, dstdir):
     dst_path = os.path.join(dstdir, os.path.basename(src))
-    if not os.path.exists(dst_path):
+    if os.path.exists(src) and not os.path.exists(dst_path):
         shutil.copy(src, dstdir)
 
 

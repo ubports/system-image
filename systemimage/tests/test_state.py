@@ -423,7 +423,7 @@ class _StateTestsBase(unittest.TestCase):
     def tearDown(self):
         self._stack.close()
 
-    def _setup_keyrings(self):
+    def _setup_keyrings(self, *, device_signing=True):
         # Only the archive-master key is pre-loaded.  All the other keys
         # are downloaded and there will be both a blacklist and device
         # keyring.  The four signed keyring tar.xz files and their
@@ -441,11 +441,12 @@ class _StateTestsBase(unittest.TestCase):
             'image-signing.gpg', 'image-master.gpg',
             dict(type='image-signing'),
             os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
-        setup_keyring_txz(
-            'device-signing.gpg', 'image-signing.gpg',
-            dict(type='device-signing'),
-            os.path.join(self._serverdir, self.CHANNEL, self.DEVICE,
-                         'device-signing.tar.xz'))
+        if device_signing:
+            setup_keyring_txz(
+                'device-signing.gpg', 'image-signing.gpg',
+                dict(type='device-signing'),
+                os.path.join(self._serverdir, self.CHANNEL, self.DEVICE,
+                             'device-signing.tar.xz'))
 
 
 class TestRebooting(_StateTestsBase):
@@ -570,6 +571,78 @@ class TestRebooting(_StateTestsBase):
         with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
             list(state)
         self.assertTrue(got_reboot)
+
+
+class TestRebootingNoDeviceSigning(_StateTestsBase):
+    INDEX_FILE = 'index_13.json'
+    CHANNEL_FILE = 'channels_11.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    @configuration
+    def test_keyrings_copied_to_upgrader_paths_no_device_keyring(self):
+        # The following keyrings get copied to system paths that the upgrader
+        # consults:
+        # * blacklist.tar.xz{,.asc}      - data partition (if one exists)
+        # * image-master.tar.xz{,.asc}   - cache partition
+        # * image-signing.tar.xz{,.asc}  - cache partition
+        #
+        # In this test, there is no device signing keyring.
+        self._setup_keyrings(device_signing=False)
+        cache_dir = config.updater.cache_partition
+        data_dir = config.updater.data_partition
+        blacklist_path = os.path.join(data_dir, 'blacklist.tar.xz')
+        master_path = os.path.join(cache_dir, 'image-master.tar.xz')
+        signing_path = os.path.join(cache_dir, 'image-signing.tar.xz')
+        device_path = os.path.join(cache_dir, 'device-signing.tar.xz')
+        # None of the keyrings or .asc files are found yet.
+        self.assertFalse(os.path.exists(blacklist_path))
+        self.assertFalse(os.path.exists(master_path))
+        self.assertFalse(os.path.exists(signing_path))
+        self.assertFalse(os.path.exists(device_path))
+        self.assertFalse(os.path.exists(blacklist_path + '.asc'))
+        self.assertFalse(os.path.exists(master_path + '.asc'))
+        self.assertFalse(os.path.exists(signing_path + '.asc'))
+        self.assertFalse(os.path.exists(device_path + '.asc'))
+        # Be sure to resign the relevant files with the image-signing key.
+        index_path = os.path.join(
+            self._serverdir, self.CHANNEL, self.DEVICE, 'index.json')
+        sign(index_path, 'image-signing.gpg')
+        setup_index(self.INDEX_FILE, self._serverdir, 'image-signing.gpg')
+        # None of the data files are found yet.
+        for image in get_index('index_13.json').images:
+            for filerec in image.files:
+                path = os.path.join(cache_dir, os.path.basename(filerec.path))
+                asc = os.path.join(
+                    cache_dir, os.path.basename(filerec.signature))
+                self.assertFalse(os.path.exists(path))
+                self.assertFalse(os.path.exists(asc))
+        # Run the state machine enough times to download all the keyrings and
+        # data files, then to move the files into place just before a reboot
+        # is issued.  Steps preceded by * are steps that fail.
+        # *get blacklist/get master -> get channels/signing
+        # -> get device signing -> get index -> calculate winner
+        # -> download files -> move files
+        state = State()
+        state.run_thru('move_files')
+        # All of the keyrings and .asc files are found, except for the device
+        # singing keys.
+        self.assertTrue(os.path.exists(blacklist_path))
+        self.assertTrue(os.path.exists(master_path))
+        self.assertTrue(os.path.exists(signing_path))
+        self.assertFalse(os.path.exists(device_path))
+        self.assertTrue(os.path.exists(blacklist_path + '.asc'))
+        self.assertTrue(os.path.exists(master_path + '.asc'))
+        self.assertTrue(os.path.exists(signing_path + '.asc'))
+        self.assertFalse(os.path.exists(device_path + '.asc'))
+        # All of the data files are found.
+        for image in get_index('index_13.json').images:
+            for filerec in image.files:
+                path = os.path.join(cache_dir, os.path.basename(filerec.path))
+                asc = os.path.join(
+                    cache_dir, os.path.basename(filerec.signature))
+                self.assertTrue(os.path.exists(path))
+                self.assertTrue(os.path.exists(asc))
 
 
 class TestCommandFileFull(_StateTestsBase):
