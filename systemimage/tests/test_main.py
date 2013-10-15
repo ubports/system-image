@@ -36,6 +36,7 @@ from functools import partial
 from io import StringIO
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from systemimage.config import Configuration, config
+from systemimage.helpers import safe_remove
 from systemimage.main import main as cli_main
 from systemimage.testing.helpers import (
     configuration, copy, data_path, temporary_directory, touch_build)
@@ -714,7 +715,7 @@ class TestDBusMain(unittest.TestCase):
             shutil.rmtree(config.system.tempdir)
         except FileNotFoundError:
             pass
-        os.remove(config.system.logfile)
+        safe_remove(config.system.logfile)
         self._activate()
         mode = os.stat(config.system.tempdir).st_mode
         self.assertEqual(stat.filemode(mode), 'drwx--S---')
