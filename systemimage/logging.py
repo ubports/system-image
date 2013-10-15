@@ -59,8 +59,7 @@ def initialize(*, verbosity=0):
     logging.setLogRecordFactory(FormattingLogRecord)
     # Now configure the application level logger based on the ini file.
     log = logging.getLogger('systemimage')
-    # Make sure the log directory exists, and that the log file has safe
-    # permissions.
+    # Make sure the log directory exists.
     makedirs(os.path.dirname(config.system.logfile))
     # touch(1) - but preserve in case file already exists.
     with open(config.system.logfile, 'a', encoding='utf-8'):

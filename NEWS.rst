@@ -2,8 +2,9 @@
 NEWS for system-image updater
 =============================
 
-1.10 (2013-XX-XX)
-=================
+1.9.1 (2013-XX-XX)
+==================
+ * Further refinement of permission checking/fixing.  (LP: #1240105)
 
 1.9 (2013-10-14)
 ================
