@@ -158,10 +158,12 @@ class State:
                 if filename in ('log', 'last_log'):
                     continue
                 safe_remove(os.path.join(cache_dir, filename))
-        # Remove only the blacklist files since these are the only ones that
-        # will be downloaded to this location.
+        # Remove only the blacklist files (and generic keyring files) since
+        # these are the only ones that will be downloaded to this location.
         safe_remove(os.path.join(data_dir, 'blacklist.tar.xz'))
         safe_remove(os.path.join(data_dir, 'blacklist.tar.xz.asc'))
+        safe_remove(os.path.join(data_dir, 'keyring.tar.xz'))
+        safe_remove(os.path.join(data_dir, 'keyring.tar.xz.asc'))
         self._next.append(self._get_blacklist_1)
 
     def _get_blacklist_1(self):

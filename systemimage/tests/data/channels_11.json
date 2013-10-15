@@ -1,0 +1,7 @@
+{
+    "stable": {
+        "nexus7": {
+            "index": "/stable/nexus7/index.json"
+        }
+    }
+}
