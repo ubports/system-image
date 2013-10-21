@@ -1,19 +1,23 @@
 {
     "daily": {
-        "nexus7": {
-            "index": "/daily/nexus7/index.json",
-            "keyring": {
-                "path": "/daily/nexus7/device-keyring.tar.xz",
-                "signature": "/daily/nexus7/device-keyring.tar.xz.asc"
+        "devices": {
+            "nexus7": {
+                "index": "/daily/nexus7/index.json",
+                "keyring": {
+                    "path": "/daily/nexus7/device-keyring.tar.xz",
+                    "signature": "/daily/nexus7/device-keyring.tar.xz.asc"
+                }
+            },
+            "nexus4":{
+                "index": "/daily/nexus4/index.json"
             }
-        },
-        "nexus4":{
-            "index": "/daily/nexus4/index.json"
         }
     },
     "stable": {
-        "nexus7":{
-            "index": "/stable/nexus7/index.json"
+        "devices": {
+            "nexus7":{
+                "index": "/stable/nexus7/index.json"
+            }
         }
     }
 }

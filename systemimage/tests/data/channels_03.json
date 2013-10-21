@@ -1,10 +1,12 @@
 {
     "stable": {
-        "nexus7":{
-            "index": "/stable/nexus7/index.json",
-            "keyring": {
-                "path": "stable/nexus7/device.tar.xz",
-                "signature": "stable/nexus7/device.tar.xz.asc"
+        "devices": {
+            "nexus7":{
+                "index": "/stable/nexus7/index.json",
+                "keyring": {
+                    "path": "stable/nexus7/device.tar.xz",
+                    "signature": "stable/nexus7/device.tar.xz.asc"
+                }
             }
         }
     }
