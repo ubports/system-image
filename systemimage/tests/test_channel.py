@@ -34,6 +34,7 @@ from systemimage.state import State
 from systemimage.testing.helpers import (
     configuration, copy, get_channels, make_http_server, setup_keyring_txz,
     setup_keyrings, sign)
+from systemimage.testing.nose import SystemImagePlugin
 
 
 class TestChannels(unittest.TestCase):
@@ -87,6 +88,10 @@ class TestChannels(unittest.TestCase):
 
 class TestLoadChannel(unittest.TestCase):
     """Test downloading and caching the channels.json file."""
+
+    @classmethod
+    def setUpClass(cls):
+        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def setUp(self):
         self._stack = ExitStack()
@@ -156,6 +161,10 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
 
     Start an HTTP server, no HTTPS server to show the download fails.
     """
+    @classmethod
+    def setUpClass(cls):
+        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
+
     def setUp(self):
         self._stack = ExitStack()
         try:

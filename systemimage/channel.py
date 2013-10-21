@@ -44,29 +44,15 @@ class Channels(Bag):
     def from_json(cls, data):
         mapping = json.loads(data)
         channels = {}
-        # LP: #1221841 introduced a new channels.json format which introduced
-        # a new level between the channel name and the device name.  This
-        # extra level can include optional 'alias' and 'hidden' keys, and must
-        # include a 'devices' key.  Until LP: #1221843 we must support both
-        # formats, so to figure out which we're looking at, see if there's a
-        # 'devices' key under the channel name.  We'll just assume there won't
-        # be a device called 'device'.
         for channel_name, mapping_1 in mapping.items():
-            if 'devices' in mapping_1:
-                # New style.
-                hidden = mapping_1.pop('hidden', None)
-                if hidden is None:
-                    hidden = False
-                else:
-                    assert hidden in (True, False), (
-                        "Unexpected value for 'hidden': {}".format(hidden))
-                mapping_1['hidden'] = hidden
-                device_mapping = mapping_1.pop('devices')
-                mapping_1['devices'] = _parse_device_mappings(device_mapping)
-                channels[channel_name] = Bag(**mapping_1)
+            hidden = mapping_1.pop('hidden', None)
+            if hidden is None:
+                hidden = False
             else:
-                # For better forward compatibility, even old style
-                # channel.json files get a 'devices' level.
-                device_mapping = _parse_device_mappings(mapping_1)
-                channels[channel_name] = Bag(devices=device_mapping)
+                assert hidden in (True, False), (
+                    "Unexpected value for 'hidden': {}".format(hidden))
+            mapping_1['hidden'] = hidden
+            device_mapping = mapping_1.pop('devices')
+            mapping_1['devices'] = _parse_device_mappings(device_mapping)
+            channels[channel_name] = Bag(**mapping_1)
         return cls(**channels)

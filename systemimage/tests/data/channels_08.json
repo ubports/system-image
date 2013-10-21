@@ -1,62 +1,70 @@
 {
     "13.10": {
-        "grouper": {
-            "index": "/13.10/grouper/index.json"
-        },
-        "maguro": {
-            "index": "/13.10/maguro/index.json"
-        },
-        "mako": {
-            "index": "/13.10/mako/index.json"
-        },
-        "manta": {
-            "index": "/13.10/manta/index.json"
+        "devices": {
+            "grouper": {
+                "index": "/13.10/grouper/index.json"
+            },
+            "maguro": {
+                "index": "/13.10/maguro/index.json"
+            },
+            "mako": {
+                "index": "/13.10/mako/index.json"
+            },
+            "manta": {
+                "index": "/13.10/manta/index.json"
+            }
         }
     },
     "13.10-proposed": {
-        "grouper": {
-            "index": "/13.10-proposed/grouper/index.json"
-        },
-        "maguro": {
-            "index": "/13.10-proposed/maguro/index.json"
-        },
-        "mako": {
-            "index": "/13.10-proposed/mako/index.json"
-        },
-        "manta": {
-            "index": "/13.10-proposed/manta/index.json"
+        "devices": {
+            "grouper": {
+                "index": "/13.10-proposed/grouper/index.json"
+            },
+            "maguro": {
+                "index": "/13.10-proposed/maguro/index.json"
+            },
+            "mako": {
+                "index": "/13.10-proposed/mako/index.json"
+            },
+            "manta": {
+                "index": "/13.10-proposed/manta/index.json"
+            }
         }
     },
     "14.04": {
-        "grouper": {
-            "index": "/14.04/grouper/index.json"
-        },
-        "maguro": {
-            "index": "/14.04/maguro/index.json"
-        },
-        "mako": {
-            "index": "/14.04/mako/index.json"
-        },
-        "manta": {
-            "index": "/14.04/manta/index.json"
+        "devices": {
+            "grouper": {
+                "index": "/14.04/grouper/index.json"
+            },
+            "maguro": {
+                "index": "/14.04/maguro/index.json"
+            },
+            "mako": {
+                "index": "/14.04/mako/index.json"
+            },
+            "manta": {
+                "index": "/14.04/manta/index.json"
+            }
         }
     },
     "14.04-proposed": {
-        "grouper": {
-            "index": "/14.04-proposed/grouper/index.json",
-            "keyring": {
-                "path": "/14.04-proposed/grouper/device-signing.tar.xz",
-                "signature": "/14.04-proposed/grouper/device-signing.tar.xz.asc"
+        "devices": {
+            "grouper": {
+                "index": "/14.04-proposed/grouper/index.json",
+                "keyring": {
+                    "path": "/14.04-proposed/grouper/device-signing.tar.xz",
+                    "signature": "/14.04-proposed/grouper/device-signing.tar.xz.asc"
+                }
+            },
+            "maguro": {
+                "index": "/14.04-proposed/maguro/index.json"
+            },
+            "mako": {
+                "index": "/14.04-proposed/mako/index.json"
+            },
+            "manta": {
+                "index": "/14.04-proposed/manta/index.json"
             }
-        },
-        "maguro": {
-            "index": "/14.04-proposed/maguro/index.json"
-        },
-        "mako": {
-            "index": "/14.04-proposed/mako/index.json"
-        },
-        "manta": {
-            "index": "/14.04-proposed/manta/index.json"
         }
     }
 }

@@ -1,7 +1,9 @@
 {
     "stable": {
-        "nexus0":{
-            "index": "/stable/nexus7/index.json"
+        "devices": {
+            "nexus0":{
+                "index": "/stable/nexus7/index.json"
+            }
         }
     }
 }

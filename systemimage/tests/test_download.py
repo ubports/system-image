@@ -123,8 +123,8 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(
             set(os.listdir(config.tempdir)),
             set(['channels.json', 'index.json']))
-        self.assertEqual(received_bytes, 555)
-        self.assertEqual(total_bytes, 555)
+        self.assertEqual(received_bytes, 669)
+        self.assertEqual(total_bytes, 669)
 
 
 class TestHTTPSDownloads(unittest.TestCase):

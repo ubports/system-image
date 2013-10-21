@@ -43,7 +43,7 @@ MiB = 1024 * 1024
 
 class TestAPI(unittest.TestCase):
     @classmethod
-    def setUpClass(self):
+    def setUpClass(cls):
         SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def setUp(self):
