@@ -10,6 +10,7 @@ NEWS for system-image updater
    + Add -P option to provide much nicer test pattern matching.
    + Add -V option to increase `systemimage` logging verbosity during tests
      (separate from nose2's own -v options).
+ * Write the `ubuntu_command` file atomically.  (LP: #1241236)
 
 1.9.1 (2013-10-15)
 ==================

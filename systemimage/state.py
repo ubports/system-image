@@ -35,7 +35,7 @@ from systemimage.channel import Channels
 from systemimage.config import config
 from systemimage.download import DBusDownloadManager
 from systemimage.gpg import Context, SignatureError
-from systemimage.helpers import makedirs, safe_remove
+from systemimage.helpers import atomic, makedirs, safe_remove
 from systemimage.index import Index
 from systemimage.keyring import KeyringError, get_keyring
 from urllib.parse import urljoin
@@ -518,7 +518,7 @@ class State:
         # Open command file and first write the load_keyring commands.
         command_file = os.path.join(
             config.updater.cache_partition, 'ubuntu_command')
-        with open(command_file, 'w', encoding='utf-8') as fp:
+        with atomic(command_file) as fp:
             print('load_keyring {0} {0}.asc'.format(
                 os.path.basename(config.gpg.image_master)),
                 file=fp)

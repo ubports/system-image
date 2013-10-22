@@ -671,6 +671,27 @@ update 5.txt 5.txt.asc
 unmount system
 """)
 
+    @configuration
+    def test_write_command_file_atomically(self):
+        # LP: #1241236 - write the ubuntu_command file atomically.
+        self._setup_keyrings()
+        self._state.run_until('prepare_recovery')
+        # This is a little proxy object which interposes printing.  When it
+        # sees the string 'unmount system' written to it, it raises an
+        # IOError.  We use this to prove that the ubuntu_command file is
+        # written atomically.
+        old_print = print
+        def broken_print(arg0, *args, **kws):
+            if arg0.startswith('unmount system'):
+                raise IOError('barf')
+            old_print(arg0, *args, **kws)
+        with patch('builtins.print', broken_print):
+            with self.assertRaises(IOError) as cm:
+                next(self._state)
+            self.assertEqual(str(cm.exception), 'barf')
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        self.assertFalse(os.path.exists(path))
+
 
 class TestCommandFileDelta(_StateTestsBase):
     INDEX_FILE = 'index_15.json'
