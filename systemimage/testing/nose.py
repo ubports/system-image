@@ -21,11 +21,10 @@ __all__ = [
 
 
 import re
-import sys
 import atexit
 
 from dbus.mainloop.glib import DBusGMainLoop
-from nose.plugins import Plugin
+from nose2.events import Plugin
 from systemimage.logging import initialize
 from systemimage.testing.controller import Controller
 from systemimage.testing.helpers import configuration
@@ -67,20 +66,26 @@ from systemimage.testing.helpers import configuration
 # service, it will do so with the correct (i.e. newly written) command.
 
 class SystemImagePlugin(Plugin):
-    enabled = True
+    # Hook into nose2's unittest.cfg configuration.
+    configSection = 'systemimage'
+
     controller = None
 
+    def __init__(self):
+        super().__init__()
+        self.patterns = []
+        self.verbosity = 0
+        self.addArgument(self.patterns, 'P', 'pattern',
+                         'Add a test matching pattern')
+        def bump(ignore):
+            self.verbosity += 1
+        self.addFlag(bump, 'V', 'Verbosity',
+                     'Increase system-image verbosity')
+
     @configuration
-    def begin(self):
+    def startTestRun(self, event):
         DBusGMainLoop(set_as_default=True)
-        # Count verbosity.  There might be a better way to do this through
-        # nose's command line option handling.
-        verbosity = 0
-        for arg in sys.argv[1:]:
-            mo = re.match('^-(?P<verbose>v+)$', arg)
-            if mo:
-                verbosity += len(mo.group('verbose'))
-        initialize(verbosity=verbosity)
+        initialize(verbosity=self.verbosity)
         # We need to set up the dbus service controller, since all the tests
         # which use a custom address must continue to use the same address for
         # the duration of the test process.  We can kill and restart
@@ -91,7 +96,26 @@ class SystemImagePlugin(Plugin):
         SystemImagePlugin.controller.start()
         atexit.register(SystemImagePlugin.controller.stop)
 
-    def finalize(self, result):
+    def getTestCaseNames(self, event):
+        if len(self.patterns) == 0:
+            # No filter patterns, so everything should be tested.
+            return
+        # Does the pattern match the fully qualified class name?
+        for pattern in self.patterns:
+            full_name = '{}.{}'.format(
+                event.testCase.__module__, event.testCase.__name__)
+            if re.search(pattern, full_name):
+                # Don't suppress this test class.
+                return
+        names = filter(event.isTestMethod, dir(event.testCase))
+        for name in names:
+            for pattern in self.patterns:
+                if re.search(pattern, name):
+                    break
+            else:
+                event.excludedNames.append(name)
+
+    def afterTestRun(self, event):
         SystemImagePlugin.controller.stop()
         # Let other plugins continue printing.
         return None

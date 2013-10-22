@@ -20,6 +20,7 @@ __all__ = [
     'copy',
     'data_path',
     'debug',
+    'find_dbus_process',
     'get_channels',
     'get_index',
     'make_http_server',
@@ -38,6 +39,7 @@ import ssl
 import json
 import time
 import gnupg
+import psutil
 import shutil
 import inspect
 import tarfile
@@ -57,6 +59,7 @@ from unittest.mock import patch
 
 
 EMPTYSTRING = ''
+SPACE = ' '
 
 
 def get_index(filename):
@@ -391,3 +394,28 @@ def patience(exception):
             break
     else:
         raise RuntimeError('Process did not exit')
+
+
+def find_dbus_process(ini_path):
+    """Return the system-image-dbus process running the given ini file."""
+    # This method searches all processes for the one matching the
+    # system-image-dbus service.  This is harder than it should be because
+    # while dbus-launch gives us the PID of the dbus-launch process itself,
+    # that can't be used to find the appropriate child process, because
+    # D-Bus activated processes are orphaned to init as their parent.
+    #
+    # This then does a brute-force search over all the processes, looking one
+    # that has a particular command line indicating that it's the
+    # system-image-dbus service.  We don't run this latter by that name
+    # though, since that's a wrapper created by setup.py's entry points.
+    #
+    # To make doubly certain we're not going to get the wrong process (in case
+    # there are multiple system-image-dbus processes running), we'll also look
+    # for the specific ini_path for the instance we care about.  Yeah, this
+    # all kind of sucks, but should be effective in finding the one we need to
+    # track.
+    for process in psutil.process_iter():
+        cmdline = SPACE.join(process.cmdline)
+        if 'systemimage.service' in cmdline and ini_path in cmdline:
+            return process
+    return None

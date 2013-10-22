@@ -42,7 +42,7 @@ import shutil
 import unittest
 
 from contextlib import ExitStack
-from datetime import datetime, timedelta
+from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
 from systemimage.bindings import DBusClient
@@ -50,8 +50,8 @@ from systemimage.config import Configuration
 from systemimage.helpers import safe_remove
 from systemimage.reactor import Reactor
 from systemimage.testing.helpers import (
-    copy, make_http_server, setup_index, setup_keyring_txz, setup_keyrings,
-    sign)
+    copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
+    setup_keyrings, sign)
 from systemimage.testing.nose import SystemImagePlugin
 
 
@@ -136,21 +136,17 @@ class _TestBase(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        bus = dbus.SystemBus()
-        service = bus.get_object('com.canonical.SystemImage', '/Service')
-        iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        iface.Exit()
-        # 2013-07-30 BAW: This sucks but there's no way to know exactly when
-        # the process has exited, because we cannot know the pid of the
-        # system-image-dbus process, which is our grandchild.  Just keep
-        # pinging the server until it stops responding.
-        until = datetime.now() + timedelta(seconds=60)
-        while datetime.now() < until:
-            time.sleep(0.2)
-            try:
-                iface.Exit()
-            except DBusException:
-                break
+        # Try to find the system-image-dbus process matching the current ini
+        # file used by the controller.  We'll use this to ensure that the
+        # process has exited.
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        if process is not None:
+            bus = dbus.SystemBus()
+            service = bus.get_object('com.canonical.SystemImage', '/Service')
+            iface = dbus.Interface(service, 'com.canonical.SystemImage')
+            iface.Exit()
+            # Wait for the process to exit, but only for a little while.
+            process.wait(60)
         # Clear out the temporary directory.
         config = Configuration()
         config.load(SystemImagePlugin.controller.ini_path)

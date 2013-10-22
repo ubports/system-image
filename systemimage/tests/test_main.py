@@ -26,7 +26,6 @@ import os
 import dbus
 import stat
 import time
-import psutil
 import shutil
 import unittest
 
@@ -39,7 +38,8 @@ from systemimage.config import Configuration, config
 from systemimage.helpers import safe_remove
 from systemimage.main import main as cli_main
 from systemimage.testing.helpers import (
-    configuration, copy, data_path, temporary_directory, touch_build)
+    configuration, copy, data_path, find_dbus_process, temporary_directory,
+    touch_build)
 from systemimage.testing.nose import SystemImagePlugin
 # This should be moved and refactored.
 from systemimage.tests.test_state import _StateTestsBase
@@ -60,30 +60,6 @@ def umask(new_mask):
     finally:
         if old_mask is not None:
             os.umask(old_mask)
-
-
-def _find_dbus_proc(ini_path):
-    # This method searches all processes for the one matching the
-    # system-image-dbus service.  This is harder than it should be because
-    # while dbus-launch gives us the PID of the dbus-launch process itself,
-    # that can't be used to find the appropriate child process, because
-    # D-Bus activated processes are orphaned to init as their parent.
-    #
-    # This then does a brute-force search over all the processes, looking one
-    # that has a particular command line indicating that it's the
-    # system-image-dbus service.  We don't run this latter by that name
-    # though, since that's a wrapper created by setup.py's entry points.
-    #
-    # To make doubly certain we're not going to get the wrong process (in case
-    # there are multiple system-image-dbus processes running), we'll also look
-    # for the specific ini_path for the instance we care about.  Yeah, this
-    # all kind of sucks, but should be effective in finding the one we need to
-    # track.
-    for process in psutil.process_iter():
-        cmdline = SPACE.join(process.cmdline)
-        if 'systemimage.service' in cmdline and ini_path in cmdline:
-            return process
-    return None
 
 
 class TestCLIMain(unittest.TestCase):
@@ -561,6 +537,8 @@ class TestCLIFilters(_StateTestsBase):
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
+    maxDiff = None
+
     @configuration
     def test_filter_full(self, ini_file):
         # With --filter=full, only full updates will be considered.
@@ -581,7 +559,8 @@ class TestCLIFilters(_StateTestsBase):
             config.load(ini_file)
             touch_build(100)
             cli_main()
-            self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
+            self.assertMultiLineEqual(
+                capture.getvalue(), 'Already up-to-date\n')
 
     @configuration
     def test_filter_delta(self, ini_file):
@@ -603,7 +582,8 @@ class TestCLIFilters(_StateTestsBase):
             config.load(ini_file)
             touch_build(100)
             cli_main()
-            self.assertEqual(capture.getvalue(), 'Upgrade path is 1600\n')
+            self.assertMultiLineEqual(
+                capture.getvalue(), 'Upgrade path is 1600\n')
 
 
 class TestDBusMain(unittest.TestCase):
@@ -644,9 +624,9 @@ class TestDBusMain(unittest.TestCase):
         # The dbus service automatically exits after a set amount of time.
         #
         # Nothing has been spawned yet.
-        self.assertIsNone(_find_dbus_proc(self.ini_path))
+        self.assertIsNone(find_dbus_process(self.ini_path))
         self._activate()
-        process = _find_dbus_proc(self.ini_path)
+        process = find_dbus_process(self.ini_path)
         self.assertTrue(process.is_running())
         # Now wait for the process to self-terminate.  If this times out
         # before the process exits, a TimeoutExpired exception will be
@@ -656,9 +636,9 @@ class TestDBusMain(unittest.TestCase):
 
     def test_service_keepalive(self):
         # Proactively calling methods on the service keeps it alive.
-        self.assertIsNone(_find_dbus_proc(self.ini_path))
+        self.assertIsNone(find_dbus_process(self.ini_path))
         self._activate()
-        process = _find_dbus_proc(self.ini_path)
+        process = find_dbus_process(self.ini_path)
         self.assertTrue(process.is_running())
         # Normally the process would exit after 3 seconds, but we'll keep it
         # alive for a bit.

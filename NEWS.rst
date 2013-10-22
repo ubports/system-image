@@ -6,6 +6,10 @@ NEWS for system-image updater
 ================
  * Remove the old channels.json format. (LP: #1221843)
  * Remove support for old version numbers. (LP: #1220238)
+ * Switch to nose2 as the test runner.  (LP: #1238071)
+   + Add -P option to provide much nicer test pattern matching.
+   + Add -V option to increase `systemimage` logging verbosity during tests
+     (separate from nose2's own -v options).
 
 1.9.1 (2013-10-15)
 ==================

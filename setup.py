@@ -33,15 +33,10 @@ setup(
             'system-image-cli = systemimage.main:main',
             'system-image-dbus = systemimage.service:main',
             ],
-        'nose.plugins.0.10': [
-            'systemimage = systemimage.testing.nose:SystemImagePlugin',
-            ],
     },
     install_requires = [
+        'nose2',
         'python-gnupg',
         ],
-    tests_require = [
-        'nose',
-        ],
-    test_suite = 'nose.collector',
+    test_suite = 'nose2.collector.collector',
     )

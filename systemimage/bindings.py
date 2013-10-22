@@ -24,55 +24,40 @@ __all__ = [
 import dbus
 import logging
 
-from gi.repository import GLib
+from systemimage.reactor import Reactor
 
 log = logging.getLogger('systemimage')
 
 
-class DBusClient:
+class DBusClient(Reactor):
     """Python bindings to be used as a DBus client."""
 
     def __init__(self):
-        self.bus = dbus.SystemBus()
-        service = self.bus.get_object('com.canonical.SystemImage', '/Service')
+        super().__init__(dbus.SystemBus())
+        service = self._bus.get_object('com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        for signal in ('UpdateAvailableStatus',
-                       'UpdateDownloaded', 'UpdateFailed'):
-            self.bus.add_signal_receiver(
-                self._handle, signal_name=signal,
-                member_keyword='member',
-                dbus_interface='com.canonical.SystemImage')
+        self.react_to('UpdateAvailableStatus')
+        self.react_to('UpdateDownloaded')
+        self.react_to('UpdateFailed')
         self.failed = False
         self.is_available = False
         self.downloaded = False
 
-    def _handle(self, *args, **kws):
-        signal = kws.pop('member')
-        handler = getattr(self, '_do_' + signal, None)
-        if handler is not None:
-            handler(*args, **kws)
-
-    def _run(self, method):
-        self.loop = GLib.MainLoop()
-        GLib.timeout_add(50, method)
-        quitter_id = GLib.timeout_add_seconds(600, self.loop.quit)
-        self.loop.run()
-        GLib.source_remove(quitter_id)
-
-    def _do_UpdateAvailableStatus(self, is_available, downloading,
-                                  available_version, update_size,
-                                  last_update_date,
-                                  #descriptions,
-                                  error_reason):
+    def _do_UpdateAvailableStatus(
+            self, signal, path,
+            is_available, downloading, available_version, update_size,
+            last_update_date,
+            #descriptions,
+            error_reason):
         if error_reason != '':
             # Cancel the download, set the failed flag and log the reason.
             log.error('CheckForUpdate returned an error: {}', error_reason)
             self.failed = True
-            self.loop.quit()
+            self.quit()
             return
         if not is_available:
             log.info('No update available')
-            self.loop.quit()
+            self.quit()
             return
         if not downloading:
             # We should be in auto download mode, so why aren't we downloading
@@ -81,20 +66,22 @@ class DBusClient:
             self.iface.DownloadUpdate()
         self.is_available = True
 
-    def _do_UpdateDownloaded(self):
+    def _do_UpdateDownloaded(self, signal, path):
         self.downloaded = True
-        self.loop.quit()
+        self.quit()
 
-    def _do_UpdateFailed(self, consecutive_failure_count, last_reason):
+    def _do_UpdateFailed(self, signal, path,
+                         consecutive_failure_count, last_reason):
         log.error('UpdateFailed: {}', last_reason)
         self.failed = True
-        self.loop.quit()
+        self.quit()
 
     def check_for_update(self):
         # Switch to auto-download mode for this run.
         old_value = self.iface.GetSetting('auto_download')
         self.iface.SetSetting('auto_download', '2')
-        self._run(self.iface.CheckForUpdate)
+        self.schedule(self.iface.CheckForUpdate)
+        self.run()
         self.iface.SetSetting('auto_download', old_value)
 
     def reboot(self):
