@@ -109,13 +109,13 @@ class TestAPI(unittest.TestCase):
         # An update is available.  What's the target version number?
         self._setup_keyrings()
         update = Mediator().check_for_update()
-        self.assertEqual(update.version, '20130600')
+        self.assertEqual(update.version, '1600')
 
     @configuration
     def test_no_update_available_version(self):
         # No update is available, so the target version number is zero.
         self._setup_keyrings()
-        touch_build(20130600)
+        touch_build(1600)
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
         self.assertEqual(update.version, '')
@@ -125,7 +125,7 @@ class TestAPI(unittest.TestCase):
         # Because our build number is equal to the latest available in the
         # index file, there is no update available.
         self._setup_keyrings()
-        touch_build(20130600)
+        touch_build(1600)
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
 
@@ -134,7 +134,7 @@ class TestAPI(unittest.TestCase):
         # Because our build number is higher than the latest available in the
         # index file, there is no update available.
         self._setup_keyrings()
-        touch_build(20130700)
+        touch_build(1700)
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
 

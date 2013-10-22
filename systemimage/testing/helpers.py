@@ -358,6 +358,9 @@ def reset_envar(name):
 
 
 def touch_build(version, timestamp=None):
+    # LP: #1220238 - assert that no old-style version numbers are being used.
+    assert 0 <= version < (1 << 16), (
+        'old style version number: {}'.format(version))
     with open(config.system.build_file, 'w', encoding='utf-8') as fp:
         print(version, file=fp)
     if timestamp is not None:

@@ -219,10 +219,10 @@ class TestCLIMain(unittest.TestCase):
         # Set up the build number.
         config = Configuration()
         config.load(ini_file)
-        touch_build(20130701, TIMESTAMP)
+        touch_build(1701, TIMESTAMP)
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 20130701
+            current build number: 1701
             device name: nexus7
             channel: stable
             last update: 2013-08-01 12:11:10
@@ -241,14 +241,14 @@ class TestCLIMain(unittest.TestCase):
         # Set up the build number.
         config = Configuration()
         config.load(ini_file)
-        touch_build(20130701)
+        touch_build(1701)
         timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
         os.utime(config.system.build_file, (timestamp_1, timestamp_1))
         timestamp_2 = int(datetime(2011, 8, 1, 5, 6, 7).timestamp())
         os.utime(channel_ini, (timestamp_2, timestamp_2))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 20130833
+            current build number: 1833
             device name: nexus7
             channel: proposed
             last update: 2011-08-01 05:06:07
@@ -265,13 +265,13 @@ class TestCLIMain(unittest.TestCase):
         # Set up the build number.
         config = Configuration()
         config.load(ini_file)
-        touch_build(20130701)
+        touch_build(1701)
         timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
         os.utime(config.system.build_file, (timestamp_1, timestamp_1))
         self.assertFalse(os.path.exists(channel_ini))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 20130701
+            current build number: 1701
             device name: nexus7
             channel: stable
             last update: 2011-01-08 02:03:04
@@ -282,7 +282,7 @@ class TestCLIMain(unittest.TestCase):
         # -b/--build overrides the build number.
         config = Configuration()
         config.load(ini_file)
-        touch_build(20130701, TIMESTAMP)
+        touch_build(1701, TIMESTAMP)
         # Use --build to override the default build number.
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
@@ -302,7 +302,7 @@ class TestCLIMain(unittest.TestCase):
         # -d/--device overrides the device type.
         config = Configuration()
         config.load(ini_file)
-        touch_build(20130701, TIMESTAMP)
+        touch_build(1701, TIMESTAMP)
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file,
@@ -310,7 +310,7 @@ class TestCLIMain(unittest.TestCase):
                    '--info']))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 20130701
+            current build number: 1701
             device name: phablet
             channel: stable
             last update: 2013-08-01 12:11:10
@@ -321,7 +321,7 @@ class TestCLIMain(unittest.TestCase):
         # -c/--channel overrides the channel.
         config = Configuration()
         config.load(ini_file)
-        touch_build(20130701, TIMESTAMP)
+        touch_build(1701, TIMESTAMP)
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file,
@@ -329,7 +329,7 @@ class TestCLIMain(unittest.TestCase):
                    '--info']))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 20130701
+            current build number: 1701
             device name: nexus7
             channel: daily-proposed
             last update: 2013-08-01 12:11:10
@@ -340,7 +340,7 @@ class TestCLIMain(unittest.TestCase):
         # Use -b -d and -c together.
         config = Configuration()
         config.load(ini_file)
-        touch_build(20130701, TIMESTAMP)
+        touch_build(1701, TIMESTAMP)
         # Use --build to override the default build number.
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
@@ -380,10 +380,10 @@ class TestCLIMain(unittest.TestCase):
         # Set up the build number.
         config = Configuration()
         config.load(ini_file)
-        touch_build(20130701, TIMESTAMP)
+        touch_build(1701, TIMESTAMP)
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 20130833
+            current build number: 1833
             device name: nexus7
             channel: proposed
             last update: 2013-08-01 12:11:10
@@ -403,7 +403,7 @@ class TestCLIMain(unittest.TestCase):
                   ['argv0', '-C', ini_file, '-i']))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 20130833
+            current build number: 1833
             device name: nexus7
             channel: proposed
             last update: 2013-08-01 12:11:10
@@ -460,7 +460,7 @@ class TestCLIMain(unittest.TestCase):
                   ['argv0', '-C', ini_file, '-i']))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 20130833
+            current build number: 1833
             device name: nexus7
             channel: proposed
             last update: 2013-08-01 12:11:10
@@ -481,7 +481,7 @@ class TestCLIMain(unittest.TestCase):
                   ['argv0', '-C', ini_file, '-i']))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 20130833
+            current build number: 1833
             device name: nexus7
             channel: proposed
             last update: 2013-08-01 12:11:10
@@ -510,7 +510,7 @@ class TestCLIMainDryRun(_StateTestsBase):
                       ['argv0', '-C', ini_file, '--dry-run']))
             cli_main()
             self.assertEqual(capture.getvalue(),
-                             'Upgrade path is 20130200:20130201:20130304\n')
+                             'Upgrade path is 1200:1201:1304\n')
 
     @configuration
     def test_dry_run_no_update(self, ini_file):
@@ -529,7 +529,7 @@ class TestCLIMainDryRun(_StateTestsBase):
             # Set up the build number.
             config = Configuration()
             config.load(ini_file)
-            touch_build(20130701)
+            touch_build(1701)
             cli_main()
             self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
@@ -579,7 +579,7 @@ class TestCLIFilters(_StateTestsBase):
             # Set up the build number.
             config = Configuration()
             config.load(ini_file)
-            touch_build(20120100)
+            touch_build(100)
             cli_main()
             self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
@@ -601,9 +601,9 @@ class TestCLIFilters(_StateTestsBase):
             # Set up the build number.
             config = Configuration()
             config.load(ini_file)
-            touch_build(20120100)
+            touch_build(100)
             cli_main()
-            self.assertEqual(capture.getvalue(), 'Upgrade path is 20130600\n')
+            self.assertEqual(capture.getvalue(), 'Upgrade path is 1600\n')
 
 
 class TestDBusMain(unittest.TestCase):

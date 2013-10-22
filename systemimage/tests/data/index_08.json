@@ -29,9 +29,9 @@
                     "size": 300
                 }
             ],
-            "minversion": 20120600,
+            "minversion": 600,
             "type": "full",
-            "version": 20130300
+            "version": 1300
         },
         {
             "bootme": true,
@@ -60,8 +60,8 @@
                 }
             ],
             "type": "delta",
-            "base": 20130300,
-            "version": 20130301
+            "base": 1300,
+            "version": 1301
         }
     ]
 }

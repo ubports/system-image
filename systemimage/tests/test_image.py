@@ -28,44 +28,44 @@ from systemimage.image import Image
 
 class TestImage(unittest.TestCase):
     def test_full_hash(self):
-        image = Image(type='full', version=20130400)
-        self.assertEqual(hash(image), 0b00000100000000000000000000000000)
+        image = Image(type='full', version=400)
+        self.assertEqual(hash(image), 0b1100100000000000000000000)
 
     def test_full_hash_ignores_base(self):
-        image = Image(type='full', version=20130400, base=20130300)
-        self.assertEqual(hash(image), 0b00000100000000000000000000000000)
+        image = Image(type='full', version=400, base=300)
+        self.assertEqual(hash(image), 0b1100100000000000000000000)
 
     def test_delta_includes_base(self):
-        image = Image(type='delta', version=20130400, base=20130300)
-        self.assertEqual(hash(image), 0b00000100000000000000001100000000)
+        image = Image(type='delta', version=400, base=300)
+        self.assertEqual(hash(image), 0b1100100000000000100101100)
 
     def test_delta_with_more_info(self):
-        image = Image(type='delta', version=20151299, base=20151212)
-        self.assertEqual(hash(image), 0b00101100110001100010110000011000)
+        image = Image(type='delta', version=299, base=1212)
+        self.assertEqual(hash(image), 0b1001010110000010010111100)
 
     def test_full_equal(self):
-        image_1 = Image(type='full', version=20130400)
-        image_2 = Image(type='full', version=20130400)
+        image_1 = Image(type='full', version=400)
+        image_2 = Image(type='full', version=400)
         self.assertEqual(image_1, image_2)
 
     def test_full_inequal(self):
-        image_1 = Image(type='full', version=20130400)
-        image_2 = Image(type='full', version=20130401)
+        image_1 = Image(type='full', version=400)
+        image_2 = Image(type='full', version=401)
         self.assertNotEqual(image_1, image_2)
 
     def test_full_equal_ignores_base(self):
-        image_1 = Image(type='full', version=20130400, base=20130300)
-        image_2 = Image(type='full', version=20130400, base=20130299)
+        image_1 = Image(type='full', version=400, base=300)
+        image_2 = Image(type='full', version=400, base=299)
         self.assertEqual(image_1, image_2)
 
     def test_full_equal_ignores_missing_base(self):
-        image_1 = Image(type='full', version=20130400, base=20130300)
-        image_2 = Image(type='full', version=20130400)
+        image_1 = Image(type='full', version=400, base=300)
+        image_2 = Image(type='full', version=400)
         self.assertEqual(image_1, image_2)
 
     def test_full_delta_with_base_inequal(self):
-        image_1 = Image(type='full', version=20130400, base=20130300)
-        image_2 = Image(type='delta', version=20130400, base=20130300)
+        image_1 = Image(type='full', version=400, base=300)
+        image_2 = Image(type='delta', version=400, base=300)
         self.assertNotEqual(image_1, image_2)
 
     def test_default_phased_percentage(self):

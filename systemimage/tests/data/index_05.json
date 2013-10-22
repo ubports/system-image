@@ -7,14 +7,14 @@
             "description": "New full build 1",
             "files": [],
             "type": "full",
-            "version": 20130300,
+            "version": 1300,
             "bootme": true
         },
         {
             "description": "New full build 2",
             "files": [],
             "type": "full",
-            "version": 20130400,
+            "version": 1400,
             "bootme": true
         }
     ]

@@ -530,7 +530,7 @@ class TestRebooting(_StateTestsBase):
         # machine to completion should not result in a reboot.
         self._setup_keyrings()
         # Hack the current build number so that no update is available.
-        touch_build(20250000)
+        touch_build(5000)
         with patch('systemimage.reboot.Reboot.reboot') as mock:
             list(State())
         self.assertEqual(mock.call_count, 0)
@@ -683,7 +683,7 @@ class TestCommandFileDelta(_StateTestsBase):
         # A delta update's command file gets properly filled.
         self._setup_keyrings()
         # Set the current build number so a delta update will work.
-        touch_build(20120100)
+        touch_build(100)
         State().run_until('reboot')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -712,7 +712,7 @@ class TestFileOrder(_StateTestsBase):
         # within the image by the 'order' key.
         self._setup_keyrings()
         # Set the current build number so a delta update will work.
-        touch_build(20120100)
+        touch_build(100)
         State().run_until('reboot')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -840,7 +840,7 @@ class TestFilters(_StateTestsBase):
     def test_filter_none(self):
         # With no filter, we get the unadulterated candidate paths.
         self._setup_keyrings()
-        touch_build(20120100)
+        touch_build(100)
         state = State()
         state.run_thru('calculate_winner')
         self.assertEqual(len(state.winner), 1)
@@ -850,7 +850,7 @@ class TestFilters(_StateTestsBase):
         # The state machine can use a filter to come up with a different set
         # of candidate upgrade paths.  In this case, no candidates.
         self._setup_keyrings()
-        touch_build(20120100)
+        touch_build(100)
         def filter_out_everything(candidates):
             return []
         state = State(candidate_filter=filter_out_everything)

@@ -7,17 +7,17 @@
             "bootme": true,
             "description": "New full build 1",
             "files": [],
-            "minversion": 20120600,
+            "minversion": 600,
             "type": "full",
-            "version": 20130300
+            "version": 1300
         },
         {
             "bootme": true,
             "description": "New full build 2",
             "files": [],
-            "minversion": 20130100,
+            "minversion": 1100,
             "type": "full",
-            "version": 20130400
+            "version": 1400
         }
     ]
 }

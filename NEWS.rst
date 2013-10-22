@@ -5,6 +5,7 @@ NEWS for system-image updater
 2.0 (2013-XX-XX)
 ================
  * Remove the old channels.json format. (LP: #1221843)
+ * Remove support for old version numbers. (LP: #1220238)
 
 1.9.1 (2013-10-15)
 ==================

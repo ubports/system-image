@@ -4,19 +4,19 @@
     },
     "images": [
         {
-            "base": 20130100,
+            "base": 1100,
             "description": "Delta 1",
             "files": [],
             "type": "delta",
-            "version": 20130400,
+            "version": 1400,
             "bootme": true
         },
         {
-            "base": 20130100,
+            "base": 1100,
             "description": "Delta 2",
             "files": [],
             "type": "delta",
-            "version": 20130300,
+            "version": 1300,
             "bootme": true
         }
     ]

@@ -4,7 +4,7 @@
     },
     "images": [
         {
-            "base": 20120100,
+            "base": 100,
             "description": "Delta A",
             "files": [
                 {
@@ -30,11 +30,11 @@
                 }
             ],
             "type": "delta",
-            "version": 20120200,
+            "version": 200,
             "bootme": true
         },
         {
-            "base": 20120200,
+            "base": 200,
             "description": "Delta B",
             "files": [
                 {
@@ -60,11 +60,11 @@
                 }
             ],
             "type": "delta",
-            "version": 20120300,
+            "version": 300,
             "bootme": true
         },
         {
-            "base": 20120300,
+            "base": 300,
             "description": "Delta C",
             "files": [
                 {
@@ -90,7 +90,7 @@
                 }
             ],
             "type": "delta",
-            "version": 20120400,
+            "version": 400,
             "bootme": true
         }
     ]

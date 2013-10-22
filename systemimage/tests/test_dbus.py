@@ -299,7 +299,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
          error_reason) = reactor.signals[0]
         self.assertTrue(is_available)
         self.assertFalse(downloading)
-        self.assertEqual(available_version, '20130600')
+        self.assertEqual(available_version, '1600')
         self.assertEqual(update_size, 314572800)
         # This is the first update applied.
         self.assertEqual(last_update_date, 'Unknown')
@@ -319,7 +319,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
          error_reason) = reactor.signals[0]
         self.assertTrue(is_available)
         self.assertTrue(downloading)
-        self.assertEqual(available_version, '20130600')
+        self.assertEqual(available_version, '1600')
         self.assertEqual(update_size, 314572800)
         # This is the first update applied.
         self.assertEqual(last_update_date, 'Unknown')

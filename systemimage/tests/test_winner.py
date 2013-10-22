@@ -77,7 +77,7 @@ class TestWinnerDownloads(unittest.TestCase):
         state = State()
         # Run the state machine until we get an index file.
         state.run_until('calculate_winner')
-        candidates = get_candidates(state.index, 20120100)
+        candidates = get_candidates(state.index, 100)
         # There are three candidate upgrade paths.
         self.assertEqual(len(candidates), 3)
         descriptions = []
@@ -101,7 +101,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # Calculate the winning upgrade path.
         setup_keyrings()
         state = State()
-        touch_build(20120100)
+        touch_build(100)
         # Run the state machine long enough to get the candidates and winner.
         state.run_thru('calculate_winner')
         # There are three candidate upgrade paths.
@@ -116,7 +116,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # Check that all the winning path's files are downloaded.
         setup_keyrings()
         state = State()
-        touch_build(20120100)
+        touch_build(100)
         # Run the state machine until we download the files.
         state.run_thru('download_files')
         # The B path files contain their checksums.
@@ -142,7 +142,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # those files already exist in their destination paths.
         setup_keyrings()
         state = State()
-        touch_build(20120100)
+        touch_build(100)
         # Run the state machine until we download the files.
         for basename in '56789abcd':
             base = os.path.join(config.updater.cache_partition, basename)
@@ -187,7 +187,7 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, self._indexpath),
              'device-signing.gpg')
         setup_index('index_12.json', self._serverdir, 'device-signing.gpg')
-        touch_build(20120100)
+        touch_build(100)
         # Run the state machine until we download the files.
         state = State()
         state.run_thru('download_files')
@@ -227,7 +227,7 @@ class TestWinnerDownloads(unittest.TestCase):
              'device-signing.gpg')
         # All the downloadable files are now signed with the image signing key.
         setup_index('index_12.json', self._serverdir, 'image-signing.gpg')
-        touch_build(20120100)
+        touch_build(100)
         # Run the state machine until we download the files.
         state = State()
         state.run_thru('download_files')
@@ -258,7 +258,7 @@ class TestWinnerDownloads(unittest.TestCase):
         setup_index('index_10.json', self._serverdir, 'image-signing.gpg')
         setup_keyrings()
         state = State()
-        touch_build(20120100)
+        touch_build(100)
         # Run the state machine until we're prepped to download
         state.run_until('download_files')
         # Now try to download the files and get the error.
@@ -283,7 +283,7 @@ class TestWinnerDownloads(unittest.TestCase):
              'device-signing.gpg')
         # All the downloadable files are now signed with a bogus key.
         setup_index('index_12.json', self._serverdir, 'spare.gpg')
-        touch_build(20120100)
+        touch_build(100)
         # Run the state machine until just before we download the files.
         state = State()
         state.run_until('download_files')
@@ -301,7 +301,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # files get downloaded and get_files() fails.
         setup_keyrings()
         state = State()
-        touch_build(20120100)
+        touch_build(100)
         # Remove a signature.
         os.remove(os.path.join(self._serverdir, '6/7/8.txt.asc'))
         # Run the state machine to calculate the winning path.
@@ -320,7 +320,7 @@ class TestWinnerDownloads(unittest.TestCase):
         # downloaded files are available.
         setup_keyrings()
         state = State()
-        touch_build(20120100)
+        touch_build(100)
         # Break a signature
         sign(os.path.join(self._serverdir, '6', '7', '8.txt'), 'spare.gpg')
         # Run the state machine to calculate the winning path.

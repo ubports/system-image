@@ -29,7 +29,7 @@
                 }
             ],
             "type": "full",
-            "version": 20130600,
+            "version": 1600,
             "bootme": true
         }
     ]

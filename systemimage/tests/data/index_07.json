@@ -7,31 +7,31 @@
             "description": "Full 1",
             "files": [],
             "type": "full",
-            "version": 20130300,
+            "version": 1300,
             "bootme": true
         },
         {
-            "base": 20130300,
+            "base": 1300,
             "description": "Delta 1",
             "files": [],
             "type": "delta",
-            "version": 20130301,
+            "version": 1301,
             "bootme": true
         },
         {
-            "base": 20130300,
+            "base": 1300,
             "description": "Delta 2",
             "files": [],
             "type": "delta",
-            "version": 20130302,
+            "version": 1302,
             "bootme": true
         },
         {
-            "base": 20130301,
+            "base": 1301,
             "description": "Delta 3",
             "files": [],
             "type": "delta",
-            "version": 20130302,
+            "version": 1302,
             "bootme": true
         }
     ]

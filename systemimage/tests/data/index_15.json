@@ -4,7 +4,7 @@
     },
     "images": [
         {
-            "base": 20120100,
+            "base": 100,
             "description": "Delta",
             "files": [
                 {
@@ -30,7 +30,7 @@
                 }
             ],
             "type": "delta",
-            "version": 20130600,
+            "version": 1600,
             "bootme": true
         }
     ]

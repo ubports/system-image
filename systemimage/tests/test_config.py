@@ -146,8 +146,8 @@ class TestConfiguration(unittest.TestCase):
         # configuration file.
         config = Configuration()
         config.load(ini_file)
-        touch_build(20130500)
-        self.assertEqual(config.build_number, 20130500)
+        touch_build(1500)
+        self.assertEqual(config.build_number, 1500)
 
     @configuration
     def test_get_build_number_missing(self, ini_file):
@@ -235,7 +235,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.https_base,
                          'https://systum-imaje.ubuntu.com:89')
         self.assertEqual(config.service.channel, 'proposed')
-        self.assertEqual(config.service.build_number, 20130833)
+        self.assertEqual(config.service.build_number, 1833)
 
     def test_channel_ini_ignored_sections(self):
         # Only the [service] section in channel.ini is used.

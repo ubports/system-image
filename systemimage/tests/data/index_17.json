@@ -28,14 +28,14 @@
                     "checksum": "c62bbb25efa17e9a75361da0cb045e714be4ba11e2ed84c51821049d73bcd594"
                 }
             ],
-            "version": 20130725
+            "version": 1725
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130727"
             },
-            "version": 20130726,
+            "version": 1726,
             "files": [
                 {
                     "order": 0,
@@ -59,14 +59,14 @@
                     "checksum": "e03476af725db9a468d094e560e4c6910222b7f3a6d3b707d146eafe67114df6"
                 }
             ],
-            "base": 20130725
+            "base": 1725
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130728"
             },
-            "version": 20130727,
+            "version": 1727,
             "files": [
                 {
                     "order": 0,
@@ -90,14 +90,14 @@
                     "checksum": "a12a2217700984fd167c7c831700320e760c041f10e9aa4a6f01e38ae8d2cf7d"
                 }
             ],
-            "base": 20130726
+            "base": 1726
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130729"
             },
-            "version": 20130728,
+            "version": 1728,
             "files": [
                 {
                     "order": 0,
@@ -121,14 +121,14 @@
                     "checksum": "50c68a5a04f6d463b776b431b136eb2b7b08e4e326df5ab958e778d3fb72360c"
                 }
             ],
-            "base": 20130727
+            "base": 1727
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730"
             },
-            "version": 20130729,
+            "version": 1729,
             "files": [
                 {
                     "order": 0,
@@ -152,14 +152,14 @@
                     "checksum": "ffae1bb0654c1716141e05bf5f3c30afcc4c3db91df302635f0a06ce800c8cb4"
                 }
             ],
-            "base": 20130728
+            "base": 1728
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.1"
             },
-            "version": 20130730,
+            "version": 1730,
             "files": [
                 {
                     "order": 0,
@@ -176,14 +176,14 @@
                     "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
                 }
             ],
-            "base": 20130729
+            "base": 1729
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.2"
             },
-            "version": 20130731,
+            "version": 1731,
             "files": [
                 {
                     "order": 0,
@@ -200,14 +200,14 @@
                     "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
                 }
             ],
-            "base": 20130730
+            "base": 1730
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731"
             },
-            "version": 20130732,
+            "version": 1732,
             "files": [
                 {
                     "order": 0,
@@ -224,14 +224,14 @@
                     "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
                 }
             ],
-            "base": 20130731
+            "base": 1731
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731.3"
             },
-            "version": 20130733,
+            "version": 1733,
             "files": [
                 {
                     "order": 0,
@@ -255,14 +255,14 @@
                     "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
                 }
             ],
-            "base": 20130732
+            "base": 1732
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130801"
             },
-            "version": 20130800,
+            "version": 1800,
             "files": [
                 {
                     "order": 0,
@@ -286,7 +286,7 @@
                     "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
                 }
             ],
-            "base": 20130733
+            "base": 1733
         },
         {
             "type": "full",
@@ -316,14 +316,14 @@
                     "checksum": "e03476af725db9a468d094e560e4c6910222b7f3a6d3b707d146eafe67114df6"
                 }
             ],
-            "version": 20130726
+            "version": 1726
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130728"
             },
-            "version": 20130727,
+            "version": 1727,
             "files": [
                 {
                     "order": 0,
@@ -347,14 +347,14 @@
                     "checksum": "a12a2217700984fd167c7c831700320e760c041f10e9aa4a6f01e38ae8d2cf7d"
                 }
             ],
-            "base": 20130726
+            "base": 1726
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130729"
             },
-            "version": 20130728,
+            "version": 1728,
             "files": [
                 {
                     "order": 0,
@@ -378,14 +378,14 @@
                     "checksum": "50c68a5a04f6d463b776b431b136eb2b7b08e4e326df5ab958e778d3fb72360c"
                 }
             ],
-            "base": 20130727
+            "base": 1727
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730"
             },
-            "version": 20130729,
+            "version": 1729,
             "files": [
                 {
                     "order": 0,
@@ -409,14 +409,14 @@
                     "checksum": "ffae1bb0654c1716141e05bf5f3c30afcc4c3db91df302635f0a06ce800c8cb4"
                 }
             ],
-            "base": 20130728
+            "base": 1728
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.1"
             },
-            "version": 20130730,
+            "version": 1730,
             "files": [
                 {
                     "order": 0,
@@ -433,14 +433,14 @@
                     "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
                 }
             ],
-            "base": 20130729
+            "base": 1729
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.2"
             },
-            "version": 20130731,
+            "version": 1731,
             "files": [
                 {
                     "order": 0,
@@ -457,14 +457,14 @@
                     "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
                 }
             ],
-            "base": 20130730
+            "base": 1730
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731"
             },
-            "version": 20130732,
+            "version": 1732,
             "files": [
                 {
                     "order": 0,
@@ -481,14 +481,14 @@
                     "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
                 }
             ],
-            "base": 20130731
+            "base": 1731
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731.3"
             },
-            "version": 20130733,
+            "version": 1733,
             "files": [
                 {
                     "order": 0,
@@ -512,14 +512,14 @@
                     "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
                 }
             ],
-            "base": 20130732
+            "base": 1732
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130801"
             },
-            "version": 20130800,
+            "version": 1800,
             "files": [
                 {
                     "order": 0,
@@ -539,11 +539,11 @@
                     "order": 2,
                     "signature": "/daily/grouper/version-20130800.tar.xz.asc",
                     "size": 192,
-                    "path": "/daily/grouper/version-20130800.tar.xz",
+                    "path": "/daily/grouper/version-1800.tar.xz",
                     "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
                 }
             ],
-            "base": 20130733
+            "base": 1733
         },
         {
             "type": "full",
@@ -573,14 +573,14 @@
                     "checksum": "ffae1bb0654c1716141e05bf5f3c30afcc4c3db91df302635f0a06ce800c8cb4"
                 }
             ],
-            "version": 20130729
+            "version": 1729
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.1"
             },
-            "version": 20130730,
+            "version": 1730,
             "files": [
                 {
                     "order": 0,
@@ -597,14 +597,14 @@
                     "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
                 }
             ],
-            "base": 20130729
+            "base": 1729
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.2"
             },
-            "version": 20130731,
+            "version": 1731,
             "files": [
                 {
                     "order": 0,
@@ -621,14 +621,14 @@
                     "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
                 }
             ],
-            "base": 20130730
+            "base": 1730
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731"
             },
-            "version": 20130732,
+            "version": 1732,
             "files": [
                 {
                     "order": 0,
@@ -645,14 +645,14 @@
                     "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
                 }
             ],
-            "base": 20130731
+            "base": 1731
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731.3"
             },
-            "version": 20130733,
+            "version": 1733,
             "files": [
                 {
                     "order": 0,
@@ -676,14 +676,14 @@
                     "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
                 }
             ],
-            "base": 20130732
+            "base": 1732
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130801"
             },
-            "version": 20130800,
+            "version": 1800,
             "files": [
                 {
                     "order": 0,
@@ -707,7 +707,7 @@
                     "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
                 }
             ],
-            "base": 20130733
+            "base": 1733
         },
         {
             "type": "full",
@@ -737,14 +737,14 @@
                     "checksum": "a12a2217700984fd167c7c831700320e760c041f10e9aa4a6f01e38ae8d2cf7d"
                 }
             ],
-            "version": 20130727
+            "version": 1727
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130729"
             },
-            "version": 20130728,
+            "version": 1728,
             "files": [
                 {
                     "order": 0,
@@ -768,14 +768,14 @@
                     "checksum": "50c68a5a04f6d463b776b431b136eb2b7b08e4e326df5ab958e778d3fb72360c"
                 }
             ],
-            "base": 20130727
+            "base": 1727
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730"
             },
-            "version": 20130729,
+            "version": 1729,
             "files": [
                 {
                     "order": 0,
@@ -799,14 +799,14 @@
                     "checksum": "ffae1bb0654c1716141e05bf5f3c30afcc4c3db91df302635f0a06ce800c8cb4"
                 }
             ],
-            "base": 20130728
+            "base": 1728
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.1"
             },
-            "version": 20130730,
+            "version": 1730,
             "files": [
                 {
                     "order": 0,
@@ -823,14 +823,14 @@
                     "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
                 }
             ],
-            "base": 20130729
+            "base": 1729
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.2"
             },
-            "version": 20130731,
+            "version": 1731,
             "files": [
                 {
                     "order": 0,
@@ -847,14 +847,14 @@
                     "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
                 }
             ],
-            "base": 20130730
+            "base": 1730
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731"
             },
-            "version": 20130732,
+            "version": 1732,
             "files": [
                 {
                     "order": 0,
@@ -871,14 +871,14 @@
                     "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
                 }
             ],
-            "base": 20130731
+            "base": 1731
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731.3"
             },
-            "version": 20130733,
+            "version": 1733,
             "files": [
                 {
                     "order": 0,
@@ -902,14 +902,14 @@
                     "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
                 }
             ],
-            "base": 20130732
+            "base": 1732
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130801"
             },
-            "version": 20130800,
+            "version": 1800,
             "files": [
                 {
                     "order": 0,
@@ -933,7 +933,7 @@
                     "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
                 }
             ],
-            "base": 20130733
+            "base": 1733
         },
         {
             "type": "full",
@@ -963,14 +963,14 @@
                     "checksum": "50c68a5a04f6d463b776b431b136eb2b7b08e4e326df5ab958e778d3fb72360c"
                 }
             ],
-            "version": 20130728
+            "version": 1728
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730"
             },
-            "version": 20130729,
+            "version": 1729,
             "files": [
                 {
                     "order": 0,
@@ -994,14 +994,14 @@
                     "checksum": "ffae1bb0654c1716141e05bf5f3c30afcc4c3db91df302635f0a06ce800c8cb4"
                 }
             ],
-            "base": 20130728
+            "base": 1728
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.1"
             },
-            "version": 20130730,
+            "version": 1730,
             "files": [
                 {
                     "order": 0,
@@ -1018,14 +1018,14 @@
                     "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
                 }
             ],
-            "base": 20130729
+            "base": 1729
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.2"
             },
-            "version": 20130731,
+            "version": 1731,
             "files": [
                 {
                     "order": 0,
@@ -1042,14 +1042,14 @@
                     "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
                 }
             ],
-            "base": 20130730
+            "base": 1730
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731"
             },
-            "version": 20130732,
+            "version": 1732,
             "files": [
                 {
                     "order": 0,
@@ -1066,14 +1066,14 @@
                     "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
                 }
             ],
-            "base": 20130731
+            "base": 1731
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731.3"
             },
-            "version": 20130733,
+            "version": 1733,
             "files": [
                 {
                     "order": 0,
@@ -1097,14 +1097,14 @@
                     "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
                 }
             ],
-            "base": 20130732
+            "base": 1732
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130801"
             },
-            "version": 20130800,
+            "version": 1800,
             "files": [
                 {
                     "order": 0,
@@ -1128,7 +1128,7 @@
                     "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
                 }
             ],
-            "base": 20130733
+            "base": 1733
         },
         {
             "type": "full",
@@ -1158,7 +1158,7 @@
                     "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
                 }
             ],
-            "version": 20130800
+            "version": 1800
         },
         {
             "type": "full",
@@ -1188,14 +1188,14 @@
                     "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
                 }
             ],
-            "version": 20130733
+            "version": 1733
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130801"
             },
-            "version": 20130800,
+            "version": 1800,
             "files": [
                 {
                     "order": 0,
@@ -1219,7 +1219,7 @@
                     "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
                 }
             ],
-            "base": 20130733
+            "base": 1733
         },
         {
             "type": "full",
@@ -1249,14 +1249,14 @@
                     "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
                 }
             ],
-            "version": 20130731
+            "version": 1731
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731"
             },
-            "version": 20130732,
+            "version": 1732,
             "files": [
                 {
                     "order": 0,
@@ -1273,14 +1273,14 @@
                     "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
                 }
             ],
-            "base": 20130731
+            "base": 1731
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731.3"
             },
-            "version": 20130733,
+            "version": 1733,
             "files": [
                 {
                     "order": 0,
@@ -1304,14 +1304,14 @@
                     "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
                 }
             ],
-            "base": 20130732
+            "base": 1732
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130801"
             },
-            "version": 20130800,
+            "version": 1800,
             "files": [
                 {
                     "order": 0,
@@ -1335,7 +1335,7 @@
                     "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
                 }
             ],
-            "base": 20130733
+            "base": 1733
         },
         {
             "type": "full",
@@ -1365,14 +1365,14 @@
                     "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
                 }
             ],
-            "version": 20130732
+            "version": 1732
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731.3"
             },
-            "version": 20130733,
+            "version": 1733,
             "files": [
                 {
                     "order": 0,
@@ -1396,14 +1396,14 @@
                     "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
                 }
             ],
-            "base": 20130732
+            "base": 1732
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130801"
             },
-            "version": 20130800,
+            "version": 1800,
             "files": [
                 {
                     "order": 0,
@@ -1427,7 +1427,7 @@
                     "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
                 }
             ],
-            "base": 20130733
+            "base": 1733
         },
         {
             "type": "full",
@@ -1457,14 +1457,14 @@
                     "checksum": "c7073504c85ef6b3c3ba551c9ca50417489f34536f0779cea771ac1b74e5fd21"
                 }
             ],
-            "version": 20130730
+            "version": 1730
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130730.2"
             },
-            "version": 20130731,
+            "version": 1731,
             "files": [
                 {
                     "order": 0,
@@ -1481,14 +1481,14 @@
                     "checksum": "69ef2059734bee22fe9e46761a32851a04f59471afc0234d653ddaa7e341b8e6"
                 }
             ],
-            "base": 20130730
+            "base": 1730
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731"
             },
-            "version": 20130732,
+            "version": 1732,
             "files": [
                 {
                     "order": 0,
@@ -1505,14 +1505,14 @@
                     "checksum": "d99d58e71042286886250d94f8d25002d392f635e72be72b3e842bfb0611ef8c"
                 }
             ],
-            "base": 20130731
+            "base": 1731
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130731.3"
             },
-            "version": 20130733,
+            "version": 1733,
             "files": [
                 {
                     "order": 0,
@@ -1536,14 +1536,14 @@
                     "checksum": "b97a22325987c3bf4b1769c10464c93f17c072c31b5b324a06e9861aed532ee9"
                 }
             ],
-            "base": 20130732
+            "base": 1732
         },
         {
             "type": "delta",
             "descriptions": {
                 "description": "20130801"
             },
-            "version": 20130800,
+            "version": 1800,
             "files": [
                 {
                     "order": 0,
@@ -1567,7 +1567,7 @@
                     "checksum": "f38ce3721013182d5d810e52c690d319aa5de5da62b98ff217fa02a3c4cf0741"
                 }
             ],
-            "base": 20130733
+            "base": 1733
         }
     ],
     "global": {

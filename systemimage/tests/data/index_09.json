@@ -31,10 +31,10 @@
                 }
             ],
             "type": "full",
-            "version": 20130300
+            "version": 1300
         },
         {
-            "base": 20130300,
+            "base": 1300,
             "bootme": true,
             "description": "Delta A.1",
             "files": [
@@ -61,10 +61,10 @@
                 }
             ],
             "type": "delta",
-            "version": 20130301
+            "version": 1301
         },
         {
-            "base": 20130301,
+            "base": 1301,
             "bootme": true,
             "description": "Delta A.2",
             "files": [
@@ -91,7 +91,7 @@
                 }
             ],
             "type": "delta",
-            "version": 20130304
+            "version": 1304
         },
 
         {
@@ -120,10 +120,10 @@
                 }
             ],
             "type": "full",
-            "version": 20130200
+            "version": 1200
         },
         {
-            "base": 20130200,
+            "base": 1200,
             "bootme": true,
             "description": "Delta B.1",
             "files": [
@@ -150,10 +150,10 @@
                 }
             ],
             "type": "delta",
-            "version": 20130201
+            "version": 1201
         },
         {
-            "base": 20130201,
+            "base": 1201,
             "description": "Delta B.2",
             "files": [
                 {
@@ -180,7 +180,7 @@
                 }
             ],
             "type": "delta",
-            "version": 20130304
+            "version": 1304
         },
 
         {
@@ -209,10 +209,10 @@
                 }
             ],
             "type": "full",
-            "version": 20130100
+            "version": 1100
         },
         {
-            "base": 20130100,
+            "base": 1100,
             "description": "Delta C.1",
             "files": [
                 {
@@ -239,7 +239,7 @@
                 }
             ],
             "type": "delta",
-            "version": 20130303
+            "version": 1303
         }
     ]
 }
