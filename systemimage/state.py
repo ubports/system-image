@@ -56,6 +56,17 @@ def _copy_if_missing(src, dstdir):
         shutil.copy(src, dstdir)
 
 
+def _use_cached(txt, asc, checksum, keyrings, blacklist):
+    if not os.path.exists(txt) or not os.path.exists(asc):
+        return False
+    with Context(*keyrings, blacklist=blacklist) as ctx:
+        if not ctx.verify(asc, txt):
+            return False
+    with open(txt, 'rb') as fp:
+        got = hashlib.sha256(fp.read()).hexdigest()
+        return got == checksum
+
+
 class State:
     def __init__(self, candidate_filter=None):
         # Variables which manage state transitions.
@@ -396,44 +407,47 @@ class State:
 
     def _download_files(self):
         """Download and verify all the winning upgrade path's files."""
-        downloads = []
-        signatures = []
-        sizes = []
-        checksums = []
-        for image_number, filerec in iter_path(self.winner):
-            # Re-pack for arguments to get_files() and to collate the size,
-            # signature path, and checksum for the downloadable file.
-            dst = os.path.join(
-                config.updater.cache_partition, os.path.basename(filerec.path))
-            downloads.append((
-                urljoin(config.service.http_base, filerec.path),
-                dst,
-                ))
-            sizes.append(filerec.size)
-            self.files.append((dst, (image_number, filerec.order)))
-            # Add the signature file, and associate the two.
-            asc = os.path.join(
-                config.updater.cache_partition,
-                os.path.basename(filerec.signature))
-            downloads.append((
-                urljoin(config.service.http_base, filerec.signature),
-                asc))
-            # There is no size available for the .asc file.
-            sizes.append(0)
-            self.files.append((asc, (image_number, filerec.order)))
-            signatures.append((dst, asc))
-            checksums.append((dst, filerec.checksum))
         # If there is a device-signing key, the files can be signed by either
         # that or the image-signing key.
         keyrings = [config.gpg.image_signing]
         if os.path.exists(config.gpg.device_signing):
             keyrings.append(config.gpg.device_signing)
-        # We must make sure that none of the destination file paths exist,
-        # otherwise the downloader will throw exceptions.
+        # Now, go through all the file records in the winning upgrade path.
+        # If the data file has already been downloaded and it has a valid
+        # signature file, then we can save some bandwidth by not downloading
+        # it again.
+        downloads = []
+        signatures = []
+        checksums = []
+        for image_number, filerec in iter_path(self.winner):
+            # Re-pack for arguments to get_files() and to collate the
+            # signature path and checksum for the downloadable file.
+            dst = os.path.join(
+                config.updater.cache_partition, os.path.basename(filerec.path))
+            asc = os.path.join(
+                config.updater.cache_partition,
+                os.path.basename(filerec.signature))
+            checksum = filerec.checksum
+            # Check the existence and signature of the file.
+            if not _use_cached(dst, asc, checksum, keyrings, self.blacklist):
+                downloads.append((
+                    urljoin(config.service.http_base, filerec.path),
+                    dst,
+                    ))
+                self.files.append((dst, (image_number, filerec.order)))
+                downloads.append((
+                    urljoin(config.service.http_base, filerec.signature),
+                    asc))
+                self.files.append((asc, (image_number, filerec.order)))
+                signatures.append((dst, asc))
+                checksums.append((dst, checksum))
+        # For any files we're about to download, we must make sure that none
+        # of the destination file paths exist, otherwise the downloader will
+        # throw exceptions.
         for url, dst in downloads:
             safe_remove(dst)
-        # Now, download all the files, providing logging feedback on progress.
-        # This download can be paused.
+        # Now, download all missing or ill-signed files, providing logging
+        # feedback on progress.  This download can be paused.
         self.downloader.get_files(downloads, pausable=True)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets

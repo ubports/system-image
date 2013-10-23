@@ -339,8 +339,7 @@ def setup_index(index, todir, keyring):
                 os.path.splitext(filerec.path)[0].split('/'))
             with open(dst, 'w', encoding='utf-8') as fp:
                 fp.write(contents)
-            # Sign with the imaging signing key.  Some tests will
-            # re-sign all these files with the device key.
+            # Sign with the specified signing key.
             sign(dst, keyring)
 
 

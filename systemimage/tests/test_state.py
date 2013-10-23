@@ -16,12 +16,12 @@
 """Test the state machine."""
 
 __all__ = [
+    'TestCachedFiles',
     'TestChannelAlias',
     'TestCommandFileDelta',
     'TestCommandFileFull',
     'TestDailyProposed',
     'TestFileOrder',
-    'TestPersistence',
     'TestPhasedUpdates',
     'TestRebooting',
     'TestState',
@@ -30,6 +30,7 @@ __all__ = [
 
 
 import os
+import shutil
 import hashlib
 import tempfile
 import unittest
@@ -382,6 +383,7 @@ class _StateTestsBase(unittest.TestCase):
     CHANNEL_FILE = None
     CHANNEL = None
     DEVICE = None
+    SIGNING_KEY = 'device-signing.gpg'
 
     # For more detailed output.
     maxDiff = None
@@ -414,8 +416,8 @@ class _StateTestsBase(unittest.TestCase):
             assert self.INDEX_FILE is not None, (
                 'Subclasses must set INDEX_FILE')
             copy(self.INDEX_FILE, head, tail)
-            sign(index_path, 'device-signing.gpg')
-            setup_index(self.INDEX_FILE, self._serverdir, 'device-signing.gpg')
+            sign(index_path, self.SIGNING_KEY)
+            setup_index(self.INDEX_FILE, self._serverdir, self.SIGNING_KEY)
         except:
             self._stack.close()
             raise
@@ -578,6 +580,7 @@ class TestRebootingNoDeviceSigning(_StateTestsBase):
     CHANNEL_FILE = 'channels_11.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
+    SIGNING_KEY = 'image-signing.gpg'
 
     @configuration
     def test_keyrings_copied_to_upgrader_paths_no_device_keyring(self):
@@ -604,11 +607,6 @@ class TestRebootingNoDeviceSigning(_StateTestsBase):
         self.assertFalse(os.path.exists(master_path + '.asc'))
         self.assertFalse(os.path.exists(signing_path + '.asc'))
         self.assertFalse(os.path.exists(device_path + '.asc'))
-        # Be sure to resign the relevant files with the image-signing key.
-        index_path = os.path.join(
-            self._serverdir, self.CHANNEL, self.DEVICE, 'index.json')
-        sign(index_path, 'image-signing.gpg')
-        setup_index(self.INDEX_FILE, self._serverdir, 'image-signing.gpg')
         # None of the data files are found yet.
         for image in get_index('index_13.json').images:
             for filerec in image.files:
@@ -755,44 +753,6 @@ update h.txt h.txt.asc
 update i.txt i.txt.asc
 unmount system
 """)
-
-
-@unittest.skip('persistence is temporarily disabled')
-class TestPersistence(_StateTestsBase):
-    """Test the State object's persistence."""
-
-    INDEX_FILE = 'index_16.json'
-    CHANNEL_FILE = 'channels_06.json'
-    CHANNEL = 'stable'
-    DEVICE = 'nexus7'
-
-    @configuration
-    def test_pickle_file(self):
-        # Run the state machine through the 'persist' state.  Create a new
-        # state object which restores the persisted state.
-        self._setup_keyrings()
-        self.assertFalse(os.path.exists(config.system.state_file))
-        state = State()
-        self.assertIsNone(state.winner)
-        state.run_thru('persist')
-        self.assertIsNotNone(state.winner)
-        self.assertTrue(os.path.exists(config.system.state_file))
-        state = State()
-        self.assertIsNotNone(state.winner)
-
-    @configuration
-    def test_no_update_no_pickle_file(self):
-        # If there's no update, there's no state file.
-        self._setup_keyrings()
-        touch_build(20250000)
-        self.assertFalse(os.path.exists(config.system.state_file))
-        state = State()
-        self.assertIsNone(state.winner)
-        state.run_thru('persist')
-        self.assertEqual(state.winner, [])
-        self.assertFalse(os.path.exists(config.system.state_file))
-        state = State()
-        self.assertIsNone(state.winner)
 
 
 class TestDailyProposed(_StateTestsBase):
@@ -1073,3 +1033,257 @@ class TestPhasedUpdates(_StateTestsBase):
         state.run_thru('calculate_winner')
         self.assertEqual(_descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])
+
+
+class TestCachedFiles(_StateTestsBase):
+    CHANNEL_FILE = 'channels_11.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+    INDEX_FILE = 'index_13.json'
+    SIGNING_KEY = 'image-signing.gpg'
+
+    @configuration
+    def test_all_files_are_cached(self):
+        # All files in an upgrade are already downloaded, so all that's
+        # necessary is to verify them but not re-download them.
+        self._setup_keyrings()
+        touch_build(0)
+        # Run the state machine far enough to calculate the winning path.
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertIsNotNone(state.winner)
+        # Let's install all the data files into their final location.  The
+        # signature files must be included.
+        for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
+            data_file = os.path.join(self._serverdir, path)
+            shutil.copy(data_file, config.updater.cache_partition)
+            shutil.copy(data_file + '.asc', config.updater.cache_partition)
+        def get_files(downloads, *args, **kws):
+            if len(downloads) != 0:
+                raise AssertionError('get_files() was called with downloads')
+        state.downloader.get_files = get_files
+        state.run_thru('download_files')
+        # Yet all the data files should still be available.
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)),
+                         set(('5.txt', '6.txt', '7.txt',
+                              '5.txt.asc', '6.txt.asc', '7.txt.asc')))
+
+    @configuration
+    def test_some_files_are_cached(self):
+        # Some of the files in an upgrade are already downloaded, so only
+        # download the ones that are missing.
+        self._setup_keyrings()
+        touch_build(0)
+        # Run the state machine far enough to calculate the winning path.
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertIsNotNone(state.winner)
+        # Let's install all the data files into their final location.  The
+        # signature files must be included.
+        for path in ('3/4/5.txt', '4/5/6.txt'):
+            data_file = os.path.join(self._serverdir, path)
+            shutil.copy(data_file, config.updater.cache_partition)
+            shutil.copy(data_file + '.asc', config.updater.cache_partition)
+        old_get_files = state.downloader.get_files
+        def get_files(downloads, *args, **kws):
+            if len(downloads) != 2:
+                raise AssertionError('Unexpected get_files() call')
+            for url, dst in downloads:
+                if os.path.basename(url) != os.path.basename(dst):
+                    raise AssertionError('Mismatched downloads')
+                if os.path.basename(dst) not in ('7.txt', '7.txt.asc'):
+                    raise AssertionError('Unexpected download')
+            return old_get_files(downloads, *args, **kws)
+        state.downloader.get_files = get_files
+        state.run_thru('download_files')
+        # Yet all the data files should still be available.
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)),
+                         set(('5.txt', '6.txt', '7.txt',
+                              '5.txt.asc', '6.txt.asc', '7.txt.asc')))
+
+    @configuration
+    def test_some_signature_files_are_missing(self):
+        # Some of the signature files are missing, so we have to download both
+        # the data and signature files.
+        self._setup_keyrings()
+        touch_build(0)
+        # Run the state machine far enough to calculate the winning path.
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertIsNotNone(state.winner)
+        # Let's install all the data files into their final location.  The
+        # signature files must be included.
+        for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
+            data_file = os.path.join(self._serverdir, path)
+            shutil.copy(data_file, config.updater.cache_partition)
+            if os.path.basename(path) != '6.txt':
+                shutil.copy(data_file + '.asc', config.updater.cache_partition)
+        old_get_files = state.downloader.get_files
+        def get_files(downloads, *args, **kws):
+            if len(downloads) != 2:
+                raise AssertionError('Unexpected get_files() call')
+            for url, dst in downloads:
+                if os.path.basename(url) != os.path.basename(dst):
+                    raise AssertionError('Mismatched downloads')
+                if os.path.basename(dst) not in ('6.txt', '6.txt.asc'):
+                    raise AssertionError('Unexpected download')
+            return old_get_files(downloads, *args, **kws)
+        state.downloader.get_files = get_files
+        state.run_thru('download_files')
+        # Yet all the data files should still be available.
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)),
+                         set(('5.txt', '6.txt', '7.txt',
+                              '5.txt.asc', '6.txt.asc', '7.txt.asc')))
+
+    @configuration
+    def test_some_data_files_are_missing(self):
+        # Some of the data files are missing, so we have to download both the
+        # data and signature files.
+        self._setup_keyrings()
+        touch_build(0)
+        # Run the state machine far enough to calculate the winning path.
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertIsNotNone(state.winner)
+        # Let's install all the data files into their final location.  The
+        # signature files must be included.
+        for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
+            data_file = os.path.join(self._serverdir, path)
+            if os.path.basename(path) != '5.txt':
+                shutil.copy(data_file, config.updater.cache_partition)
+            shutil.copy(data_file + '.asc', config.updater.cache_partition)
+        old_get_files = state.downloader.get_files
+        def get_files(downloads, *args, **kws):
+            if len(downloads) != 2:
+                raise AssertionError('Unexpected get_files() call')
+            for url, dst in downloads:
+                if os.path.basename(url) != os.path.basename(dst):
+                    raise AssertionError('Mismatched downloads')
+                if os.path.basename(dst) not in ('5.txt', '5.txt.asc'):
+                    raise AssertionError('Unexpected download')
+            return old_get_files(downloads, *args, **kws)
+        state.downloader.get_files = get_files
+        state.run_thru('download_files')
+        # Yet all the data files should still be available.
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)),
+                         set(('5.txt', '6.txt', '7.txt',
+                              '5.txt.asc', '6.txt.asc', '7.txt.asc')))
+
+    @configuration
+    def test_cached_signatures_are_blacklisted(self):
+        # All files in an upgrade are already downloaded, but the key used to
+        # sign the files has been blacklisted, so everything has to be
+        # downloaded again.
+        self._setup_keyrings()
+        touch_build(0)
+        # Run the state machine far enough to calculate the winning path.
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertIsNotNone(state.winner)
+        # Let's install all the data files into their final location.  The
+        # signature files must be included.
+        for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
+            data_file = os.path.join(self._serverdir, path)
+            shutil.copy(data_file, config.updater.cache_partition)
+            # Sign the file with what will be the blacklist.
+            dst = os.path.join(config.updater.cache_partition,
+                               os.path.basename(data_file))
+            sign(dst, 'spare.gpg')
+        # Set up the blacklist file.
+        setup_keyring_txz(
+            'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        # All the files will be downloaded.
+        requested_downloads = set()
+        old_get_files = state.downloader.get_files
+        def get_files(downloads, *args, **kws):
+            for dst, url in downloads:
+                requested_downloads.add(os.path.basename(dst))
+            return old_get_files(downloads, *args, **kws)
+        state.downloader.get_files = get_files
+        state.run_thru('download_files')
+        # All the files were re-downloaded.
+        self.assertEqual(requested_downloads,
+                         set(('5.txt', '5.txt.asc',
+                              '6.txt', '6.txt.asc',
+                              '7.txt', '7.txt.asc')))
+        # All the data files should still be available.
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)),
+                         set(('5.txt', '6.txt', '7.txt',
+                              '5.txt.asc', '6.txt.asc', '7.txt.asc')))
+
+    @configuration
+    def test_cached_files_all_have_bad_signatures(self):
+        # All the data files are cached, but the signatures don't match.
+        self._setup_keyrings()
+        touch_build(0)
+        # Run the state machine far enough to calculate the winning path.
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertIsNotNone(state.winner)
+        # Let's install all the data files into their final location.  The
+        # signature files must be included.
+        for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
+            data_file = os.path.join(self._serverdir, path)
+            shutil.copy(data_file, config.updater.cache_partition)
+            # Sign the file with a bogus key.
+            dst = os.path.join(config.updater.cache_partition,
+                               os.path.basename(data_file))
+            sign(dst, 'spare.gpg')
+        # All the files will be downloaded.
+        requested_downloads = set()
+        old_get_files = state.downloader.get_files
+        def get_files(downloads, *args, **kws):
+            for dst, url in downloads:
+                requested_downloads.add(os.path.basename(dst))
+            return old_get_files(downloads, *args, **kws)
+        state.downloader.get_files = get_files
+        state.run_thru('download_files')
+        # All the files were re-downloaded.
+        self.assertEqual(requested_downloads,
+                         set(('5.txt', '5.txt.asc',
+                              '6.txt', '6.txt.asc',
+                              '7.txt', '7.txt.asc')))
+        # All the data files should still be available.
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)),
+                         set(('5.txt', '6.txt', '7.txt',
+                              '5.txt.asc', '6.txt.asc', '7.txt.asc')))
+
+    @configuration
+    def test_cached_files_all_have_bad_hashes(self):
+        # All the data files are cached, and the signatures match, but the
+        # data file hashes are bogus, so they all get downloaded again.
+        self._setup_keyrings()
+        touch_build(0)
+        # Run the state machine far enough to calculate the winning path.
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertIsNotNone(state.winner)
+        # Let's install all the data files into their final location.  The
+        # signature files must be included.
+        for filename in ('5.txt', '6.txt', '7.txt'):
+            data_file = os.path.join(config.updater.cache_partition, filename)
+            with open(data_file, 'wb') as fp:
+                fp.write(b'xxx')
+            # Sign the file with the right key.
+            dst = os.path.join(config.updater.cache_partition,
+                               os.path.basename(data_file))
+            sign(dst, 'image-signing.gpg')
+        # All the files will be downloaded.
+        requested_downloads = set()
+        old_get_files = state.downloader.get_files
+        def get_files(downloads, *args, **kws):
+            for dst, url in downloads:
+                requested_downloads.add(os.path.basename(dst))
+            return old_get_files(downloads, *args, **kws)
+        state.downloader.get_files = get_files
+        state.run_thru('download_files')
+        # All the files were re-downloaded.
+        self.assertEqual(requested_downloads,
+                         set(('5.txt', '5.txt.asc',
+                              '6.txt', '6.txt.asc',
+                              '7.txt', '7.txt.asc')))
+        # All the data files should still be available.
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)),
+                         set(('5.txt', '6.txt', '7.txt',
+                              '5.txt.asc', '6.txt.asc', '7.txt.asc')))
