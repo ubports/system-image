@@ -12,7 +12,8 @@ NEWS for system-image updater
      (separate from nose2's own -v options).
  * Write the `ubuntu_command` file atomically.  (LP: #1241236)
  * Remove the unused `-u` and `--upgrade` switches.
- * Clarify that `--channel` should be used with `--build 0` to switch channels.
+ * Clarify that `--channel` should be used with `--build 0` to switch
+   channels. (LP: #1243612)
 
 1.9.1 (2013-10-15)
 ==================
