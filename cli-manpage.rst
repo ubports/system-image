@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2013-09-04
+:Date: 2013-10-23
 :Copyright: 2013 Canonical Ltd.
-:Version: 1.5
+:Version: 2.0
 :Manual section: 1
 
 
@@ -44,7 +44,8 @@ OPTIONS
     must be an integer.  Use ``-b 0`` for force an upgrade.
 
 -c CHANNEL, --channel CHANNEL
-    Override the device's upgrade channel just this once.
+    Override the device's upgrade channel just this once.  Use in combination
+    with ``--build 0`` to switch channels.
 
 -d DEVICE, --device DEVICE
     Override the device name just this once.
@@ -70,10 +71,6 @@ OPTIONS
     Use the given configuration file, otherwise use the default.  The program
     will optionally also read a ``channel.ini`` file in the same directory as
     ``FILE``.
-
--u NUMBER, --upgrade NUMBER
-    Calculate an upgrade path from the given build number instead of the
-    system's actual build number.
 
 --dbus
     Run in D-Bus client mode.  Normally, ``system-image-cli`` runs directly

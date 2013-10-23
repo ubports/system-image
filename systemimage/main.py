@@ -59,11 +59,13 @@ def main():
                                 the default""")
     parser.add_argument('-b', '--build',
                         default=None, action='store',
-                        help=
-                            'Override the current build number just this once')
+                        help="""Override the current build number just
+                                this once""")
     parser.add_argument('-c', '--channel',
                         default=None, action='store',
-                        help='Override the channel just this once')
+                        help="""Override the channel just this once.  Use in
+                                combination with `--build 0` to switch
+                                channels.""")
     parser.add_argument('-d', '--device',
                         default=None, action='store',
                         help='Override the device name just this once')
@@ -85,10 +87,6 @@ def main():
                         default=False, action='store_true',
                         help="""Calculate and print the upgrade path, but do
                                 not download or apply it""")
-    parser.add_argument('-u', '--upgrade',
-                        default=None, metavar='NUMBER',
-                        help="""Upgrade from this build number instead of the
-                                system's current build number""")
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
