@@ -266,7 +266,12 @@ class _LiveTesting(_TestBase):
         sign(index_path, 'device-signing.gpg')
         setup_index(index_file, serverdir, 'device-signing.gpg')
 
-    def _set_build(self, version):
+    def _touch_build(self, version):
+        # Unlike the touch_build() helper, this one uses our own config object
+        # rather than the global one.   It's not worth messing with
+        # touch_build() to generalize it.
+        assert 0 <= version < (1 << 16), (
+            'old style version number: {}'.format(version))
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
             print(version, file=fp)
 
@@ -324,7 +329,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
 
     def test_no_update_available(self):
         # Our device is newer than the version that's available.
-        self._set_build(20130701)
+        self._touch_build(1701)
         # Give /etc/ubuntu-build a predictable mtime.
         timestamp = int(datetime(2013, 8, 1, 10, 11, 12).timestamp())
         os.utime(self.config.system.build_file, (timestamp, timestamp))
@@ -343,7 +348,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
     def test_last_update_date(self):
         # Pretend the device got a previous update.  Now, there's no update
         # available, but the date of the last update is provided in the signal.
-        self._set_build(20130701)
+        self._touch_build(1701)
         # Fake that there was a previous update.
         timestamp = int(datetime(2013, 1, 20, 12, 1, 45).timestamp())
         channel_ini = os.path.join(
@@ -431,7 +436,7 @@ unmount system
     def test_nothing_to_auto_download(self):
         # We're auto-downloading, but there's no update available.
         self.download_always()
-        self._set_build(20130701)
+        self._touch_build(1701)
         self.assertFalse(os.path.exists(self.command_file))
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
@@ -491,7 +496,7 @@ unmount system
     def test_nothing_to_manually_download(self):
         # We're manually downloading, but there's no update available.
         self.download_manually()
-        self._set_build(20130701)
+        self._touch_build(1701)
         self.assertFalse(os.path.exists(self.command_file))
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
@@ -550,7 +555,7 @@ class TestDBusApply(_LiveTesting):
     def test_reboot_no_update(self):
         # There's no update to reboot to.
         self.assertFalse(os.path.exists(self.reboot_log))
-        self._set_build(20130701)
+        self._touch_build(1701)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         response = self.iface.ApplyUpdate()
@@ -1055,7 +1060,7 @@ class TestDBusClient(_LiveTesting):
 
     def test_check_for_no_update(self):
         # There is no update available.
-        self._set_build(20130701)
+        self._touch_build(1701)
         self._client.check_for_update()
         self.assertFalse(self._client.is_available)
         self.assertFalse(self._client.downloaded)
@@ -1279,7 +1284,7 @@ class TestDBusInfo(_TestBase):
 class TestDBusInfoNoDetails(_LiveTesting):
     def test_info_no_version_details(self):
         # .Info() where there is no channel.ini with version details.
-        self._set_build(45)
+        self._touch_build(45)
         timestamp = datetime(2022, 8, 1, 4, 45, 45).timestamp()
         os.utime(self.config.system.build_file, (timestamp, timestamp))
         buildno, device, channel, last_update, details = self.iface.Info()
@@ -1293,7 +1298,7 @@ class TestDBusInfoNoDetails(_LiveTesting):
 class TestDBusProgress(_LiveTesting):
     def test_progress(self):
         self.download_always()
-        self._set_build(0)
+        self._touch_build(0)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -1329,7 +1334,7 @@ class TestDBusPauseResume(_LiveTesting):
 
     def test_pause(self):
         self.download_manually()
-        self._set_build(0)
+        self._touch_build(0)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
