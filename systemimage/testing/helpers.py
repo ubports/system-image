@@ -24,7 +24,6 @@ __all__ = [
     'get_channels',
     'get_index',
     'make_http_server',
-    'patience',
     'reset_envar',
     'setup_index',
     'setup_keyring_txz',
@@ -380,19 +379,7 @@ def touch_build(version, timestamp=None):
 def debug():
     with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
         yield partial(print, file=fp)
-
-
-@contextmanager
-def patience(exception):
-    until = datetime.now() + timedelta(seconds=60)
-    while datetime.now() < until:
-        time.sleep(0.1)
-        try:
-            yield
-        except exception:
-            break
-    else:
-        raise RuntimeError('Process did not exit')
+        fp.flush()
 
 
 def find_dbus_process(ini_path):
