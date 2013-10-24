@@ -193,8 +193,8 @@ class State:
         try:
             # I think it makes no sense to check the blacklist when we're
             # downloading a blacklist file.
-            log.info('Looking for blacklist: {}',
-                     urljoin(config.service.https_base, url))
+            log.info('Looking for blacklist: {}'.format(
+                     urljoin(config.service.https_base, url)))
             get_keyring('blacklist', url, 'image-master')
         except SignatureError:
             log.info('No signed blacklist found')
