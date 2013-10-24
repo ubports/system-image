@@ -25,6 +25,7 @@ import os
 import pwd
 import sys
 import dbus
+import psutil
 import signal
 import subprocess
 
@@ -32,10 +33,18 @@ from contextlib import ExitStack
 from distutils.spawn import find_executable
 from pkg_resources import resource_string as resource_bytes
 from systemimage.helpers import temporary_directory
-from systemimage.testing.helpers import data_path, patience, reset_envar
+from systemimage.testing.helpers import (
+    data_path, find_dbus_process, reset_envar)
 
 
-def stop_system_image():
+SPACE = ' '
+
+
+def stop_system_image(controller):
+    if controller.ini_path is None:
+        process = None
+    else:
+        process = find_dbus_process(controller.ini_path)
     try:
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
@@ -44,11 +53,18 @@ def stop_system_image():
     except dbus.DBusException:
         # The process might not be running at all.
         return
-    with patience(dbus.DBusException):
-        iface.Exit()
+    if process is not None:
+        process.wait(60)
 
 
-def stop_downloader():
+def stop_downloader(controller):
+    # See find_dbus_process() for details.
+    for process in psutil.process_iter():
+        cmdline = SPACE.join(process.cmdline)
+        if 'ubuntu-download-manager' in cmdline and '-stoppable' in cmdline:
+            break
+    else:
+        process = None
     try:
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.applications.Downloader', '/')
@@ -58,8 +74,8 @@ def stop_downloader():
     except dbus.DBusException:
         # The process might not be running at all.
         return
-    with patience(dbus.DBusException):
-        iface.exit()
+    if process is not None:
+        process.wait(60)
 
 
 SERVICES = [
@@ -109,6 +125,13 @@ class Controller:
                   file=fp)
 
     def _configure_services(self):
+        # If the daemon is already running, kill all the children and HUP the
+        # daemon to reset dbus activation.
+        if self.daemon_pid is not None:
+            for stopper in self._stoppers:
+                stopper(self)
+            process = psutil.Process(self.daemon_pid)
+            process.send_signal(signal.SIGHUP)
         del self._stoppers[:]
         # Now we have to set up the .service files.  We use the Python
         # executable used to run the tests, executing the entry point as would
@@ -124,12 +147,6 @@ class Controller:
             with open(service_path, 'w', encoding='utf-8') as fp:
                 fp.write(config)
             self._stoppers.append(stopper)
-        # If the daemon is already running, kill all the children and HUP the
-        # daemon to reset dbus activation.
-        if self.daemon_pid is not None:
-            for stopper in self._stoppers:
-                stopper()
-            os.kill(self.daemon_pid, signal.SIGHUP)
 
     def set_mode(self, *, cert_pem=None, service_mode=''):
         self.mode = service_mode
@@ -185,10 +202,10 @@ class Controller:
 
     def _kill(self, pid):
         for stopper in self._stoppers:
-            stopper()
-        os.kill(pid, signal.SIGTERM)
-        with patience(ProcessLookupError):
-            os.kill(pid, 0)
+            stopper(self)
+        process = psutil.Process(pid)
+        process.terminate()
+        process.wait(60)
         self.daemon_pid = None
 
     def stop(self):
