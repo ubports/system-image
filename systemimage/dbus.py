@@ -21,6 +21,8 @@ __all__ = [
     ]
 
 
+import os
+
 from dbus.service import Object, method, signal
 from gi.repository import GLib
 from systemimage.api import Mediator
@@ -60,7 +62,7 @@ class Service(Object):
     def __init__(self, bus, object_path, loop):
         super().__init__(bus, object_path)
         self._loop = loop
-        self._api = Mediator()
+        self._api = Mediator(self._progress_callback)
         self._checking = False
         self._update = None
         self._downloading = False
@@ -117,10 +119,11 @@ class Service(Object):
             # Check is already in progress, so there's nothing more to do.
             return
         self._checking = True
-        # Reset any failure or in-progress state.
+        # Reset any failure or in-progress state.  Get a new mediator to reset
+        # any of its state.
+        self._api = Mediator(self._progress_callback)
         self._failure_count = 0
         self._last_error = ''
-        self._api = Mediator(self._progress_callback)
         # Arrange for the actual check to happen in a little while, so that
         # this method can return immediately.
         GLib.timeout_add(50, self._check_for_update)
@@ -204,14 +207,24 @@ class Service(Object):
         # reason in this string.
         return ''
 
-    @method('com.canonical.SystemImage', out_signature='s')
-    def ApplyUpdate(self):
-        """Apply the update, rebooting the device."""
+    def _apply_update(self):
+        # This signal may or may not get sent.  We're racing against the
+        # system reboot procedure.
         self._loop.keepalive()
         if not self._rebootable:
-            return 'No update has been downloaded'
+            command_file = os.path.join(
+                config.updater.cache_partition, 'ubuntu_command')
+            if not os.path.exists(command_file):
+                # Not enough has been downloaded to allow for a reboot.
+                self.Rebooting(False)
+                return
         self._api.reboot()
-        return ''
+        self.Rebooting(True)
+
+    @method('com.canonical.SystemImage')
+    def ApplyUpdate(self):
+        """Apply the update, rebooting the device."""
+        GLib.timeout_add(50, self._apply_update)
 
     @method('com.canonical.SystemImage', out_signature='isssa{ss}')
     def Info(self):
@@ -299,3 +312,9 @@ class Service(Object):
     def SettingChanged(self, key, new_value):
         """A setting value has change."""
         self._loop.keepalive()
+
+    @signal('com.canonical.SystemImage', signature='b')
+    def Rebooting(self, status):
+        """The system is rebooting."""
+        # We don't need to keep the loop alive since we're probably just going
+        # to shutdown anyway.

@@ -38,7 +38,6 @@ SIGNAL_DELAY_SECS = 5
 
 class _ActionLog:
     def __init__(self, filename):
-        makedirs(config.updater.cache_partition)
         self._path = os.path.join(config.updater.cache_partition, filename)
 
     def write(self, *args, **kws):
@@ -48,6 +47,9 @@ class _ActionLog:
 
 def instrument(config, stack):
     """Instrument the system for testing."""
+    # Ensure the destination directories exist.
+    makedirs(config.updater.data_partition)
+    makedirs(config.updater.cache_partition)
     # Patch the subprocess call to write the reboot command to a log
     # file which the testing parent process can open and read.
     safe_reboot = _ActionLog('reboot.log')
@@ -179,10 +181,12 @@ class _UpdateAutoSuccess(Service):
         # Otherwise it's a no-op.
         return ''
 
-    @method('com.canonical.SystemImage', out_signature='s')
+    @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         # Always succeeds.
-        return ''
+        def _rebooting():
+            self.Rebooting(True)
+        GLib.timeout_add(50, _rebooting)
 
 
 class _UpdateManualSuccess(_UpdateAutoSuccess):
@@ -251,10 +255,12 @@ class _FailApply(Service):
             '')
         self.UpdateDownloaded()
 
-    @method('com.canonical.SystemImage', out_signature='s')
+    @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         # The update cannot be applied.
-        return 'Not enough battery, you need to plug in your phone'
+        def _rebooting():
+            self.Rebooting(False)
+        GLib.timeout_add(50, _rebooting)
 
 
 class _FailResume(Service):

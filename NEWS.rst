@@ -4,6 +4,13 @@ NEWS for system-image updater
 
 2.0 (2013-XX-XX)
 ================
+ * Avoid re-downloading data files if previously download files are found and
+   are still valid (by checksum and gpg signature).  (LP: #1217098)
+ * In the D-Bus API, `ApplyUpdate()` is changed from a synchronous method
+   returning a string to an asynchronous method not returning anything.
+   Instead a `Rebooting(bool)` signal is added with the value being the status
+   if the reboot operation (obviously, this signal isn't ever received if the
+   reboot succeeds).
  * Remove the old channels.json format. (LP: #1221843)
  * Remove support for old version numbers. (LP: #1220238)
  * Switch to nose2 as the test runner.  (LP: #1238071)
@@ -14,6 +21,8 @@ NEWS for system-image updater
  * Remove the unused `-u` and `--upgrade` switches.
  * Clarify that `--channel` should be used with `--build 0` to switch
    channels. (LP: #1243612)
+ * Add a workaround for LP: #1245597, caused by a bug in
+   ubuntu-download-manager when presented with an empty download list.
 
 1.9.1 (2013-10-15)
 ==================

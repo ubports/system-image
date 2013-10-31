@@ -122,7 +122,6 @@ class DBusDownloadManager:
             downloaded.
         """
         self._iface = None
-        self._reactor = None
         self._queued_cancel = False
         self.callback = callback
 
@@ -150,9 +149,13 @@ class DBusDownloadManager:
         :raises: FileNotFoundError if any download error occurred.  In
             this case, all download files are deleted.
         """
+        assert self._iface is None
         if self._queued_cancel:
             # A cancel is queued, so don't actually download anything.
             raise Canceled
+        if len(downloads) == 0:
+            # Nothing to download.  See LP: #1245597.
+            return
         bus = dbus.SystemBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
         iface = dbus.Interface(service, MANAGER_INTERFACE)
@@ -171,25 +174,25 @@ class DBusDownloadManager:
             _headers())
         download = bus.get_object(OBJECT_NAME, object_path)
         self._iface = dbus.Interface(download, OBJECT_INTERFACE)
-        self._reactor = DownloadReactor(bus, self.callback, pausable)
-        self._reactor.schedule(self._iface.start)
+        reactor = DownloadReactor(bus, self.callback, pausable)
+        reactor.schedule(self._iface.start)
         log.info('Running group download reactor')
-        self._reactor.run()
-        log.info('Group download reactor done')
-        if self._reactor.error is not None:
-            log.error('Reactor error: {}'.format(self._reactor.error))
-        if self._reactor.canceled:
-            log.info('Reactor canceled')
+        reactor.run()
         # This download is complete so the object path is no longer
         # applicable.  Setting this to None will cause subsequent cancels to
         # be queued.
         self._iface = None
+        log.info('Group download reactor done')
+        if reactor.error is not None:
+            log.error('Reactor error: {}'.format(reactor.error))
+        if reactor.canceled:
+            log.info('Reactor canceled')
         # Report any other problems.
-        if self._reactor.error is not None:
-            raise FileNotFoundError(self._reactor.error)
-        if self._reactor.canceled:
+        if reactor.error is not None:
+            raise FileNotFoundError(reactor.error)
+        if reactor.canceled:
             raise Canceled
-        if self._reactor.timed_out:
+        if reactor.timed_out:
             raise TimeoutError
 
     def cancel(self):

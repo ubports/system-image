@@ -24,7 +24,6 @@ __all__ = [
     'get_channels',
     'get_index',
     'make_http_server',
-    'patience',
     'reset_envar',
     'setup_index',
     'setup_keyring_txz',
@@ -37,7 +36,6 @@ __all__ = [
 import os
 import ssl
 import json
-import time
 import gnupg
 import psutil
 import shutil
@@ -45,7 +43,6 @@ import inspect
 import tarfile
 
 from contextlib import ExitStack, contextmanager
-from datetime import datetime, timedelta
 from functools import partial, wraps
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
@@ -339,8 +336,7 @@ def setup_index(index, todir, keyring):
                 os.path.splitext(filerec.path)[0].split('/'))
             with open(dst, 'w', encoding='utf-8') as fp:
                 fp.write(contents)
-            # Sign with the imaging signing key.  Some tests will
-            # re-sign all these files with the device key.
+            # Sign with the specified signing key.
             sign(dst, keyring)
 
 
@@ -380,20 +376,10 @@ def touch_build(version, timestamp=None):
 @contextmanager
 def debug():
     with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
-        yield partial(print, file=fp)
-
-
-@contextmanager
-def patience(exception):
-    until = datetime.now() + timedelta(seconds=60)
-    while datetime.now() < until:
-        time.sleep(0.1)
-        try:
-            yield
-        except exception:
-            break
-    else:
-        raise RuntimeError('Process did not exit')
+        function = partial(print, file=fp)
+        function.fp = fp
+        yield function
+        fp.flush()
 
 
 def find_dbus_process(ini_path):
