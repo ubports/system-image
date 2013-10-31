@@ -155,20 +155,11 @@ class State:
     def _cleanup(self):
         """Clean up the destination directories.
 
-        Removes all residual files from the cache and data partitions except
-        `log` and `last_log` in the cache partition.
+        Removes all residual files from the data partition.  We leave the
+        cache partition alone because some of those data files may still be
+        valid and we want to avoid re-downloading them if possible.
         """
-        cache_dir = config.updater.cache_partition
         data_dir = config.updater.data_partition
-        try:
-            files = os.listdir(cache_dir)
-        except FileNotFoundError:
-            pass
-        else:
-            for filename in files:
-                if filename in ('log', 'last_log'):
-                    continue
-                safe_remove(os.path.join(cache_dir, filename))
         # Remove only the blacklist files (and generic keyring files) since
         # these are the only ones that will be downloaded to this location.
         safe_remove(os.path.join(data_dir, 'blacklist.tar.xz'))
@@ -419,17 +410,23 @@ class State:
         downloads = []
         signatures = []
         checksums = []
+        # For the clean ups below, preserve recovery's log files.
+        cache_dir = config.updater.cache_partition
+        preserve = set((
+            os.path.join(cache_dir, 'log'),
+            os.path.join(cache_dir, 'last_log'),
+            ))
         for image_number, filerec in iter_path(self.winner):
             # Re-pack for arguments to get_files() and to collate the
             # signature path and checksum for the downloadable file.
-            dst = os.path.join(
-                config.updater.cache_partition, os.path.basename(filerec.path))
-            asc = os.path.join(
-                config.updater.cache_partition,
-                os.path.basename(filerec.signature))
+            dst = os.path.join(cache_dir, os.path.basename(filerec.path))
+            asc = os.path.join(cache_dir, os.path.basename(filerec.signature))
             checksum = filerec.checksum
             # Check the existence and signature of the file.
-            if not _use_cached(dst, asc, checksum, keyrings, self.blacklist):
+            if _use_cached(dst, asc, checksum, keyrings, self.blacklist):
+                preserve.add(dst)
+                preserve.add(asc)
+            else:
                 downloads.append((
                     urljoin(config.service.http_base, filerec.path),
                     dst,
@@ -446,6 +443,11 @@ class State:
         # throw exceptions.
         for url, dst in downloads:
             safe_remove(dst)
+        # Also delete cache partition files that we no longer need.
+        for filename in os.listdir(cache_dir):
+            path = os.path.join(cache_dir, filename)
+            if path not in preserve:
+                safe_remove(os.path.join(cache_dir, filename))
         # Now, download all missing or ill-signed files, providing logging
         # feedback on progress.  This download can be paused.
         self.downloader.get_files(downloads, pausable=True)
@@ -473,7 +475,7 @@ class State:
                         raise ChecksumError(dst, got, checksum)
             # Everything is fine so nothing needs to be cleared.
             stack.pop_all()
-        log.info('all files available in {}', config.updater.cache_partition)
+        log.info('all files available in {}', cache_dir)
         # Now, copy the files from the temporary directory into the location
         # for the upgrader.
         self._next.append(self._move_files)

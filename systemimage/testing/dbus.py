@@ -181,10 +181,12 @@ class _UpdateAutoSuccess(Service):
         # Otherwise it's a no-op.
         return ''
 
-    @method('com.canonical.SystemImage', out_signature='s')
+    @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         # Always succeeds.
-        return ''
+        def _rebooting():
+            self.Rebooting(True)
+        GLib.timeout_add(50, _rebooting)
 
 
 class _UpdateManualSuccess(_UpdateAutoSuccess):
@@ -253,10 +255,12 @@ class _FailApply(Service):
             '')
         self.UpdateDownloaded()
 
-    @method('com.canonical.SystemImage', out_signature='s')
+    @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         # The update cannot be applied.
-        return 'Not enough battery, you need to plug in your phone'
+        def _rebooting():
+            self.Rebooting(False)
+        GLib.timeout_add(50, _rebooting)
 
 
 class _FailResume(Service):

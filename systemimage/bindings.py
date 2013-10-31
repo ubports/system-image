@@ -84,5 +84,10 @@ class DBusClient(Reactor):
         self.run()
         self.iface.SetSetting('auto_download', old_value)
 
+    def _do_Rebooting(self, signal, path, status):
+        self.quit()
+
     def reboot(self):
-        self.iface.ApplyUpdate()
+        self.react_to('Rebooting')
+        self.schedule(self.iface.ApplyUpdate)
+        self.run()

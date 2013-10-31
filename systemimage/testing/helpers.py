@@ -36,7 +36,6 @@ __all__ = [
 import os
 import ssl
 import json
-import time
 import gnupg
 import psutil
 import shutil
@@ -44,7 +43,6 @@ import inspect
 import tarfile
 
 from contextlib import ExitStack, contextmanager
-from datetime import datetime, timedelta
 from functools import partial, wraps
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pkg_resources import resource_filename, resource_string as resource_bytes
@@ -378,7 +376,9 @@ def touch_build(version, timestamp=None):
 @contextmanager
 def debug():
     with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
-        yield partial(print, file=fp)
+        function = partial(print, file=fp)
+        function.fp = fp
+        yield function
         fp.flush()
 
 

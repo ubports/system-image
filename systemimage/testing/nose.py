@@ -102,15 +102,19 @@ class SystemImagePlugin(Plugin):
             return
         # Does the pattern match the fully qualified class name?
         for pattern in self.patterns:
-            full_name = '{}.{}'.format(
+            full_class_name = '{}.{}'.format(
                 event.testCase.__module__, event.testCase.__name__)
-            if re.search(pattern, full_name):
+            if re.search(pattern, full_class_name):
                 # Don't suppress this test class.
                 return
         names = filter(event.isTestMethod, dir(event.testCase))
         for name in names:
+            full_test_name = '{}.{}.{}'.format(
+                event.testCase.__module__,
+                event.testCase.__name__,
+                name)
             for pattern in self.patterns:
-                if re.search(pattern, name):
+                if re.search(pattern, full_test_name):
                     break
             else:
                 event.excludedNames.append(name)

@@ -32,6 +32,7 @@ __all__ = [
     'TestDBusPauseResume',
     'TestDBusProgress',
     'TestDBusRegressions',
+    'TestDBusUseCache',
     ]
 
 
@@ -547,7 +548,10 @@ class TestDBusApply(_LiveTesting):
         self.assertFalse(os.path.exists(self.reboot_log))
         reactor = SignalCapturingReactor('UpdateDownloaded')
         reactor.run(self.iface.CheckForUpdate)
-        self.iface.ApplyUpdate()
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(reactor.signals[0])
         with open(self.reboot_log, encoding='utf-8') as fp:
             reboot = fp.read()
         self.assertEqual(reboot, '/sbin/reboot -f recovery')
@@ -558,10 +562,10 @@ class TestDBusApply(_LiveTesting):
         self._touch_build(1701)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
-        response = self.iface.ApplyUpdate()
-        # Let's not count on the exact response, except that success returns
-        # the empty string.
-        self.assertNotEqual(response, '')
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertFalse(reactor.signals[0][0])
         self.assertFalse(os.path.exists(self.reboot_log))
 
     def test_reboot_after_update_failed(self):
@@ -578,7 +582,10 @@ class TestDBusApply(_LiveTesting):
         self.assertEqual(failure_count, 1)
         self.assertNotEqual(reason, '')
         # The reboot fails, so we get an error message.
-        self.assertNotEqual(self.iface.ApplyUpdate(), '')
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertFalse(reactor.signals[0][0])
 
     def test_auto_download_cancel(self):
         # While automatically downloading, cancel the update.
@@ -590,6 +597,7 @@ class TestDBusApply(_LiveTesting):
         self.assertTrue(reactor.got_update_failed)
 
     def test_exit(self):
+        # There is a D-Bus method to exit the server immediately.
         self.iface.Exit()
         self.assertRaises(DBusException, self.iface.Info)
         # Re-establish a new connection.
@@ -598,7 +606,10 @@ class TestDBusApply(_LiveTesting):
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
         # There's no update to apply, so we'll get an error string instead of
         # the empty string for this call.  But it will restart the server.
-        self.assertNotEqual(self.iface.ApplyUpdate(), '')
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertFalse(reactor.signals[0][0])
 
     def test_cancel_while_not_downloading(self):
         # If we call CancelUpdate() when we're not downloading anything, no
@@ -739,7 +750,10 @@ class TestDBusMockUpdateAutoSuccess(_TestBase):
             self.assertEqual(percentage, i)
             self.assertEqual(eta, 50 - (i * 0.5))
         self.assertTrue(reactor.downloaded)
-        self.assertEqual(self.iface.ApplyUpdate(), '')
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(reactor.signals[0])
 
     def test_scenario_2(self):
         # Like scenario 1, but with PauseDownload called during the downloads.
@@ -868,7 +882,10 @@ class TestDBusMockUpdateManualSuccess(_TestBase):
             self.assertEqual(percentage, i)
             self.assertEqual(eta, 50 - (i * 0.5))
         self.assertTrue(reactor.downloaded)
-        self.assertEqual(self.iface.ApplyUpdate(), '')
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(reactor.signals[0])
 
 
 class TestDBusMockUpdateFailed(_TestBase):
@@ -934,8 +951,10 @@ class TestDBusMockFailApply(_TestBase):
         ##     }])
         self.assertEqual(error_reason, '')
         self.assertTrue(reactor.downloaded)
-        self.assertEqual(self.iface.ApplyUpdate(),
-                         'Not enough battery, you need to plug in your phone')
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertFalse(bool(reactor.signals[0][0]))
 
 
 class TestDBusMockFailResume(_TestBase):
@@ -1354,3 +1373,101 @@ class TestDBusPauseResume(_LiveTesting):
         failure_count, last_error = reactor.signals[0]
         self.assertEqual(failure_count, 1)
         self.assertEqual(os.path.basename(last_error), '5.txt')
+
+
+class TestDBusUseCache(_LiveTesting):
+    # See LP: #1217098
+
+    def test_use_cache(self):
+        # We run the D-Bus service once through to download all the relevant
+        # files.  Then we kill the service before performing the reboot, and
+        # try to do another download.  The second one should only try to
+        # download the ancillary files (i.e. channels.json, index.json,
+        # keyrings), but not the data files.
+        self.download_always()
+        self._touch_build(0)
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = reactor.signals[0]
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+        # Now, wait for the UpdateDownloaded signal.
+        reactor = SignalCapturingReactor('UpdateDownloaded')
+        reactor.run()
+        self.assertEqual(len(reactor.signals), 1)
+        config = Configuration()
+        config.load(SystemImagePlugin.controller.ini_path)
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)),
+                         set((
+                             '5.txt',
+                             '5.txt.asc',
+                             '6.txt',
+                             '6.txt.asc',
+                             '7.txt',
+                             '7.txt.asc',
+                             'device-signing.tar.xz',
+                             'device-signing.tar.xz.asc',
+                             'image-master.tar.xz',
+                             'image-master.tar.xz.asc',
+                             'image-signing.tar.xz',
+                             'image-signing.tar.xz.asc',
+                             'ubuntu_command',
+                             )))
+        # To prove that the data files are not downloaded again, let's
+        # actually remove them from the server.
+        for dirpath, dirnames, filenames in os.walk(
+                SystemImagePlugin.controller.serverdir):
+            for filename in filenames:
+                if filename.endswith('.txt') or filename.endswith('.txt.asc'):
+                    os.remove(os.path.join(dirpath, filename))
+        # As extra proof, get the mtime in nanoseconds for the .txt and
+        # .txt.asc files.
+        mtimes = {}
+        for filename in os.listdir(config.updater.cache_partition):
+            path = os.path.join(config.updater.cache_partition, filename)
+            if filename.endswith('.txt') or filename.endswith('.txt.asc'):
+                mtimes[filename] = os.stat(path).st_mtime_ns
+        # Don't issue the reboot.  Instead, kill the services, which throws
+        # away all state, but does not delete the cached files.
+        # Re-establish a new connection.
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        if process is not None:
+            self.iface.Exit()
+            process.wait(60)
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        # Now, if we just apply the update, it will succeed, since it knows
+        # that the cached files are valid.
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(reactor.signals[0])
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)),
+                         set((
+                             '5.txt',
+                             '5.txt.asc',
+                             '6.txt',
+                             '6.txt.asc',
+                             '7.txt',
+                             '7.txt.asc',
+                             'device-signing.tar.xz',
+                             'device-signing.tar.xz.asc',
+                             'image-master.tar.xz',
+                             'image-master.tar.xz.asc',
+                             'image-signing.tar.xz',
+                             'image-signing.tar.xz.asc',
+                             # This file exists because reboot is mocked out
+                             # in the dbus tests to just write to a log file.
+                             'reboot.log',
+                             'ubuntu_command',
+                             )))
+        for filename in os.listdir(config.updater.cache_partition):
+            path = os.path.join(config.updater.cache_partition, filename)
+            if filename.endswith('.txt') or filename.endswith('.txt.asc'):
+                self.assertEqual(mtimes[filename], os.stat(path).st_mtime_ns)

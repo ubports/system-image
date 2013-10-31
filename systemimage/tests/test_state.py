@@ -32,7 +32,6 @@ __all__ = [
 import os
 import shutil
 import hashlib
-import tempfile
 import unittest
 
 from contextlib import ExitStack
@@ -78,24 +77,19 @@ class TestState(unittest.TestCase):
 
     @configuration
     def test_cleanup(self):
-        # All residual files from the cache and data partitions are removed,
-        # except `log` and `last_log` in the cache partition.
+        # All residual files from the data partitions are removed.  The cache
+        # partition is not touched (that clean up happens later).
         wopen = partial(open, mode='w', encoding='utf-8')
         cache_partition = config.updater.cache_partition
         data_partition = config.updater.data_partition
-        for i in range(10):
-            fd, path = tempfile.mkstemp(dir=cache_partition)
-            os.close(fd)
-            with wopen(path) as fp:
-                print('stale', file=fp)
-            fd, path = tempfile.mkstemp(dir=data_partition)
-            os.close(fd)
-            with wopen(path) as fp:
-                print('stale', file=fp)
         with wopen(os.path.join(cache_partition, 'log')) as fp:
             print('logger keeper', file=fp)
         with wopen(os.path.join(cache_partition, 'last_log')) as fp:
             print('logger keeper', file=fp)
+        with wopen(os.path.join(cache_partition, 'xxx.txt')) as fp:
+            print('xxx', file=fp)
+        with wopen(os.path.join(cache_partition, 'yyy.txt')) as fp:
+            print('yyy', file=fp)
         with wopen(os.path.join(data_partition, 'log')) as fp:
             print('stale log', file=fp)
         with wopen(os.path.join(data_partition, 'last_log')) as fp:
@@ -104,19 +98,25 @@ class TestState(unittest.TestCase):
             print('black list', file=fp)
         with wopen(os.path.join(data_partition, 'blacklist.tar.xz.asc')) as fp:
             print('black list', file=fp)
+        with wopen(os.path.join(data_partition, 'keyring.tar.xz')) as fp:
+            print('black list', file=fp)
+        with wopen(os.path.join(data_partition, 'keyring.tar.xz.asc')) as fp:
+            print('black list', file=fp)
         # Here are all the files before we start up the state machine.
-        self.assertEqual(len(os.listdir(cache_partition)), 12)
-        self.assertEqual(len(os.listdir(data_partition)), 14)
+        self.assertEqual(len(os.listdir(cache_partition)), 4)
+        self.assertEqual(len(os.listdir(data_partition)), 6)
         # Clean up step.
         State().run_thru('cleanup')
-        # Two files in the cache partition are preserved.
-        self.assertEqual(set(os.listdir(cache_partition)),
-                         set(['log', 'last_log']))
-        # Only the blacklist files are removed from the data partition.
+        # The blacklist and keyring files are removed from the data partition.
         contents = os.listdir(data_partition)
-        self.assertEqual(len(contents), 12)
-        self.assertFalse('blacklist.tar.xz' in contents)
-        self.assertFalse('blacklist.tar.xz.asc' in contents)
+        self.assertEqual(len(contents), 2)
+        self.assertNotIn('blacklist.tar.xz', contents)
+        self.assertNotIn('blacklist.tar.xz.asc', contents)
+        self.assertNotIn('keyring.tar.xz', contents)
+        self.assertNotIn('keyring.tar.xz.asc', contents)
+        # None of the files in the cache partition are removed.
+        self.assertEqual(set(os.listdir(cache_partition)),
+                         set(['log', 'last_log', 'xxx.txt', 'yyy.txt']))
 
     @configuration
     def test_cleanup_no_partition(self):
@@ -1287,3 +1287,106 @@ class TestCachedFiles(_StateTestsBase):
         self.assertEqual(set(os.listdir(config.updater.cache_partition)),
                          set(('5.txt', '6.txt', '7.txt',
                               '5.txt.asc', '6.txt.asc', '7.txt.asc')))
+
+    @configuration
+    def test_previously_cached_files(self):
+        # In this test, we model what happens through the D-Bus API and u/i
+        # when a user initiates an upgrade, everything gets downloaded, but
+        # they fail to apply and reboot.  Then the D-Bus process times out and
+        # exits.  Then the user clicks on Apply and a *new* D-Bus process gets
+        # activated with a new state machine.
+        #
+        # Previously, we'd basically throw everything away and re-download
+        # all the files again, and re-calculate the upgrade, but LP: #1217098
+        # asks us to do a more bandwidth efficient job of avoiding a
+        # re-download of the cached files, assuming all the signatures match
+        # and what not.
+        #
+        # This is harder than it sounds because the state machine, while it
+        # can avoid re-downloading data files (note that metadata files like
+        # channels.json, index.json, and the blacklist are *always*
+        # re-downloaded), a new state machine must try to figure out what the
+        # state of the previous invocation was.
+        #
+        # What the state machine now does first  is look for an
+        # `ubuntu_command` file in the cache partition.  If that file exists,
+        # it indicates that a previous invocation may have existing state that
+        # can be preserved for better efficiency.  We'll make those checks and
+        # if it looks okay, we'll short-circuit through the state machine.
+        # Otherwise we clean those files out and start from scratch.
+        self._setup_keyrings()
+        state = State()
+        state.run_until('reboot')
+        self.assertTrue(os.path.exists(
+            os.path.join(config.updater.cache_partition, 'ubuntu_command')))
+        # Now, to prove that the data files are not re-downloaded with a new
+        # state machine, we do two things: we remove the files from the server
+        # and we collect the current mtimes (in nanoseconds) of the files in
+        # the cache partition.
+        for path in ('3/4/5', '4/5/6', '5/6/7'):
+            os.remove(os.path.join(self._serverdir, path) + '.txt')
+            os.remove(os.path.join(self._serverdir, path) + '.txt.asc')
+        mtimes = {}
+        for filename in os.listdir(config.updater.cache_partition):
+            if filename.endswith('.txt') or filename.endswith('.txt.asc'):
+                path = os.path.join(config.updater.cache_partition, filename)
+                mtimes[filename] = os.stat(path).st_mtime_ns
+        self.assertGreater(len(mtimes), 0)
+        # Now create a new state machine, and run until reboot again.  Even
+        # though there are no data files on the server, this still completes
+        # successfully.
+        state = State()
+        state.run_until('reboot')
+        # Check all the mtimes.
+        for filename in os.listdir(config.updater.cache_partition):
+            if filename.endswith('.txt') or filename.endswith('.txt.asc'):
+                path = os.path.join(config.updater.cache_partition, filename)
+                self.assertEqual(mtimes[filename], os.stat(path).st_mtime_ns)
+
+    @configuration
+    def test_cleanup_in_download(self):
+        # Any residual cache partition files which aren't used in the current
+        # update, or which don't validate will be removed before the new files
+        # are downloaded.  Except for 'log' and 'last_log'.
+        self._setup_keyrings()
+        touch_build(0)
+        # Run the state machine once through downloading the files so we have
+        # a bunch of valid cached files.
+        State().run_thru('download_files')
+        # Now run a new state machine up to just before the step that cleans
+        # up the cache partition.
+        state = State()
+        state.run_until('download_files')
+        # Put some files in the cache partition, including the two log files
+        # which will be preserved, some dummy files which will be deleted, and
+        # a normally preserved cache file which gets invalidated.
+        wopen = partial(open, mode='w', encoding='utf-8')
+        cache_dir = config.updater.cache_partition
+        with wopen(os.path.join(cache_dir, 'log')) as fp:
+            print('logger keeper', file=fp)
+        with wopen(os.path.join(cache_dir, 'last_log')) as fp:
+            print('logger keeper', file=fp)
+        with wopen(os.path.join(cache_dir, 'xxx.txt')) as fp:
+            print('xxx', file=fp)
+        with wopen(os.path.join(cache_dir, 'yyy.txt')) as fp:
+            print('yyy', file=fp)
+        with open(os.path.join(cache_dir, 'xxx.txt.asc'), 'wb') as fp:
+            fp.write(b'xxx')
+        with open(os.path.join(cache_dir, 'yyy.txt.asc'), 'wb') as fp:
+            fp.write(b'yyy')
+        # By filling the asc file with bogus data, we invalidate the data
+        # file.
+        txt_path = os.path.join(cache_dir, '6.txt')
+        asc_path = os.path.join(cache_dir, '6.txt.asc')
+        with open(asc_path, 'wb') as fp:
+            fp.write(b'zzz')
+        # Take the checksum of the 6.txt.asc file so we know it has been
+        # replaced.  Get the mtime of the 6.txt file for the same reason (the
+        # checksum will still match because the content is the same).
+        with open(asc_path, 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).digest()
+        mtime = os.stat(txt_path).st_mtime_ns
+        state.run_until('reboot')
+        with open(asc_path, 'rb') as fp:
+            self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest)
+        self.assertNotEqual(mtime, os.stat(txt_path).st_mtime_ns)

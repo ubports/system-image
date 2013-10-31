@@ -112,6 +112,9 @@ def main():
             loop.run()
         except KeyboardInterrupt:
             log.info('SystemImage dbus main loop interrupted')
+        except:
+            log.exception('D-Bus loop exception')
+            raise
         else:
             log.info('SystemImage dbus main loop exited')
 

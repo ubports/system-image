@@ -114,6 +114,8 @@ class Controller:
         config = template.format(tmpdir=self.tmpdir, user=username)
         with open(self.config_path, 'w', encoding='utf-8') as fp:
             fp.write(config)
+        from systemimage.testing.helpers import copy
+        copy('99-eavesdrop.conf', self.tmpdir)
         # We need a client.ini file for the subprocess.
         ini_tmpdir = self._stack.enter_context(temporary_directory())
         ini_vardir = self._stack.enter_context(temporary_directory())
