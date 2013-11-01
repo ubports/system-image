@@ -35,8 +35,10 @@ setup(
             ],
     },
     install_requires = [
-        'nose2',
         'python-gnupg',
+        ],
+    tests_require = [
+        'nose2',
         ],
     test_suite = 'nose2.collector.collector',
     )

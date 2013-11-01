@@ -10,7 +10,7 @@ NEWS for system-image updater
    returning a string to an asynchronous method not returning anything.
    Instead a `Rebooting(bool)` signal is added with the value being the status
    if the reboot operation (obviously, this signal isn't ever received if the
-   reboot succeeds).
+   reboot succeeds).  (LP: #1247215)
  * Remove the old channels.json format. (LP: #1221843)
  * Remove support for old version numbers. (LP: #1220238)
  * Switch to nose2 as the test runner.  (LP: #1238071)
