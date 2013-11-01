@@ -125,6 +125,9 @@ class PausingReactor(Reactor):
 class _TestBase(unittest.TestCase):
     """Base class for all DBus testing."""
 
+    # For unittest's assertMultiLineEqual().
+    maxDiff = None
+
     # Override this to start the DBus server in a different testing mode.
     mode = None
 
@@ -1471,3 +1474,18 @@ class TestDBusUseCache(_LiveTesting):
             path = os.path.join(config.updater.cache_partition, filename)
             if filename.endswith('.txt') or filename.endswith('.txt.asc'):
                 self.assertEqual(mtimes[filename], os.stat(path).st_mtime_ns)
+        # Make sure the ubuntu_command file has the full update.
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")

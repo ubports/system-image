@@ -422,6 +422,8 @@ class State:
             dst = os.path.join(cache_dir, os.path.basename(filerec.path))
             asc = os.path.join(cache_dir, os.path.basename(filerec.signature))
             checksum = filerec.checksum
+            self.files.append((dst, (image_number, filerec.order)))
+            self.files.append((asc, (image_number, filerec.order)))
             # Check the existence and signature of the file.
             if _use_cached(dst, asc, checksum, keyrings, self.blacklist):
                 preserve.add(dst)
@@ -431,11 +433,9 @@ class State:
                     urljoin(config.service.http_base, filerec.path),
                     dst,
                     ))
-                self.files.append((dst, (image_number, filerec.order)))
                 downloads.append((
                     urljoin(config.service.http_base, filerec.signature),
                     asc))
-                self.files.append((asc, (image_number, filerec.order)))
                 signatures.append((dst, asc))
                 checksums.append((dst, checksum))
         # For any files we're about to download, we must make sure that none
