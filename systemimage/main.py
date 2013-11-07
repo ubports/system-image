@@ -138,16 +138,28 @@ def main():
         config.device = args.device
 
     if args.info:
-        print(dedent("""\
-            current build number: {}
-            device name: {}
-            channel: {}
-            last update: {}""").format(
-                config.build_number,
-                config.device,
-                config.channel,
-                last_update_date(),
-                ))
+        alias = getattr(config.service, 'channel_target', None)
+        kws = dict(
+            build_number=config.build_number,
+            device=config.device,
+            channel=config.channel,
+            last_update=last_update_date(),
+            )
+        if alias is None:
+            template = """\
+                current build number: {build_number}
+                device name: {device}
+                channel: {channel}
+                last update: {last_update}"""
+        else:
+            template = """\
+                current build number: {build_number}
+                device name: {device}
+                channel: {channel}
+                alias: {alias}
+                last update: {last_update}"""
+            kws['alias'] = alias
+        print(dedent(template).format(**kws))
         # If there's additional version details, print this out now too.  We
         # sort the keys in reverse order because we want 'ubuntu' to generally
         # come first.

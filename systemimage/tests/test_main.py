@@ -312,6 +312,26 @@ class TestCLIMain(unittest.TestCase):
             """))
 
     @configuration
+    def test_channel_name_with_alias(self, ini_file):
+        # When the current channel has an alias, this is reflected in the
+        # output for --info
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        head, tail = os.path.split(channel_ini)
+        copy('channel_05.ini', head, tail)
+        touch_build(300, TIMESTAMP)
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--info']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 300
+            device name: nexus7
+            channel: daily
+            alias: saucy
+            last update: 2013-08-01 12:11:10
+            """))
+
+    @configuration
     def test_all_overrides(self, ini_file):
         # Use -b -d and -c together.
         config = Configuration()

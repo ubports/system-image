@@ -21,6 +21,8 @@ NEWS for system-image updater
  * Remove the unused `-u` and `--upgrade` switches.
  * Clarify that `--channel` should be used with `--build 0` to switch
    channels. (LP: #1243612)
+ * `--info` output will include the alias name if the current channel.ini has
+   a `channel_target` variable.
  * Add a workaround for LP: #1245597, caused by a bug in
    ubuntu-download-manager when presented with an empty download list.
 
