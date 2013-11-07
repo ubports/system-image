@@ -16,8 +16,10 @@
 """Test the main entry point."""
 
 __all__ = [
+    'TestCLIFilters',
     'TestCLIMain',
     'TestCLIMainDryRun',
+    'TestCLIMainDryRunAliases',
     'TestDBusMain',
     ]
 
@@ -531,7 +533,7 @@ class TestCLIMainDryRun(_StateTestsBase):
 
     @configuration
     def test_dry_run_bad_channel(self, ini_file):
-        # 'system-image-cli --dry-run --channel <bad-channel>` should say it's
+        # `system-image-cli --dry-run --channel <bad-channel>` should say it's
         # already up-to-date.
         self._setup_keyrings()
         with ExitStack() as stack:
@@ -549,6 +551,36 @@ class TestCLIMainDryRun(_StateTestsBase):
                        '--dry-run']))
             cli_main()
             self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
+
+
+class TestCLIMainDryRunAliases(_StateTestsBase):
+    INDEX_FILE = 'index_20.json'
+    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+
+    @configuration
+    def test_dry_run_with_channel_alias_switch(self, ini_file):
+        # `system-image-cli --dry-run` where the channel alias the device was
+        # on got switched should include this information.
+        self._setup_keyrings()
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        head, tail = os.path.split(channel_ini)
+        copy('channel_05.ini', head, tail)
+        with ExitStack() as stack:
+            capture = StringIO()
+            stack.enter_context(
+                patch('systemimage.device.check_output',
+                      return_value='manta'))
+            stack.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--dry-run']))
+            cli_main()
+            self.assertEqual(
+                capture.getvalue(),
+                'Upgrade path is 200:201:304 (saucy -> tubular)\n')
 
 
 class TestCLIFilters(_StateTestsBase):

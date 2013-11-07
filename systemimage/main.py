@@ -198,7 +198,16 @@ def main():
             print('Already up-to-date')
         else:
             winning_path = [str(image.version) for image in state.winner]
-            print('Upgrade path is {}'.format(COLON.join(winning_path)))
+            kws = dict(path=COLON.join(winning_path))
+            if state.channel_switch is None:
+                # We're not switching channels due to an alias change.
+                template = 'Upgrade path is {path}'
+            else:
+                # This upgrade changes the channel that our alias is mapped
+                # to, so include that information in the output.
+                template = 'Upgrade path is {path} ({from} -> {to})'
+                kws['from'], kws['to'] = state.channel_switch
+            print(template.format(**kws))
         return
     else:
         # Run the state machine to conclusion.  Suppress all exceptions, but

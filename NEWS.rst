@@ -23,6 +23,8 @@ NEWS for system-image updater
    channels. (LP: #1243612)
  * `--info` output will include the alias name if the current channel.ini has
    a `channel_target` variable.
+ * `--dry-run` output now includes channel switch information when an upgrade
+   changes the channel alias mapping.
  * Add a workaround for LP: #1245597, caused by a bug in
    ubuntu-download-manager when presented with an empty download list.
 

@@ -79,6 +79,8 @@ class State:
         self.index = None
         self.winner = None
         self.files = []
+        self.channel_switch = None
+        # Other public attributes.
         self.downloader = DBusDownloadManager()
         self._next.append(self._cleanup)
 
@@ -372,16 +374,22 @@ class State:
         # changed, squash the build number to 0 before calculating the
         # winner.  Otherwise, trust the configured build number.
         channel = self.channels[config.channel]
-        channel_alias = getattr(channel, 'alias', None)
+        # channel_target is the channel we're on based on the alias mapping in
+        # our channel.ini file.  channel_alias is the alias mapping in the
+        # channel.json file, i.e. the channel an update will put us on.
         channel_target = getattr(config.service, 'channel_target', None)
+        channel_alias = getattr(channel, 'alias', None)
         if (    channel_alias is None or
                 channel_target is None or
                 channel_alias == channel_target):
             build_number = config.build_number
-        else:
+        elif config.build_number_cli is not None:
             # An explicit --build on the command line still takes precedence.
-            build_number = (0 if config.build_number_cli is None
-                            else config.build_number_cli)
+            build_number = config.build_number_cli
+        else:
+            # This is a channel switch caused by a new alias.
+            build_number = 0
+            self.channel_switch = (channel_target, channel_alias)
         candidates = get_candidates(self.index, build_number)
         if self._filter is not None:
             candidates = self._filter(candidates)
