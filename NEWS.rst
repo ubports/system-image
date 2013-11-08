@@ -27,6 +27,8 @@ NEWS for system-image updater
    changes the channel alias mapping.
  * Add a workaround for LP: #1245597, caused by a bug in
    ubuntu-download-manager when presented with an empty download list.
+ * If an existing image-master or image-signing key is found on the file
+   system, double check its signature before using it.  (LP: #1195057)
 
 1.9.1 (2013-10-15)
 ==================

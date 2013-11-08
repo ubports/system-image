@@ -461,7 +461,7 @@ class ServerTestBase(unittest.TestCase):
     def tearDown(self):
         self._resources.close()
 
-    def _setup_keyrings(self, *, device_signing=True):
+    def _setup_server_keyrings(self, *, device_signing=True):
         # Only the archive-master key is pre-loaded.  All the other keys
         # are downloaded and there will be both a blacklist and device
         # keyring.  The four signed keyring tar.xz files and their

@@ -24,7 +24,6 @@ __all__ = [
 import os
 import unittest
 
-from contextlib import ExitStack
 from datetime import datetime, timedelta
 from gi.repository import GLib
 from systemimage.api import Mediator
@@ -32,89 +31,38 @@ from systemimage.config import config
 from systemimage.download import Canceled
 from systemimage.gpg import SignatureError
 from systemimage.testing.helpers import (
-    configuration, copy, make_http_server, setup_index, setup_keyring_txz,
-    setup_keyrings, sign, temporary_directory, touch_build)
-from systemimage.testing.nose import SystemImagePlugin
+    ServerTestBase, configuration, copy, setup_index, sign, touch_build)
 from unittest.mock import patch
 
 
 MiB = 1024 * 1024
 
 
-class TestAPI(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
-
-    def setUp(self):
-        self._stack = ExitStack()
-        try:
-            self._serverdir = self._stack.enter_context(temporary_directory())
-            # Start up both an HTTPS and HTTP server.  The data files are
-            # vended over the latter, everything else, over the former.
-            self._stack.push(make_http_server(
-                self._serverdir, 8943, 'cert.pem', 'key.pem'))
-            self._stack.push(make_http_server(self._serverdir, 8980))
-            # Set up the server files.
-            copy('channels_06.json', self._serverdir, 'channels.json')
-            sign(os.path.join(self._serverdir, 'channels.json'),
-                 'image-signing.gpg')
-            self.index_path = os.path.join(
-                self._serverdir, 'stable', 'nexus7', 'index.json')
-            head, tail = os.path.split(self.index_path)
-            copy('index_13.json', head, tail)
-            sign(self.index_path, 'device-signing.gpg')
-            setup_index('index_13.json', self._serverdir, 'device-signing.gpg')
-        except:
-            self._stack.close()
-            raise
-
-    def tearDown(self):
-        self._stack.close()
-
-    def _setup_keyrings(self):
-        # Only the archive-master key is pre-loaded.  All the other keys
-        # are downloaded and there will be both a blacklist and device
-        # keyring.  The four signed keyring tar.xz files and their
-        # signatures end up in the proper location after the state machine
-        # runs to completion.
-        setup_keyrings('archive-master')
-        setup_keyring_txz(
-            'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
-            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        setup_keyring_txz(
-            'image-master.gpg', 'archive-master.gpg',
-            dict(type='image-master'),
-            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
-        setup_keyring_txz(
-            'image-signing.gpg', 'image-master.gpg',
-            dict(type='image-signing'),
-            os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
-        setup_keyring_txz(
-            'device-signing.gpg', 'image-signing.gpg',
-            dict(type='device-signing'),
-            os.path.join(self._serverdir, 'stable', 'nexus7',
-                         'device-signing.tar.xz'))
+class TestAPI(ServerTestBase):
+    INDEX_FILE = 'index_13.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
 
     @configuration
     def test_update_available(self):
         # Because our build number is lower than the latest available in the
         # index file, there is an update available.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         update = Mediator().check_for_update()
         self.assertTrue(update.is_available)
 
     @configuration
     def test_update_available_version(self):
         # An update is available.  What's the target version number?
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         update = Mediator().check_for_update()
         self.assertEqual(update.version, '1600')
 
     @configuration
     def test_no_update_available_version(self):
         # No update is available, so the target version number is zero.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(1600)
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
@@ -124,7 +72,7 @@ class TestAPI(unittest.TestCase):
     def test_no_update_available_at_latest(self):
         # Because our build number is equal to the latest available in the
         # index file, there is no update available.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(1600)
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
@@ -133,7 +81,7 @@ class TestAPI(unittest.TestCase):
     def test_no_update_available_newer(self):
         # Because our build number is higher than the latest available in the
         # index file, there is no update available.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(1700)
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
@@ -141,12 +89,13 @@ class TestAPI(unittest.TestCase):
     @configuration
     def test_get_details(self):
         # Get the details of an available update.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         # Index 14 has a more interesting upgrade path, and will yield a
         # richer description set.
-        head, tail = os.path.split(self.index_path)
-        copy('index_14.json', head, tail)
-        sign(self.index_path, 'device-signing.gpg')
+        index_dir = os.path.join(self._serverdir, self.CHANNEL, self.DEVICE)
+        index_path = os.path.join(index_dir, 'index.json')
+        copy('index_14.json', index_dir, 'index.json')
+        sign(index_path, 'device-signing.gpg')
         setup_index('index_14.json', self._serverdir, 'device-signing.gpg')
         # Get the descriptions.
         update = Mediator().check_for_update()
@@ -177,7 +126,7 @@ class TestAPI(unittest.TestCase):
     def test_download(self):
         # After checking that an update is available, complete the update, but
         # don't reboot.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         mediator = Mediator()
         self.assertTrue(mediator.check_for_update())
         # Make sure a reboot did not get issued.
@@ -229,7 +178,7 @@ unmount system
     @configuration
     def test_reboot(self):
         # Run the intermediate steps, and finish with a reboot.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         mediator = Mediator()
         # Mock to check the state of reboot.
         got_reboot = False
@@ -247,7 +196,7 @@ unmount system
     @configuration
     def test_cancel(self):
         # When we get to the step of downloading the files, cancel it.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         mediator = Mediator()
         mediator.check_for_update()
         mediator.cancel()
@@ -256,7 +205,7 @@ unmount system
     @configuration
     def test_callback(self):
         # When downloading, we get callbacks.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         received_bytes = 0
         total_bytes = 0
         def callback(received, total):
@@ -277,7 +226,7 @@ unmount system
     @configuration
     def test_pause_resume(self):
         # Pause and resume the download.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
             full_path = os.path.join(self._serverdir, path)
             with open(full_path, 'wb') as fp:
@@ -295,15 +244,12 @@ unmount system
             if started and self._pausable:
                 mediator.pause()
                 GLib.timeout_add_seconds(3, mediator.resume)
-        self._stack.enter_context(
-            patch('systemimage.download.DownloadReactor._do_paused',
-                  do_paused))
-        self._stack.enter_context(
-            patch('systemimage.download.DownloadReactor._do_resumed',
-                  do_resumed))
-        self._stack.enter_context(
-            patch('systemimage.download.DownloadReactor._do_started',
-                  pause_on_start))
+        self._enter(patch('systemimage.download.DownloadReactor._do_paused',
+                          do_paused))
+        self._enter(patch('systemimage.download.DownloadReactor._do_resumed',
+                          do_resumed))
+        self._enter(patch('systemimage.download.DownloadReactor._do_started',
+                          pause_on_start))
         mediator.check_for_update()
         # We'll get a signature error because we messed with the file
         # contents.  Since this check happens after all files are downloaded,

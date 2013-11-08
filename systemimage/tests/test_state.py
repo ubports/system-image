@@ -22,6 +22,7 @@ __all__ = [
     'TestCommandFileFull',
     'TestDailyProposed',
     'TestFileOrder',
+    'TestKeyringDoubleChecks',
     'TestPhasedUpdates',
     'TestRebooting',
     'TestState',
@@ -39,7 +40,7 @@ from datetime import datetime, timezone
 from functools import partial
 from subprocess import CalledProcessError
 from systemimage.config import config
-from systemimage.gpg import SignatureError
+from systemimage.gpg import Context, SignatureError
 from systemimage.state import State
 from systemimage.testing.demo import DemoDevice
 from systemimage.testing.helpers import (
@@ -394,7 +395,7 @@ class TestRebooting(ServerTestBase):
         # * image-master.tar.xz{,.asc}   - cache partition
         # * image-signing.tar.xz{,.asc}  - cache partition
         # * device-signing.tar.xz{,.asc} - cache partition (if one exists)
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         cache_dir = config.updater.cache_partition
         data_dir = config.updater.data_partition
         blacklist_path = os.path.join(data_dir, 'blacklist.tar.xz')
@@ -447,7 +448,7 @@ class TestRebooting(ServerTestBase):
     @configuration
     def test_reboot_issued(self):
         # The reboot gets issued.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         mock = self._enter(patch('systemimage.reboot.check_call'))
         list(State())
         self.assertEqual(mock.call_args[0][0],
@@ -457,7 +458,7 @@ class TestRebooting(ServerTestBase):
     def test_no_update_available_no_reboot(self):
         # LP: #1202915.  If there's no update available, running the state
         # machine to completion should not result in a reboot.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         # Hack the current build number so that no update is available.
         touch_build(5000)
         mock = self._enter(patch('systemimage.reboot.Reboot.reboot'))
@@ -468,14 +469,14 @@ class TestRebooting(ServerTestBase):
     @configuration
     def test_reboot_fails(self):
         # The reboot fails, e.g. because we are not root.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         self.assertRaises(CalledProcessError, list, State())
 
     @configuration
     def test_run_until(self):
         # It is possible to run the state machine either until some specific
         # state is completed, or it runs to the end.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         state = State()
         self.assertIsNone(state.channels)
         state.run_thru('get_channel')
@@ -518,7 +519,7 @@ class TestRebootingNoDeviceSigning(ServerTestBase):
         # * image-signing.tar.xz{,.asc}  - cache partition
         #
         # In this test, there is no device signing keyring.
-        self._setup_keyrings(device_signing=False)
+        self._setup_server_keyrings(device_signing=False)
         cache_dir = config.updater.cache_partition
         data_dir = config.updater.data_partition
         blacklist_path = os.path.join(data_dir, 'blacklist.tar.xz')
@@ -579,7 +580,7 @@ class TestCommandFileFull(ServerTestBase):
     @configuration
     def test_full_command_file(self):
         # A full update's command file gets properly filled.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         State().run_until('reboot')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -599,7 +600,7 @@ unmount system
     @configuration
     def test_write_command_file_atomically(self):
         # LP: #1241236 - write the ubuntu_command file atomically.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         self._state.run_until('prepare_recovery')
         # This is a little proxy object which interposes printing.  When it
         # sees the string 'unmount system' written to it, it raises an
@@ -627,7 +628,7 @@ class TestCommandFileDelta(ServerTestBase):
     @configuration
     def test_delta_command_file(self):
         # A delta update's command file gets properly filled.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         # Set the current build number so a delta update will work.
         touch_build(100)
         State().run_until('reboot')
@@ -656,7 +657,7 @@ class TestFileOrder(ServerTestBase):
     def test_file_order(self):
         # Updates are applied sorted first by image positional order, then
         # within the image by the 'order' key.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         # Set the current build number so a delta update will work.
         touch_build(100)
         State().run_until('reboot')
@@ -693,7 +694,7 @@ class TestDailyProposed(ServerTestBase):
     @configuration
     def test_daily_proposed_channel(self):
         # Resolve the index.json path for a channel with a dash in it.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         state = State()
         self._enter(
             patch('systemimage.state.config.channel', 'daily-proposed'))
@@ -706,7 +707,7 @@ class TestDailyProposed(ServerTestBase):
     def test_bogus_channel(self):
         # Try and fail to resolve the index.json path for a non-existent
         # channel with a dash in it.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         state = State()
         self._enter(patch('systemimage.state.config.channel', 'daily-testing'))
         self._enter(patch('systemimage.state.config.hooks.device', DemoDevice))
@@ -724,7 +725,7 @@ class TestVersionedProposed(ServerTestBase):
     def test_version_proposed_channel(self):
         # Resolve the index.json path for a channel with a dash and a dot in
         # it.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         state = State()
         self._enter(
             patch('systemimage.state.config.channel', '14.04-proposed'))
@@ -743,7 +744,7 @@ class TestFilters(ServerTestBase):
     @configuration
     def test_filter_none(self):
         # With no filter, we get the unadulterated candidate paths.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(100)
         state = State()
         state.run_thru('calculate_winner')
@@ -753,7 +754,7 @@ class TestFilters(ServerTestBase):
     def test_filter_1(self):
         # The state machine can use a filter to come up with a different set
         # of candidate upgrade paths.  In this case, no candidates.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(100)
         def filter_out_everything(candidates):
             return []
@@ -775,7 +776,7 @@ class TestStateNewChannelsFormat(ServerTestBase):
         self._enter(patch('systemimage.device.check_output',
                           return_value='manta'))
         config.load(data_path('channel_04.ini'), override=True)
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         state = State()
         state.run_until('reboot')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
@@ -834,7 +835,7 @@ class TestChannelAlias(ServerTestBase):
         # latest build on that channel.
         self._enter(patch('systemimage.device.check_output',
                           return_value='manta'))
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(300)
         config.channel = 'daily'
         state = State()
@@ -874,7 +875,7 @@ class TestChannelAlias(ServerTestBase):
         # channel alias squashing of the build number to 0.
         self._enter(patch('systemimage.device.check_output',
                           return_value='manta'))
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         # This sets the build number via the /etc/ubuntu_build file.
         touch_build(300)
         config.channel = 'daily'
@@ -918,7 +919,7 @@ class TestPhasedUpdates(ServerTestBase):
         # the 'A' path is taken (in fact, the B path isn't even considered).
         self._enter(patch('systemimage.device.check_output',
                           return_value='manta'))
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         self._enter(patch('systemimage.index.phased_percentage',
                           return_value=66))
         config.channel = 'daily'
@@ -933,7 +934,7 @@ class TestPhasedUpdates(ServerTestBase):
         # update path.
         self._enter(patch('systemimage.device.check_output',
                           return_value='manta'))
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         self._enter(patch('systemimage.index.phased_percentage',
                           return_value=0))
         config.channel = 'daily'
@@ -948,7 +949,7 @@ class TestPhasedUpdates(ServerTestBase):
         # phased-percentage key is allowed.  That's the 'A' path again.
         self._enter(patch('systemimage.device.check_output',
                           return_value='manta'))
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         self._enter(patch('systemimage.index.phased_percentage',
                           return_value=77))
         config.channel = 'daily'
@@ -969,7 +970,7 @@ class TestCachedFiles(ServerTestBase):
     def test_all_files_are_cached(self):
         # All files in an upgrade are already downloaded, so all that's
         # necessary is to verify them but not re-download them.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(0)
         # Run the state machine far enough to calculate the winning path.
         state = State()
@@ -995,7 +996,7 @@ class TestCachedFiles(ServerTestBase):
     def test_some_files_are_cached(self):
         # Some of the files in an upgrade are already downloaded, so only
         # download the ones that are missing.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(0)
         # Run the state machine far enough to calculate the winning path.
         state = State()
@@ -1028,7 +1029,7 @@ class TestCachedFiles(ServerTestBase):
     def test_some_signature_files_are_missing(self):
         # Some of the signature files are missing, so we have to download both
         # the data and signature files.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(0)
         # Run the state machine far enough to calculate the winning path.
         state = State()
@@ -1062,7 +1063,7 @@ class TestCachedFiles(ServerTestBase):
     def test_some_data_files_are_missing(self):
         # Some of the data files are missing, so we have to download both the
         # data and signature files.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(0)
         # Run the state machine far enough to calculate the winning path.
         state = State()
@@ -1097,7 +1098,7 @@ class TestCachedFiles(ServerTestBase):
         # All files in an upgrade are already downloaded, but the key used to
         # sign the files has been blacklisted, so everything has to be
         # downloaded again.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(0)
         # Run the state machine far enough to calculate the winning path.
         state = State()
@@ -1138,7 +1139,7 @@ class TestCachedFiles(ServerTestBase):
     @configuration
     def test_cached_files_all_have_bad_signatures(self):
         # All the data files are cached, but the signatures don't match.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(0)
         # Run the state machine far enough to calculate the winning path.
         state = State()
@@ -1176,7 +1177,7 @@ class TestCachedFiles(ServerTestBase):
     def test_cached_files_all_have_bad_hashes(self):
         # All the data files are cached, and the signatures match, but the
         # data file hashes are bogus, so they all get downloaded again.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(0)
         # Run the state machine far enough to calculate the winning path.
         state = State()
@@ -1237,7 +1238,7 @@ class TestCachedFiles(ServerTestBase):
         # can be preserved for better efficiency.  We'll make those checks and
         # if it looks okay, we'll short-circuit through the state machine.
         # Otherwise we clean those files out and start from scratch.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         state = State()
         state.run_until('reboot')
         self.assertTrue(os.path.exists(
@@ -1271,7 +1272,7 @@ class TestCachedFiles(ServerTestBase):
         # Any residual cache partition files which aren't used in the current
         # update, or which don't validate will be removed before the new files
         # are downloaded.  Except for 'log' and 'last_log'.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         touch_build(0)
         # Run the state machine once through downloading the files so we have
         # a bunch of valid cached files.
@@ -1313,3 +1314,115 @@ class TestCachedFiles(ServerTestBase):
         with open(asc_path, 'rb') as fp:
             self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest)
         self.assertNotEqual(mtime, os.stat(txt_path).st_mtime_ns)
+
+
+class TestKeyringDoubleChecks(ServerTestBase):
+    CHANNEL_FILE = 'channels_11.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+    INDEX_FILE = 'index_13.json'
+    SIGNING_KEY = 'image-signing.gpg'
+
+    @configuration
+    def test_image_master_asc_is_corrupted(self):
+        # The state machine will use an existing image master key, unless it
+        # is found to be corrupted (i.e. its signature is broken).  If that's
+        # the case, it will re-download a new image master.
+        setup_keyrings()
+        # Re-sign the image master with the wrong key, so as to corrupt its
+        # signature via bogus .asc file.
+        path = config.gpg.image_master
+        sign(path, 'spare.gpg')
+        # Prove that the signature is bad.
+        with Context(config.gpg.archive_master) as ctx:
+            self.assertFalse(ctx.verify(path + '.asc', path))
+        # Grab the checksum of the .asc file to prove that it's been
+        # downloaded anew.
+        with open(path + '.asc', 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).digest()
+        # Run the state machine long enough to get the new image master.
+        self._setup_server_keyrings()
+        State().run_thru('get_blacklist_1')
+        # Prove that the signature is good now.
+        with Context(config.gpg.archive_master) as ctx:
+            self.assertTrue(ctx.verify(path + '.asc', path))
+        # We have a new .asc file.
+        with open(path + '.asc', 'rb') as fp:
+            self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
+
+    @configuration
+    def test_image_master_tarxz_is_corrupted(self):
+        # As above, except the .tar.xz file is corrupted instead.
+        setup_keyrings()
+        # Re-sign the image master with the wrong key, so as to corrupt its
+        # signature via bogus .asc file.
+        path = config.gpg.image_master
+        shutil.copy(config.gpg.archive_master, path)
+        # Prove that the signature is bad.
+        with Context(config.gpg.archive_master) as ctx:
+            self.assertFalse(ctx.verify(path + '.asc', path))
+        # Grab the checksum of the .tar.xz file to prove that it's been
+        # downloaded anew.
+        with open(path, 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).digest()
+        # Run the state machine long enough to get the new image master.
+        self._setup_server_keyrings()
+        State().run_thru('get_blacklist_1')
+        # Prove that the signature is good now.
+        with Context(config.gpg.archive_master) as ctx:
+            self.assertTrue(ctx.verify(path + '.asc', path))
+        # We have a new .asc file.
+        with open(path, 'rb') as fp:
+            self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
+
+    @configuration
+    def test_image_signing_asc_is_corrupted(self):
+        # The state machine will use an existing image signing key, unless it
+        # is found to be corrupted (i.e. its signature is broken).  If that's
+        # the case, it will re-download a new image signing key.
+        setup_keyrings()
+        # Re-sign the image signing with the wrong key, so as to corrupt its
+        # signature via bogus .asc file.
+        path = config.gpg.image_signing
+        sign(path, 'spare.gpg')
+        # Prove that the signature is bad.
+        with Context(config.gpg.image_master) as ctx:
+            self.assertFalse(ctx.verify(path + '.asc', path))
+        # Grab the checksum of the .asc file to prove that it's been
+        # downloaded anew.
+        with open(path + '.asc', 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).digest()
+        # Run the state machine long enough to get the new image master.
+        self._setup_server_keyrings()
+        State().run_thru('get_channel')
+        # Prove that the signature is good now.
+        with Context(config.gpg.image_master) as ctx:
+            self.assertTrue(ctx.verify(path + '.asc', path))
+        # We have a new .asc file.
+        with open(path + '.asc', 'rb') as fp:
+            self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
+
+    @configuration
+    def test_image_signing_tarxz_is_corrupted(self):
+        # As above, except the .tar.xz file is corrupted instead.
+        setup_keyrings()
+        # Re-sign the image master with the wrong key, so as to corrupt its
+        # signature via bogus .asc file.
+        path = config.gpg.image_signing
+        shutil.copy(config.gpg.archive_master, path)
+        # Prove that the signature is bad.
+        with Context(config.gpg.image_master) as ctx:
+            self.assertFalse(ctx.verify(path + '.asc', path))
+        # Grab the checksum of the .tar.xz file to prove that it's been
+        # downloaded anew.
+        with open(path, 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).digest()
+        # Run the state machine long enough to get the new image master.
+        self._setup_server_keyrings()
+        State().run_thru('get_channel')
+        # Prove that the signature is good now.
+        with Context(config.gpg.image_master) as ctx:
+            self.assertTrue(ctx.verify(path + '.asc', path))
+        # We have a new .asc file.
+        with open(path, 'rb') as fp:
+            self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())

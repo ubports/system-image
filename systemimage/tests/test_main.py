@@ -493,7 +493,7 @@ class TestCLIMainDryRun(ServerTestBase):
     @configuration
     def test_dry_run(self, ini_file):
         # `system-image-cli --dry-run` prints the winning upgrade path.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         # We patch builtin print() rather than sys.stdout because the
         # latter can mess with pdb output should we need to trace through
         # the code.
@@ -508,7 +508,7 @@ class TestCLIMainDryRun(ServerTestBase):
     @configuration
     def test_dry_run_no_update(self, ini_file):
         # `system-image-cli --dry-run` when there are no updates available.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         # We patch builtin print() rather than sys.stdout because the
         # latter can mess with pdb output should we need to trace through
         # the code.
@@ -527,7 +527,7 @@ class TestCLIMainDryRun(ServerTestBase):
     def test_dry_run_bad_channel(self, ini_file):
         # `system-image-cli --dry-run --channel <bad-channel>` should say it's
         # already up-to-date.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         # We patch builtin print() rather than sys.stdout because the
         # latter can mess with pdb output should we need to trace through
         # the code.
@@ -552,7 +552,7 @@ class TestCLIMainDryRunAliases(ServerTestBase):
     def test_dry_run_with_channel_alias_switch(self, ini_file):
         # `system-image-cli --dry-run` where the channel alias the device was
         # on got switched should include this information.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
         head, tail = os.path.split(channel_ini)
         copy('channel_05.ini', head, tail)
@@ -579,7 +579,7 @@ class TestCLIFilters(ServerTestBase):
     @configuration
     def test_filter_full(self, ini_file):
         # With --filter=full, only full updates will be considered.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         # We patch builtin print() rather than sys.stdout because the
         # latter can mess with pdb output should we need to trace through
         # the code.
@@ -599,7 +599,7 @@ class TestCLIFilters(ServerTestBase):
     @configuration
     def test_filter_delta(self, ini_file):
         # With --filter=delta, only delta updates will be considered.
-        self._setup_keyrings()
+        self._setup_server_keyrings()
         # We patch builtin print() rather than sys.stdout because the
         # latter can mess with pdb output should we need to trace through
         # the code.

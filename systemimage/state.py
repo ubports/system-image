@@ -172,12 +172,20 @@ class State:
 
     def _get_blacklist_1(self):
         """First try to get the blacklist."""
-        # If there is no image master key, download one now.  Don't worry if
-        # we have an out of date key; that will be handled elsewhere.  The
-        # archive master key better be pre-installed (we cannot download it).
-        # Let any exceptions in grabbing the image master key percolate up.
-        if not os.path.exists(config.gpg.image_master):
-            log.info('No image master key found, downloading')
+        # If there is no image master key, or if the signature on the key is
+        # not valid, download one now.  Don't worry if we have an out of date
+        # key; that will be handled elsewhere.  The archive master key better
+        # be pre-installed (we cannot download it).  Let any exceptions in
+        # grabbing the image master key percolate up.
+        image_master = config.gpg.image_master
+        if os.path.exists(image_master):
+            with Context(config.gpg.archive_master) as ctx:
+                if not ctx.verify(image_master + '.asc', image_master):
+                    image_master = None
+        else:
+            image_master = None
+        if image_master is None:
+            log.info('No valid image master key found, downloading')
             get_keyring(
                 'image-master', 'gpg/image-master.tar.xz', 'archive-master')
         # The only way to know whether there is a blacklist or not is to try
@@ -238,8 +246,15 @@ class State:
         # we have an out of date key; that will be handled elsewhere.  The
         # imaging signing must be signed by the image master key, which we
         # better already have an up-to-date copy of.
-        if not os.path.exists(config.gpg.image_signing):
-            log.info('No image signing key found, downloading')
+        image_signing = config.gpg.image_signing
+        if os.path.exists(image_signing):
+            with Context(config.gpg.image_master) as ctx:
+                if not ctx.verify(image_signing + '.asc', image_signing):
+                    image_signing = None
+        else:
+            image_signing = None
+        if image_signing is None:
+            log.info('No valid image signing key found, downloading')
             get_keyring(
                 'image-signing', 'gpg/image-signing.tar.xz', 'image-master')
         channels_url = urljoin(config.service.https_base, 'channels.json')
