@@ -40,11 +40,9 @@ from systemimage.config import Configuration, config
 from systemimage.helpers import safe_remove
 from systemimage.main import main as cli_main
 from systemimage.testing.helpers import (
-    configuration, copy, data_path, find_dbus_process, temporary_directory,
-    touch_build)
+    ServerTestBase, configuration, copy, data_path, find_dbus_process,
+    temporary_directory, touch_build)
 from systemimage.testing.nose import SystemImagePlugin
-# This should be moved and refactored.
-from systemimage.tests.test_state import _StateTestsBase
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
@@ -486,7 +484,7 @@ class TestCLIMain(unittest.TestCase):
             """))
 
 
-class TestCLIMainDryRun(_StateTestsBase):
+class TestCLIMainDryRun(ServerTestBase):
     INDEX_FILE = 'index_14.json'
     CHANNEL_FILE = 'channels_06.json'
     CHANNEL = 'stable'
@@ -496,64 +494,55 @@ class TestCLIMainDryRun(_StateTestsBase):
     def test_dry_run(self, ini_file):
         # `system-image-cli --dry-run` prints the winning upgrade path.
         self._setup_keyrings()
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run']))
-            cli_main()
-            self.assertEqual(capture.getvalue(),
-                             'Upgrade path is 1200:1201:1304\n')
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        self._enter(patch('builtins.print', partial(print, file=capture)))
+        self._enter(patch('systemimage.main.sys.argv',
+                          ['argv0', '-C', ini_file, '--dry-run']))
+        cli_main()
+        self.assertEqual(capture.getvalue(),
+                         'Upgrade path is 1200:1201:1304\n')
 
     @configuration
     def test_dry_run_no_update(self, ini_file):
         # `system-image-cli --dry-run` when there are no updates available.
         self._setup_keyrings()
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run']))
-            # Set up the build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(1701)
-            cli_main()
-            self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        self._enter(patch('builtins.print', partial(print, file=capture)))
+        self._enter(patch('systemimage.main.sys.argv',
+                          ['argv0', '-C', ini_file, '--dry-run']))
+        # Set up the build number.
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(1701)
+        cli_main()
+        self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
     @configuration
     def test_dry_run_bad_channel(self, ini_file):
         # `system-image-cli --dry-run --channel <bad-channel>` should say it's
         # already up-to-date.
         self._setup_keyrings()
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            # Use --build to override the default build number.
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file,
-                       '--channel', 'daily-proposed',
-                       '--dry-run']))
-            cli_main()
-            self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        self._enter(patch('builtins.print', partial(print, file=capture)))
+        # Use --build to override the default build number.
+        self._enter(patch('systemimage.main.sys.argv',
+                          ['argv0', '-C', ini_file,
+                           '--channel', 'daily-proposed',
+                           '--dry-run']))
+        cli_main()
+        self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
 
-class TestCLIMainDryRunAliases(_StateTestsBase):
+class TestCLIMainDryRunAliases(ServerTestBase):
     INDEX_FILE = 'index_20.json'
     CHANNEL_FILE = 'channels_10.json'
     CHANNEL = 'daily'
@@ -567,23 +556,19 @@ class TestCLIMainDryRunAliases(_StateTestsBase):
         channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
         head, tail = os.path.split(channel_ini)
         copy('channel_05.ini', head, tail)
-        with ExitStack() as stack:
-            capture = StringIO()
-            stack.enter_context(
-                patch('systemimage.device.check_output',
-                      return_value='manta'))
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run']))
-            cli_main()
-            self.assertEqual(
-                capture.getvalue(),
-                'Upgrade path is 200:201:304 (saucy -> tubular)\n')
+        capture = StringIO()
+        self._enter(patch('systemimage.device.check_output',
+                          return_value='manta'))
+        self._enter(patch('builtins.print', partial(print, file=capture)))
+        self._enter(patch('systemimage.main.sys.argv',
+                          ['argv0', '-C', ini_file, '--dry-run']))
+        cli_main()
+        self.assertEqual(
+            capture.getvalue(),
+            'Upgrade path is 200:201:304 (saucy -> tubular)\n')
 
 
-class TestCLIFilters(_StateTestsBase):
+class TestCLIFilters(ServerTestBase):
     INDEX_FILE = 'index_15.json'
     CHANNEL_FILE = 'channels_06.json'
     CHANNEL = 'stable'
@@ -595,47 +580,41 @@ class TestCLIFilters(_StateTestsBase):
     def test_filter_full(self, ini_file):
         # With --filter=full, only full updates will be considered.
         self._setup_keyrings()
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run',
-                       '--filter', 'full']))
-            # Set up the build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(100)
-            cli_main()
-            self.assertMultiLineEqual(
-                capture.getvalue(), 'Already up-to-date\n')
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        self._enter(patch('builtins.print', partial(print, file=capture)))
+        self._enter(patch('systemimage.main.sys.argv',
+                          ['argv0', '-C', ini_file, '--dry-run',
+                           '--filter', 'full']))
+        # Set up the build number.
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(100)
+        cli_main()
+        self.assertMultiLineEqual(
+            capture.getvalue(), 'Already up-to-date\n')
 
     @configuration
     def test_filter_delta(self, ini_file):
         # With --filter=delta, only delta updates will be considered.
         self._setup_keyrings()
-        with ExitStack() as stack:
-            # We patch builtin print() rather than sys.stdout because the
-            # latter can mess with pdb output should we need to trace through
-            # the code.
-            capture = StringIO()
-            stack.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run',
-                       '--filter', 'delta']))
-            # Set up the build number.
-            config = Configuration()
-            config.load(ini_file)
-            touch_build(100)
-            cli_main()
-            self.assertMultiLineEqual(
-                capture.getvalue(), 'Upgrade path is 1600\n')
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        self._enter(patch('builtins.print', partial(print, file=capture)))
+        self._enter(patch('systemimage.main.sys.argv',
+                          ['argv0', '-C', ini_file, '--dry-run',
+                           '--filter', 'delta']))
+        # Set up the build number.
+        config = Configuration()
+        config.load(ini_file)
+        touch_build(100)
+        cli_main()
+        self.assertMultiLineEqual(
+            capture.getvalue(), 'Upgrade path is 1600\n')
 
 
 class TestDBusMain(unittest.TestCase):

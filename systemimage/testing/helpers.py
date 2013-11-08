@@ -16,6 +16,7 @@
 """Test helpers."""
 
 __all__ = [
+    'ServerTestBase',
     'configuration',
     'copy',
     'data_path',
@@ -41,6 +42,7 @@ import psutil
 import shutil
 import inspect
 import tarfile
+import unittest
 
 from contextlib import ExitStack, contextmanager
 from functools import partial, wraps
@@ -51,6 +53,7 @@ from systemimage.channel import Channels
 from systemimage.config import Configuration, config
 from systemimage.helpers import atomic, makedirs, temporary_directory
 from systemimage.index import Index
+from systemimage.state import State
 from threading import Thread
 from unittest.mock import patch
 
@@ -405,3 +408,80 @@ def find_dbus_process(ini_path):
         if 'systemimage.service' in cmdline and ini_path in cmdline:
             return process
     return None
+
+
+class ServerTestBase(unittest.TestCase):
+    # Must override in base classes.
+    INDEX_FILE = None
+    CHANNEL_FILE = None
+    CHANNEL = None
+    DEVICE = None
+    SIGNING_KEY = 'device-signing.gpg'
+
+    # For more detailed output.
+    maxDiff = None
+
+    @classmethod
+    def setUpClass(self):
+        # Avoid circular imports.
+        from systemimage.testing.nose import SystemImagePlugin
+        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
+
+    def setUp(self):
+        self._resources = ExitStack()
+        self._enter = self._resources.enter_context
+        self._state = State()
+        try:
+            self._serverdir = self._enter(temporary_directory())
+            # Start up both an HTTPS and HTTP server.  The data files are
+            # vended over the latter, everything else, over the former.
+            self._resources.push(make_http_server(
+                self._serverdir, 8943, 'cert.pem', 'key.pem'))
+            self._resources.push(make_http_server(self._serverdir, 8980))
+            # Set up the server files.
+            assert self.CHANNEL_FILE is not None, (
+                'Subclasses must set CHANNEL_FILE')
+            copy(self.CHANNEL_FILE, self._serverdir, 'channels.json')
+            sign(os.path.join(self._serverdir, 'channels.json'),
+                 'image-signing.gpg')
+            assert self.CHANNEL is not None, 'Subclasses must set CHANNEL'
+            assert self.DEVICE is not None, 'Subclasses must set DEVICE'
+            index_path = os.path.join(
+                self._serverdir, self.CHANNEL, self.DEVICE, 'index.json')
+            head, tail = os.path.split(index_path)
+            assert self.INDEX_FILE is not None, (
+                'Subclasses must set INDEX_FILE')
+            copy(self.INDEX_FILE, head, tail)
+            sign(index_path, self.SIGNING_KEY)
+            setup_index(self.INDEX_FILE, self._serverdir, self.SIGNING_KEY)
+        except:
+            self._resources.close()
+            raise
+
+    def tearDown(self):
+        self._resources.close()
+
+    def _setup_keyrings(self, *, device_signing=True):
+        # Only the archive-master key is pre-loaded.  All the other keys
+        # are downloaded and there will be both a blacklist and device
+        # keyring.  The four signed keyring tar.xz files and their
+        # signatures end up in the proper location after the state machine
+        # runs to completion.
+        setup_keyrings('archive-master')
+        setup_keyring_txz(
+            'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
+            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
+        setup_keyring_txz(
+            'image-master.gpg', 'archive-master.gpg',
+            dict(type='image-master'),
+            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
+        setup_keyring_txz(
+            'image-signing.gpg', 'image-master.gpg',
+            dict(type='image-signing'),
+            os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
+        if device_signing:
+            setup_keyring_txz(
+                'device-signing.gpg', 'image-signing.gpg',
+                dict(type='device-signing'),
+                os.path.join(self._serverdir, self.CHANNEL, self.DEVICE,
+                             'device-signing.tar.xz'))

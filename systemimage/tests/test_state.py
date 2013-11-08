@@ -43,8 +43,9 @@ from systemimage.gpg import SignatureError
 from systemimage.state import State
 from systemimage.testing.demo import DemoDevice
 from systemimage.testing.helpers import (
-    configuration, copy, data_path, get_index, make_http_server, setup_index,
-    setup_keyring_txz, setup_keyrings, sign, temporary_directory, touch_build)
+    ServerTestBase, configuration, copy, data_path, get_index,
+    make_http_server, setup_keyring_txz, setup_keyrings, sign,
+    temporary_directory, touch_build)
 from systemimage.testing.nose import SystemImagePlugin
 # FIXME
 from systemimage.tests.test_candidates import _descriptions
@@ -377,81 +378,7 @@ class TestState(unittest.TestCase):
         self.assertRaises(SignatureError, next, state)
 
 
-class _StateTestsBase(unittest.TestCase):
-    # Must override in base classes.
-    INDEX_FILE = None
-    CHANNEL_FILE = None
-    CHANNEL = None
-    DEVICE = None
-    SIGNING_KEY = 'device-signing.gpg'
-
-    # For more detailed output.
-    maxDiff = None
-
-    @classmethod
-    def setUpClass(self):
-        SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
-
-    def setUp(self):
-        self._stack = ExitStack()
-        self._state = State()
-        try:
-            self._serverdir = self._stack.enter_context(temporary_directory())
-            # Start up both an HTTPS and HTTP server.  The data files are
-            # vended over the latter, everything else, over the former.
-            self._stack.push(make_http_server(
-                self._serverdir, 8943, 'cert.pem', 'key.pem'))
-            self._stack.push(make_http_server(self._serverdir, 8980))
-            # Set up the server files.
-            assert self.CHANNEL_FILE is not None, (
-                'Subclasses must set CHANNEL_FILE')
-            copy(self.CHANNEL_FILE, self._serverdir, 'channels.json')
-            sign(os.path.join(self._serverdir, 'channels.json'),
-                 'image-signing.gpg')
-            assert self.CHANNEL is not None, 'Subclasses must set CHANNEL'
-            assert self.DEVICE is not None, 'Subclasses must set DEVICE'
-            index_path = os.path.join(
-                self._serverdir, self.CHANNEL, self.DEVICE, 'index.json')
-            head, tail = os.path.split(index_path)
-            assert self.INDEX_FILE is not None, (
-                'Subclasses must set INDEX_FILE')
-            copy(self.INDEX_FILE, head, tail)
-            sign(index_path, self.SIGNING_KEY)
-            setup_index(self.INDEX_FILE, self._serverdir, self.SIGNING_KEY)
-        except:
-            self._stack.close()
-            raise
-
-    def tearDown(self):
-        self._stack.close()
-
-    def _setup_keyrings(self, *, device_signing=True):
-        # Only the archive-master key is pre-loaded.  All the other keys
-        # are downloaded and there will be both a blacklist and device
-        # keyring.  The four signed keyring tar.xz files and their
-        # signatures end up in the proper location after the state machine
-        # runs to completion.
-        setup_keyrings('archive-master')
-        setup_keyring_txz(
-            'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
-            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        setup_keyring_txz(
-            'image-master.gpg', 'archive-master.gpg',
-            dict(type='image-master'),
-            os.path.join(self._serverdir, 'gpg', 'image-master.tar.xz'))
-        setup_keyring_txz(
-            'image-signing.gpg', 'image-master.gpg',
-            dict(type='image-signing'),
-            os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz'))
-        if device_signing:
-            setup_keyring_txz(
-                'device-signing.gpg', 'image-signing.gpg',
-                dict(type='device-signing'),
-                os.path.join(self._serverdir, self.CHANNEL, self.DEVICE,
-                             'device-signing.tar.xz'))
-
-
-class TestRebooting(_StateTestsBase):
+class TestRebooting(ServerTestBase):
     """Test various state transitions leading to a reboot."""
 
     INDEX_FILE = 'index_13.json'
@@ -521,8 +448,8 @@ class TestRebooting(_StateTestsBase):
     def test_reboot_issued(self):
         # The reboot gets issued.
         self._setup_keyrings()
-        with patch('systemimage.reboot.check_call') as mock:
-            list(State())
+        mock = self._enter(patch('systemimage.reboot.check_call'))
+        list(State())
         self.assertEqual(mock.call_args[0][0],
                          ['/sbin/reboot', '-f', 'recovery'])
 
@@ -533,8 +460,8 @@ class TestRebooting(_StateTestsBase):
         self._setup_keyrings()
         # Hack the current build number so that no update is available.
         touch_build(5000)
-        with patch('systemimage.reboot.Reboot.reboot') as mock:
-            list(State())
+        mock = self._enter(patch('systemimage.reboot.Reboot.reboot'))
+        list(State())
         self.assertEqual(mock.call_count, 0)
 
     @unittest.skipIf(os.getuid() == 0, 'This test would actually reboot!')
@@ -575,7 +502,7 @@ class TestRebooting(_StateTestsBase):
         self.assertTrue(got_reboot)
 
 
-class TestRebootingNoDeviceSigning(_StateTestsBase):
+class TestRebootingNoDeviceSigning(ServerTestBase):
     INDEX_FILE = 'index_13.json'
     CHANNEL_FILE = 'channels_11.json'
     CHANNEL = 'stable'
@@ -643,7 +570,7 @@ class TestRebootingNoDeviceSigning(_StateTestsBase):
                 self.assertTrue(os.path.exists(asc))
 
 
-class TestCommandFileFull(_StateTestsBase):
+class TestCommandFileFull(ServerTestBase):
     INDEX_FILE = 'index_13.json'
     CHANNEL_FILE = 'channels_06.json'
     CHANNEL = 'stable'
@@ -691,7 +618,7 @@ unmount system
         self.assertFalse(os.path.exists(path))
 
 
-class TestCommandFileDelta(_StateTestsBase):
+class TestCommandFileDelta(ServerTestBase):
     INDEX_FILE = 'index_15.json'
     CHANNEL_FILE = 'channels_06.json'
     CHANNEL = 'stable'
@@ -719,7 +646,7 @@ unmount system
 """)
 
 
-class TestFileOrder(_StateTestsBase):
+class TestFileOrder(ServerTestBase):
     INDEX_FILE = 'index_16.json'
     CHANNEL_FILE = 'channels_06.json'
     CHANNEL = 'stable'
@@ -755,7 +682,7 @@ unmount system
 """)
 
 
-class TestDailyProposed(_StateTestsBase):
+class TestDailyProposed(ServerTestBase):
     """Test that the daily-proposed channel works as expected."""
 
     INDEX_FILE = 'index_13.json'
@@ -768,10 +695,9 @@ class TestDailyProposed(_StateTestsBase):
         # Resolve the index.json path for a channel with a dash in it.
         self._setup_keyrings()
         state = State()
-        self._stack.enter_context(
+        self._enter(
             patch('systemimage.state.config.channel', 'daily-proposed'))
-        self._stack.enter_context(
-            patch('systemimage.state.config.hooks.device', DemoDevice))
+        self._enter(patch('systemimage.state.config.hooks.device', DemoDevice))
         state.run_thru('get_index')
         self.assertEqual(state.index.global_.generated_at,
                          datetime(2013, 8, 1, 8, 1, tzinfo=timezone.utc))
@@ -782,15 +708,13 @@ class TestDailyProposed(_StateTestsBase):
         # channel with a dash in it.
         self._setup_keyrings()
         state = State()
-        self._stack.enter_context(
-            patch('systemimage.state.config.channel', 'daily-testing'))
-        self._stack.enter_context(
-            patch('systemimage.state.config.hooks.device', DemoDevice))
+        self._enter(patch('systemimage.state.config.channel', 'daily-testing'))
+        self._enter(patch('systemimage.state.config.hooks.device', DemoDevice))
         state.run_thru('get_index')
         self.assertIsNone(state.index)
 
 
-class TestVersionedProposed(_StateTestsBase):
+class TestVersionedProposed(ServerTestBase):
     INDEX_FILE = 'index_13.json'
     CHANNEL_FILE = 'channels_08.json'
     CHANNEL = '14.04-proposed'
@@ -802,16 +726,15 @@ class TestVersionedProposed(_StateTestsBase):
         # it.
         self._setup_keyrings()
         state = State()
-        self._stack.enter_context(
+        self._enter(
             patch('systemimage.state.config.channel', '14.04-proposed'))
-        self._stack.enter_context(
-            patch('systemimage.state.config.hooks.device', DemoDevice))
+        self._enter(patch('systemimage.state.config.hooks.device', DemoDevice))
         state.run_thru('get_index')
         self.assertEqual(state.index.global_.generated_at,
                          datetime(2013, 8, 1, 8, 1, tzinfo=timezone.utc))
 
 
-class TestFilters(_StateTestsBase):
+class TestFilters(ServerTestBase):
     INDEX_FILE = 'index_15.json'
     CHANNEL_FILE = 'channels_06.json'
     CHANNEL = 'stable'
@@ -839,7 +762,7 @@ class TestFilters(_StateTestsBase):
         self.assertEqual(len(state.winner), 0)
 
 
-class TestStateNewChannelsFormat(_StateTestsBase):
+class TestStateNewChannelsFormat(ServerTestBase):
     CHANNEL_FILE = 'channels_09.json'
     CHANNEL = 'saucy'
     DEVICE = 'manta'
@@ -849,8 +772,8 @@ class TestStateNewChannelsFormat(_StateTestsBase):
     def test_full_reboot(self):
         # Test that state transitions through reboot work for the new channel
         # format.  Also check that the right files get moved into place.
-        self._stack.enter_context(patch('systemimage.device.check_output',
-                                        return_value='manta'))
+        self._enter(patch('systemimage.device.check_output',
+                          return_value='manta'))
         config.load(data_path('channel_04.ini'), override=True)
         self._setup_keyrings()
         state = State()
@@ -877,7 +800,7 @@ unmount system
         self.assertTrue(got_reboot)
 
 
-class TestChannelAlias(_StateTestsBase):
+class TestChannelAlias(ServerTestBase):
     CHANNEL_FILE = 'channels_10.json'
     CHANNEL = 'daily'
     DEVICE = 'manta'
@@ -909,8 +832,8 @@ class TestChannelAlias(_StateTestsBase):
         # absence of a channels.ini file.  The device is tracking the daily
         # channel, and there isno channel_target attribute, so we get the
         # latest build on that channel.
-        self._stack.enter_context(patch('systemimage.device.check_output',
-                                        return_value='manta'))
+        self._enter(patch('systemimage.device.check_output',
+                          return_value='manta'))
         self._setup_keyrings()
         touch_build(300)
         config.channel = 'daily'
@@ -949,8 +872,8 @@ class TestChannelAlias(_StateTestsBase):
         # Like the above test, but in similating the use of `system-image-cli
         # --build 300`, we set the build number explicitly.  This prevent the
         # channel alias squashing of the build number to 0.
-        self._stack.enter_context(patch('systemimage.device.check_output',
-                                        return_value='manta'))
+        self._enter(patch('systemimage.device.check_output',
+                          return_value='manta'))
         self._setup_keyrings()
         # This sets the build number via the /etc/ubuntu_build file.
         touch_build(300)
@@ -982,7 +905,7 @@ class TestChannelAlias(_StateTestsBase):
                          [301, 304])
 
 
-class TestPhasedUpdates(_StateTestsBase):
+class TestPhasedUpdates(ServerTestBase):
     CHANNEL_FILE = 'channels_10.json'
     CHANNEL = 'daily'
     DEVICE = 'manta'
@@ -993,11 +916,11 @@ class TestPhasedUpdates(_StateTestsBase):
         # With our threshold at 66, the "Full B" image is suppressed, thus the
         # upgrade path is different than it normally would be.  In this case,
         # the 'A' path is taken (in fact, the B path isn't even considered).
-        self._stack.enter_context(patch('systemimage.device.check_output',
-                                        return_value='manta'))
+        self._enter(patch('systemimage.device.check_output',
+                          return_value='manta'))
         self._setup_keyrings()
-        self._stack.enter_context(patch('systemimage.index.phased_percentage',
-                                        return_value=66))
+        self._enter(patch('systemimage.index.phased_percentage',
+                          return_value=66))
         config.channel = 'daily'
         state = State()
         state.run_thru('calculate_winner')
@@ -1008,11 +931,11 @@ class TestPhasedUpdates(_StateTestsBase):
     def test_phased_updates_0(self):
         # With our threshold at 0, all images are good, so it's a "normal"
         # update path.
-        self._stack.enter_context(patch('systemimage.device.check_output',
-                                        return_value='manta'))
+        self._enter(patch('systemimage.device.check_output',
+                          return_value='manta'))
         self._setup_keyrings()
-        self._stack.enter_context(patch('systemimage.index.phased_percentage',
-                                        return_value=0))
+        self._enter(patch('systemimage.index.phased_percentage',
+                          return_value=0))
         config.channel = 'daily'
         state = State()
         state.run_thru('calculate_winner')
@@ -1023,11 +946,11 @@ class TestPhasedUpdates(_StateTestsBase):
     def test_phased_updates_100(self):
         # With our threshold at 100, only the image without a specific
         # phased-percentage key is allowed.  That's the 'A' path again.
-        self._stack.enter_context(patch('systemimage.device.check_output',
-                                        return_value='manta'))
+        self._enter(patch('systemimage.device.check_output',
+                          return_value='manta'))
         self._setup_keyrings()
-        self._stack.enter_context(patch('systemimage.index.phased_percentage',
-                                        return_value=77))
+        self._enter(patch('systemimage.index.phased_percentage',
+                          return_value=77))
         config.channel = 'daily'
         state = State()
         state.run_thru('calculate_winner')
@@ -1035,7 +958,7 @@ class TestPhasedUpdates(_StateTestsBase):
                          ['Full A', 'Delta A.1', 'Delta A.2'])
 
 
-class TestCachedFiles(_StateTestsBase):
+class TestCachedFiles(ServerTestBase):
     CHANNEL_FILE = 'channels_11.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
