@@ -36,7 +36,7 @@ import hashlib
 import unittest
 
 from contextlib import ExitStack
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from subprocess import CalledProcessError
 from systemimage.config import config
@@ -1426,3 +1426,57 @@ class TestKeyringDoubleChecks(ServerTestBase):
         # We have a new .asc file.
         with open(path, 'rb') as fp:
             self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
+
+    @configuration
+    def test_image_master_is_expired(self):
+        # Like above, but the keyring.json has an 'expiry' value that
+        # indicates the key has expired.
+        expiry = datetime.utcnow() - timedelta(days=10)
+        setup_keyrings('image-master', expiry=expiry.timestamp())
+        setup_keyrings('archive-master', 'image-signing', 'device-signing')
+        # When the state machine re-downloads the image-master, it will change
+        # the timestamps on both it and the .asc files.  Grab the mtimes of
+        # both now to verify that they've changed later.
+        txz_path = config.gpg.image_master
+        asc_path = txz_path + '.asc'
+        txz_mtime = os.stat(txz_path).st_mtime_ns
+        asc_mtime = os.stat(asc_path).st_mtime_ns
+        # Additionally, they checksum of the tar.xz file will change because
+        # the new one won't have the expiry key in its .json file.
+        with open(txz_path, 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).digest()
+        # Run the state machine long enough to get the new image master.
+        self._setup_server_keyrings()
+        State().run_thru('get_blacklist_1')
+        # We have a new tar.xz file.
+        with open(txz_path, 'rb') as fp:
+            self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
+        self.assertGreater(os.stat(txz_path).st_mtime_ns, txz_mtime)
+        self.assertGreater(os.stat(asc_path).st_mtime_ns, asc_mtime)
+
+    @configuration
+    def test_image_signing_is_expired(self):
+        # Like above, but the keyring.json has an 'expiry' value that
+        # indicates the key has expired.
+        expiry = datetime.utcnow() - timedelta(days=10)
+        setup_keyrings('image-signing', expiry=expiry.timestamp())
+        setup_keyrings('archive-master', 'image-master', 'device-signing')
+        # When the state machine re-downloads the image-master, it will change
+        # the timestamps on both it and the .asc files.  Grab the mtimes of
+        # both now to verify that they've changed later.
+        txz_path = config.gpg.image_signing
+        asc_path = txz_path + '.asc'
+        txz_mtime = os.stat(txz_path).st_mtime_ns
+        asc_mtime = os.stat(asc_path).st_mtime_ns
+        # Additionally, they checksum of the tar.xz file will change because
+        # the new one won't have the expiry key in its .json file.
+        with open(txz_path, 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).digest()
+        # Run the state machine long enough to get the new image master.
+        self._setup_server_keyrings()
+        State().run_thru('get_channel')
+        # We have a new tar.xz file.
+        with open(txz_path, 'rb') as fp:
+            self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
+        self.assertGreater(os.stat(txz_path).st_mtime_ns, txz_mtime)
+        self.assertGreater(os.stat(asc_path).st_mtime_ns, asc_mtime)

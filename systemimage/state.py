@@ -22,12 +22,15 @@ __all__ = [
 
 
 import os
+import json
 import shutil
 import hashlib
 import logging
+import tarfile
 
 from collections import deque
 from contextlib import ExitStack
+from datetime import datetime, timezone
 from functools import partial
 from itertools import islice
 from systemimage.candidates import get_candidates, iter_path
@@ -35,7 +38,8 @@ from systemimage.channel import Channels
 from systemimage.config import config
 from systemimage.download import DBusDownloadManager
 from systemimage.gpg import Context, SignatureError
-from systemimage.helpers import atomic, makedirs, safe_remove
+from systemimage.helpers import (
+    atomic, makedirs, safe_remove, temporary_directory)
 from systemimage.index import Index
 from systemimage.keyring import KeyringError, get_keyring
 from urllib.parse import urljoin
@@ -56,15 +60,35 @@ def _copy_if_missing(src, dstdir):
         shutil.copy(src, dstdir)
 
 
-def _use_cached(txt, asc, checksum, keyrings, blacklist):
+def _use_cached(txt, asc, keyrings, checksum=None, blacklist=None):
     if not os.path.exists(txt) or not os.path.exists(asc):
         return False
     with Context(*keyrings, blacklist=blacklist) as ctx:
         if not ctx.verify(asc, txt):
             return False
+    if checksum is None:
+        return True
     with open(txt, 'rb') as fp:
         got = hashlib.sha256(fp.read()).hexdigest()
         return got == checksum
+
+
+def _use_cached_keyring(txz, asc, signing_key):
+    if not _use_cached(txz, asc, (signing_key,)):
+        return False
+    # Do one additional check: unpack the .tar.xz file, grab the keyring.json
+    # and if it has an expiry key, make sure that the keyring has not expired.
+    with temporary_directory(dir=config.tempdir) as tmp:
+        with tarfile.open(txz, 'r:xz') as tf:
+            tf.extractall(tmp)
+        json_path = os.path.join(tmp, 'keyring.json')
+        with open(json_path, 'r', encoding='utf-8') as fp:
+            data = json.load(fp)
+    expiry = data.get('expiry')
+    timestamp = datetime.now(tz=timezone.utc).timestamp()
+    # We can use this keyring if it never expires, or if the expiration date
+    # is some time in the future.
+    return expiry is None or expiry > timestamp
 
 
 class State:
@@ -178,13 +202,8 @@ class State:
         # be pre-installed (we cannot download it).  Let any exceptions in
         # grabbing the image master key percolate up.
         image_master = config.gpg.image_master
-        if os.path.exists(image_master):
-            with Context(config.gpg.archive_master) as ctx:
-                if not ctx.verify(image_master + '.asc', image_master):
-                    image_master = None
-        else:
-            image_master = None
-        if image_master is None:
+        if not _use_cached_keyring(image_master, image_master + '.asc',
+                                   config.gpg.archive_master):
             log.info('No valid image master key found, downloading')
             get_keyring(
                 'image-master', 'gpg/image-master.tar.xz', 'archive-master')
@@ -247,13 +266,8 @@ class State:
         # imaging signing must be signed by the image master key, which we
         # better already have an up-to-date copy of.
         image_signing = config.gpg.image_signing
-        if os.path.exists(image_signing):
-            with Context(config.gpg.image_master) as ctx:
-                if not ctx.verify(image_signing + '.asc', image_signing):
-                    image_signing = None
-        else:
-            image_signing = None
-        if image_signing is None:
+        if not _use_cached_keyring(image_signing, image_signing + '.asc',
+                                   config.gpg.image_master):
             log.info('No valid image signing key found, downloading')
             get_keyring(
                 'image-signing', 'gpg/image-signing.tar.xz', 'image-master')
@@ -448,7 +462,7 @@ class State:
             self.files.append((dst, (image_number, filerec.order)))
             self.files.append((asc, (image_number, filerec.order)))
             # Check the existence and signature of the file.
-            if _use_cached(dst, asc, checksum, keyrings, self.blacklist):
+            if _use_cached(dst, asc, keyrings, checksum, self.blacklist):
                 preserve.add(dst)
                 preserve.add(asc)
             else:

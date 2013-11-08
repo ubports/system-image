@@ -28,7 +28,8 @@ NEWS for system-image updater
  * Add a workaround for LP: #1245597, caused by a bug in
    ubuntu-download-manager when presented with an empty download list.
  * If an existing image-master or image-signing key is found on the file
-   system, double check its signature before using it.  (LP: #1195057)
+   system, double check its signature (LP: #1195057) and expiration date (LP:
+   #1192717) if it has one, before using it.
 
 1.9.1 (2013-10-15)
 ==================

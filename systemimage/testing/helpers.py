@@ -289,7 +289,7 @@ def setup_keyring_txz(keyring_src, signing_keyring, json_data, dst):
         shutil.copy(tarxz_path + '.asc', dst + '.asc')
 
 
-def setup_keyrings(*keyrings, use_config=None):
+def setup_keyrings(*keyrings, use_config=None, **data):
     """Copy the named keyrings to the right place.
 
     Also, set up the .xz.tar and .xz.tar.asc files which must exist in order
@@ -301,6 +301,8 @@ def setup_keyrings(*keyrings, use_config=None):
         e.g. 'archive_master'.
     :param use_config: If given, use this as the config object, otherwise use
         the global config object.
+    :param data: Additional key/value data to insert into the keyring.json
+        dictionary.
     """
     if len(keyrings) == 0:
         keyrings = ('archive-master', 'image-master', 'image-signing',
@@ -321,6 +323,7 @@ def setup_keyrings(*keyrings, use_config=None):
                                 else use_config.tempdir))
         # Now set up the .tar.xz and .tar.xz.asc files in the destination.
         json_data = dict(type=keyring)
+        json_data.update(data)
         dst = getattr((config.gpg if use_config is None
                        else use_config.gpg),
                       keyring.replace('-', '_'))
