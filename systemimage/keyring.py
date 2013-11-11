@@ -158,6 +158,8 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
             tarxz_path = getattr(config.gpg, keyring_type.replace('-', '_'))
         ascxz_path = tarxz_path + '.asc'
         makedirs(os.path.dirname(tarxz_path))
+        safe_remove(tarxz_path)
+        safe_remove(ascxz_path)
         shutil.copy(tarxz_dst, tarxz_path)
         shutil.copy(ascxz_dst, ascxz_path)
         # For all keyrings, copy the extracted .gpg file to the tempdir.  We

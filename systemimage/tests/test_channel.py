@@ -24,10 +24,13 @@ __all__ = [
 
 
 import os
+import shutil
+import hashlib
 import unittest
 
 from contextlib import ExitStack
 from operator import getitem
+from systemimage.config import Configuration
 from systemimage.gpg import SignatureError
 from systemimage.helpers import temporary_directory
 from systemimage.state import State
@@ -121,15 +124,66 @@ class TestLoadChannel(unittest.TestCase):
                          '/daily/nexus7/device-keyring.tar.xz.asc')
 
     @configuration
-    def test_load_channel_bad_signature(self):
+    def test_load_channel_bad_signature(self, ini_file):
         # We get an error if the signature on the channels.json file is bad.
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
+        config = Configuration()
+        config.load(ini_file)
         self._state.run_thru('get_channel')
+        # At this point, the state machine has determined that the
+        # channels.json file is not signed with the cached image signing key,
+        # so it will try to download a new imaging signing key.  Let's put one
+        # on the server, but it will not match the key that channels.json is
+        # signed with.
+        key_path = os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz')
+        setup_keyring_txz('image-signing.gpg', 'image-master.gpg',
+                          dict(type='image-signing'),
+                          key_path)
+        # This will succeed by grabbing a new image-signing key.
+        from systemimage.testing.controller import stop_downloader
+        stop_downloader(SystemImagePlugin.controller)
+        next(self._state)
+        # With the next state transition, we'll go back to trying to get the
+        # channel.json file.  Since the signature will still be bad, we'll get
+        # a SignatureError this time.
         self.assertRaises(SignatureError, next, self._state)
 
     @configuration
-    def test_load_channel_blacklisted_signature(self):
+    def test_load_channel_bad_signature_gets_fixed(self, ini_file):
+        # Like above, but the second download of the image signing key results
+        # in a properly signed channels.json file.
+        sign(self._channels_path, 'spare.gpg')
+        setup_keyrings()
+        self._state.run_thru('get_channel')
+        # At this point, the state machine has determined that the
+        # channels.json file is not signed with the cached image signing key,
+        # so it will try to download a new imaging signing key.  Let's put one
+        # on the server, but it will not match the key that channels.json is
+        # signed with.
+        self.assertIsNone(self._state.channels)
+        setup_keyring_txz('spare.gpg', 'image-master.gpg',
+                          dict(type='image-signing'),
+                          os.path.join(self._serverdir, 'gpg',
+                                       'image-signing.tar.xz'))
+        # This will succeed by grabbing a new image-signing key.
+        config = Configuration()
+        config.load(ini_file)
+        with open(config.gpg.image_signing, 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).digest()
+        next(self._state)
+        with open(config.gpg.image_signing, 'rb') as fp:
+            self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
+        # The next state transition will find that the channels.json file is
+        # properly signed.
+        next(self._state)
+        self.assertIsNotNone(self._state.channels)
+        self.assertEqual(
+            self._state.channels.daily.devices.nexus7.keyring.signature,
+            '/daily/nexus7/device-keyring.tar.xz.asc')
+
+    @configuration
+    def test_load_channel_blacklisted_signature(self, ini_file):
         # We get an error if the signature on the channels.json file is good
         # but the key is blacklisted.
         sign(self._channels_path, 'image-signing.gpg')
@@ -138,22 +192,18 @@ class TestLoadChannel(unittest.TestCase):
             'image-signing.gpg', 'image-master.gpg', dict(type='blacklist'),
             os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
         self._state.run_thru('get_channel')
-        self.assertRaises(SignatureError, next, self._state)
-
-    @configuration
-    def test_load_channel_bad_signature_gets_fixed(self):
-        # The first load gets a bad signature, but the second one fixes the
-        # signature and everything is fine.
-        sign(self._channels_path, 'spare.gpg')
-        setup_keyrings()
-        self._state.run_thru('get_channel')
-        self.assertRaises(SignatureError, next, self._state)
-        sign(self._channels_path, 'image-signing.gpg')
-        state = State()
-        state.run_thru('get_channel')
-        channels = state.channels
-        self.assertEqual(channels.daily.devices.nexus7.keyring.signature,
-                         '/daily/nexus7/device-keyring.tar.xz.asc')
+        # We now have an image-signing key which is blacklisted.  This will
+        # cause the state machine to try to download a new image signing key,
+        # so let's put the cached one up on the server.  This will still be
+        # backlisted though.
+        config = Configuration()
+        config.load(ini_file)
+        key_path = os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz')
+        shutil.copy(config.gpg.image_signing, key_path)
+        shutil.copy(config.gpg.image_signing + '.asc', key_path + '.asc')
+        # Run the state machine through _get_channel() again, only this time
+        # because the key is still blacklisted, we'll get an exception.
+        self.assertRaises(SignatureError, self._state.run_thru, 'get_channel')
 
 
 class TestLoadChannelOverHTTPS(unittest.TestCase):

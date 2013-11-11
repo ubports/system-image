@@ -231,7 +231,10 @@ class State:
             self.blacklist = os.path.join(
                 config.updater.data_partition, 'blacklist.tar.xz')
             log.info('Local blacklist file: {}', self.blacklist)
-        self._next.append(self._get_channel)
+        # This is the first time we're trying to get the channel.json file.
+        # If this fails because signature is invalid, we'll try to download a
+        # new image-signing key.  Then we'll call _get_channel() again.
+        self._next.append(partial(self._get_channel, 0))
 
     def _get_blacklist_2(self):
         """Second try to get the blacklist."""
@@ -257,9 +260,10 @@ class State:
             self.blacklist = os.path.join(
                 config.updater.data_partition, 'blacklist.tar.xz')
             log.info('Local blacklist file: {}', self.blacklist)
-        self._next.append(self._get_channel)
+        # See above.
+        self._next.append(partial(self._get_channel, 0))
 
-    def _get_channel(self):
+    def _get_channel(self, count):
         """Get and verify the channels.json file."""
         # If there is no image signing key, download one now.  Don't worry if
         # we have an out of date key; that will be handled elsewhere.  The
@@ -270,7 +274,8 @@ class State:
                                    config.gpg.image_master):
             log.info('No valid image signing key found, downloading')
             get_keyring(
-                'image-signing', 'gpg/image-signing.tar.xz', 'image-master')
+                'image-signing', 'gpg/image-signing.tar.xz', 'image-master',
+                self.blacklist)
         channels_url = urljoin(config.service.https_base, 'channels.json')
         channels_path = os.path.join(config.tempdir, 'channels.json')
         asc_url = urljoin(config.service.https_base, 'channels.json.asc')
@@ -290,8 +295,12 @@ class State:
                 Context(config.gpg.image_signing, blacklist=self.blacklist))
             if not ctx.verify(asc_path, channels_path):
                 # The signature on the channels.json file did not match.
-                # Maybe there's a new image signing key on the server.  If a
-                # new key *is* found, retry the current step.
+                # Maybe there's a new image signing key on the server.  If
+                # we've already downloaded a new image signing key, then
+                # there's nothing more to do but raise an exception.
+                # Otherwise, if a new key *is* found, retry the current step.
+                if count > 0:
+                    raise SignatureError(channels_path)
                 self._next.appendleft(self._get_signing_key)
                 log.info('channels.json not properly signed')
                 return
@@ -341,10 +350,9 @@ class State:
                 'image-master', 'gpg/image-master.tar.xz',
                 'archive-master', self.blacklist)
         except (FileNotFoundError, SignatureError, KeyringError):
-            # No valid image master key could be found.  Don't chain this
-            # exception.
-            log.error('No valid imaging master key found')
-            raise SignatureError from None
+            # No valid image master key could be found.
+            log.error('No valid image master key found')
+            raise
         # Retry the previous step.
         log.info('Installing new image master key to: {}',
                  config.gpg.image_master)
@@ -363,9 +371,11 @@ class State:
         except (FileNotFoundError, SignatureError, KeyringError):
             # No valid image signing key could be found.  Don't chain this
             # exception.
-            raise SignatureError from None
-        # Retry the previous step.
-        self._next.appendleft(self._get_channel)
+            log.error('No valid image signing key found')
+            raise
+        # Retry the previous step, but signal to _get_channel() that if the
+        # signature fails this time, it's an error.
+        self._next.appendleft(partial(self._get_channel, 1))
 
     def _get_index(self, index):
         """Get and verify the index.json file."""

@@ -78,14 +78,18 @@ def stop_downloader(controller):
         process.wait(60)
 
 
+DLSERVICE = '/usr/bin/ubuntu-download-manager'
+# For debugging the in-tree version of u-d-m.
+#DLSERVICE = '/bin/sh /home/barry/projects/phone/runme'
+
+
 SERVICES = [
    ('com.canonical.SystemImage',
     '{python} -m systemimage.service -C {self.ini_path} --testing {self.mode}',
     stop_system_image,
    ),
    ('com.canonical.applications.Downloader',
-    '/usr/bin/ubuntu-download-manager '
-        '{self.certs} -disable-timeout -stoppable',
+    DLSERVICE + ' {self.certs} -disable-timeout -stoppable',
     stop_downloader,
    ),
    ]
