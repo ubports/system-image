@@ -220,6 +220,7 @@ def main():
         except KeyboardInterrupt:
             return 0
         except:
+            log.exception('system-image-cli exception')
             return 1
         else:
             return 0

@@ -16,6 +16,7 @@
 """Test the main entry point."""
 
 __all__ = [
+    'TestCLIDuplicateDestinations',
     'TestCLIFilters',
     'TestCLIMain',
     'TestCLIMainDryRun',
@@ -615,6 +616,34 @@ class TestCLIFilters(ServerTestBase):
         cli_main()
         self.assertMultiLineEqual(
             capture.getvalue(), 'Upgrade path is 1600\n')
+
+
+class TestCLIDuplicateDestinations(ServerTestBase):
+    INDEX_FILE = 'index_23.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    @configuration
+    def test_duplicate_destinations(self, ini_file):
+        # index_23.json has the bug we saw in the wild in LP: #1250181.
+        # There, the server erroneously included a data file twice in two
+        # different images.  This can't happen and indicates a server
+        # problem.  The client must refuse to upgrade in this case, by raising
+        # an exception.
+        self._setup_server_keyrings()
+        self._enter(patch('systemimage.main.sys.argv',
+                          ['argv0', '-C', ini_file]))
+        exit_code = cli_main()
+        self.assertEqual(exit_code, 1)
+        # 2013-11-12 BAW: IWBNI we could assert something about the log
+        # output, since that contains a display of the duplicate destination
+        # paths and the urls that map to them, but that's difficult for
+        # several reasons, including that we can't really mock the log
+        # instance (it's a local variable to main(), and the output will
+        # contain stack traces and random paths.  I bet we could hack
+        # something in with doctest.OutputChecker.check_output(), but I'm not
+        # sure it's worth it.
 
 
 class TestDBusMain(unittest.TestCase):

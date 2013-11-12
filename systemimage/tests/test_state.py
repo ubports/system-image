@@ -26,6 +26,7 @@ __all__ = [
     'TestPhasedUpdates',
     'TestRebooting',
     'TestState',
+    'TestStateDuplicateDestinations',
     'TestStateNewChannelsFormat',
     ]
 
@@ -40,6 +41,7 @@ from datetime import datetime, timedelta, timezone
 from functools import partial
 from subprocess import CalledProcessError
 from systemimage.config import config
+from systemimage.download import DuplicateDestinationError
 from systemimage.gpg import Context, SignatureError
 from systemimage.state import State
 from systemimage.testing.demo import DemoDevice
@@ -1480,3 +1482,38 @@ class TestKeyringDoubleChecks(ServerTestBase):
             self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest())
         self.assertGreater(os.stat(txz_path).st_mtime_ns, txz_mtime)
         self.assertGreater(os.stat(asc_path).st_mtime_ns, asc_mtime)
+
+
+class TestStateDuplicateDestinations(ServerTestBase):
+    """An index.json with duplicate destination files is broken."""
+
+    INDEX_FILE = 'index_23.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    @configuration
+    def test_duplicate_destinations(self):
+        # index_23.json has the bug we saw in the wild in LP: #1250181.
+        # There, the server erroneously included a data file twice in two
+        # different images.  This can't happen and indicates a server
+        # problem.  The client must refuse to upgrade in this case, by raising
+        # an exception.
+        self._setup_server_keyrings()
+        state = State()
+        state.run_until('download_files')
+        with self.assertRaises(DuplicateDestinationError) as cm:
+            next(state)
+        self.assertEqual(len(cm.exception.duplicates), 2)
+        dst, urls = cm.exception.duplicates[0]
+        self.assertEqual(os.path.basename(dst), '5.txt')
+        self.assertEqual(urls, [
+            'http://localhost:8980/3/4/5.txt',
+            'http://localhost:8980/5/6/5.txt',
+            ])
+        dst, urls = cm.exception.duplicates[1]
+        self.assertEqual(os.path.basename(dst), '5.txt.asc')
+        self.assertEqual(urls, [
+            'http://localhost:8980/3/4/5.txt.asc',
+            'http://localhost:8980/5/6/5.txt.asc',
+            ])
