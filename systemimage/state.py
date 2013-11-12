@@ -508,7 +508,7 @@ class State:
             # Although we should never get there, if the downloading step
             # fails, clear out the self.files list so there's no possibilty
             # we'll try to move them later.
-            stack.callback(setattr, self.files, [])
+            stack.callback(setattr, self, 'files', [])
             # Verify the signatures on all the downloaded files.
             with Context(*keyrings, blacklist=self.blacklist) as ctx:
                 for dst, asc in signatures:

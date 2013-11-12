@@ -88,7 +88,6 @@ class Configuration:
                                           build_file=expand_path,
                                           loglevel=as_loglevel,
                                           settings_db=expand_path,
-                                          state_file=expand_path,
                                           tempdir=expand_path),
                           **parser['system'])
         self.gpg = Bag(**parser['gpg'])

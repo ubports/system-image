@@ -56,8 +56,6 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
         self.assertEqual(config.system.loglevel, logging.INFO)
-        self.assertEqual(config.system.state_file,
-                         '/var/lib/system-image/state.pck')
         self.assertEqual(config.system.settings_db,
                          '/var/lib/system-image/settings.db')
         # [hooks]
@@ -104,8 +102,6 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
         self.assertEqual(config.system.loglevel, logging.ERROR)
-        self.assertEqual(config.system.state_file,
-                         '/var/lib/phablet/state.pck')
         self.assertEqual(config.system.settings_db,
                          '/var/lib/phablet/settings.db')
         self.assertEqual(config.system.timeout, timedelta(seconds=10))

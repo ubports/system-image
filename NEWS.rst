@@ -30,6 +30,7 @@ NEWS for system-image updater
  * If an existing image-master or image-signing key is found on the file
    system, double check its signature (LP: #1195057) and expiration date (LP:
    #1192717) if it has one, before using it.
+ * Remove unused `state_file` setting from client.ini.
 
 1.9.1 (2013-10-15)
 ==================

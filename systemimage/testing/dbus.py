@@ -71,7 +71,6 @@ class _LiveTestableService(Service):
         self._rebootable = False
         self._failure_count = 0
         del config.build_number
-        safe_remove(config.system.state_file)
         safe_remove(config.system.settings_db)
 
     @method('com.canonical.SystemImage')
