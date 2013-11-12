@@ -32,6 +32,9 @@ NEWS for system-image updater
    #1192717) if it has one, before using it.
  * If the winning path includes two URLs which map to the same local
    destination file name, the download should fail.  (LP: #1250181)
+ * Provide a bit more useful traceback in various places of the state machine
+   so that error conditions in system-image-cli make a bit more sense.
+   (LP: #1248639)
  * Remove unused `state_file` setting from client.ini.
 
 1.9.1 (2013-10-15)
