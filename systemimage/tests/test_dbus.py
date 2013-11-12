@@ -537,8 +537,31 @@ unmount system
         self.assertEqual(len(reactor.signals), 1)
         failure_count, last_reason = reactor.signals[0]
         self.assertEqual(failure_count, 1)
+        self.assertEqual(last_reason[:17], 'FileNotFoundError')
+
+    def test_duplicate_destinations(self):
+        # A faulty index.json might specify that two different urls yield the
+        # same local destination file.  This is a bug on the server and the
+        # client cannot perform an update.
+        self.download_manually()
+        self._prepare_index('index_23.json')
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = reactor.signals[0]
+        self.assertTrue(is_available)
+        self.assertFalse(downloading)
+        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.run(self.iface.DownloadUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        failure_count, last_reason = reactor.signals[0]
+        self.assertEqual(failure_count, 1)
         # Don't count on a specific error message.
-        self.assertNotEqual(last_reason, '')
+        self.assertEqual(
+            last_reason[:46], 'systemimage.download.DuplicateDestinationError')
 
 
 class TestDBusApply(_LiveTesting):
@@ -1372,10 +1395,11 @@ class TestDBusPauseResume(_LiveTesting):
         reactor = SignalCapturingReactor('UpdateFailed')
         reactor.run(self.iface.DownloadUpdate, timeout=60)
         self.assertEqual(len(reactor.signals), 1)
-        # We've gotten one error and the first file that filed is 5.txt.
+        # We've gotten one error and the first file that failed is 5.txt.
         failure_count, last_error = reactor.signals[0]
         self.assertEqual(failure_count, 1)
-        self.assertEqual(os.path.basename(last_error), '5.txt')
+        # Watch out for the trailing newline.
+        self.assertEqual(os.path.basename(last_error[:-1]), '5.txt')
 
 
 class TestDBusUseCache(_LiveTesting):

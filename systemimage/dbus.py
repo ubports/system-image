@@ -22,6 +22,8 @@ __all__ = [
 
 
 import os
+import sys
+import traceback
 
 from dbus.service import Object, method, signal
 from gi.repository import GLib
@@ -29,6 +31,9 @@ from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.helpers import last_update_date, version_detail
 from systemimage.settings import Settings
+
+
+EMPTYSTRING = ''
 
 
 class Loop:
@@ -156,9 +161,12 @@ class Service(Object):
             # to get the u/i's attention.
             self.UpdateProgress(0, 0)
             self._api.download()
-        except Exception as error:
+        except Exception:
             self._failure_count += 1
-            self._last_error = str(error)
+            # This will return both the exception name and the exception
+            # value, but not the traceback.
+            self._last_error = EMPTYSTRING.join(
+                traceback.format_exception_only(*sys.exc_info()[:2]))
             self.UpdateFailed(self._failure_count, self._last_error)
         else:
             self.UpdateDownloaded()

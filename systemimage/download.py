@@ -18,6 +18,7 @@
 __all__ = [
     'Canceled',
     'DBusDownloadManager',
+    'DuplicateDestinationError',
     ]
 
 
@@ -25,6 +26,7 @@ import dbus
 import logging
 
 from io import StringIO
+from pprint import pformat
 from systemimage.config import config
 from systemimage.reactor import Reactor
 
@@ -44,8 +46,19 @@ def _headers():
     return {'User-Agent': USER_AGENT.format(config.build_number)}
 
 
-class Canceled(BaseException):
+class Canceled(Exception):
     """Raised when the download was canceled."""
+
+
+class DuplicateDestinationError(Exception):
+    """Raised when two files are downloaded to the same destination."""
+
+    def __init__(self, duplicates):
+        super().__init__()
+        self.duplicates = duplicates
+
+    def __str__(self):
+        return '\n' + pformat(self.duplicates, indent=4, width=79)
 
 
 class DownloadReactor(Reactor):
@@ -148,6 +161,8 @@ class DBusDownloadManager:
         :type pausable: bool
         :raises: FileNotFoundError if any download error occurred.  In
             this case, all download files are deleted.
+        :raises: DuplicateDestinationError if more than one source url is
+            downloaded to the same destination file.
         """
         assert self._iface is None
         if self._queued_cancel:
@@ -156,6 +171,17 @@ class DBusDownloadManager:
         if len(downloads) == 0:
             # Nothing to download.  See LP: #1245597.
             return
+        destinations = set(dst for url, dst in downloads)
+        if len(destinations) < len(downloads):
+            # Spend some extra effort to provide reasonable exception details.
+            reverse = {}
+            for url, dst in downloads:
+                reverse.setdefault(dst, []).append(url)
+            duplicates = []
+            for dst, urls in reverse.items():
+                if len(urls) > 1:
+                    duplicates.append((dst, urls))
+            raise DuplicateDestinationError(sorted(duplicates))
         bus = dbus.SystemBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
         iface = dbus.Interface(service, MANAGER_INTERFACE)

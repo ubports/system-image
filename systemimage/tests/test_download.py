@@ -33,7 +33,8 @@ from contextlib import ExitStack
 from datetime import datetime, timedelta
 from gi.repository import GLib
 from systemimage.config import config
-from systemimage.download import Canceled, DBusDownloadManager
+from systemimage.download import (
+    Canceled, DBusDownloadManager, DuplicateDestinationError)
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
     configuration, data_path, make_http_server)
@@ -125,6 +126,22 @@ class TestDownloads(unittest.TestCase):
             set(['channels.json', 'index.json']))
         self.assertEqual(received_bytes, 669)
         self.assertEqual(total_bytes, 669)
+
+    @configuration
+    def test_duplicate_destinations(self):
+        # A download that duplicates the destination location is not allowed.
+        downloader = DBusDownloadManager()
+        downloads = _http_pathify([
+            ('channels_01.json', 'channels.json'),
+            ('channels_02.json', 'channels.json'),
+            ])
+        with self.assertRaises(DuplicateDestinationError) as cm:
+            downloader.get_files(downloads)
+        self.assertEqual(len(cm.exception.duplicates), 1)
+        dst, urls = cm.exception.duplicates[0]
+        self.assertEqual(os.path.basename(dst), 'channels.json')
+        self.assertEqual(urls, ['http://localhost:8980/channels_01.json',
+                                'http://localhost:8980/channels_02.json'])
 
 
 class TestHTTPSDownloads(unittest.TestCase):
