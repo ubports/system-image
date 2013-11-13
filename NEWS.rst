@@ -37,6 +37,8 @@ NEWS for system-image updater
    (LP: #1248639)
  * Tweak the scoring algorithm to highly discourage candidate upgrade paths
    that don't leave you at the maximum build number.  (LP: #1250553)
+ * When running system-image-cli under verbosity 1, print dots to stderr so
+   that the user knows something is happening.
  * Remove unused `state_file` setting from client.ini.
 
 1.9.1 (2013-10-15)

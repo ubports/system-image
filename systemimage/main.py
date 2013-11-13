@@ -185,8 +185,25 @@ def main():
         # We probably won't get here..
         return 0
 
-    def callback(received, total):
-        log.debug('received: {} of {} bytes', received, total)
+    # When verbosity is at 1, logging every progress signal from
+    # ubuntu-download-manager would be way too noisy.  OTOH, not printing
+    # anything leads some folks to think the process is just hung, since it
+    # can take a long time to download all the data files.  As a compromise,
+    # we'll output some dots to stderr at verbosity 1, but we won't log these
+    # dots since they would just be noise.  This doesn't have to be perfect.
+    if args.verbose == 1:
+        dot_count = 0
+        def callback(received, total):
+            nonlocal dot_count
+            sys.stderr.write('.')
+            sys.stderr.flush()
+            dot_count += 1
+            if dot_count % 78 == 0 or received >= total:
+                sys.stderr.write('\n')
+                sys.stderr.flush()
+    else:
+        def callback(received, total):
+            log.debug('received: {} of {} bytes', received, total)
 
     DBusGMainLoop(set_as_default=True)
     state = State(candidate_filter=candidate_filter)
