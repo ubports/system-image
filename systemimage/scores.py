@@ -97,9 +97,7 @@ class Scorer:
 
 
 class WeightedScorer(Scorer):
-    """Use the following inputs and weights.
-
-    Lowest score wins.
+    """Use the following inputs and weights. Lowest score wins.
 
     reboots - Look at the entire path and add 100 for every extra reboot
         required.  The implicit end-of-update reboot is not counted.
@@ -107,7 +105,7 @@ class WeightedScorer(Scorer):
     total download size - add 1 for every 1MiB over the smallest image.
 
     destination build number - absolute value of the total distance from the
-        highest version number.
+        highest version number + 9000.
 
     Examples:
 
@@ -143,11 +141,16 @@ class WeightedScorer(Scorer):
             max_build = build if build > max_build else max_build
             min_size = (size if (min_size is None or size < min_size)
                         else min_size)
-        # Score the candidates.
+        # Score the candidates.  Any path that doesn't leave you at the
+        # maximum build number gets a ridiculously high score so it won't
+        # possibly be chosen.
         scores = []
         for build, size, reboots, path in candidate_data:
-            score = ((100 * reboots) +
-                     ((size - min_size) // MiB) +
-                     max_build - build)
+            score = (100 * reboots) + ((size - min_size) // MiB)
+            # If the path does not leave you at the maximum build number, add
+            # a ridiculously high value which essentially prevents that
+            # candidate path from winning.
+            distance = max_build - build
+            score += (9000 * distance) + distance
             scores.append(score)
         return scores
