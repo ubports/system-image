@@ -35,6 +35,8 @@ NEWS for system-image updater
  * Provide a bit more useful traceback in various places of the state machine
    so that error conditions in system-image-cli make a bit more sense.
    (LP: #1248639)
+ * Tweak the scoring algorithm to highly discourage candidate upgrade paths
+   that don't leave you at the maximum build number.  (LP: #1250553)
  * Remove unused `state_file` setting from client.ini.
 
 1.9.1 (2013-10-15)

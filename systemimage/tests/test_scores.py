@@ -58,14 +58,15 @@ class TestWeightedScorer(unittest.TestCase):
         #   you at the highest available version.  Score: 200
         #
         # - Path C requires no extra reboots, but is 400MiB bigger and leaves
-        #   you at 20130303 instead of the highest 20130304.  Score: 401
+        #   you at 1303 instead of the highest 1304.  For that reason, it gets
+        #   a huge score making it impossible to win.
         #
         # Path B wins.
         index = get_index('index_09.json')
         candidates = get_candidates(index, 600)
         # There are three paths.  The scores are as above.
         scores = self.scorer.score(candidates)
-        self.assertEqual(scores, [300, 200, 401])
+        self.assertEqual(scores, [300, 200, 9401])
         winner = self.scorer.choose(candidates)
         self.assertEqual(len(winner), 3)
         self.assertEqual([image.version for image in winner],
