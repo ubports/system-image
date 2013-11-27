@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-2.0 (2013-11-13)
+2.0 (2013-11-27)
 ================
  * Avoid re-downloading data files if previously download files are found and
    are still valid (by checksum and gpg signature).  (LP: #1217098)

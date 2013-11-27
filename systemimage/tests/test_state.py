@@ -699,7 +699,7 @@ class TestDailyProposed(ServerTestBase):
         self._setup_server_keyrings()
         state = State()
         self._enter(
-            patch('systemimage.state.config.channel', 'daily-proposed'))
+            patch('systemimage.state.config._channel', 'daily-proposed'))
         self._enter(patch('systemimage.state.config.hooks.device', DemoDevice))
         state.run_thru('get_index')
         self.assertEqual(state.index.global_.generated_at,
@@ -711,7 +711,8 @@ class TestDailyProposed(ServerTestBase):
         # channel with a dash in it.
         self._setup_server_keyrings()
         state = State()
-        self._enter(patch('systemimage.state.config.channel', 'daily-testing'))
+        self._enter(
+            patch('systemimage.state.config._channel', 'daily-testing'))
         self._enter(patch('systemimage.state.config.hooks.device', DemoDevice))
         state.run_thru('get_index')
         self.assertIsNone(state.index)
@@ -730,7 +731,7 @@ class TestVersionedProposed(ServerTestBase):
         self._setup_server_keyrings()
         state = State()
         self._enter(
-            patch('systemimage.state.config.channel', '14.04-proposed'))
+            patch('systemimage.state.config._channel', '14.04-proposed'))
         self._enter(patch('systemimage.state.config.hooks.device', DemoDevice))
         state.run_thru('get_index')
         self.assertEqual(state.index.global_.generated_at,
