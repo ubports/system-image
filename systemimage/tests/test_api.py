@@ -24,6 +24,7 @@ __all__ = [
 import os
 import unittest
 
+from contextlib import ExitStack
 from datetime import datetime, timedelta
 from gi.repository import GLib
 from systemimage.api import Mediator
@@ -244,20 +245,25 @@ unmount system
             if started and self._pausable:
                 mediator.pause()
                 GLib.timeout_add_seconds(3, mediator.resume)
-        self._enter(patch('systemimage.download.DownloadReactor._do_paused',
-                          do_paused))
-        self._enter(patch('systemimage.download.DownloadReactor._do_resumed',
-                          do_resumed))
-        self._enter(patch('systemimage.download.DownloadReactor._do_started',
-                          pause_on_start))
-        mediator.check_for_update()
-        # We'll get a signature error because we messed with the file
-        # contents.  Since this check happens after all files are downloaded,
-        # this exception is inconsequential to the thing we're testing.
-        try:
-            mediator.download()
-        except SignatureError:
-            pass
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.download.DownloadReactor._do_paused',
+                      do_paused))
+            resources.enter_context(
+                patch('systemimage.download.DownloadReactor._do_resumed',
+                      do_resumed))
+            resources.enter_context(
+                patch('systemimage.download.DownloadReactor._do_started',
+                      pause_on_start))
+            mediator.check_for_update()
+            # We'll get a signature error because we messed with the file
+            # contents.  Since this check happens after all files are
+            # downloaded, this exception is inconsequential to the thing we're
+            # testing.
+            try:
+                mediator.download()
+            except SignatureError:
+                pass
         # There should be at one pause and one resume event, separated by
         # about 3 seconds.
         self.assertEqual(len(pauses), 1)

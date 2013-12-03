@@ -451,8 +451,10 @@ class TestRebooting(ServerTestBase):
     def test_reboot_issued(self):
         # The reboot gets issued.
         self._setup_server_keyrings()
-        mock = self._enter(patch('systemimage.reboot.check_call'))
-        list(State())
+        with ExitStack() as resources:
+            mock = resources.enter_context(
+                patch('systemimage.reboot.check_call'))
+            list(State())
         self.assertEqual(mock.call_args[0][0],
                          ['/sbin/reboot', '-f', 'recovery'])
 
@@ -463,8 +465,10 @@ class TestRebooting(ServerTestBase):
         self._setup_server_keyrings()
         # Hack the current build number so that no update is available.
         touch_build(5000)
-        mock = self._enter(patch('systemimage.reboot.Reboot.reboot'))
-        list(State())
+        with ExitStack() as resources:
+            mock = resources.enter_context(
+                patch('systemimage.reboot.Reboot.reboot'))
+            list(State())
         self.assertEqual(mock.call_count, 0)
 
     @unittest.skipIf(os.getuid() == 0, 'This test would actually reboot!')
@@ -698,10 +702,12 @@ class TestDailyProposed(ServerTestBase):
         # Resolve the index.json path for a channel with a dash in it.
         self._setup_server_keyrings()
         state = State()
-        self._enter(
-            patch('systemimage.state.config._channel', 'daily-proposed'))
-        self._enter(patch('systemimage.state.config.hooks.device', DemoDevice))
-        state.run_thru('get_index')
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.state.config._channel', 'daily-proposed'))
+            resources.enter_context(
+                patch('systemimage.state.config.hooks.device', DemoDevice))
+            state.run_thru('get_index')
         self.assertEqual(state.index.global_.generated_at,
                          datetime(2013, 8, 1, 8, 1, tzinfo=timezone.utc))
 
@@ -711,10 +717,12 @@ class TestDailyProposed(ServerTestBase):
         # channel with a dash in it.
         self._setup_server_keyrings()
         state = State()
-        self._enter(
-            patch('systemimage.state.config._channel', 'daily-testing'))
-        self._enter(patch('systemimage.state.config.hooks.device', DemoDevice))
-        state.run_thru('get_index')
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.state.config._channel', 'daily-testing'))
+            resources.enter_context(
+                patch('systemimage.state.config.hooks.device', DemoDevice))
+            state.run_thru('get_index')
         self.assertIsNone(state.index)
 
 
@@ -730,10 +738,12 @@ class TestVersionedProposed(ServerTestBase):
         # it.
         self._setup_server_keyrings()
         state = State()
-        self._enter(
-            patch('systemimage.state.config._channel', '14.04-proposed'))
-        self._enter(patch('systemimage.state.config.hooks.device', DemoDevice))
-        state.run_thru('get_index')
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.state.config._channel', '14.04-proposed'))
+            resources.enter_context(
+                patch('systemimage.state.config.hooks.device', DemoDevice))
+            state.run_thru('get_index')
         self.assertEqual(state.index.global_.generated_at,
                          datetime(2013, 8, 1, 8, 1, tzinfo=timezone.utc))
 
@@ -776,12 +786,11 @@ class TestStateNewChannelsFormat(ServerTestBase):
     def test_full_reboot(self):
         # Test that state transitions through reboot work for the new channel
         # format.  Also check that the right files get moved into place.
-        self._enter(patch('systemimage.device.check_output',
-                          return_value='manta'))
         config.load(data_path('channel_04.ini'), override=True)
         self._setup_server_keyrings()
         state = State()
-        state.run_until('reboot')
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_until('reboot')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()
@@ -836,13 +845,12 @@ class TestChannelAlias(ServerTestBase):
         # absence of a channels.ini file.  The device is tracking the daily
         # channel, and there isno channel_target attribute, so we get the
         # latest build on that channel.
-        self._enter(patch('systemimage.device.check_output',
-                          return_value='manta'))
         self._setup_server_keyrings()
         touch_build(300)
         config.channel = 'daily'
         state = State()
-        state.run_thru('calculate_winner')
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
                          [301, 304])
         # Here's what the upgrade path would be if we were using a build
@@ -876,14 +884,13 @@ class TestChannelAlias(ServerTestBase):
         # Like the above test, but in similating the use of `system-image-cli
         # --build 300`, we set the build number explicitly.  This prevent the
         # channel alias squashing of the build number to 0.
-        self._enter(patch('systemimage.device.check_output',
-                          return_value='manta'))
         self._setup_server_keyrings()
         # This sets the build number via the /etc/ubuntu_build file.
         touch_build(300)
         config.channel = 'daily'
         state = State()
-        state.run_thru('calculate_winner')
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
                          [301, 304])
         # Now we pretend there was a channel.ini file, and load it.  This also
@@ -920,14 +927,15 @@ class TestPhasedUpdates(ServerTestBase):
         # With our threshold at 66, the "Full B" image is suppressed, thus the
         # upgrade path is different than it normally would be.  In this case,
         # the 'A' path is taken (in fact, the B path isn't even considered).
-        self._enter(patch('systemimage.device.check_output',
-                          return_value='manta'))
         self._setup_server_keyrings()
-        self._enter(patch('systemimage.index.phased_percentage',
-                          return_value=66))
         config.channel = 'daily'
         state = State()
-        state.run_thru('calculate_winner')
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.device.check_output', return_value='manta'))
+            resources.enter_context(
+                patch('systemimage.index.phased_percentage', return_value=66))
+            state.run_thru('calculate_winner')
         self.assertEqual(_descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])
 
@@ -935,14 +943,15 @@ class TestPhasedUpdates(ServerTestBase):
     def test_phased_updates_0(self):
         # With our threshold at 0, all images are good, so it's a "normal"
         # update path.
-        self._enter(patch('systemimage.device.check_output',
-                          return_value='manta'))
         self._setup_server_keyrings()
-        self._enter(patch('systemimage.index.phased_percentage',
-                          return_value=0))
         config.channel = 'daily'
         state = State()
-        state.run_thru('calculate_winner')
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.device.check_output', return_value='manta'))
+            resources.enter_context(
+                patch('systemimage.index.phased_percentage', return_value=0))
+            state.run_thru('calculate_winner')
         self.assertEqual(_descriptions(state.winner),
                          ['Full B', 'Delta B.1', 'Delta B.2'])
 
@@ -950,14 +959,15 @@ class TestPhasedUpdates(ServerTestBase):
     def test_phased_updates_100(self):
         # With our threshold at 100, only the image without a specific
         # phased-percentage key is allowed.  That's the 'A' path again.
-        self._enter(patch('systemimage.device.check_output',
-                          return_value='manta'))
         self._setup_server_keyrings()
-        self._enter(patch('systemimage.index.phased_percentage',
-                          return_value=77))
         config.channel = 'daily'
         state = State()
-        state.run_thru('calculate_winner')
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.device.check_output', return_value='manta'))
+            resources.enter_context(
+                patch('systemimage.index.phased_percentage', return_value=77))
+            state.run_thru('calculate_winner')
         self.assertEqual(_descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])
 

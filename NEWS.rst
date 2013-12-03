@@ -2,6 +2,10 @@
 NEWS for system-image updater
 =============================
 
+2.0.2 (2013-12-03)
+==================
+ * Fix additional build environment test failures.  (LP: #1256947)
+
 2.0.1 (2013-11-27)
 ==================
  * Fix some build environment test failures.

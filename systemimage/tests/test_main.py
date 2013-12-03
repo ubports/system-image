@@ -499,10 +499,13 @@ class TestCLIMainDryRun(ServerTestBase):
         # latter can mess with pdb output should we need to trace through
         # the code.
         capture = StringIO()
-        self._enter(patch('builtins.print', partial(print, file=capture)))
-        self._enter(patch('systemimage.main.sys.argv',
-                          ['argv0', '-C', ini_file, '--dry-run']))
-        cli_main()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            resources.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--dry-run']))
+            cli_main()
         self.assertEqual(capture.getvalue(),
                          'Upgrade path is 1200:1201:1304\n')
 
@@ -514,14 +517,17 @@ class TestCLIMainDryRun(ServerTestBase):
         # latter can mess with pdb output should we need to trace through
         # the code.
         capture = StringIO()
-        self._enter(patch('builtins.print', partial(print, file=capture)))
-        self._enter(patch('systemimage.main.sys.argv',
-                          ['argv0', '-C', ini_file, '--dry-run']))
         # Set up the build number.
         config = Configuration()
         config.load(ini_file)
         touch_build(1701)
-        cli_main()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            resources.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--dry-run']))
+            cli_main()
         self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
     @configuration
@@ -533,13 +539,16 @@ class TestCLIMainDryRun(ServerTestBase):
         # latter can mess with pdb output should we need to trace through
         # the code.
         capture = StringIO()
-        self._enter(patch('builtins.print', partial(print, file=capture)))
-        # Use --build to override the default build number.
-        self._enter(patch('systemimage.main.sys.argv',
-                          ['argv0', '-C', ini_file,
-                           '--channel', 'daily-proposed',
-                           '--dry-run']))
-        cli_main()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            # Use --build to override the default build number.
+            resources.enter_context(
+                patch('systemimage.main.sys.argv', [
+                            'argv0', '-C', ini_file,
+                            '--channel', 'daily-proposed',
+                            '--dry-run']))
+            cli_main()
         self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
 
@@ -558,12 +567,16 @@ class TestCLIMainDryRunAliases(ServerTestBase):
         head, tail = os.path.split(channel_ini)
         copy('channel_05.ini', head, tail)
         capture = StringIO()
-        self._enter(patch('systemimage.device.check_output',
-                          return_value='manta'))
-        self._enter(patch('builtins.print', partial(print, file=capture)))
-        self._enter(patch('systemimage.main.sys.argv',
-                          ['argv0', '-C', ini_file, '--dry-run']))
-        cli_main()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.device.check_output',
+                      return_value='manta'))
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            resources.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--dry-run']))
+            cli_main()
         self.assertEqual(
             capture.getvalue(),
             'Upgrade path is 200:201:304 (saucy -> tubular)\n')
@@ -585,17 +598,19 @@ class TestCLIFilters(ServerTestBase):
         # latter can mess with pdb output should we need to trace through
         # the code.
         capture = StringIO()
-        self._enter(patch('builtins.print', partial(print, file=capture)))
-        self._enter(patch('systemimage.main.sys.argv',
-                          ['argv0', '-C', ini_file, '--dry-run',
-                           '--filter', 'full']))
         # Set up the build number.
         config = Configuration()
         config.load(ini_file)
         touch_build(100)
-        cli_main()
-        self.assertMultiLineEqual(
-            capture.getvalue(), 'Already up-to-date\n')
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            resources.enter_context(
+                patch('systemimage.main.sys.argv', [
+                            'argv0', '-C', ini_file, '--dry-run',
+                            '--filter', 'full']))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), 'Already up-to-date\n')
 
     @configuration
     def test_filter_delta(self, ini_file):
@@ -605,17 +620,19 @@ class TestCLIFilters(ServerTestBase):
         # latter can mess with pdb output should we need to trace through
         # the code.
         capture = StringIO()
-        self._enter(patch('builtins.print', partial(print, file=capture)))
-        self._enter(patch('systemimage.main.sys.argv',
-                          ['argv0', '-C', ini_file, '--dry-run',
-                           '--filter', 'delta']))
         # Set up the build number.
         config = Configuration()
         config.load(ini_file)
         touch_build(100)
-        cli_main()
-        self.assertMultiLineEqual(
-            capture.getvalue(), 'Upgrade path is 1600\n')
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            resources.enter_context(
+                patch('systemimage.main.sys.argv', [
+                            'argv0', '-C', ini_file, '--dry-run',
+                            '--filter', 'delta']))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), 'Upgrade path is 1600\n')
 
 
 class TestCLIDuplicateDestinations(ServerTestBase):
@@ -632,9 +649,10 @@ class TestCLIDuplicateDestinations(ServerTestBase):
         # problem.  The client must refuse to upgrade in this case, by raising
         # an exception.
         self._setup_server_keyrings()
-        self._enter(patch('systemimage.main.sys.argv',
-                          ['argv0', '-C', ini_file]))
-        exit_code = cli_main()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.main.sys.argv', ['argv0', '-C', ini_file]))
+            exit_code = cli_main()
         self.assertEqual(exit_code, 1)
         # 2013-11-12 BAW: IWBNI we could assert something about the log
         # output, since that contains a display of the duplicate destination

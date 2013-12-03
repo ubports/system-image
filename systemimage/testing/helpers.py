@@ -153,10 +153,10 @@ def make_http_server(directory, port, certpem=None, keypem=None):
             return conn, addr
     # Define a small class with a method that arranges for the self-signed
     # certificates to be valid in the client.
-    with ExitStack() as stack:
+    with ExitStack() as resources:
         server = Server(('localhost', port), RequestHandler)
         server.allow_reuse_address = True
-        stack.callback(server.server_close)
+        resources.callback(server.server_close)
         if ssl_context is not None:
             server.socket = ssl_context.wrap_socket(
                 server.socket, server_side=True)
@@ -170,13 +170,13 @@ def make_http_server(directory, port, certpem=None, keypem=None):
                 conn.close()
             server.shutdown()
             thread.join()
-        stack.callback(shutdown)
+        resources.callback(shutdown)
         thread.start()
         # Everything succeeded, so transfer the resource management to a new
         # ExitStack().  This way, when the with statement above completes, the
         # server will still be running and urlopen() will still be patched.
         # The caller is responsible for closing the new ExitStack.
-        return stack.pop_all()
+        return resources.pop_all()
 
 
 def configuration(function):
@@ -193,11 +193,11 @@ def configuration(function):
     """
     @wraps(function)
     def wrapper(*args, **kws):
-        with ExitStack() as stack:
-            etc_dir = stack.enter_context(temporary_directory())
+        with ExitStack() as resources:
+            etc_dir = resources.enter_context(temporary_directory())
             ini_file = os.path.join(etc_dir, 'client.ini')
-            temp_tmpdir = stack.enter_context(temporary_directory())
-            temp_vardir = stack.enter_context(temporary_directory())
+            temp_tmpdir = resources.enter_context(temporary_directory())
+            temp_vardir = resources.enter_context(temporary_directory())
             template = resource_bytes(
                 'systemimage.tests.data', 'config_00.ini').decode('utf-8')
             with atomic(ini_file) as fp:
@@ -205,9 +205,11 @@ def configuration(function):
                                       vardir=temp_vardir), file=fp)
             config = Configuration()
             config.load(ini_file)
-            stack.enter_context(patch('systemimage.config._config', config))
-            stack.enter_context(patch('systemimage.device.check_output',
-                                      return_value='nexus7'))
+            resources.enter_context(
+                patch('systemimage.config._config', config))
+            resources.enter_context(
+                patch('systemimage.device.check_output',
+                      return_value='nexus7'))
             # Make sure the cache_partition and data_partition exist.
             makedirs(config.updater.cache_partition)
             makedirs(config.updater.data_partition)
@@ -229,8 +231,8 @@ def sign(filename, pubkey_ring):
         with.  This keyring must contain only one key, and its key id must
         exist in the master secret keyring.
     """
-    with ExitStack() as stack:
-        home = stack.enter_context(temporary_directory())
+    with ExitStack() as resources:
+        home = resources.enter_context(temporary_directory())
         secring = data_path('master-secring.gpg')
         pubring = data_path(pubkey_ring)
         ctx = gnupg.GPG(gnupghome=home, keyring=pubring,
@@ -240,9 +242,9 @@ def sign(filename, pubkey_ring):
         assert len(public_keys) != 0, 'No keys found'
         assert len(public_keys) == 1, 'Too many keys'
         key_id = public_keys[0]['keyid']
-        dfp = stack.enter_context(open(filename, 'rb'))
+        dfp = resources.enter_context(open(filename, 'rb'))
         signed_data = ctx.sign_file(dfp, keyid=key_id, detach=True)
-        sfp = stack.enter_context(open(filename + '.asc', 'wb'))
+        sfp = resources.enter_context(open(filename + '.asc', 'wb'))
         sfp.write(signed_data.data)
 
 
@@ -432,10 +434,10 @@ class ServerTestBase(unittest.TestCase):
 
     def setUp(self):
         self._resources = ExitStack()
-        self._enter = self._resources.enter_context
         self._state = State()
         try:
-            self._serverdir = self._enter(temporary_directory())
+            self._serverdir = self._resources.enter_context(
+                temporary_directory())
             # Start up both an HTTPS and HTTP server.  The data files are
             # vended over the latter, everything else, over the former.
             self._resources.push(make_http_server(
