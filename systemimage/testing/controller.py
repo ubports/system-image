@@ -40,6 +40,16 @@ from systemimage.testing.helpers import (
 SPACE = ' '
 
 
+def start_system_image(controller):
+    bus = dbus.SystemBus()
+    service = bus.get_object('com.canonical.SystemImage', '/Service')
+    iface = dbus.Interface(service, 'com.canonical.SystemImage')
+    iface.Info()
+    process = find_dbus_process(controller.ini_path)
+    if process is None:
+        raise RuntimeError('Could not start system-image-dbus')
+
+
 def stop_system_image(controller):
     if controller.ini_path is None:
         process = None
@@ -57,14 +67,29 @@ def stop_system_image(controller):
         process.wait(60)
 
 
-def stop_downloader(controller):
-    # See find_dbus_process() for details.
+def _find_udm_process():
     for process in psutil.process_iter():
         cmdline = SPACE.join(process.cmdline)
         if 'ubuntu-download-manager' in cmdline and '-stoppable' in cmdline:
-            break
-    else:
-        process = None
+            return process
+    return None
+
+
+def start_downloader(controller):
+    bus = dbus.SystemBus()
+    service = bus.get_object('com.canonical.applications.Downloader', '/')
+    iface = dbus.Interface(
+        service, 'com.canonical.applications.DownloadManager')
+    # Something innocuous.
+    iface.defaultThrottle()
+    process = _find_udm_process()
+    if process is None:
+        raise RuntimeError('Could not start ubuntu-download-manager')
+
+
+def stop_downloader(controller):
+    # See find_dbus_process() for details.
+    process = _find_udm_process()
     try:
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.applications.Downloader', '/')
@@ -86,10 +111,12 @@ DLSERVICE = '/usr/bin/ubuntu-download-manager'
 SERVICES = [
    ('com.canonical.SystemImage',
     '{python} -m systemimage.service -C {self.ini_path} --testing {self.mode}',
+    start_system_image,
     stop_system_image,
    ),
    ('com.canonical.applications.Downloader',
     DLSERVICE + ' {self.certs} -disable-timeout -stoppable',
+    start_downloader,
     stop_downloader,
    ),
    ]
@@ -140,7 +167,7 @@ class Controller:
         # Now we have to set up the .service files.  We use the Python
         # executable used to run the tests, executing the entry point as would
         # happen in a deployed script or virtualenv.
-        for service, command_template, stopper in SERVICES:
+        for service, command_template, starter, stopper in SERVICES:
             command = command_template.format(python=sys.executable, self=self)
             service_file = service + '.service'
             path = data_path(service_file + '.in')
@@ -192,6 +219,9 @@ class Controller:
         # Set the service's address into the environment for rendezvous.
         self._stack.enter_context(reset_envar('DBUS_SYSTEM_BUS_ADDRESS'))
         os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = dbus_address
+        # Try to start the DBus services.
+        for service, command_template, starter, stopper in SERVICES:
+            starter(self)
 
     def start(self):
         if self.daemon_pid is not None:
