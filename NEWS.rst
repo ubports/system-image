@@ -2,6 +2,10 @@
 NEWS for system-image updater
 =============================
 
+2.0.3 (2013-XX-XX)
+==================
+ * More attempted DEP-8 test failure fixes.
+
 2.0.2 (2013-12-03)
 ==================
  * Fix additional build environment test failures.  (LP: #1256947)

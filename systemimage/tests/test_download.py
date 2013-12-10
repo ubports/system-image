@@ -187,6 +187,7 @@ class TestHTTPSDownloadsNoSelfSigned(unittest.TestCase):
                     ('channels_01.json', 'channels.json'),
                     ]))
 
+    @configuration
     def test_http_masquerades_as_https(self):
         # There's an HTTP server pretending to be an HTTPS server.  This
         # should fail to download over https URLs.
@@ -210,6 +211,7 @@ class TestHTTPSDownloadsExpired(unittest.TestCase):
     def setUp(self):
         self._directory = os.path.dirname(data_path('__init__.py'))
 
+    @configuration
     def test_expired(self):
         # The HTTPS server has an expired certificate (mocked so that its CA
         # is in the system's trusted path).
@@ -232,6 +234,7 @@ class TestHTTPSDownloadsNasty(unittest.TestCase):
     def setUp(self):
         self._directory = os.path.dirname(data_path('__init__.py'))
 
+    @configuration
     def test_bad_host(self):
         # The HTTPS server has a certificate with a non-matching hostname
         # (mocked so that its CA is in the system's trusted path).
