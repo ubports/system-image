@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-2.0.3 (2013-XX-XX)
+2.0.3 (2013-12-11)
 ==================
  * More attempted DEP-8 test failure fixes.
 
