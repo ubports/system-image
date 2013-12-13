@@ -1,0 +1,34 @@
+# DEP-8 smoketest configuration file.
+
+[service]
+base: system-image.ubuntu.com
+http_port: 80
+https_port: 443
+channel: daily
+build_number: 0
+
+[system]
+timeout: 1h
+build_file: /etc/ubuntu-build
+tempdir: {TMPDIR}
+logfile: {ARTIFACTS}/client.log
+loglevel: debug
+settings_db: {TMPDIR}/settings.db
+
+[gpg]
+archive_master: /etc/system-image/archive-master.tar.xz
+image_master: {TMPDIR}/image-master.tar.xz
+image_signing: {TMPDIR}/image-signing.tar.xz
+device_signing: {TMPDIR}/device-signing.tar.xz
+
+[updater]
+cache_partition: {TMPDIR}/android
+data_partition: {TMPDIR}/ubuntu
+
+[hooks]
+device: systemimage.device.SystemProperty
+scorer: systemimage.scores.WeightedScorer
+reboot: systemimage.reboot.Reboot
+
+[dbus]
+lifetime: 10m

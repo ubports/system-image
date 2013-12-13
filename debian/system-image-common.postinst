@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Tweak directory and file permissions.
+
+case "$1" in
+    configure)
+        if [ -d /var/log/system-image ]; then
+            chmod 02770 /var/log/system-image
+        fi
+        if [ -e /var/log/system-image/client.log ]; then
+            chmod 600 /var/log/system-image/client.log
+        fi
+        if [ -d /var/lib/system-image ]; then
+            chmod 02770 /var/lib/system-image
+        fi
+        ;;
+    *)
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

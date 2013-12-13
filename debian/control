@@ -1,0 +1,59 @@
+Source: system-image
+Maintainer: Barry Warsaw <barry@ubuntu.com>
+Homepage: https://wiki.ubuntu.com/ImageBasedUpgrades
+Section: python
+X-Python3-Version: >= 3.3
+Priority: optional
+Build-Depends: dbus,
+               dbus-x11,
+               debhelper (>= 8),
+               python-docutils,
+               python-tox,
+               python3-all (>= 3.3),
+               python3-dbus,
+               python3-gi,
+               python3-gnupg,
+               python3-nose2,
+               python3-pkg-resources,
+               python3-psutil,
+               python3-setuptools,
+               ubuntu-download-manager
+Standards-Version: 3.9.4
+XS-Testsuite: autopkgtest
+Vcs-Bzr: https://code.launchpad.net/~ubuntu-system-image/ubuntu-system-image/client.pkg
+Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-system-image/ubuntu-system-image/client.pkg/files
+
+Package: system-image-cli
+Architecture: all
+Depends: system-image-common (= ${binary:Version}),
+         ${misc:Depends},
+         ${python3:Depends}
+Description: Ubuntu system image updater command line client
+ This is the command line client for the Ubuntu system image updater.
+
+Package: system-image-dbus
+Architecture: all
+Depends: python3-dbus,
+         python3-gi,
+         system-image-common (= ${binary:Version}),
+         ${misc:Depends},
+         ${python3:Depends}
+Description: Ubuntu system image updater command line client
+ This is the command line client for the Ubuntu system image updater.
+
+Package: system-image-common
+Architecture: all
+Depends: python3-gnupg,
+         python3-pkg-resources,
+         ubuntu-download-manager,
+         ${misc:Depends},
+         ${python3:Depends}
+Description: Ubuntu system image updater
+ This is the common bits for the Ubuntu system image updater.
+
+Package: system-image-dev
+Architecture: all
+Depends: python3-gnupg, ${misc:Depends}, ${python3:Depends}
+Description: Ubuntu system image updater development
+ This is the development bits for the Ubuntu system image updater.
+ Install this package if you want to run the tests.

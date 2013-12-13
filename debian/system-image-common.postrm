@@ -1,0 +1,18 @@
+#!/bin/sh
+
+# On purge, remove the log file and directory, as well as the lib directory
+# and configuration file.
+
+case "$1" in
+    purge)
+        rm -rf /var/log/system-image
+        rm -rf /var/lib/system-image
+        rm -rf /etc/system-image
+        ;;
+    *)
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

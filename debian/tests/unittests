@@ -1,0 +1,11 @@
+#!/bin/sh
+#
+# autopkgtest check: Run tox against the built package.
+#
+# Copyright (C) 2013 Canonical Ltd.
+# Author: Barry Warsaw <barry@ubuntu.com>
+
+set -e
+# See LP: #1240106 and LP: #1240157
+export SYSTEMIMAGE_REACTOR_TIMEOUT=1200
+tox
