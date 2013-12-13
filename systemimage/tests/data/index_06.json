@@ -1,0 +1,30 @@
+{
+    "global": {
+        "generated_at": "Mon Apr 29 18:45:27 UTC 2013"
+    },
+    "images": [
+        {
+            "description": "Full 1",
+            "files": [],
+            "type": "full",
+            "version": 1300,
+            "bootme": true
+        },
+        {
+            "base": 1300,
+            "description": "Delta 1",
+            "files": [],
+            "type": "delta",
+            "version": 1301,
+            "bootme": true
+        },
+        {
+            "base": 1301,
+            "description": "Delta 2",
+            "files": [],
+            "type": "delta",
+            "version": 1302,
+            "bootme": true
+        }
+    ]
+}

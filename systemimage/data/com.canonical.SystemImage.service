@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.canonical.SystemImage
+Exec=/usr/sbin/system-image-dbus
+User=root

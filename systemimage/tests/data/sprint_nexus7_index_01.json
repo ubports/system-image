@@ -1,0 +1,163 @@
+{
+    "global": {
+        "generated_at": "Mon Apr 29 18:45:27 UTC 2013"
+    },
+    "images": [
+        {
+            "description": "Some kind of daily build",
+            "files": [
+                {"path": "/sprint/nexus7/nexus7-20130300.full.zip",
+                 "signature": "/sprint/nexus7/nexus7-20130300.full.zip.asc",
+                 "checksum": "abcdef0",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/ubuntu/ubuntu-20130300.full.zip",
+                 "signature": "/sprint/ubuntu/ubuntu-20130300.full.zip.asc",
+                 "checksum": "abcdef1",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130300.zip",
+                 "signature": "/sprint/nexus7/version-20130300.zip.asc",
+                 "checksum": "abcdef2",
+                 "order": 1,
+                 "size": 0}
+            ],
+            "type": "full",
+            "version": 20130300,
+            "bootme": true
+        },
+        {
+            "description": "Some kind of daily build",
+            "files": [
+                {"path": "/sprint/nexus7/nexus7-20130300.full.zip",
+                 "signature": "/sprint/nexus7/nexus7-20130300.full.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/ubuntu/ubuntu-20130400.full.zip",
+                 "signature": "/sprint/ubuntu/ubuntu-20130400.full.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130400.zip",
+                 "signature": "/sprint/nexus7/version-20130400.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
+            ],
+            "type": "full",
+            "version": 20130400,
+            "bootme": true
+        },
+        {
+            "base": 20130300,
+            "description": "Some kind of daily build",
+            "files": [
+                {"path": "/sprint/ubuntu/ubuntu-20130400.delta-20130300.zip",
+                 "signature":
+                       "/sprint/ubuntu/ubuntu-20130400.delta-20130300.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130400.zip",
+                 "signature": "/sprint/nexus7/version-20130400.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
+            ],
+            "type": "delta",
+            "version": 20130400,
+            "bootme": true
+        },
+        {
+            "base": 20130400,
+            "description": "Some kind of daily build",
+            "files": [
+                {"path": "/sprint/ubuntu/ubuntu-20130401.delta-20130400.zip",
+                 "signature":
+                       "/sprint/ubuntu/ubuntu-20130401.delta-20130400.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130401.zip",
+                 "signature": "/sprint/nexus7/version-20130401.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
+            ],
+            "type": "delta",
+            "version": 20130401,
+            "bootme": false
+        },
+        {
+            "base": 20130401,
+            "description": "Some kind of daily build",
+            "files": [
+                {"path": "/sprint/nexus7/nexus7-20130402.delta-20130401.zip",
+                 "signature":
+                       "/sprint/nexus7/nexus7-20130402.delta-20130401.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130402.zip",
+                 "signature": "/sprint/nexus7/version-20130402.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
+            ],
+            "type": "delta",
+            "version": 20130402,
+            "bootme": true
+        },
+        {
+            "description": "Some kind of daily build",
+            "files": [
+                {"path": "/sprint/nexus7/nexus7-20130500.full.zip",
+                 "signature": "/sprint/nexus7/nexus7-20130500.full.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/ubuntu/ubuntu-20130500.full.zip",
+                 "signature": "/sprint/ubuntu/ubuntu-20130500.full.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130500.zip",
+                 "signature": "/sprint/nexus7/version-20130500.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
+            ],
+            "type": "full",
+            "version": 20130500,
+            "bootme": true,
+            "minversion": 20130100
+        },
+        {
+            "description": "Some kind of daily build",
+            "base": 20130402,
+            "files": [
+                {"path": "/sprint/nexus7/nexus7-20130500.delta-20130402.zip",
+                 "signature":
+                       "/sprint/nexus7/nexus7-20130500.delta-20130402.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/ubuntu/ubuntu-20130500.delta-20130402.zip",
+                 "signature":
+                       "/sprint/ubuntu/ubuntu-20130500.delta-20130402.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130500.zip",
+                 "signature": "/sprint/nexus7/version-20130500.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
+            ],
+            "type": "delta",
+            "version": 20130500,
+            "bootme": true
+        }
+    ]
+}

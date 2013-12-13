@@ -1,0 +1,4 @@
+[console_scripts]
+system-image-cli = systemimage.main:main
+system-image-dbus = systemimage.service:main
+

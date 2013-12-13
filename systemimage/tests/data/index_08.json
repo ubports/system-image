@@ -1,0 +1,67 @@
+{
+    "global": {
+        "generated_at": "Mon Apr 29 18:45:27 UTC 2013"
+    },
+    "images": [
+        {
+            "bootme": true,
+            "description": "Full 1",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 100
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 200
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 300
+                }
+            ],
+            "minversion": 600,
+            "type": "full",
+            "version": 1300
+        },
+        {
+            "bootme": true,
+            "description": "Delta 1",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 100
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 200
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 300
+                }
+            ],
+            "type": "delta",
+            "base": 1300,
+            "version": 1301
+        }
+    ]
+}

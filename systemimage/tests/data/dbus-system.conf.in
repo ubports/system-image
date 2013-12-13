@@ -1,0 +1,26 @@
+<!-- dbus system bus configuration file template for the test suite.
+     Use Python's str.format() to do substitutions.
+  -->
+
+<!DOCTYPE busconfig PUBLIC
+ "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+
+<busconfig>
+  <type>system</type>
+  <listen>unix:tmpdir={tmpdir}</listen>
+
+  <!-- Load our own services -->
+  <servicedir>{tmpdir}</servicedir>
+
+  <policy user="{user}">
+    <allow send_interface="*"/>
+    <!-- Allow everything to be sent -->
+    <allow send_destination="*"/>
+    <!-- Allow everything to be received -->
+    <allow eavesdrop="true"/>
+    <!-- Allow anyone to own anything -->
+    <allow own="*"/>
+  </policy>
+
+</busconfig>
