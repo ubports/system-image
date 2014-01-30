@@ -2,6 +2,11 @@
 NEWS for system-image updater
 =============================
 
+2.0.5 (2014-01-30)
+==================
+ * MANIFEST.in: Make sure the .bzr directory doesn't end up in the
+   sdist tarball.
+
 2.0.4 (2014-01-30)
 ==================
  * No change release to test the new landing process.
