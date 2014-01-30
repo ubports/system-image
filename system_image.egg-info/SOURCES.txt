@@ -7,7 +7,6 @@ setup.cfg
 setup.py
 tox.ini
 unittest.cfg
-.bzr/branch/branch.conf
 system_image.egg-info/PKG-INFO
 system_image.egg-info/SOURCES.txt
 system_image.egg-info/dependency_links.txt
