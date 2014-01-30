@@ -20,8 +20,9 @@ Build-Depends: dbus,
                ubuntu-download-manager
 Standards-Version: 3.9.4
 XS-Testsuite: autopkgtest
-Vcs-Bzr: https://code.launchpad.net/~ubuntu-system-image/ubuntu-system-image/client.pkg
-Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-system-image/ubuntu-system-image/client.pkg/files
+Vcs-Bzr: https://code.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image
+Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image/files
+X-Auto-Uploader: no-rewrite-version
 
 Package: system-image-cli
 Architecture: all
