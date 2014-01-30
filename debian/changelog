@@ -1,3 +1,9 @@
+system-image (2.0.4-0ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Stéphane Graber <stgraber@ubuntu.com>  Thu, 30 Jan 2014 15:40:30 +0000
+
 system-image (2.0.3-0ubuntu2) trusty; urgency=low
 
   * Fix ApplyUpdate() to return an empty string as per spec if the update
