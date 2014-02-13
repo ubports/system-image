@@ -23,6 +23,7 @@ __all__ = [
 
 import os
 import gnupg
+import hashlib
 import tarfile
 
 from contextlib import ExitStack
@@ -37,10 +38,70 @@ class SignatureError(Exception):
     always returns a boolean.  This exception is used by other functions to
     signal that a .asc file did not match.
     """
+    def __init__(self, signature_path, data_path,
+                 keyrings=None, blacklist=None):
+        super().__init__()
+        self.signature_path = signature_path
+        self.data_path = data_path
+        self.keyrings = ([] if keyrings is None else keyrings)
+        self.blacklist = blacklist
+        # We have to calculate the checksums now, because it's possible that
+        # the files will be temporary/atomic files, deleted when a context
+        # manager exits.  I.e. the files aren't guaranteed to exist after this
+        # constructor runs.
+        #
+        # Also, md5 is fine; this is not a security critical context, we just
+        # want to be able to quickly and easily compare the file on disk
+        # against the file on the server.
+        with open(self.signature_path, 'rb') as fp:
+            self.signature_checksum =  hashlib.md5(fp.read()).hexdigest()
+        with open(self.data_path, 'rb') as fp:
+            self.data_checksum = hashlib.md5(fp.read()).hexdigest()
+        self.keyring_checksums = []
+        for path in self.keyrings:
+            with open(path, 'rb') as fp:
+                checksum = hashlib.md5(fp.read()).hexdigest()
+                self.keyring_checksums.append(checksum)
+        if self.blacklist is None:
+            self.blacklist_checksum = None
+        else:
+            with open(self.blacklist, 'rb') as fp:
+                self.blacklist_checksum = hashlib.md5(fp.read()).hexdigest()
+
+    def __str__(self):
+        if self.blacklist is None:
+            checksum_str = 'no blacklist'
+            path_str = ''
+        else:
+            checksum_str = self.blacklist_checksum
+            path_str = self.blacklist
+        return """
+    sig path : {0.signature_checksum}
+               {0.signature_path}
+    data path: {0.data_checksum}
+               {0.data_path}
+    keyrings : {0.keyring_checksums}
+               {1}
+    blacklist: {2} {3}
+""".format(self, list(self.keyrings), checksum_str, path_str)
+    
 
 
 class Context:
     def __init__(self, *keyrings, blacklist=None):
+        """Create a GPG signature verification context.
+
+        :param keyrings: The list of keyrings to use for validating the
+            signature on data files.
+        :type keyrings: Sequence of .tar.xz keyring files, which will be
+            unpacked to retrieve the actual .gpg keyring file.
+        :param blacklist: The blacklist keyring, from which fingerprints to
+            explicitly disallow are retrieved.
+        :type blacklist: A .tar.xz keyring file, which will be unpacked to
+            retrieve the actual .gpg keyring file.
+        """
+        self.keyring_paths = keyrings
+        self.blacklist_path = blacklist
         self._ctx = None
         self._stack = ExitStack()
         self._keyrings = []
@@ -112,6 +173,21 @@ class Context:
         return set(info['keyid'] for info in self._ctx.list_keys())
 
     def verify(self, signature_path, data_path):
+        """Verify a GPG signature.
+
+        This verifies that the data file signature is valid, given the
+        keyrings and blacklist specified in the constructor.  Specifically, we
+        use GPG to extract the fingerprint in the signature path, and compare
+        it against the fingerprints in the keyrings, subtracting any
+        fingerprints in the blacklist.
+
+        :param signature_path: The file system path to the detached signature
+            file for the data file.
+        :type signature_path: str
+        :param data_path: The file system path to the data file.
+        :type data_path: str
+        :return: bool
+        """
         with open(signature_path, 'rb') as sig_fp:
             verified = self._ctx.verify_file(sig_fp, data_path)
         # If the file is properly signed, we'll be able to get back a set of
@@ -120,3 +196,21 @@ class Context:
         # loaded-up keyrings.  If so, the signature succeeds.
         return verified.fingerprint in (self.fingerprints -
                                         self._blacklisted_fingerprints)
+
+    def validate(self, signature_path, data_path):
+        """Like .verify() but raises a SignatureError when invalid.
+
+        :param signature_path: The file system path to the detached signature
+            file for the data file.
+        :type signature_path: str
+        :param data_path: The file system path to the data file.
+        :type data_path: str
+        :return: None
+        :raises SignatureError: when the signature cannot be verified.  Note
+            that the exception will contain extra information, namely the
+            keyrings involved in the verification, as well as the blacklist
+            file if there is one.
+        """
+        if not self.verify(signature_path, data_path):
+            raise SignatureError(signature_path, data_path,
+                                 self.keyring_paths, self.blacklist_path)

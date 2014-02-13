@@ -217,7 +217,7 @@ class State:
                      urljoin(config.service.https_base, url)))
             get_keyring('blacklist', url, 'image-master')
         except SignatureError:
-            log.info('No signed blacklist found')
+            log.exception('No signed blacklist found')
             # The blacklist wasn't signed by the system image master.  Maybe
             # there's a new system image master key?  Let's find out.
             self._next.appendleft(self._get_master_key)
@@ -293,14 +293,16 @@ class State:
             # SIGNING key.  There may or may not be a blacklist.
             ctx = stack.enter_context(
                 Context(config.gpg.image_signing, blacklist=self.blacklist))
-            if not ctx.verify(asc_path, channels_path):
+            try:
+                ctx.validate(asc_path, channels_path)
+            except SignatureError:
                 # The signature on the channels.json file did not match.
                 # Maybe there's a new image signing key on the server.  If
                 # we've already downloaded a new image signing key, then
                 # there's nothing more to do but raise an exception.
                 # Otherwise, if a new key *is* found, retry the current step.
                 if count > 0:
-                    raise SignatureError(channels_path)
+                    raise
                 self._next.appendleft(self._get_signing_key)
                 log.info('channels.json not properly signed')
                 return
@@ -398,10 +400,7 @@ class State:
                 keyrings.append(config.gpg.device_signing)
             ctx = stack.enter_context(
                 Context(*keyrings, blacklist=self.blacklist))
-            if not ctx.verify(asc_path, index_path):
-                log.error('index.json signature failure: {} {}',
-                          index_path, asc_path)
-                raise SignatureError(index_path)
+            ctx.validate(asc_path, index_path)
             # The signature was good.
             with open(index_path, encoding='utf-8') as fp:
                 self.index = Index.from_json(fp.read())
@@ -512,8 +511,7 @@ class State:
             # Verify the signatures on all the downloaded files.
             with Context(*keyrings, blacklist=self.blacklist) as ctx:
                 for dst, asc in signatures:
-                    if not ctx.verify(asc, dst):
-                        raise SignatureError(dst)
+                    ctx.validate(asc, dst)
             # Verify the checksums.
             for dst, checksum in checksums:
                 with open(dst, 'rb') as fp:

@@ -31,7 +31,7 @@ from contextlib import ExitStack
 from datetime import datetime, timezone
 from systemimage.config import config
 from systemimage.download import DBusDownloadManager
-from systemimage.gpg import Context, SignatureError
+from systemimage.gpg import Context
 from systemimage.helpers import makedirs, safe_remove
 from urllib.parse import urljoin
 
@@ -110,8 +110,7 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
         stack.callback(os.remove, ascxz_dst)
         signing_keyring = getattr(config.gpg, sigkr.replace('-', '_'))
         with Context(signing_keyring, blacklist=blacklist) as ctx:
-            if not ctx.verify(ascxz_dst, tarxz_dst):
-                raise SignatureError
+            ctx.validate(ascxz_dst, tarxz_dst)
         # The signature is good, so now unpack the tarball, load the json file
         # and verify its contents.
         keyring_gpg = os.path.join(config.tempdir, 'keyring.gpg')

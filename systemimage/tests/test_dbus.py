@@ -1368,7 +1368,9 @@ class TestDBusPauseResume(_LiveTesting):
     def setUp(self):
         super().setUp()
         # We have to hack the files to be rather large so that the download
-        # doesn't complete before we get a chance to pause it.
+        # doesn't complete before we get a chance to pause it.  Of course,
+        # this breaks the signatures because we're changing the file contents
+        # after the .asc files have been written.
         for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
             full_path = os.path.join(
                 SystemImagePlugin.controller.serverdir, path)
@@ -1391,15 +1393,25 @@ class TestDBusPauseResume(_LiveTesting):
         self.assertTrue(reactor.paused)
         # Now let's resume the download.  Because we intentionally corrupted
         # the downloaded files, we'll get an UpdateFailed signal instead of
-        # the successful UpdateDownloaded signal.  We can ignore that.
+        # the successful UpdateDownloaded signal.
         reactor = SignalCapturingReactor('UpdateFailed')
         reactor.run(self.iface.DownloadUpdate, timeout=60)
         self.assertEqual(len(reactor.signals), 1)
-        # We've gotten one error and the first file that failed is 5.txt.
+        # The error message will include lots of details on the SignatureError
+        # that results.  The key thing is that it's 5.txt that is the first
+        # file to fail its signature check.
         failure_count, last_error = reactor.signals[0]
         self.assertEqual(failure_count, 1)
-        # Watch out for the trailing newline.
-        self.assertEqual(os.path.basename(last_error[:-1]), '5.txt')
+        check_next = False
+        for line in last_error.splitlines():
+            line = line.strip()
+            if check_next:
+                self.assertEqual(os.path.basename(line), '5.txt')
+                break
+            if line.startswith('data path:'):
+                check_next = True
+        else:
+            raise AssertionError('Did not find expected error output')
 
 
 class TestDBusUseCache(_LiveTesting):
