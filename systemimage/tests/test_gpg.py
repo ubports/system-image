@@ -18,15 +18,20 @@
 __all__ = [
     'TestKeyrings',
     'TestSignature',
+    'TestSignatureError',
     ]
 
 
 import os
+import sys
+import hashlib
 import unittest
+import traceback
 
 from contextlib import ExitStack
+from io import StringIO
 from systemimage.config import config
-from systemimage.gpg import Context
+from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
     configuration, copy, setup_keyring_txz, setup_keyrings, sign)
@@ -330,3 +335,171 @@ class TestSignature(unittest.TestCase):
             with Context(keyring_1, keyring_2, blacklist=blacklist) as ctx:
                 self.assertFalse(
                     ctx.verify(channels_json + '.asc', channels_json))
+
+    @configuration
+    def test_good_validation(self):
+        # The .validate() method does nothing if the signature is good.
+        channels_json = os.path.join(self._tmpdir, 'channels.json')
+        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        sign(channels_json, 'image-signing.gpg')
+        with temporary_directory() as tmpdir:
+            keyring = os.path.join(tmpdir, 'image-signing.tar.xz')
+            setup_keyring_txz('image-signing.gpg', 'image-master.gpg',
+                              dict(type='image-signing'), keyring)
+            with Context(keyring) as ctx:
+                self.assertIsNone(
+                    ctx.validate(channels_json + '.asc', channels_json))
+
+
+class TestSignatureError(unittest.TestCase):
+    def setUp(self):
+        self._stack = ExitStack()
+        self._tmpdir = self._stack.enter_context(temporary_directory())
+
+    def tearDown(self):
+        self._stack.close()
+
+    def test_extra_data(self):
+        # A SignatureError includes extra information about the path to the
+        # signature file, and the path to the data file.  You also get the md5
+        # checksums of those two paths.
+        signature_path = os.path.join(self._tmpdir, 'signature')
+        data_path = os.path.join(self._tmpdir, 'data')
+        with open(signature_path, 'wb') as fp:
+            fp.write(b'012345')
+        with open(data_path, 'wb') as fp:
+            fp.write(b'67890a')
+        error = SignatureError(signature_path, data_path)
+        self.assertEqual(error.signature_path, signature_path)
+        self.assertEqual(error.data_path, data_path)
+        self.assertEqual(
+            error.signature_checksum, 'd6a9a933c8aafc51e55ac0662b6e4d4a')
+        self.assertEqual(
+            error.data_checksum, 'e82780258de250078f7ad3f595d71f6d')
+
+    @configuration
+    def test_signature_invalid(self):
+        # The .validate() method raises a SignatureError exception with extra
+        # information when the signature is invalid.
+        channels_json = os.path.join(self._tmpdir, 'channels.json')
+        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        sign(channels_json, 'device-signing.gpg')
+        # Verify the signature with the pubkey.
+        with temporary_directory() as tmpdir:
+            dst = os.path.join(tmpdir, 'image-signing.tar.xz')
+            setup_keyring_txz('image-signing.gpg', 'image-master.gpg',
+                              dict(type='image-signing'), dst)
+            # Get the dst's checksum now, because the file will get deleted
+            # when the tmpdir context manager exits.
+            with open(dst, 'rb') as fp:
+                dst_checksum = hashlib.md5(fp.read()).hexdigest()
+            with Context(dst) as ctx:
+                with self.assertRaises(SignatureError) as cm:
+                    ctx.validate(channels_json + '.asc', channels_json)
+        error = cm.exception
+        basename = os.path.basename
+        self.assertEqual(basename(error.signature_path), 'channels.json.asc')
+        self.assertEqual(basename(error.data_path), 'channels.json')
+        # The contents of the signature file are not predictable.
+        with open(channels_json + '.asc', 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).hexdigest()
+        self.assertEqual(error.signature_checksum, checksum)
+        self.assertEqual(
+            error.data_checksum, '715c63fecbf44b62f9fa04a82dfa7d29')
+        basenames = [basename(path) for path in error.keyrings]
+        self.assertEqual(basenames, ['image-signing.tar.xz'])
+        self.assertIsNone(error.blacklist)
+        self.assertEqual(error.keyring_checksums, [dst_checksum])
+        self.assertIsNone(error.blacklist_checksum)
+
+    @configuration
+    def test_signature_invalid_due_to_blacklist(self):
+        # Like above, but we put the device signing key id in the blacklist.
+        channels_json = os.path.join(self._tmpdir, 'channels.json')
+        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        sign(channels_json, 'device-signing.gpg')
+        # Verify the signature with the pubkey.
+        with temporary_directory() as tmpdir:
+            keyring_1 = os.path.join(tmpdir, 'image-signing.tar.xz')
+            keyring_2 = os.path.join(tmpdir, 'device-signing.tar.xz')
+            blacklist = os.path.join(tmpdir, 'blacklist.tar.xz')
+            setup_keyring_txz('image-signing.gpg', 'image-master.gpg',
+                              dict(type='image-signing'), keyring_1)
+            setup_keyring_txz('device-signing.gpg', 'image-signing.gpg',
+                              dict(type='device-signing'), keyring_2)
+            # We're letting the device signing pubkey stand in for a blacklist.
+            setup_keyring_txz('device-signing.gpg', 'image-master.gpg',
+                              dict(type='blacklist'), blacklist)
+            # Get the keyring checksums now, because the files will get
+            # deleted when the tmpdir context manager exits.
+            keyring_checksums = []
+            for path in (keyring_1, keyring_2):
+                with open(path, 'rb') as fp:
+                    checksum = hashlib.md5(fp.read()).hexdigest()
+                keyring_checksums.append(checksum)
+            with open(blacklist, 'rb') as fp:
+                blacklist_checksum = hashlib.md5(fp.read()).hexdigest()
+            with Context(keyring_1, keyring_2, blacklist=blacklist) as ctx:
+                with self.assertRaises(SignatureError) as cm:
+                    ctx.validate(channels_json + '.asc', channels_json)
+        error = cm.exception
+        basename = os.path.basename
+        self.assertEqual(basename(error.signature_path), 'channels.json.asc')
+        self.assertEqual(basename(error.data_path), 'channels.json')
+        # The contents of the signature file are not predictable.
+        with open(channels_json + '.asc', 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).hexdigest()
+        self.assertEqual(error.signature_checksum, checksum)
+        self.assertEqual(
+            error.data_checksum, '715c63fecbf44b62f9fa04a82dfa7d29')
+        basenames = [basename(path) for path in error.keyrings]
+        self.assertEqual(basenames, ['image-signing.tar.xz',
+                                     'device-signing.tar.xz'])
+        self.assertEqual(basename(error.blacklist), 'blacklist.tar.xz')
+        self.assertEqual(error.keyring_checksums, keyring_checksums)
+        self.assertEqual(error.blacklist_checksum, blacklist_checksum)
+
+    @configuration
+    def test_signature_error_logging(self):
+        # The repr/str of the SignatureError should contain lots of useful
+        # information that will make debugging easier.
+        channels_json = os.path.join(self._tmpdir, 'channels.json')
+        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        sign(channels_json, 'device-signing.gpg')
+        # Verify the signature with the pubkey.
+        tmpdir = self._stack.enter_context(temporary_directory())
+        dst = os.path.join(tmpdir, 'image-signing.tar.xz')
+        setup_keyring_txz('image-signing.gpg', 'image-master.gpg',
+                          dict(type='image-signing'), dst)
+        output = StringIO()
+        with Context(dst) as ctx:
+            try:
+                ctx.validate(channels_json + '.asc', channels_json)
+            except SignatureError:
+                # For our purposes, log.exception() is essentially a wrapper
+                # around this traceback call.  We don't really care about the
+                # full stack trace though.
+                e = sys.exc_info()
+                traceback.print_exception(e[0], e[1], e[2],
+                                          limit=0, file=output)
+        # 2014-02-12 BAW: Yuck, but I can't get assertRegex() to work properly.
+        for i, line in enumerate(output.getvalue().splitlines()):
+            if i == 0:
+                self.assertEqual(line, 'Traceback (most recent call last):')
+            elif i == 1:
+                self.assertEqual(line, 'systemimage.gpg.SignatureError: ')
+            elif i == 2:
+                self.assertTrue(line.startswith('    sig path :'))
+            elif i == 3:
+                self.assertTrue(line.endswith('/channels.json.asc'))
+            elif i == 4:
+                self.assertEqual(
+                    line, '    data path: 715c63fecbf44b62f9fa04a82dfa7d29')
+            elif i == 5:
+                self.assertTrue(line.endswith('/channels.json'))
+            elif i == 6:
+                self.assertTrue(line.startswith('    keyrings :'))
+            elif i == 7:
+                self.assertTrue(line.endswith("/image-signing.tar.xz']"))
+            elif i == 8:
+                self.assertEqual(line, '    blacklist: no blacklist ')

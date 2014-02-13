@@ -2,6 +2,10 @@
 NEWS for system-image updater
 =============================
 
+2.1 (2014-XX-XX)
+================
+ * Internal improvements to SignatureError for better debugging. (LP: #1279056)
+
 2.0.5 (2014-01-30)
 ==================
  * MANIFEST.in: Make sure the .bzr directory doesn't end up in the

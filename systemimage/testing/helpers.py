@@ -107,6 +107,12 @@ def make_http_server(directory, port, certpem=None, keypem=None):
             # Please shut up.
             pass
 
+        def handle_one_request(self):
+            try:
+                super().handle_one_request()
+            except ConnectionResetError:
+                super().handle_one_request()
+
         def do_GET(self):
             # If we requested the magic 'user-agent.txt' file, send back the
             # value of the User-Agent header.  Otherwise, vend as normal.
@@ -166,7 +172,16 @@ def make_http_server(directory, port, certpem=None, keypem=None):
             for conn in connections:
                 if conn.fileno() != -1:
                     # Disallow sends and receives.
-                    conn.shutdown(SHUT_RDWR)
+                    try:
+                        conn.shutdown(SHUT_RDWR)
+                    except OSError:
+                        # I'm ignoring all OSErrors here, although the only
+                        # one I've seen semi-consistency is ENOTCONN [107]
+                        # "Transport endpoint is not connected".  I don't know
+                        # why this happens, but it tells me that the client
+                        # has already exited.  We're shutting down, so who
+                        # cares?  (Or am I masking a real error?)
+                        pass
                 conn.close()
             server.shutdown()
             thread.join()
