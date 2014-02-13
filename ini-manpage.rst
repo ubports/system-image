@@ -9,7 +9,7 @@ Ubuntu System Image Upgrader configuration file
 
 :Author: Barry Warsaw <barry@ubuntu.com>
 :Date: 2013-10-11
-:Copyright: 2013 Canonical Ltd.
+:Copyright: 2013-2014 Canonical Ltd.
 :Version: 1.9
 :Manual section: 5
 
