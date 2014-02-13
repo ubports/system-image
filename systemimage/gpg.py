@@ -84,7 +84,7 @@ class SignatureError(Exception):
                {1}
     blacklist: {2} {3}
 """.format(self, list(self.keyrings), checksum_str, path_str)
-    
+
 
 
 class Context:
