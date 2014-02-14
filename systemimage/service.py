@@ -28,7 +28,6 @@ import argparse
 
 from contextlib import ExitStack
 from dbus.mainloop.glib import DBusGMainLoop
-from dbus.service import BusName
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import config
 from systemimage.dbus import Loop, Service
@@ -92,12 +91,20 @@ def main():
     initialize(verbosity=args.verbose)
     log = logging.getLogger('systemimage')
 
-    log.info('SystemImage dbus main loop started [{}/{}]',
-             config.channel, config.device)
     DBusGMainLoop(set_as_default=True)
 
     system_bus = dbus.SystemBus()
-    bus_name = BusName('com.canonical.SystemImage', system_bus)
+    # Ensure we're the only owner of this bus name.
+    code = system_bus.request_name(
+        'com.canonical.SystemImage',
+        dbus.bus.NAME_FLAG_DO_NOT_QUEUE)
+    if code == dbus.bus.REQUEST_NAME_REPLY_EXISTS:
+        # Another instance already owns this name.  Exit.
+        log.error('Cannot get exclusive ownership of bus name.')
+        sys.exit(2)
+
+    log.info('SystemImage dbus main loop starting [{}/{}]',
+             config.channel, config.device)
 
     with ExitStack() as stack:
         loop = Loop()

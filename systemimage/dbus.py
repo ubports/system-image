@@ -31,6 +31,7 @@ from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.helpers import last_update_date, version_detail
 from systemimage.settings import Settings
+from threading import Lock
 
 
 EMPTYSTRING = ''
@@ -68,7 +69,7 @@ class Service(Object):
         super().__init__(bus, object_path)
         self._loop = loop
         self._api = Mediator(self._progress_callback)
-        self._checking = False
+        self._checking = Lock()
         self._update = None
         self._downloading = False
         self._paused = False
@@ -99,7 +100,7 @@ class Service(Object):
             # array of dictionaries data type.  LP: #1215586
             #self._update.descriptions,
             "")
-        self._checking = False
+        self._checking.release()
         # Stop GLib from calling this method again.
         return False
 
@@ -120,12 +121,12 @@ class Service(Object):
         whether the update is available or not.
         """
         self._loop.keepalive()
-        if self._checking:
+        # Check-and-acquire the lock.
+        if not self._checking.acquire(blocking=False):
             # Check is already in progress, so there's nothing more to do.
             return
-        self._checking = True
-        # Reset any failure or in-progress state.  Get a new mediator to reset
-        # any of its state.
+        # We've now acquired the lock.  Reset any failure or in-progress
+        # state.  Get a new mediator to reset any of its state.
         self._api = Mediator(self._progress_callback)
         self._failure_count = 0
         self._last_error = ''
@@ -146,9 +147,9 @@ class Service(Object):
             self._api.resume()
             self._paused = False
             return
-        if (self._downloading                        # Already in progress.
-            or self._update is None                  # Not yet checked.
-            or not self._update.is_available         # No update available.
+        if (self._downloading                           # Already in progress.
+            or self._update is None                     # Not yet checked.
+            or not self._update.is_available            # No update available.
             ):
             return
         if self._failure_count > 0:
@@ -157,8 +158,8 @@ class Service(Object):
             return
         self._downloading = True
         try:
-            # Always start by sending a UpdateProgress(0, 0).  This is enough
-            # to get the u/i's attention.
+            # Always start by sending a UpdateProgress(0, 0).  This is
+            # enough to get the u/i's attention.
             self.UpdateProgress(0, 0)
             self._api.download()
         except Exception:
@@ -216,8 +217,6 @@ class Service(Object):
         return ''
 
     def _apply_update(self):
-        # This signal may or may not get sent.  We're racing against the
-        # system reboot procedure.
         self._loop.keepalive()
         if not self._rebootable:
             command_file = os.path.join(
@@ -227,6 +226,9 @@ class Service(Object):
                 self.Rebooting(False)
                 return
         self._api.reboot()
+        # This code may or may not run.  We're racing against the system
+        # reboot procedure.
+        self._rebootable = False
         self.Rebooting(True)
 
     @method('com.canonical.SystemImage')
