@@ -68,8 +68,6 @@ class _LiveTestableService(Service):
     def Reset(self):
         self._api = Mediator()
         try:
-            with debug() as dlog:
-                dlog('RESET RELEASE')
             self._checking.release()
         except RuntimeError:
             # Lock is already released.

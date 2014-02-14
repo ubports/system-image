@@ -34,9 +34,6 @@ from systemimage.settings import Settings
 from threading import Lock
 
 
-from systemimage.testing.helpers import debug
-
-
 EMPTYSTRING = ''
 
 
@@ -103,8 +100,6 @@ class Service(Object):
             # array of dictionaries data type.  LP: #1215586
             #self._update.descriptions,
             "")
-        with debug() as dlog:
-            dlog('RELEASE')
         self._checking.release()
         # Stop GLib from calling this method again.
         return False
@@ -127,16 +122,9 @@ class Service(Object):
         """
         self._loop.keepalive()
         # Check-and-acquire the lock.
-        with debug() as dlog:
-            dlog('CHECK/ACQUIRE...')
         if not self._checking.acquire(blocking=False):
-            with debug() as dlog:
-                dlog('...UNACQUIRED')
             # Check is already in progress, so there's nothing more to do.
-            # XXX Can we send the cached UpdateAvailable signal.
             return
-        with debug() as dlog:
-            dlog('...ACQUIRED')
         # We've now acquired the lock.  Reset any failure or in-progress
         # state.  Get a new mediator to reset any of its state.
         self._api = Mediator(self._progress_callback)
