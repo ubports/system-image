@@ -5,6 +5,15 @@ NEWS for system-image updater
 2.1 (2014-XX-XX)
 ================
  * Internal improvements to SignatureError for better debugging. (LP: #1279056)
+ * Better protection against several possible race conditions during
+   `CheckForUpdate()` (LP: #1277589)
+   - Use a threading.Lock instance as the internal "checking for update"
+     barrier instead of a boolean.  This should eliminate the race window
+     between testing and acquiring the checking lock.
+   - Put an exclusive claim on the `com.canonical.SystemImage` system dbus
+     name, and if we cannot get that claim, exit with an error code 2.  This
+     prevents multiple instances of the D-Bus system service from running at
+     the same time.
 
 2.0.5 (2014-01-30)
 ==================

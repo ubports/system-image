@@ -26,11 +26,13 @@ __all__ = [
 
 
 import os
+import sys
 import dbus
 import stat
 import time
 import shutil
 import unittest
+import subprocess
 
 from contextlib import ExitStack, contextmanager
 from datetime import datetime
@@ -781,3 +783,25 @@ class TestDBusMain(unittest.TestCase):
         self.assertEqual(stat.filemode(mode), 'drwx--S---')
         mode = os.stat(config.system.logfile).st_mode
         self.assertEqual(stat.filemode(mode), '-rw-------')
+
+    def test_single_instance(self):
+        # Only one instance of the system-image-dbus service is allowed to
+        # remain active on a single system bus.
+        self.assertIsNone(find_dbus_process(self.ini_path))
+        self._activate()
+        proc = find_dbus_process(self.ini_path)
+        # Attempt to start a second process on the same system bus.
+        env = dict(
+            DBUS_SYSTEM_BUS_ADDRESS=os.environ['DBUS_SYSTEM_BUS_ADDRESS'])
+        args = (sys.executable, '-m', 'systemimage.service',
+                '-C', self.ini_path)
+        second = subprocess.Popen(args, universal_newlines=True, env=env)
+        # Allow a TimeoutExpired exception to fail the test.
+        try:
+            code = second.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            second.kill()
+            second.communicate()
+            raise
+        self.assertNotEqual(second.pid, proc)
+        self.assertEqual(code, 2)
