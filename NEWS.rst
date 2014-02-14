@@ -17,6 +17,9 @@ NEWS for system-image updater
   * Return the empty string from `ApplyUpdate()` D-Bus method.  This restores
     the original API (patch merged from Ubuntu package, given by Didier
     Roche).  (LP: #1260768)
+  * Request ubuntu-download-manager to download all files to temporary
+    destinations, then atomically rename them into place.  This avoids
+    clobbering by multiple processes and mimic changes coming in u-d-m.
 
 2.0.5 (2014-01-30)
 ==================
