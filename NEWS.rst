@@ -14,6 +14,9 @@ NEWS for system-image updater
      name, and if we cannot get that claim, exit with an error code 2.  This
      prevents multiple instances of the D-Bus system service from running at
      the same time.
+  * Return the empty string from `ApplyUpdate()` D-Bus method.  This restores
+    the original API (patch merged from Ubuntu package, given by Didier
+    Roche).  (LP: #1260768)
 
 2.0.5 (2014-01-30)
 ==================

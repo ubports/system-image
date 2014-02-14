@@ -235,6 +235,7 @@ class Service(Object):
     def ApplyUpdate(self):
         """Apply the update, rebooting the device."""
         GLib.timeout_add(50, self._apply_update)
+        return ''
 
     @method('com.canonical.SystemImage', out_signature='isssa{ss}')
     def Info(self):
