@@ -31,6 +31,8 @@ from systemimage.dbus import Service
 from systemimage.helpers import makedirs, safe_remove
 from unittest.mock import patch
 
+from systemimage.testing.helpers import debug
+
 
 SPACE = ' '
 SIGNAL_DELAY_SECS = 5
@@ -65,7 +67,13 @@ class _LiveTestableService(Service):
     @method('com.canonical.SystemImage')
     def Reset(self):
         self._api = Mediator()
-        self._checking = False
+        try:
+            with debug() as dlog:
+                dlog('RESET RELEASE')
+            self._checking.release()
+        except RuntimeError:
+            # Lock is already released.
+            pass
         self._update = None
         self._downloading = False
         self._rebootable = False

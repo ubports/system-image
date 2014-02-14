@@ -123,3 +123,13 @@ class SystemImagePlugin(Plugin):
         SystemImagePlugin.controller.stop()
         # Let other plugins continue printing.
         return None
+
+    def startTest(self, event):
+        from systemimage.testing.helpers import debug
+        with debug() as dlog:
+            dlog('vvvvv', event.test)
+
+    def stopTest(self, event):
+        from systemimage.testing.helpers import debug
+        with debug() as dlog:
+            dlog('^^^^^', event.test)

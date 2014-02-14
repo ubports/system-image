@@ -374,6 +374,23 @@ class TestDBusCheckForUpdate(_LiveTesting):
         self.assertEqual(last_update_date, '2013-01-20 12:01:45')
         # All other values are undefined.
 
+    def test_check_for_update_twice(self):
+        # Issue two CheckForUpdate calls immediate after each other.
+        self.download_always()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        def two_calls():
+            self.iface.CheckForUpdate()
+            self.iface.CheckForUpdate()
+        reactor.run(two_calls)
+        self.assertEqual(len(reactor.signals), 1)
+        # There's one boolean argument to the result.
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         # descriptions,
+         error_reason) = reactor.signals[0]
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+
     @unittest.skip('LP: #1215586')
     def test_get_multilingual_descriptions(self):
         # The descriptions are multilingual.
