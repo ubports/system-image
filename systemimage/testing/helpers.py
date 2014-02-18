@@ -347,7 +347,7 @@ def setup_keyrings(*keyrings, use_config=None, **data):
         setup_keyring_txz(keyring + '.gpg', signing_kr, json_data, dst)
 
 
-def setup_index(index, todir, keyring):
+def setup_index(index, todir, keyring, write_callback=None):
     for image in get_index(index).images:
         for filerec in image.files:
             path = (filerec.path[1:]
@@ -355,10 +355,13 @@ def setup_index(index, todir, keyring):
                     else filerec.path)
             dst = os.path.join(todir, path)
             makedirs(os.path.dirname(dst))
-            contents = EMPTYSTRING.join(
-                os.path.splitext(filerec.path)[0].split('/'))
-            with open(dst, 'w', encoding='utf-8') as fp:
-                fp.write(contents)
+            if write_callback is None:
+                contents = EMPTYSTRING.join(
+                    os.path.splitext(filerec.path)[0].split('/'))
+                with open(dst, 'w', encoding='utf-8') as fp:
+                    fp.write(contents)
+            else:
+                write_callback(dst)
             # Sign with the specified signing key.
             sign(dst, keyring)
 
