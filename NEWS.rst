@@ -25,8 +25,8 @@ NEWS for system-image updater
      the `State` object.
    - More logging during state transitions.
    - All emitted D-Bus signals are also logged.
-  * Added `-L` flag to nose test runner, which can be used to specify an
-    explicit log file path for debugging.
+ * Added `-L` flag to nose test runner, which can be used to specify an
+   explicit log file path for debugging.
 
 2.0.5 (2014-01-30)
 ==================
