@@ -23,6 +23,7 @@ __all__ = [
     'TestDBusGetSet',
     'TestDBusInfo',
     'TestDBusInfoNoDetails',
+    'TestDBusLP1277589',
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
     'TestDBusMockFailResume',
@@ -1542,3 +1543,16 @@ update 7.txt 7.txt.asc
 update 5.txt 5.txt.asc
 unmount system
 """)
+
+
+class TestDBusLP1277589(_LiveTesting):
+    def test_multiple_check_for_updates_blacklist_gone_missing(self):
+        # Log analysis of LP: #1277589 appears to show the following scenario,
+        # reproduced in this test case:
+        #
+        # * Automatic updates are enabled.
+        # * No image signing or image master keys are present.
+        # * A full update is checked.
+        #   - A new image master key and image signing key is downloaded.
+        #   - Update is available
+        pass
