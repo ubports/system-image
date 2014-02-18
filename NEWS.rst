@@ -24,7 +24,7 @@ NEWS for system-image updater
    - `Mediator` instances have a helpful `repr` which also includes the id of
      the `State` object.
    - More logging during state transitions.
-   - All emitted D-Bus signals are also logged.
+   - All emitted D-Bus signals are also logged (at debug level).
  * Added `-L` flag to nose test runner, which can be used to specify an
    explicit log file path for debugging.
 

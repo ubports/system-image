@@ -319,40 +319,40 @@ class Service(Object):
                               #descriptions,
                               error_reason):
         """Signal sent in response to a CheckForUpdate()."""
-        log.info('EMIT UpdateAvailableStatus({}, {}, {}, {}, {}, {})',
-                 is_available, downloading, available_version, update_size,
-                 last_update_date, repr(error_reason))
+        log.debug('EMIT UpdateAvailableStatus({}, {}, {}, {}, {}, {})',
+                  is_available, downloading, available_version, update_size,
+                  last_update_date, repr(error_reason))
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='id')
     def UpdateProgress(self, percentage, eta):
         """Download progress."""
-        log.info('EMIT UpdateProgress({}, {})', percentage, eta)
+        log.debug('EMIT UpdateProgress({}, {})', percentage, eta)
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage')
     def UpdateDownloaded(self):
         """The update has been successfully downloaded."""
-        log.info('EMIT UpdateDownloaded()')
+        log.debug('EMIT UpdateDownloaded()')
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='is')
     def UpdateFailed(self, consecutive_failure_count, last_reason):
         """The update failed for some reason."""
-        log.info('EMIT UpdateFailed({}, {})',
-                 consecutive_failure_count, repr(last_reason))
+        log.debug('EMIT UpdateFailed({}, {})',
+                  consecutive_failure_count, repr(last_reason))
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='i')
     def UpdatePaused(self, percentage):
         """The download got paused."""
-        log.info('EMIT UpdatePaused({})', percentage)
+        log.debug('EMIT UpdatePaused({})', percentage)
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='ss')
     def SettingChanged(self, key, new_value):
         """A setting value has change."""
-        log.info('EMIT SettingChanged({}, {})', repr(key), repr(new_value))
+        log.debug('EMIT SettingChanged({}, {})', repr(key), repr(new_value))
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='b')
@@ -360,4 +360,4 @@ class Service(Object):
         """The system is rebooting."""
         # We don't need to keep the loop alive since we're probably just going
         # to shutdown anyway.
-        log.info('EMIT Rebooting({})', status)
+        log.debug('EMIT Rebooting({})', status)
