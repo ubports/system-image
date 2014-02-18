@@ -23,6 +23,7 @@ __all__ = [
     'TestDBusGetSet',
     'TestDBusInfo',
     'TestDBusInfoNoDetails',
+    'TestDBusLP1277589',
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
     'TestDBusMockFailResume',
@@ -119,6 +120,23 @@ class PausingReactor(Reactor):
 
     def _do_UpdatePaused(self, signal, path, percentage):
         self.paused = True
+        self.quit()
+
+
+class DoubleCheckingReactor(Reactor):
+    def __init__(self, iface):
+        super().__init__(dbus.SystemBus())
+        self.iface = iface
+        self.uas_signals = []
+        self.react_to('UpdateAvailableStatus')
+        self.react_to('UpdateDownloaded')
+        self.schedule(self.iface.CheckForUpdate)
+
+    def _do_UpdateAvailableStatus(self, signal, path, *args, **kws):
+        self.uas_signals.append(args)
+        self.schedule(self.iface.CheckForUpdate)
+
+    def _do_UpdateDownloaded(self, *args, **kws):
         self.quit()
 
 
@@ -262,13 +280,14 @@ class _LiveTesting(_TestBase):
         safe_remove(self.reboot_log)
         super().tearDown()
 
-    def _prepare_index(self, index_file):
+    def _prepare_index(self, index_file, write_callback=None):
         serverdir = SystemImagePlugin.controller.serverdir
         index_path = os.path.join(serverdir, 'stable', 'nexus7', 'index.json')
         head, tail = os.path.split(index_path)
         copy(index_file, head, tail)
         sign(index_path, 'device-signing.gpg')
-        setup_index(index_file, serverdir, 'device-signing.gpg')
+        setup_index(index_file, serverdir, 'device-signing.gpg',
+                    write_callback)
 
     def _touch_build(self, version):
         # Unlike the touch_build() helper, this one uses our own config object
@@ -1542,3 +1561,45 @@ update 7.txt 7.txt.asc
 update 5.txt 5.txt.asc
 unmount system
 """)
+
+
+class TestDBusLP1277589(_LiveTesting):
+    def test_multiple_check_for_updates(self):
+        # Log analysis of LP: #1277589 appears to show the following scenario,
+        # reproduced in this test case:
+        #
+        # * Automatic updates are enabled.
+        # * No image signing or image master keys are present.
+        # * A full update is checked.
+        #   - A new image master key and image signing key is downloaded.
+        #   - Update is available
+        #
+        # Start by creating some big files which will take a while to
+        # download.
+        def write_callback(dst):
+            # Write a 100 MiB sized file.
+            with open(dst, 'wb') as fp:
+                for i in range(25600):
+                    fp.write(b'x' * 4096)
+        self._prepare_index('index_24.json', write_callback)
+        # Create a reactor that will exit when the UpdateDownloaded signal is
+        # received.  We're going to issue a CheckForUpdate with automatic
+        # updates enabled.  As soon as we receive the UpdateAvailableStatus
+        # signal, we'll immediately issue *another* CheckForUpdate, which
+        # should run while the auto-download is working.
+        #
+        # At the end, we should not get another UpdateAvailableStatus signal,
+        # but we should get the UpdateDownloaded signal.
+        reactor = DoubleCheckingReactor(self.iface)
+        reactor.run()
+        self.assertEqual(len(reactor.uas_signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         #descriptions,
+         error_reason) = reactor.uas_signals[0]
+        self.assertTrue(is_available)
+        self.assertTrue(downloading)
+        self.assertEqual(available_version, '1600')
+        self.assertEqual(update_size, 314572800)
+        self.assertEqual(last_update_date, 'Unknown')
+        self.assertEqual(error_reason, '')

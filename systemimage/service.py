@@ -30,7 +30,7 @@ from contextlib import ExitStack
 from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import config
-from systemimage.dbus import Loop, Service
+from systemimage.dbus import Loop
 from systemimage.helpers import makedirs
 from systemimage.logging import initialize
 from systemimage.main import DEFAULT_CONFIG_FILE
@@ -114,6 +114,7 @@ def main():
             config.dbus_service = get_service(
                 testing_mode, system_bus, '/Service', loop)
         else:
+            from systemimage.dbus import Service
             config.dbus_service = Service(system_bus, '/Service', loop)
         try:
             loop.run()

@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-2.1 (2014-XX-XX)
+2.1 (2014-02-18)
 ================
  * Internal improvements to SignatureError for better debugging. (LP: #1279056)
  * Better protection against several possible race conditions during
@@ -14,9 +14,19 @@ NEWS for system-image updater
      name, and if we cannot get that claim, exit with an error code 2.  This
      prevents multiple instances of the D-Bus system service from running at
      the same time.
-  * Return the empty string from `ApplyUpdate()` D-Bus method.  This restores
-    the original API (patch merged from Ubuntu package, given by Didier
-    Roche).  (LP: #1260768)
+ * Return the empty string from `ApplyUpdate()` D-Bus method.  This restores
+   the original API (patch merged from Ubuntu package, given by Didier
+   Roche).  (LP: #1260768)
+ * Request ubuntu-download-manager to download all files to temporary
+   destinations, then atomically rename them into place.  This avoids
+   clobbering by multiple processes and mimics changes coming in u-d-m.
+ * Provide much more detailed logging.
+   - `Mediator` instances have a helpful `repr` which also includes the id of
+     the `State` object.
+   - More logging during state transitions.
+   - All emitted D-Bus signals are also logged.
+  * Added `-L` flag to nose test runner, which can be used to specify an
+    explicit log file path for debugging.
 
 2.0.5 (2014-01-30)
 ==================

@@ -125,7 +125,7 @@ SERVICES = [
 class Controller:
     """Start and stop D-Bus service under test."""
 
-    def __init__(self):
+    def __init__(self, logfile=None):
         # Non-public.
         self._stack = ExitStack()
         self._stoppers = []
@@ -148,11 +148,15 @@ class Controller:
         # We need a client.ini file for the subprocess.
         ini_tmpdir = self._stack.enter_context(temporary_directory())
         ini_vardir = self._stack.enter_context(temporary_directory())
+        ini_logfile = (os.path.join(ini_tmpdir, 'client.log')
+                       if logfile is None
+                       else logfile)
         self.ini_path = os.path.join(self.tmpdir, 'client.ini')
         template = resource_bytes(
             'systemimage.tests.data', 'config_03.ini').decode('utf-8')
         with open(self.ini_path, 'w', encoding='utf-8') as fp:
-            print(template.format(tmpdir=ini_tmpdir, vardir=ini_vardir),
+            print(template.format(tmpdir=ini_tmpdir, vardir=ini_vardir,
+                                  logfile=ini_logfile),
                   file=fp)
 
     def _configure_services(self):
