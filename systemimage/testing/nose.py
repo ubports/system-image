@@ -75,15 +75,24 @@ class SystemImagePlugin(Plugin):
         super().__init__()
         self.patterns = []
         self.verbosity = 0
+        self.log_file = None
         self.addArgument(self.patterns, 'P', 'pattern',
                          'Add a test matching pattern')
         def bump(ignore):
             self.verbosity += 1
         self.addFlag(bump, 'V', 'Verbosity',
                      'Increase system-image verbosity')
+        def set_log_file(path):
+            self.log_file = path[0]
+        self.addOption(set_log_file, 'L', 'logfile',
+                       'Set the log file for the test run',
+                       nargs=1)
 
     @configuration
     def startTestRun(self, event):
+        from systemimage.config import config
+        if self.log_file is not None:
+            config.system.logfile = self.log_file
         DBusGMainLoop(set_as_default=True)
         initialize(verbosity=self.verbosity)
         # We need to set up the dbus service controller, since all the tests
@@ -92,7 +101,7 @@ class SystemImagePlugin(Plugin):
         # individual services, and we can write new dbus configuration files
         # and HUP the dbus-launch to re-read them, but we cannot change bus
         # addresses after the initial one is set.
-        SystemImagePlugin.controller = Controller()
+        SystemImagePlugin.controller = Controller(self.log_file)
         SystemImagePlugin.controller.start()
         atexit.register(SystemImagePlugin.controller.stop)
 

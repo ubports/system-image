@@ -153,7 +153,7 @@ class Service(Object):
         eta = 0
         self.UpdateProgress(percentage, eta)
 
-    def _download(self, release_checking):
+    def _download(self, release_checking=None):
         if self._downloading and self._paused:
             self._api.resume()
             self._paused = False
@@ -193,7 +193,10 @@ class Service(Object):
             self._rebootable = True
         self._downloading = False
         log.info('release checking lock from _download()')
-        release_checking()
+        if release_checking is not None:
+            # We were auto-downloading, so we now have to release the checking
+            # lock.  If we were manually downloading, there would be no lock.
+            release_checking()
         # Stop GLib from calling this method again.
         return False
 
