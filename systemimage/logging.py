@@ -53,9 +53,7 @@ def initialize(*, verbosity=0):
         3: logging.CRITICAL,
         }.get(verbosity, logging.ERROR)
     level = min(level, config.system.loglevel)
-    # We're not going to propagate to the root logger anyway.
-    logging.basicConfig(style='{')
-    # Make sure logging uses {}-style messages.
+    # Make sure our library's logging uses {}-style messages.
     logging.setLogRecordFactory(FormattingLogRecord)
     # Now configure the application level logger based on the ini file.
     log = logging.getLogger('systemimage')

@@ -27,6 +27,8 @@ NEWS for system-image updater
    - All emitted D-Bus signals are also logged (at debug level).
  * Added `-L` flag to nose test runner, which can be used to specify an
    explicit log file path for debugging.
+ * Don't initialize the root logger, since this can interfere with
+   python-dbus, which doesn't initialize its loggers correctly.
 
 2.0.5 (2014-01-30)
 ==================
