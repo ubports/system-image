@@ -1,0 +1,36 @@
+{
+    "global": {
+        "generated_at": "Thu Aug 01 08:01:00 UTC 2013"
+    },
+    "images": [
+        {
+            "description": "Full",
+            "files": [
+                {
+                    "checksum": "5b05b298e974f3b9e40f0a1a8188f50984a4f18fb329e050324296632d3d9dfc",
+                    "order": 3,
+                    "path": "/3/4/5.txt",
+                    "signature": "/3/4/5.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "5b05b298e974f3b9e40f0a1a8188f50984a4f18fb329e050324296632d3d9dfc",
+                    "order": 1,
+                    "path": "/4/5/6.txt",
+                    "signature": "/4/5/6.txt.asc",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "5b05b298e974f3b9e40f0a1a8188f50984a4f18fb329e050324296632d3d9dfc",
+                    "order": 2,
+                    "path": "/5/6/7.txt",
+                    "signature": "/5/6/7.txt.asc",
+                    "size": 104857600
+                }
+            ],
+            "type": "full",
+            "version": 1600,
+            "bootme": true
+        }
+    ]
+}

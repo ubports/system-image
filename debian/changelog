@@ -1,10 +1,14 @@
-system-image (2.0.5-0ubuntu1) UNRELEASED; urgency=medium
+system-image (2.1-0ubuntu1) UNRELEASED; urgency=medium
 
+  [ Stéphane Graber ]
   * New upstream release.
   * Set X-Auto-Uploader to no-rewrite-version
   * Set Vcs-Bzr to the new target branch
 
- -- Stéphane Graber <stgraber@ubuntu.com>  Thu, 30 Jan 2014 16:56:52 +0000
+  [ Barry Warsaw ]
+  * New upstream release.
+
+ -- Barry Warsaw <barry@ubuntu.com>  Thu, 20 Feb 2014 18:03:10 -0500
 
 system-image (2.0.3-0ubuntu2) trusty; urgency=low
 
