@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-2.1 (2014-02-18)
+2.1 (2014-02-20)
 ================
  * Internal improvements to SignatureError for better debugging. (LP: #1279056)
  * Better protection against several possible race conditions during
@@ -27,8 +27,18 @@ NEWS for system-image updater
    - All emitted D-Bus signals are also logged (at debug level).
  * Added `-L` flag to nose test runner, which can be used to specify an
    explicit log file path for debugging.
- * Don't initialize the root logger, since this can interfere with
-   python-dbus, which doesn't initialize its loggers correctly.
+ * Fixed D-Bus error logging.
+   - Don't initialize the root logger, since this can interfere with
+     python-dbus, which doesn't initialize its loggers correctly.
+   - Only use `.format()` based interpolation for `systemimage` logs.
+ * Give virtualized buildds a fighting chance against D-Bus by
+   - using `org.freedesktop.DBus`s `ReloadConfig()` interface instead of
+     SIGHUP.
+   - add a configurable sleep call after the `ReloadConfig()`.  This defaults
+     to 0 since de-virtualized and local builds do not need them.  Set the
+     environment variable `SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS` to
+     override.
+  * Run the tox test suite for both Python 3.3 and 3.4.
 
 2.0.5 (2014-01-30)
 ==================

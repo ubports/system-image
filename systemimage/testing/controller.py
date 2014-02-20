@@ -25,8 +25,8 @@ import os
 import pwd
 import sys
 import dbus
+import time
 import psutil
-import signal
 import subprocess
 
 from contextlib import ExitStack
@@ -38,6 +38,8 @@ from systemimage.testing.helpers import (
 
 
 SPACE = ' '
+OVERRIDE = os.environ.get('SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS')
+HUP_SLEEP = (0 if OVERRIDE is None else int(OVERRIDE))
 
 
 def start_system_image(controller):
@@ -160,13 +162,10 @@ class Controller:
                   file=fp)
 
     def _configure_services(self):
-        # If the daemon is already running, kill all the children and HUP the
-        # daemon to reset dbus activation.
+        # If the dbus-daemon is already running, kill all the children.
         if self.daemon_pid is not None:
             for stopper in self._stoppers:
                 stopper(self)
-            process = psutil.Process(self.daemon_pid)
-            process.send_signal(signal.SIGHUP)
         del self._stoppers[:]
         # Now we have to set up the .service files.  We use the Python
         # executable used to run the tests, executing the entry point as would
@@ -182,6 +181,12 @@ class Controller:
             with open(service_path, 'w', encoding='utf-8') as fp:
                 fp.write(config)
             self._stoppers.append(stopper)
+        # If the dbus-daemon is running, reload its configuration files.
+        if self.daemon_pid is not None:
+            service = dbus.SystemBus().get_object('org.freedesktop.DBus', '/')
+            iface = dbus.Interface(service, 'org.freedesktop.DBus')
+            iface.ReloadConfig()
+            time.sleep(HUP_SLEEP)
 
     def set_mode(self, *, cert_pem=None, service_mode=''):
         self.mode = service_mode
