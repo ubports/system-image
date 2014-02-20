@@ -1,4 +1,4 @@
-# Copyright (C) 2013 Canonical Ltd.
+# Copyright (C) 2013-2014 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -28,10 +28,9 @@ import argparse
 
 from contextlib import ExitStack
 from dbus.mainloop.glib import DBusGMainLoop
-from dbus.service import BusName
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import config
-from systemimage.dbus import Loop, Service
+from systemimage.dbus import Loop
 from systemimage.helpers import makedirs
 from systemimage.logging import initialize
 from systemimage.main import DEFAULT_CONFIG_FILE
@@ -92,12 +91,20 @@ def main():
     initialize(verbosity=args.verbose)
     log = logging.getLogger('systemimage')
 
-    log.info('SystemImage dbus main loop started [{}/{}]',
-             config.channel, config.device)
     DBusGMainLoop(set_as_default=True)
 
     system_bus = dbus.SystemBus()
-    bus_name = BusName('com.canonical.SystemImage', system_bus)
+    # Ensure we're the only owner of this bus name.
+    code = system_bus.request_name(
+        'com.canonical.SystemImage',
+        dbus.bus.NAME_FLAG_DO_NOT_QUEUE)
+    if code == dbus.bus.REQUEST_NAME_REPLY_EXISTS:
+        # Another instance already owns this name.  Exit.
+        log.error('Cannot get exclusive ownership of bus name.')
+        sys.exit(2)
+
+    log.info('SystemImage dbus main loop starting [{}/{}]',
+             config.channel, config.device)
 
     with ExitStack() as stack:
         loop = Loop()
@@ -107,6 +114,7 @@ def main():
             config.dbus_service = get_service(
                 testing_mode, system_bus, '/Service', loop)
         else:
+            from systemimage.dbus import Service
             config.dbus_service = Service(system_bus, '/Service', loop)
         try:
             loop.run()

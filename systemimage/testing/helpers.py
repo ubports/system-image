@@ -1,4 +1,4 @@
-# Copyright (C) 2013 Canonical Ltd.
+# Copyright (C) 2013-2014 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -107,6 +107,12 @@ def make_http_server(directory, port, certpem=None, keypem=None):
             # Please shut up.
             pass
 
+        def handle_one_request(self):
+            try:
+                super().handle_one_request()
+            except ConnectionResetError:
+                super().handle_one_request()
+
         def do_GET(self):
             # If we requested the magic 'user-agent.txt' file, send back the
             # value of the User-Agent header.  Otherwise, vend as normal.
@@ -166,7 +172,16 @@ def make_http_server(directory, port, certpem=None, keypem=None):
             for conn in connections:
                 if conn.fileno() != -1:
                     # Disallow sends and receives.
-                    conn.shutdown(SHUT_RDWR)
+                    try:
+                        conn.shutdown(SHUT_RDWR)
+                    except OSError:
+                        # I'm ignoring all OSErrors here, although the only
+                        # one I've seen semi-consistency is ENOTCONN [107]
+                        # "Transport endpoint is not connected".  I don't know
+                        # why this happens, but it tells me that the client
+                        # has already exited.  We're shutting down, so who
+                        # cares?  (Or am I masking a real error?)
+                        pass
                 conn.close()
             server.shutdown()
             thread.join()
@@ -332,7 +347,7 @@ def setup_keyrings(*keyrings, use_config=None, **data):
         setup_keyring_txz(keyring + '.gpg', signing_kr, json_data, dst)
 
 
-def setup_index(index, todir, keyring):
+def setup_index(index, todir, keyring, write_callback=None):
     for image in get_index(index).images:
         for filerec in image.files:
             path = (filerec.path[1:]
@@ -340,10 +355,13 @@ def setup_index(index, todir, keyring):
                     else filerec.path)
             dst = os.path.join(todir, path)
             makedirs(os.path.dirname(dst))
-            contents = EMPTYSTRING.join(
-                os.path.splitext(filerec.path)[0].split('/'))
-            with open(dst, 'w', encoding='utf-8') as fp:
-                fp.write(contents)
+            if write_callback is None:
+                contents = EMPTYSTRING.join(
+                    os.path.splitext(filerec.path)[0].split('/'))
+                with open(dst, 'w', encoding='utf-8') as fp:
+                    fp.write(contents)
+            else:
+                write_callback(dst)
             # Sign with the specified signing key.
             sign(dst, keyring)
 

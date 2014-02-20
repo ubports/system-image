@@ -1,4 +1,4 @@
-# Copyright (C) 2013 Canonical Ltd.
+# Copyright (C) 2013-2014 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -23,6 +23,7 @@ __all__ = [
 
 import os
 import sys
+import logging
 import traceback
 
 from dbus.service import Object, method, signal
@@ -31,9 +32,11 @@ from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.helpers import last_update_date, version_detail
 from systemimage.settings import Settings
+from threading import Lock
 
 
 EMPTYSTRING = ''
+log = logging.getLogger('systemimage')
 
 
 class Loop:
@@ -68,7 +71,8 @@ class Service(Object):
         super().__init__(bus, object_path)
         self._loop = loop
         self._api = Mediator(self._progress_callback)
-        self._checking = False
+        log.info('Mediator created {}', self._api)
+        self._checking = Lock()
         self._update = None
         self._downloading = False
         self._paused = False
@@ -78,17 +82,22 @@ class Service(Object):
 
     def _check_for_update(self):
         # Asynchronous method call.
+        log.info('Checking for update')
         self._update = self._api.check_for_update()
         # Do we have an update and can we auto-download it?
         downloading = False
         if self._update.is_available:
             settings = Settings()
             auto = settings.get('auto_download')
+            log.info('Update available; auto-download: {}', auto)
             if auto in ('1', '2'):
                 # XXX When we have access to the download service, we can
                 # check if we're on the wifi (auto == '1').
-                GLib.timeout_add(50, self._download)
+                GLib.timeout_add(50, self._download, self._checking.release)
                 downloading = True
+            else:
+                log.info('release checking lock from _check_for_update()')
+                self._checking.release()
         self.UpdateAvailableStatus(
             self._update.is_available,
             downloading,
@@ -99,7 +108,6 @@ class Service(Object):
             # array of dictionaries data type.  LP: #1215586
             #self._update.descriptions,
             "")
-        self._checking = False
         # Stop GLib from calling this method again.
         return False
 
@@ -120,13 +128,17 @@ class Service(Object):
         whether the update is available or not.
         """
         self._loop.keepalive()
-        if self._checking:
+        # Check-and-acquire the lock.
+        log.info('test and acquire checking lock')
+        if not self._checking.acquire(blocking=False):
             # Check is already in progress, so there's nothing more to do.
+            log.info('checking lock not acquired')
             return
-        self._checking = True
-        # Reset any failure or in-progress state.  Get a new mediator to reset
-        # any of its state.
+        log.info('checking lock acquired')
+        # We've now acquired the lock.  Reset any failure or in-progress
+        # state.  Get a new mediator to reset any of its state.
         self._api = Mediator(self._progress_callback)
+        log.info('Mediator recreated {}', self._api)
         self._failure_count = 0
         self._last_error = ''
         # Arrange for the actual check to happen in a little while, so that
@@ -141,24 +153,28 @@ class Service(Object):
         eta = 0
         self.UpdateProgress(percentage, eta)
 
-    def _download(self):
+    def _download(self, release_checking=None):
         if self._downloading and self._paused:
             self._api.resume()
             self._paused = False
+            log.info('Download previously paused')
             return
-        if (self._downloading                        # Already in progress.
-            or self._update is None                  # Not yet checked.
-            or not self._update.is_available         # No update available.
+        if (self._downloading                           # Already in progress.
+            or self._update is None                     # Not yet checked.
+            or not self._update.is_available            # No update available.
             ):
+            log.info('Download already in progress or not available')
             return
         if self._failure_count > 0:
             self._failure_count += 1
             self.UpdateFailed(self._failure_count, self._last_error)
+            log.info('Update failure count: {}', self._failure_count)
             return
         self._downloading = True
+        log.info('Update is downloading')
         try:
-            # Always start by sending a UpdateProgress(0, 0).  This is enough
-            # to get the u/i's attention.
+            # Always start by sending a UpdateProgress(0, 0).  This is
+            # enough to get the u/i's attention.
             self.UpdateProgress(0, 0)
             self._api.download()
         except Exception:
@@ -167,13 +183,20 @@ class Service(Object):
             # value, but not the traceback.
             self._last_error = EMPTYSTRING.join(
                 traceback.format_exception_only(*sys.exc_info()[:2]))
+            log.info('Update failed: {}', self._last_error)
             self.UpdateFailed(self._failure_count, self._last_error)
         else:
+            log.info('Update downloaded')
             self.UpdateDownloaded()
             self._failure_count = 0
             self._last_error = ''
             self._rebootable = True
         self._downloading = False
+        log.info('release checking lock from _download()')
+        if release_checking is not None:
+            # We were auto-downloading, so we now have to release the checking
+            # lock.  If we were manually downloading, there would be no lock.
+            release_checking()
         # Stop GLib from calling this method again.
         return False
 
@@ -216,8 +239,6 @@ class Service(Object):
         return ''
 
     def _apply_update(self):
-        # This signal may or may not get sent.  We're racing against the
-        # system reboot procedure.
         self._loop.keepalive()
         if not self._rebootable:
             command_file = os.path.join(
@@ -227,12 +248,16 @@ class Service(Object):
                 self.Rebooting(False)
                 return
         self._api.reboot()
+        # This code may or may not run.  We're racing against the system
+        # reboot procedure.
+        self._rebootable = False
         self.Rebooting(True)
 
     @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         """Apply the update, rebooting the device."""
         GLib.timeout_add(50, self._apply_update)
+        return ''
 
     @method('com.canonical.SystemImage', out_signature='isssa{ss}')
     def Info(self):
@@ -294,31 +319,40 @@ class Service(Object):
                               #descriptions,
                               error_reason):
         """Signal sent in response to a CheckForUpdate()."""
+        log.debug('EMIT UpdateAvailableStatus({}, {}, {}, {}, {}, {})',
+                  is_available, downloading, available_version, update_size,
+                  last_update_date, repr(error_reason))
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='id')
     def UpdateProgress(self, percentage, eta):
         """Download progress."""
+        log.debug('EMIT UpdateProgress({}, {})', percentage, eta)
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage')
     def UpdateDownloaded(self):
         """The update has been successfully downloaded."""
+        log.debug('EMIT UpdateDownloaded()')
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='is')
     def UpdateFailed(self, consecutive_failure_count, last_reason):
         """The update failed for some reason."""
+        log.debug('EMIT UpdateFailed({}, {})',
+                  consecutive_failure_count, repr(last_reason))
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='i')
     def UpdatePaused(self, percentage):
         """The download got paused."""
+        log.debug('EMIT UpdatePaused({})', percentage)
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='ss')
     def SettingChanged(self, key, new_value):
         """A setting value has change."""
+        log.debug('EMIT SettingChanged({}, {})', repr(key), repr(new_value))
         self._loop.keepalive()
 
     @signal('com.canonical.SystemImage', signature='b')
@@ -326,3 +360,4 @@ class Service(Object):
         """The system is rebooting."""
         # We don't need to keep the loop alive since we're probably just going
         # to shutdown anyway.
+        log.debug('EMIT Rebooting({})', status)
