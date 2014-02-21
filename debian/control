@@ -18,7 +18,7 @@ Build-Depends: dbus,
                python3-psutil,
                python3-setuptools,
                ubuntu-download-manager
-Standards-Version: 3.9.4
+Standards-Version: 3.9.5
 XS-Testsuite: autopkgtest
 Vcs-Bzr: https://code.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image
 Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image/files

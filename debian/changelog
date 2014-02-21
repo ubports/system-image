@@ -7,6 +7,19 @@ system-image (2.1-0ubuntu1) UNRELEASED; urgency=medium
 
   [ Barry Warsaw ]
   * New upstream release.
+    - LP: #1279056 - Internal improvements to SignatureError for
+      better debugging.
+    - LP: #1277589 - Better protection against race conditions.
+    - LP: #1260768 - Return empty string from ApplyUpdate D-Bus method.
+    - Request ubuntu-download-manager to download to a temporary location,
+      with atomic rename.
+    - More detailed logging.
+    - Fixed D-Bus error logging.
+    - Added -L flag to nose2 tests for explicitly setting log file path.
+    - Added SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS environment variable
+      which can be used to give virtualized buildds a fighting chance.
+  * d/patches/01_send_ack_on_applyupdate.diff - Removed; applied upstream.
+  * d/control: Bump Standards-Version to 3.9.5 with no other changes necessary.
 
  -- Barry Warsaw <barry@ubuntu.com>  Thu, 20 Feb 2014 18:03:10 -0500
 
