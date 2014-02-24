@@ -54,7 +54,7 @@ Description: Ubuntu system image updater
 
 Package: system-image-dev
 Architecture: all
-Depends: python3-gnupg, ${misc:Depends}, ${python3:Depends}
+Depends: python3-gnupg, python3-psutil, ${misc:Depends}, ${python3:Depends}
 Description: Ubuntu system image updater development
  This is the development bits for the Ubuntu system image updater.
  Install this package if you want to run the tests.
