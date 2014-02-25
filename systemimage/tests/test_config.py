@@ -136,6 +136,36 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.https_base,
                          'https://phablet.example.com:80443')
 
+    def test_disabled_http_port(self):
+        # config_05.ini has http port disabled and non-standard https port.
+        ini_file = data_path('config_05.ini')
+        config = Configuration()
+        config.load(ini_file)
+        self.assertEqual(config.service.base, 'phablet.example.com')
+        self.assertEqual(config.service.http_base,
+                         'https://phablet.example.com:80443')
+        self.assertEqual(config.service.https_base,
+                         'https://phablet.example.com:80443')
+
+    def test_disabled_https_port(self):
+        # config_06.ini has https port disabled and standard http port.
+        ini_file = data_path('config_06.ini')
+        config = Configuration()
+        config.load(ini_file)
+        self.assertEqual(config.service.base, 'phablet.example.com')
+        self.assertEqual(config.service.http_base,
+                         'http://phablet.example.com')
+        self.assertEqual(config.service.https_base,
+                         'http://phablet.example.com')
+
+    def test_both_ports_disabled(self):
+        # config_07.ini has both http and https ports disabled
+        ini_file = data_path('config_07.ini')
+        config = Configuration()
+        with self.assertRaises(ValueError) as ex:
+            config.load(ini_file)
+        self.assertEqual(str(ex.exception), 'both http and https ports were disabled')
+
     @configuration
     def test_get_build_number(self, ini_file):
         # The current build number is stored in a file specified in the
