@@ -6,8 +6,8 @@ Bug: http://pad.lv/1284217
 Forwarded: not-needed
 
 === modified file 'systemimage/dbus.py'
---- systemimage/dbus.py	2014-02-18 22:31:55 +0000
-+++ systemimage/dbus.py	2014-02-25 16:34:04 +0000
+--- old/systemimage/dbus.py	2014-02-18 22:31:55 +0000
++++ new/systemimage/dbus.py	2014-02-25 17:27:14 +0000
 @@ -131,7 +131,20 @@
          # Check-and-acquire the lock.
          log.info('test and acquire checking lock')
@@ -32,8 +32,8 @@ Forwarded: not-needed
          log.info('checking lock acquired')
 
 === modified file 'systemimage/tests/test_dbus.py'
---- systemimage/tests/test_dbus.py	2014-02-18 20:02:59 +0000
-+++ systemimage/tests/test_dbus.py	2014-02-25 16:24:34 +0000
+--- old/systemimage/tests/test_dbus.py	2014-02-18 20:02:59 +0000
++++ new/systemimage/tests/test_dbus.py	2014-02-25 17:27:14 +0000
 @@ -23,13 +23,13 @@
      'TestDBusGetSet',
      'TestDBusInfo',
