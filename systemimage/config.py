@@ -51,6 +51,8 @@ class Configuration:
     def __init__(self):
         # Defaults.
         self.config_file = None
+        self.service = Bag()
+        self.system = Bag()
         ini_path = resource_filename('systemimage.data', 'client.ini')
         self.load(ini_path)
         self._override = False
@@ -76,7 +78,7 @@ class Configuration:
         if files_read != [path]:
             raise FileNotFoundError(path)
         self.config_file = path
-        self.service = Bag(converters=dict(http_port=port_value_converter,
+        self.service.update(converters=dict(http_port=port_value_converter,
                                            https_port=port_value_converter,
                                            build_number=int),
                            **parser['service'])
@@ -99,16 +101,16 @@ class Configuration:
             self.service['http_base'] = self.service['https_base']
         elif self.service.https_port is DISABLED_PROTOCOL:
             self.service['https_base'] = self.service['http_base']
-        # Short-circuit, since we're loading a channel.ini file.
-        self._override = override
-        if override:
-            return
-        self.system = Bag(converters=dict(timeout=as_timedelta,
+        self.system.update(converters=dict(timeout=as_timedelta,
                                           build_file=expand_path,
                                           loglevel=as_loglevel,
                                           settings_db=expand_path,
                                           tempdir=expand_path),
                           **parser['system'])
+        # Short-circuit, since we're loading a channel.ini file.
+        self._override = override
+        if override:
+            return
         self.gpg = Bag(**parser['gpg'])
         self.updater = Bag(**parser['updater'])
         self.hooks = Bag(converters=dict(device=as_object,
