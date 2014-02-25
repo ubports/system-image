@@ -1,4 +1,4 @@
-# Copyright (C) 2013 Canonical Ltd.
+# Copyright (C) 2013-2014 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -30,6 +30,8 @@ from systemimage.config import config
 from systemimage.dbus import Service
 from systemimage.helpers import makedirs, safe_remove
 from unittest.mock import patch
+
+from systemimage.testing.helpers import debug
 
 
 SPACE = ' '
@@ -65,7 +67,11 @@ class _LiveTestableService(Service):
     @method('com.canonical.SystemImage')
     def Reset(self):
         self._api = Mediator()
-        self._checking = False
+        try:
+            self._checking.release()
+        except RuntimeError:
+            # Lock is already released.
+            pass
         self._update = None
         self._downloading = False
         self._rebootable = False

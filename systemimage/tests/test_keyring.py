@@ -1,4 +1,4 @@
-# Copyright (C) 2013 Canonical Ltd.
+# Copyright (C) 2013-2014 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -22,6 +22,7 @@ __all__ = [
 
 
 import os
+import hashlib
 import unittest
 
 from contextlib import ExitStack
@@ -174,11 +175,25 @@ class TestKeyring(unittest.TestCase):
         setup_keyrings()
         # Use the spare key as the blacklist, signed by itself.  Since this
         # won't match the image-signing key, the check will fail.
+        server_path = os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz')
         setup_keyring_txz(
-            'spare.gpg', 'spare.gpg', dict(type='blacklist'),
-            os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz'))
-        self.assertRaises(SignatureError, get_keyring,
-                          'blacklist', 'gpg/blacklist.tar.xz', 'image-master')
+            'spare.gpg', 'spare.gpg', dict(type='blacklist'), server_path)
+        with self.assertRaises(SignatureError) as cm:
+            get_keyring('blacklist', 'gpg/blacklist.tar.xz', 'image-master')
+        error = cm.exception
+        # The local file name will be keyring.tar.xz in the cache directory.
+        basename = os.path.basename
+        self.assertEqual(basename(error.data_path), 'keyring.tar.xz')
+        self.assertEqual(basename(error.signature_path), 'keyring.tar.xz.asc')
+        # The crafted blacklist.tar.xz file will have an unpredictable
+        # checksum due to tarfile variablility.
+        with open(server_path, 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).hexdigest()
+        self.assertEqual(error.data_checksum, checksum)
+        # The signature file's checksum is also unpredictable.
+        with open(server_path + '.asc', 'rb') as fp:
+            checksum = hashlib.md5(fp.read()).hexdigest()
+        self.assertEqual(error.signature_checksum, checksum)
 
     @configuration
     def test_blacklisted_signature(self):

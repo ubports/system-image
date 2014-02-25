@@ -18,10 +18,11 @@ Build-Depends: dbus,
                python3-psutil,
                python3-setuptools,
                ubuntu-download-manager
-Standards-Version: 3.9.4
+Standards-Version: 3.9.5
 XS-Testsuite: autopkgtest
-Vcs-Bzr: https://code.launchpad.net/~ubuntu-system-image/ubuntu-system-image/client.pkg
-Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-system-image/ubuntu-system-image/client.pkg/files
+Vcs-Bzr: https://code.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image
+Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image/files
+X-Auto-Uploader: no-rewrite-version
 
 Package: system-image-cli
 Architecture: all
@@ -53,7 +54,7 @@ Description: Ubuntu system image updater
 
 Package: system-image-dev
 Architecture: all
-Depends: python3-gnupg, ${misc:Depends}, ${python3:Depends}
+Depends: python3-gnupg, python3-psutil, ${misc:Depends}, ${python3:Depends}
 Description: Ubuntu system image updater development
  This is the development bits for the Ubuntu system image updater.
  Install this package if you want to run the tests.

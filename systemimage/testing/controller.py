@@ -1,4 +1,4 @@
-# Copyright (C) 2013 Canonical Ltd.
+# Copyright (C) 2013-2014 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -25,8 +25,8 @@ import os
 import pwd
 import sys
 import dbus
+import time
 import psutil
-import signal
 import subprocess
 
 from contextlib import ExitStack
@@ -38,6 +38,8 @@ from systemimage.testing.helpers import (
 
 
 SPACE = ' '
+OVERRIDE = os.environ.get('SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS')
+HUP_SLEEP = (0 if OVERRIDE is None else int(OVERRIDE))
 
 
 def start_system_image(controller):
@@ -125,7 +127,7 @@ SERVICES = [
 class Controller:
     """Start and stop D-Bus service under test."""
 
-    def __init__(self):
+    def __init__(self, logfile=None):
         # Non-public.
         self._stack = ExitStack()
         self._stoppers = []
@@ -148,21 +150,22 @@ class Controller:
         # We need a client.ini file for the subprocess.
         ini_tmpdir = self._stack.enter_context(temporary_directory())
         ini_vardir = self._stack.enter_context(temporary_directory())
+        ini_logfile = (os.path.join(ini_tmpdir, 'client.log')
+                       if logfile is None
+                       else logfile)
         self.ini_path = os.path.join(self.tmpdir, 'client.ini')
         template = resource_bytes(
             'systemimage.tests.data', 'config_03.ini').decode('utf-8')
         with open(self.ini_path, 'w', encoding='utf-8') as fp:
-            print(template.format(tmpdir=ini_tmpdir, vardir=ini_vardir),
+            print(template.format(tmpdir=ini_tmpdir, vardir=ini_vardir,
+                                  logfile=ini_logfile),
                   file=fp)
 
     def _configure_services(self):
-        # If the daemon is already running, kill all the children and HUP the
-        # daemon to reset dbus activation.
+        # If the dbus-daemon is already running, kill all the children.
         if self.daemon_pid is not None:
             for stopper in self._stoppers:
                 stopper(self)
-            process = psutil.Process(self.daemon_pid)
-            process.send_signal(signal.SIGHUP)
         del self._stoppers[:]
         # Now we have to set up the .service files.  We use the Python
         # executable used to run the tests, executing the entry point as would
@@ -178,6 +181,12 @@ class Controller:
             with open(service_path, 'w', encoding='utf-8') as fp:
                 fp.write(config)
             self._stoppers.append(stopper)
+        # If the dbus-daemon is running, reload its configuration files.
+        if self.daemon_pid is not None:
+            service = dbus.SystemBus().get_object('org.freedesktop.DBus', '/')
+            iface = dbus.Interface(service, 'org.freedesktop.DBus')
+            iface.ReloadConfig()
+            time.sleep(HUP_SLEEP)
 
     def set_mode(self, *, cert_pem=None, service_mode=''):
         self.mode = service_mode

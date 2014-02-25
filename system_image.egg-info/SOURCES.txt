@@ -7,7 +7,6 @@ setup.cfg
 setup.py
 tox.ini
 unittest.cfg
-.bzr/branch/branch.conf
 system_image.egg-info/PKG-INFO
 system_image.egg-info/SOURCES.txt
 system_image.egg-info/dependency_links.txt
@@ -126,6 +125,7 @@ systemimage/tests/data/index_20.json
 systemimage/tests/data/index_21.json
 systemimage/tests/data/index_22.json
 systemimage/tests/data/index_23.json
+systemimage/tests/data/index_24.json
 systemimage/tests/data/key.pem
 systemimage/tests/data/master-secring.gpg
 systemimage/tests/data/nasty_cert.pem

@@ -1,4 +1,4 @@
-# Copyright (C) 2013 Canonical Ltd.
+# Copyright (C) 2013-2014 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -72,6 +72,10 @@ class Mediator:
         self._state = State()
         self._update = None
         self._callback = callback
+
+    def __repr__(self):
+        return '<Mediator at 0x{:x} | State at 0x{:x}>'.format(
+            id(self), id(self._state))
 
     def cancel(self):
         self._state.downloader.cancel()

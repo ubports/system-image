@@ -2,7 +2,54 @@
 NEWS for system-image updater
 =============================
 
-2.0.3 (2013-XX-XX)
+2.1 (2014-02-20)
+================
+ * Internal improvements to SignatureError for better debugging. (LP: #1279056)
+ * Better protection against several possible race conditions during
+   `CheckForUpdate()` (LP: #1277589)
+   - Use a threading.Lock instance as the internal "checking for update"
+     barrier instead of a boolean.  This should eliminate the race window
+     between testing and acquiring the checking lock.
+   - Put an exclusive claim on the `com.canonical.SystemImage` system dbus
+     name, and if we cannot get that claim, exit with an error code 2.  This
+     prevents multiple instances of the D-Bus system service from running at
+     the same time.
+ * Return the empty string from `ApplyUpdate()` D-Bus method.  This restores
+   the original API (patch merged from Ubuntu package, given by Didier
+   Roche).  (LP: #1260768)
+ * Request ubuntu-download-manager to download all files to temporary
+   destinations, then atomically rename them into place.  This avoids
+   clobbering by multiple processes and mimics changes coming in u-d-m.
+ * Provide much more detailed logging.
+   - `Mediator` instances have a helpful `repr` which also includes the id of
+     the `State` object.
+   - More logging during state transitions.
+   - All emitted D-Bus signals are also logged (at debug level).
+ * Added `-L` flag to nose test runner, which can be used to specify an
+   explicit log file path for debugging.
+ * Fixed D-Bus error logging.
+   - Don't initialize the root logger, since this can interfere with
+     python-dbus, which doesn't initialize its loggers correctly.
+   - Only use `.format()` based interpolation for `systemimage` logs.
+ * Give virtualized buildds a fighting chance against D-Bus by
+   - using `org.freedesktop.DBus`s `ReloadConfig()` interface instead of
+     SIGHUP.
+   - add a configurable sleep call after the `ReloadConfig()`.  This defaults
+     to 0 since de-virtualized and local builds do not need them.  Set the
+     environment variable `SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS` to
+     override.
+  * Run the tox test suite for both Python 3.3 and 3.4.
+
+2.0.5 (2014-01-30)
+==================
+ * MANIFEST.in: Make sure the .bzr directory doesn't end up in the
+   sdist tarball.
+
+2.0.4 (2014-01-30)
+==================
+ * No change release to test the new landing process.
+
+2.0.3 (2013-12-11)
 ==================
  * More attempted DEP-8 test failure fixes.
 
