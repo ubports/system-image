@@ -1,4 +1,4 @@
-system-image (2.1-0ubuntu4) UNRELEASED; urgency=medium
+system-image (2.1-0ubuntu4) trusty; urgency=medium
 
   [ Stéphane Graber ]
   * New upstream release.
@@ -28,7 +28,7 @@ system-image (2.1-0ubuntu4) UNRELEASED; urgency=medium
   * d/rules: Set SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS to 1 to deal with
     buildd dbus-daemon SIGHUP timing issues.
 
- -- Barry Warsaw <barry@ubuntu.com>  Thu, 20 Feb 2014 18:03:10 -0500
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Tue, 25 Feb 2014 17:48:27 +0000
 
 system-image (2.0.3-0ubuntu2) trusty; urgency=low
 
