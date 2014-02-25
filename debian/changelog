@@ -1,4 +1,4 @@
-system-image (2.1-0ubuntu3) UNRELEASED; urgency=medium
+system-image (2.1-0ubuntu4) UNRELEASED; urgency=medium
 
   [ Stéphane Graber ]
   * New upstream release.
@@ -11,6 +11,8 @@ system-image (2.1-0ubuntu3) UNRELEASED; urgency=medium
       better debugging.
     - LP: #1277589 - Better protection against race conditions.
     - LP: #1260768 - Return empty string from ApplyUpdate D-Bus method.
+    - LP: #1284217 - Send UpdateAvailableStatus during auto-downloading
+      from a previous CheckForUpdate, if cached status is available.
     - Request ubuntu-download-manager to download to a temporary location,
       with atomic rename.
     - More detailed logging.
@@ -18,7 +20,8 @@ system-image (2.1-0ubuntu3) UNRELEASED; urgency=medium
     - Added -L flag to nose2 tests for explicitly setting log file path.
     - Added SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS environment variable
       which can be used to give virtualized buildds a fighting chance.
-  * d/patches/01_send_ack_on_applyupdate.diff - Removed; applied upstream.
+  * d/patches/01_send_ack_on_applyupdate.diff: Removed; applied upstream.
+  * d/patches/lp1284217.patch: Added (see above).
   * d/control:
     - Bump Standards-Version to 3.9.5 with no other changes necessary.
     - Add python3-psutil as Depends to system-image-dev.
