@@ -2,6 +2,12 @@
 NEWS for system-image updater
 =============================
 
+2.2 (2014-XX-XX)
+================
+ * When `CheckForUpdate()` is called a second time, while an auto-download is
+   in progress, but after the first check is complete, we send an
+   `UpdateAvailableStatus` signal with the cached information.  (LP: #1284217)
+
 2.1 (2014-02-20)
 ================
  * Internal improvements to SignatureError for better debugging. (LP: #1279056)

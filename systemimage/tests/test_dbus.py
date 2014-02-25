@@ -23,13 +23,13 @@ __all__ = [
     'TestDBusGetSet',
     'TestDBusInfo',
     'TestDBusInfoNoDetails',
-    'TestDBusLP1277589',
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
     'TestDBusMockFailResume',
     'TestDBusMockNoUpdate',
     'TestDBusMockUpdateAutoSuccess',
     'TestDBusMockUpdateManualSuccess',
+    'TestDBusMultipleChecksInFlight',
     'TestDBusPauseResume',
     'TestDBusProgress',
     'TestDBusRegressions',
@@ -133,6 +133,7 @@ class DoubleCheckingReactor(Reactor):
         self.schedule(self.iface.CheckForUpdate)
 
     def _do_UpdateAvailableStatus(self, signal, path, *args, **kws):
+        # We'll keep doing this until we get the UpdateDownloaded signal.
         self.uas_signals.append(args)
         self.schedule(self.iface.CheckForUpdate)
 
@@ -1563,7 +1564,7 @@ unmount system
 """)
 
 
-class TestDBusLP1277589(_LiveTesting):
+class TestDBusMultipleChecksInFlight(_LiveTesting):
     def test_multiple_check_for_updates(self):
         # Log analysis of LP: #1277589 appears to show the following scenario,
         # reproduced in this test case:
@@ -1588,18 +1589,23 @@ class TestDBusLP1277589(_LiveTesting):
         # signal, we'll immediately issue *another* CheckForUpdate, which
         # should run while the auto-download is working.
         #
-        # At the end, we should not get another UpdateAvailableStatus signal,
-        # but we should get the UpdateDownloaded signal.
+        # As per LP: #1284217, we will get a second UpdateAvailableStatus
+        # signal, since the status is available even while the original
+        # request is being downloaded.
         reactor = DoubleCheckingReactor(self.iface)
         reactor.run()
-        self.assertEqual(len(reactor.uas_signals), 1)
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.uas_signals[0]
-        self.assertTrue(is_available)
-        self.assertTrue(downloading)
-        self.assertEqual(available_version, '1600')
-        self.assertEqual(update_size, 314572800)
-        self.assertEqual(last_update_date, 'Unknown')
-        self.assertEqual(error_reason, '')
+        # We need to have received at least 2 signals, but due to timing
+        # issues it could possibly be more.
+        self.assertGreater(len(reactor.uas_signals), 1)
+        # All received signals should have the same information.
+        for signal in reactor.uas_signals:
+            (is_available, downloading, available_version, update_size,
+             last_update_date,
+             #descriptions,
+             error_reason) = signal
+            self.assertTrue(is_available)
+            self.assertTrue(downloading)
+            self.assertEqual(available_version, '1600')
+            self.assertEqual(update_size, 314572800)
+            self.assertEqual(last_update_date, 'Unknown')
+            self.assertEqual(error_reason, '')

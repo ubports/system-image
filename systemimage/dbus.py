@@ -131,7 +131,20 @@ class Service(Object):
         # Check-and-acquire the lock.
         log.info('test and acquire checking lock')
         if not self._checking.acquire(blocking=False):
-            # Check is already in progress, so there's nothing more to do.
+            # Check is already in progress, so there's nothing more to do.  If
+            # there's status available (i.e. we are in the auto-downloading
+            # phase of the last CFU), then send the status.
+            if self._update is not None:
+                self.UpdateAvailableStatus(
+                    self._update.is_available,
+                    self._downloading,
+                    self._update.version,
+                    self._update.size,
+                    self._update.last_update_date,
+                    # XXX 2013-08-22 - the u/i cannot currently currently
+                    # handle the array of dictionaries data type.  LP:
+                    # #1215586 self._update.descriptions,
+                    "")
             log.info('checking lock not acquired')
             return
         log.info('checking lock acquired')
