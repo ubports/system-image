@@ -16,6 +16,7 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 test-python%:
 	unset http_proxy; unset https_proxy; export HOME=/tmp; \
 	export SYSTEMIMAGE_REACTOR_TIMEOUT=1200; \
+	export SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS=2; \
 	nodot=$(shell echo $* | cut --complement -b 2); \
 	tox -e py$${nodot}
 
