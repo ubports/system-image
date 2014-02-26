@@ -76,7 +76,6 @@ class Bag:
     def __setitem__(self, key, value):
         if key in self.__original__:
             raise ValueError('Attributes are immutable: {}'.format(key))
-        self.__original__[key] = value
         safe_key, converted_value = self._normalize_key_value(key, value)
         self.__dict__[safe_key] = converted_value
         self.__untranslated__[key] = converted_value
