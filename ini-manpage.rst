@@ -49,10 +49,14 @@ base
     provide both HTTP and HTTPS services.
 
 http_port
-    The port for HTTP connections.
+    The port for HTTP connections.  This is an integer, or the string
+    ``disabled`` if you wish to disable all HTTP connections and use only
+    HTTPS.  It is an error to disable both the HTTP and HTTPS services.
 
 https_port
-    The port for HTTPS connections.
+    The port for HTTPS connections.  This is an integer, or the string
+    ``disabled`` if you wish to disable all HTTPS connections and use only
+    HTTP.  It is an error to disable both the HTTP and HTTPS services.
 
 channel
     The upgrade channel.

@@ -7,6 +7,11 @@ NEWS for system-image updater
  * When `CheckForUpdate()` is called a second time, while an auto-download is
    in progress, but after the first check is complete, we send an
    `UpdateAvailableStatus` signal with the cached information.  (LP: #1284217)
+ * Support disabling either the HTTP or HTTPS services for update (but not
+   both).  The ``[service]http_port`` or ``[service]https_port`` may be set to
+   the string ``disabled`` and the disabled protocol will fall back to the
+   enabled protocol.  Implementation given by Vojtech Bocek.  (LP: #1278589)
+ * Allow the channel.ini file to override the ``[service]`` section.
 
 2.1 (2014-02-20)
 ================
