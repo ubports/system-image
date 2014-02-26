@@ -33,6 +33,7 @@ def default():
         return value
     return identity
 
+
 def make_converter(original):
     converters = defaultdict(default)
     if original is not None:
