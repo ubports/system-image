@@ -17,8 +17,8 @@
 
 __all__ = [
     'Configuration',
+    'DISABLED',
     'config',
-    'DISABLED_PROTOCOL'
     ]
 
 
@@ -32,20 +32,21 @@ from systemimage.helpers import (
     Bag, as_loglevel, as_object, as_timedelta, makedirs, temporary_directory)
 
 
-DISABLED_PROTOCOL = object()
+DISABLED = object()
 
 
 def expand_path(path):
     return os.path.abspath(os.path.expanduser(path))
 
+
 def port_value_converter(value):
-    if value == 'disabled' or value == 'disable':
-        return DISABLED_PROTOCOL
-    else:
-        res = int(value)
-        if res < 0:
-            raise ValueError
-        return res
+    if value.lower() in ('disabled', 'disable'):
+        return DISABLED
+    result = int(value)
+    if result < 0:
+        raise ValueError(value)
+    return result
+
 
 class Configuration:
     def __init__(self):
@@ -79,34 +80,52 @@ class Configuration:
             raise FileNotFoundError(path)
         self.config_file = path
         self.service.update(converters=dict(http_port=port_value_converter,
-                                           https_port=port_value_converter,
-                                           build_number=int),
+                                            https_port=port_value_converter,
+                                            build_number=int),
                            **parser['service'])
-        if (self.service.http_port is DISABLED_PROTOCOL and
-            self.service.https_port is DISABLED_PROTOCOL):
-            raise ValueError('both http and https ports were disabled')
+        if (self.service.http_port is DISABLED and
+            self.service.https_port is DISABLED):
+            raise ValueError('Cannot disable both http and https ports')
         # Construct the HTTP and HTTPS base urls, which most applications will
-        # actually use.
+        # actually use.  We do this in two steps, in order to support
+        # disabling one or the other (but not both) protocols.
         if self.service.http_port == 80:
-            self.service['http_base'] = 'http://{}'.format(self.service.base)
-        elif self.service.http_port is not DISABLED_PROTOCOL:
-            self.service['http_base'] = 'http://{}:{}'.format(
+            http_base = 'http://{}'.format(self.service.base)
+        elif self.service.http_port is DISABLED:
+            http_base = None
+        else:
+            http_base = 'http://{}:{}'.format(
                 self.service.base, self.service.http_port)
+        # HTTPS.
         if self.service.https_port == 443:
-            self.service['https_base'] = 'https://{}'.format(self.service.base)
-        elif self.service.http_port is not DISABLED_PROTOCOL:
-            self.service['https_base'] = 'https://{}:{}'.format(
+            https_base = 'https://{}'.format(self.service.base)
+        elif self.service.https_port is DISABLED:
+            https_base = None
+        else:
+            https_base = 'https://{}:{}'.format(
                 self.service.base, self.service.https_port)
-        if self.service.http_port is DISABLED_PROTOCOL:
-            self.service['http_base'] = self.service['https_base']
-        elif self.service.https_port is DISABLED_PROTOCOL:
-            self.service['https_base'] = self.service['http_base']
-        self.system.update(converters=dict(timeout=as_timedelta,
-                                          build_file=expand_path,
-                                          loglevel=as_loglevel,
-                                          settings_db=expand_path,
-                                          tempdir=expand_path),
-                          **parser['system'])
+        # Sanity check and final settings.
+        if http_base is None:
+            assert https_base is not None
+            http_base = https_base
+        if https_base is None:
+            assert http_base is not None
+            https_base = http_base
+        self.service['http_base'] = http_base
+        self.service['https_base'] = https_base
+        try:
+            self.system.update(converters=dict(timeout=as_timedelta,
+                                               build_file=expand_path,
+                                               loglevel=as_loglevel,
+                                               settings_db=expand_path,
+                                               tempdir=expand_path),
+                              **parser['system'])
+        except KeyError:
+            # If we're overriding via a channel.ini file, it's okay if the
+            # [system] section is missing.  However, the main configuration
+            # ini file must include all sections.
+            if not override:
+                raise
         # Short-circuit, since we're loading a channel.ini file.
         self._override = override
         if override:
