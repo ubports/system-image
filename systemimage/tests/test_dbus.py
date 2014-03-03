@@ -18,6 +18,7 @@
 __all__ = [
     'TestDBusApply',
     'TestDBusCheckForUpdate',
+    'TestDBusCheckForUpdateException',
     'TestDBusClient',
     'TestDBusDownload',
     'TestDBusGetSet',
@@ -49,7 +50,7 @@ from dbus.exceptions import DBusException
 from functools import partial
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
-from systemimage.helpers import safe_remove
+from systemimage.helpers import atomic, safe_remove
 from systemimage.reactor import Reactor
 from systemimage.testing.helpers import (
     copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
@@ -1609,3 +1610,38 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
             self.assertEqual(update_size, 314572800)
             self.assertEqual(last_update_date, 'Unknown')
             self.assertEqual(error_reason, '')
+
+
+class TestDBusCheckForUpdateException(_LiveTesting):
+    @classmethod
+    def setUpClass(cls):
+        ini_path = SystemImagePlugin.controller.ini_path
+        with open(ini_path, 'r', encoding='utf-8') as fp:
+            lines = fp.readlines()
+        with atomic(ini_path) as fp:
+            for line in lines:
+                key, sep, value = line.partition(': ')
+                if key == 'cache_partition':
+                    cls.bad_path = os.path.join(value.strip(), 'unwritable')
+                    print('{}: {}'.format(key, cls.bad_path), file=fp)
+                    os.makedirs(cls.bad_path, mode=0)
+                else:
+                    fp.write(line)
+        super().setUpClass()
+
+    def tearDown(self):
+        os.chmod(self.bad_path, 0o777)
+        super().tearDown()
+
+    def test_check_for_update_error(self):
+        # CheckForUpdate sees an error, in this case because the destination
+        # directory for downloads is not writable.  We'll get an
+        # UpdateAvailableStatus with an error string.
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         # descriptions,
+         error_reason) = reactor.signals[0]
+        self.assertIn('Permission denied', error_reason)

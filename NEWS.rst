@@ -14,6 +14,11 @@ NEWS for system-image updater
  * Allow the channel.ini file to override the ``[service]`` section.
  * Now that ubuntu-download-manager performs atomic renames of temporary
    files, system-image no longer needs to do that.  (LP: #1287287)
+ * When an exception in the state machine occurs while checking for updates,
+   the exception is caught and logged.  When using the CLI, the result is an
+   exit code of 1.  When using the D-Bus API, an `UpdateAvailableStatus`
+   signal is sent with `error_reason` set to the exception string.  This
+   exception is *not* propagated back to GLib.  (LP: #1250817)
 
 2.1 (2014-02-20)
 ================

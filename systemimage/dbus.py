@@ -107,7 +107,7 @@ class Service(Object):
             # XXX 2013-08-22 - the u/i cannot currently currently handle the
             # array of dictionaries data type.  LP: #1215586
             #self._update.descriptions,
-            "")
+            self._update.error)
         # Stop GLib from calling this method again.
         return False
 

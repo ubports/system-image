@@ -209,7 +209,11 @@ def main():
     state = State(candidate_filter=candidate_filter)
     state.downloader.callback = callback
     if args.dry_run:
-        state.run_until('download_files')
+        try:
+            state.run_until('download_files')
+        except Exception:
+            log.exception('system-image-cli exception')
+            return 1
         # Say -c <no-such-channel> was given.  This will fail.
         if state.winner is None or len(state.winner) == 0:
             print('Already up-to-date')
@@ -236,7 +240,7 @@ def main():
             list(state)
         except KeyboardInterrupt:
             return 0
-        except:
+        except Exception:
             log.exception('system-image-cli exception')
             return 1
         else:
