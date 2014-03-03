@@ -12,6 +12,8 @@ NEWS for system-image updater
    the string ``disabled`` and the disabled protocol will fall back to the
    enabled protocol.  Implementation given by Vojtech Bocek.  (LP: #1278589)
  * Allow the channel.ini file to override the ``[service]`` section.
+ * Now that ubuntu-download-manager performs atomic renames of temporary
+   files, system-image no longer needs to do that.  (LP: #1287287)
 
 2.1 (2014-02-20)
 ================

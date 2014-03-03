@@ -22,16 +22,12 @@ __all__ = [
     ]
 
 
-import os
 import dbus
 import logging
-import tempfile
 
-from contextlib import ExitStack
 from io import StringIO
 from pprint import pformat
 from systemimage.config import config
-from systemimage.helpers import safe_remove
 from systemimage.reactor import Reactor
 
 
@@ -195,25 +191,8 @@ class DBusDownloadManager:
         for url, dst in downloads:
             print('\t{} -> {}'.format(url, dst), file=fp)
         log.info('{}'.format(fp.getvalue()))
-        # As a workaround for LP: #1277589, ask u-d-m to download the files to
-        # .tmp files, and if they succeed, then atomically move them into
-        # their real location.
-        renames = []
-        requests = []
-        for url, dst in downloads:
-            head, tail = os.path.split(dst)
-            fd, path = tempfile.mkstemp(suffix='.tmp', prefix='', dir=head)
-            os.close(fd)
-            renames.append((path, dst))
-            requests.append((url, path, ''))
-        # mkstemp() creates the file system path, but if the files exist when
-        # the group download is requested, ubuntu-download-manager will
-        # complain and return an error.  So, delete all temporary files now so
-        # udm has a clear path to download to.
-        for path, dst in renames:
-            os.remove(path)
         object_path = iface.createDownloadGroup(
-            requests,     # The temporary requests.
+            [(url, dst, '') for url, dst in downloads],
             '',           # No hashes yet.
             False,        # Don't allow GSM yet.
             # https://bugs.freedesktop.org/show_bug.cgi?id=55594
@@ -241,19 +220,6 @@ class DBusDownloadManager:
             raise Canceled
         if reactor.timed_out:
             raise TimeoutError
-        # Now that everything succeeded, rename the temporary files.  Just to
-        # be extra cautious, set up a context manager to safely remove all
-        # temporary files in case of an error.  If there are no errors, then
-        # there will be nothing to remove.
-        with ExitStack() as resources:
-            for tmp, dst in renames:
-                resources.callback(safe_remove, tmp)
-            for tmp, dst in renames:
-                os.rename(tmp, dst)
-            # We only get here if all the renames succeeded, so there will be
-            # no temporary files to remove, so we can throw away the new
-            # ExitStack, which holds all the removals.
-            resources.pop_all()
 
     def cancel(self):
         """Cancel any current downloads."""
