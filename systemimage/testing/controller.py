@@ -117,7 +117,8 @@ SERVICES = [
     stop_system_image,
    ),
    ('com.canonical.applications.Downloader',
-    DLSERVICE + ' {self.certs} -disable-timeout -stoppable',
+    DLSERVICE +
+        ' {self.certs} -disable-timeout -stoppable -log-dir {self.tmpdir}',
     start_downloader,
     stop_downloader,
    ),

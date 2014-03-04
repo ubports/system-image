@@ -19,6 +19,8 @@ NEWS for system-image updater
    exit code of 1.  When using the D-Bus API, an `UpdateAvailableStatus`
    signal is sent with `error_reason` set to the exception string.  This
    exception is *not* propagated back to GLib.  (LP: #1250817)
+ * Log directory path is passed to ubuntu-download-manager to assist in
+   debugging.  Given by Manuel de la Peña.  (LP: #1279532)
 
 2.1 (2014-02-20)
 ================
