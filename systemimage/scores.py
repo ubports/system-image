@@ -138,7 +138,7 @@ class WeightedScorer(Scorer):
             reboots = sum(1 for image in path
                           if getattr(image, 'bootme', False))
             candidate_data.append((build, size, reboots, path))
-            max_build = build if build > max_build else max_build
+            max_build = max(build, max_build)
             min_size = (size if (min_size is None or size < min_size)
                         else min_size)
         # Score the candidates.  Any path that doesn't leave you at the

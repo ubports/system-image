@@ -98,7 +98,12 @@ class DownloadReactor(Reactor):
     def _do_progress(self, signal, path, received, total):
         self._print('PROGRESS:', received, total)
         if self._callback is not None:
-            self._callback(received, total)
+            # Be defensive, so yes, use a bare except.  If an exception occurs
+            # in the callback, log it, but continue onward.
+            try:
+                self._callback(received, total)
+            except:
+                log.exception('Exception in progress callback')
 
     def _do_canceled(self, signal, path, canceled):
         # Why would we get this signal if it *wasn't* canceled?  Anyway,
@@ -137,6 +142,9 @@ class DBusDownloadManager:
         self._iface = None
         self._queued_cancel = False
         self.callback = callback
+
+    def __repr__(self):
+        return '<DBusDownloadManager at 0x{:x}>'.format(id(self))
 
     def get_files(self, downloads, *, pausable=False):
         """Download a bunch of files concurrently.
@@ -187,7 +195,7 @@ class DBusDownloadManager:
         iface = dbus.Interface(service, MANAGER_INTERFACE)
         # Better logging of the requested downloads.
         fp = StringIO()
-        print('Requesting group download:', file=fp)
+        print('[0x{:x}] Requesting group download:'.format(id(self)), file=fp)
         for url, dst in downloads:
             print('\t{} -> {}'.format(url, dst), file=fp)
         log.info('{}'.format(fp.getvalue()))
@@ -202,13 +210,13 @@ class DBusDownloadManager:
         self._iface = dbus.Interface(download, OBJECT_INTERFACE)
         reactor = DownloadReactor(bus, self.callback, pausable)
         reactor.schedule(self._iface.start)
-        log.info('Running group download reactor')
+        log.info('[0x{:x}] Running group download reactor', id(self))
         reactor.run()
         # This download is complete so the object path is no longer
         # applicable.  Setting this to None will cause subsequent cancels to
         # be queued.
         self._iface = None
-        log.info('Group download reactor done')
+        log.info('[0x{:x}] Group download reactor done', id(self))
         if reactor.error is not None:
             log.error('Reactor error: {}'.format(reactor.error))
         if reactor.canceled:

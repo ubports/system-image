@@ -82,7 +82,7 @@ class Service(Object):
 
     def _check_for_update(self):
         # Asynchronous method call.
-        log.info('Checking for update')
+        log.info('Enter _check_for_update()')
         self._update = self._api.check_for_update()
         # Do we have an update and can we auto-download it?
         downloading = False
