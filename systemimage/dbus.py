@@ -93,11 +93,8 @@ class Service(Object):
             if auto in ('1', '2'):
                 # XXX When we have access to the download service, we can
                 # check if we're on the wifi (auto == '1').
-                GLib.timeout_add(50, self._download, self._checking.release)
+                GLib.timeout_add(50, self._download)
                 downloading = True
-            else:
-                log.info('release checking lock from _check_for_update()')
-                self._checking.release()
         self.UpdateAvailableStatus(
             self._update.is_available,
             downloading,
@@ -166,7 +163,7 @@ class Service(Object):
         eta = 0
         self.UpdateProgress(percentage, eta)
 
-    def _download(self, release_checking=None):
+    def _download(self):
         if self._downloading and self._paused:
             self._api.resume()
             self._paused = False
@@ -181,7 +178,8 @@ class Service(Object):
         if self._failure_count > 0:
             self._failure_count += 1
             self.UpdateFailed(self._failure_count, self._last_error)
-            log.info('Update failure count: {}', self._failure_count)
+            log.info('Update failures: {}; last error: {}',
+                     self._failure_count, self._last_error)
             return
         self._downloading = True
         log.info('Update is downloading')
@@ -206,10 +204,7 @@ class Service(Object):
             self._rebootable = True
         self._downloading = False
         log.info('release checking lock from _download()')
-        if release_checking is not None:
-            # We were auto-downloading, so we now have to release the checking
-            # lock.  If we were manually downloading, there would be no lock.
-            release_checking()
+        self._checking.release()
         # Stop GLib from calling this method again.
         return False
 
@@ -241,9 +236,17 @@ class Service(Object):
         """Cancel a download."""
         self._loop.keepalive()
         self._api.cancel()
+        # If we're holding the checking lock, release it.
+        try:
+            self._checking.release()
+            log.info('release checking lock from CancelUpdate()')
+        except RuntimeError:
+            # We're not holding the lock.
+            pass
         # We're now in a failure state until the next CheckForUpdate.
         self._failure_count += 1
         self._last_error = 'Canceled'
+        log.info('CancelUpdate() called')
         # Only send this signal if we were in the middle of downloading.
         if self._downloading:
             self.UpdateFailed(self._failure_count, self._last_error)

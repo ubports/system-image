@@ -142,6 +142,43 @@ class DoubleCheckingReactor(Reactor):
         self.quit()
 
 
+class ManualUpdateReactor(Reactor):
+    def __init__(self, iface):
+        super().__init__(dbus.SystemBus())
+        self.iface = iface
+        self.rebooting = False
+        self.react_to('UpdateAvailableStatus')
+        self.react_to('UpdateProgress')
+        self.react_to('UpdateDownloaded')
+        self.react_to('Rebooting')
+        self.react_to('UpdateFailed')
+        self.iface.CheckForUpdate()
+
+    def _do_UpdateAvailableStatus(self, signal, path, *args, **kws):
+        # When the update is available, start the download.
+        self.iface.DownloadUpdate()
+
+    def _do_UpdateProgress(self, signal, path, *args, **kws):
+        # Once the download is in progress, initiate another check.  Only do
+        # this on the first progress signal.
+        if args == (0, 0):
+            self.iface.CheckForUpdate()
+
+    def _do_UpdateDownloaded(self, signal, path, *args, **kws):
+        # The update successfully downloaded, so apply the update now.
+        self.iface.ApplyUpdate()
+
+    def _do_UpdateFailed(self, signal, path, *args, **kws):
+        # Before LP: #1287919 was fixed, this signal would have been sent.
+        self.rebooting = False
+        self.quit()
+
+    def _do_Rebooting(self, signal, path, *args, **kws):
+        # The system is now rebooting <wink>.
+        self.rebooting = True
+        self.quit()
+
+
 class _TestBase(unittest.TestCase):
     """Base class for all DBus testing."""
 
@@ -1610,6 +1647,41 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
             self.assertEqual(update_size, 314572800)
             self.assertEqual(last_update_date, 'Unknown')
             self.assertEqual(error_reason, '')
+
+    def test_multiple_check_for_updates_with_manual_downloading(self):
+        # Log analysis of LP: #1287919 (a refinement of LP: #1277589 with
+        # manual downloading enabled) shows that it's possible to enter the
+        # checking phase while a download of the data files is still running.
+        # When manually downloading, this will start another check, and as
+        # part of that check, the blacklist and other files will be deleted
+        # (in anticipation of them being re-downloaded).  When the data files
+        # are downloaded, the state machine that just did the data download
+        # may find its files deleted out from underneath it by the state
+        # machine doing the checking.
+        self.download_manually()
+        # Start by creating some big files which will take a while to
+        # download.
+        def write_callback(dst):
+            # Write a 100 MiB sized file.
+            with open(dst, 'wb') as fp:
+                for i in range(25600):
+                    fp.write(b'x' * 4096)
+        self._prepare_index('index_24.json', write_callback)
+        self._touch_build(0)
+        # Create a reactor that implements the following test plan:
+        # * Set the device to download manually.
+        # * Flash to an older revision
+        # * Open System Settings and wait for it to say Updates available
+        # * Click on About this phone
+        # * Click on Check for Update and wait for it to say Install 1 update
+        # * Click on Install 1 update and while the files are downloading,
+        #   swipe up from the bottom and click Back
+        # * Click on Check for Update again
+        # * Wait for the Update System overlay to come up, and then install
+        #   the update, and reboot
+        reactor = ManualUpdateReactor(self.iface)
+        reactor.run()
+        self.assertTrue(reactor.rebooting)
 
 
 class TestDBusCheckForUpdateException(_LiveTesting):
