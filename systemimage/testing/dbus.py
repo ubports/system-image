@@ -31,8 +31,6 @@ from systemimage.dbus import Service
 from systemimage.helpers import makedirs, safe_remove
 from unittest.mock import patch
 
-from systemimage.testing.helpers import debug
-
 
 SPACE = ' '
 SIGNAL_DELAY_SECS = 5

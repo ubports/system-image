@@ -143,11 +143,7 @@ class State:
             except (StopIteration, IndexError):
                 # We're done.
                 break
-            try:
-                step()
-            except:
-                log.exception('uncaught exception in state machine')
-                raise
+            step()
             self._debug_step += 1
             if name[1:] == stop_after:
                 break
@@ -171,11 +167,7 @@ class State:
                 # skip this step.
                 self._next.appendleft(step)
                 break
-            try:
-                step()
-            except:
-                log.exception('uncaught exception in state machine')
-                raise
+            step()
             self._debug_step += 1
 
     def _cleanup(self):

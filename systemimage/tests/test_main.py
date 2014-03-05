@@ -43,7 +43,7 @@ from systemimage.config import Configuration, config
 from systemimage.helpers import safe_remove
 from systemimage.main import main as cli_main
 from systemimage.testing.helpers import (
-    ServerTestBase, configuration, copy, data_path, find_dbus_process,
+    ServerTestBase, chmod, configuration, copy, data_path, find_dbus_process,
     temporary_directory, touch_build)
 from systemimage.testing.nose import SystemImagePlugin
 from textwrap import dedent
@@ -485,6 +485,34 @@ class TestCLIMain(unittest.TestCase):
             channel: proposed
             last update: 2013-08-01 12:11:10
             """))
+
+    @configuration
+    def test_state_machine_exceptions(self, ini_file):
+        # If an exception happens during the state machine run, the error is
+        # logged and main exits with code 1.
+        config = Configuration()
+        config.load(ini_file)
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv', ['argv0', '-C', ini_file]))
+        # Making the cache directory unwritable is a good way to trigger a
+        # crash.  Be sure to set it back though!
+        with chmod(config.updater.cache_partition, 0):
+            exit_code = cli_main()
+        self.assertEqual(exit_code, 1)
+
+    @configuration
+    def test_state_machine_exceptions_dry_run(self, ini_file):
+        # Like above, but doing only a --dry-run.
+        config = Configuration()
+        config.load(ini_file)
+        # Making the cache directory unwritable is a good way to trigger a
+        # crash.  Be sure to set it back though!
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--dry-run']))
+        with chmod(config.updater.cache_partition, 0):
+            exit_code = cli_main()
+        self.assertEqual(exit_code, 1)
 
 
 class TestCLIMainDryRun(ServerTestBase):

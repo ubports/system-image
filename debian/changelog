@@ -1,3 +1,9 @@
+system-image (2.2-0ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Barry Warsaw <barry@ubuntu.com>  Wed, 05 Mar 2014 16:29:13 -0500
+
 system-image (2.1-0ubuntu4) trusty; urgency=medium
 
   [ Stéphane Graber ]
