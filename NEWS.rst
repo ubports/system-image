@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-2.2 (2014-03-04)
+2.2 (2014-03-05)
 ================
  * When `CheckForUpdate()` is called a second time, while an auto-download is
    in progress, but after the first check is complete, we send an
