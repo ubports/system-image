@@ -17,6 +17,7 @@
 
 __all__ = [
     'ServerTestBase',
+    'chmod',
     'configuration',
     'copy',
     'data_path',
@@ -380,6 +381,16 @@ def reset_envar(name):
                 pass
         else:
             os.environ[name] = old_value
+
+
+@contextmanager
+def chmod(path, new_mode):
+    old_mode = os.stat(path).st_mode
+    try:
+        os.chmod(path, new_mode)
+        yield
+    finally:
+        os.chmod(path, old_mode)
 
 
 def touch_build(version, timestamp=None):

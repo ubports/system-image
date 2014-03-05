@@ -22,15 +22,20 @@ __all__ = [
     ]
 
 
+import logging
+
 from systemimage.helpers import last_update_date
 from systemimage.state import State
+
+log = logging.getLogger('systemimage')
 
 
 class Update:
     """A representation of the available update."""
 
-    def __init__(self, winners):
+    def __init__(self, winners=None, error=''):
         self._winners = [] if winners is None else winners
+        self.error = error
 
     @property
     def is_available(self):
@@ -93,8 +98,16 @@ class Mediator:
         :rtype: bool
         """
         if self._update is None:
-            self._state.run_until('download_files')
-            self._update = Update(self._state.winner)
+            try:
+                self._state.run_until('download_files')
+            except Exception as error:
+                # Rather than letting this percolate up, eventually reaching
+                # the GLib main loop and thus triggering apport, Let's log the
+                # error and set the relevant information in the class.
+                log.exception('check_for_update failed')
+                self._update = Update(error=str(error))
+            else:
+                self._update = Update(self._state.winner)
         return self._update
 
     def download(self):

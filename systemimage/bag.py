@@ -33,6 +33,7 @@ def default():
         return value
     return identity
 
+
 def make_converter(original):
     converters = defaultdict(default)
     if original is not None:
@@ -45,6 +46,14 @@ class Bag:
         self._converters = make_converter(converters)
         self.__original__ = {}
         self.__untranslated__ = {}
+        self._load_items(kws)
+
+    def update(self, *, converters=None, **kws):
+        if converters is not None:
+            self._converters.update(converters)
+        self._load_items(kws)
+
+    def _load_items(self, kws):
         for key, value in kws.items():
             self.__original__[key] = value
             safe_key, converted_value = self._normalize_key_value(key, value)
@@ -68,7 +77,6 @@ class Bag:
     def __setitem__(self, key, value):
         if key in self.__original__:
             raise ValueError('Attributes are immutable: {}'.format(key))
-        self.__original__[key] = value
         safe_key, converted_value = self._normalize_key_value(key, value)
         self.__dict__[safe_key] = converted_value
         self.__untranslated__[key] = converted_value

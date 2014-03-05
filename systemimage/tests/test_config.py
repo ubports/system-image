@@ -136,6 +136,45 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.https_base,
                          'https://phablet.example.com:80443')
 
+    def test_disabled_http_port(self):
+        # config_05.ini has http port disabled and non-standard https port.
+        ini_file = data_path('config_05.ini')
+        config = Configuration()
+        config.load(ini_file)
+        self.assertEqual(config.service.base, 'phablet.example.com')
+        self.assertEqual(config.service.http_base,
+                         'https://phablet.example.com:80443')
+        self.assertEqual(config.service.https_base,
+                         'https://phablet.example.com:80443')
+
+    def test_disabled_https_port(self):
+        # config_06.ini has https port disabled and standard http port.
+        ini_file = data_path('config_06.ini')
+        config = Configuration()
+        config.load(ini_file)
+        self.assertEqual(config.service.base, 'phablet.example.com')
+        self.assertEqual(config.service.http_base,
+                         'http://phablet.example.com')
+        self.assertEqual(config.service.https_base,
+                         'http://phablet.example.com')
+
+    def test_both_ports_disabled(self):
+        # config_07.ini has both http and https ports disabled.
+        ini_file = data_path('config_07.ini')
+        config = Configuration()
+        with self.assertRaises(ValueError) as cm:
+            config.load(ini_file)
+        self.assertEqual(cm.exception.args[0],
+                         'Cannot disable both http and https ports')
+
+    def test_negative_port_number(self):
+        # config_08.ini has a negative port number.
+        ini_file = data_path('config_08.ini')
+        config = Configuration()
+        with self.assertRaises(ValueError) as cm:
+            config.load(ini_file)
+        self.assertEqual(cm.exception.args[0], '-1')
+
     @configuration
     def test_get_build_number(self, ini_file):
         # The current build number is stored in a file specified in the
@@ -233,15 +272,28 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.service.channel, 'proposed')
         self.assertEqual(config.service.build_number, 1833)
 
-    def test_channel_ini_ignored_sections(self):
-        # Only the [service] section in channel.ini is used.
+    def test_channel_ini_may_override_system_section(self):
+        # Overrides may include the [system] section.
         default_ini = resource_filename('systemimage.data', 'client.ini')
         config = Configuration()
         config.load(default_ini)
-        channel_ini = resource_filename(
-            'systemimage.tests.data', 'channel_02.ini')
+        channel_ini = data_path('channel_02.ini')
         config.load(channel_ini, override=True)
-        self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
+        self.assertEqual(config.system.build_file,
+                         '/etc/path/to/alternative/build-file')
+        # But other [system] settings which come from client.ini are unchanged.
+        self.assertEqual(config.system.settings_db,
+                         '/var/lib/system-image/settings.db')
+
+    def test_channel_ini_ignored_sections(self):
+        # Only the [service] and [system] section in channel.ini is used.
+        default_ini = resource_filename('systemimage.data', 'client.ini')
+        config = Configuration()
+        config.load(default_ini)
+        channel_ini = data_path('channel_02.ini')
+        config.load(channel_ini, override=True)
+        # channel_02.ini sets this to 1h, but it's not overridden.
+        self.assertEqual(config.dbus.lifetime, timedelta(minutes=10))
 
     def test_tempdir(self):
         # config.tempdir is randomly created.

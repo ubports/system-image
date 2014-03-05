@@ -22,16 +22,12 @@ __all__ = [
     ]
 
 
-import os
 import dbus
 import logging
-import tempfile
 
-from contextlib import ExitStack
 from io import StringIO
 from pprint import pformat
 from systemimage.config import config
-from systemimage.helpers import safe_remove
 from systemimage.reactor import Reactor
 
 
@@ -102,7 +98,12 @@ class DownloadReactor(Reactor):
     def _do_progress(self, signal, path, received, total):
         self._print('PROGRESS:', received, total)
         if self._callback is not None:
-            self._callback(received, total)
+            # Be defensive, so yes, use a bare except.  If an exception occurs
+            # in the callback, log it, but continue onward.
+            try:
+                self._callback(received, total)
+            except:
+                log.exception('Exception in progress callback')
 
     def _do_canceled(self, signal, path, canceled):
         # Why would we get this signal if it *wasn't* canceled?  Anyway,
@@ -141,6 +142,9 @@ class DBusDownloadManager:
         self._iface = None
         self._queued_cancel = False
         self.callback = callback
+
+    def __repr__(self):
+        return '<DBusDownloadManager at 0x{:x}>'.format(id(self))
 
     def get_files(self, downloads, *, pausable=False):
         """Download a bunch of files concurrently.
@@ -191,29 +195,12 @@ class DBusDownloadManager:
         iface = dbus.Interface(service, MANAGER_INTERFACE)
         # Better logging of the requested downloads.
         fp = StringIO()
-        print('Requesting group download:', file=fp)
+        print('[0x{:x}] Requesting group download:'.format(id(self)), file=fp)
         for url, dst in downloads:
             print('\t{} -> {}'.format(url, dst), file=fp)
         log.info('{}'.format(fp.getvalue()))
-        # As a workaround for LP: #1277589, ask u-d-m to download the files to
-        # .tmp files, and if they succeed, then atomically move them into
-        # their real location.
-        renames = []
-        requests = []
-        for url, dst in downloads:
-            head, tail = os.path.split(dst)
-            fd, path = tempfile.mkstemp(suffix='.tmp', prefix='', dir=head)
-            os.close(fd)
-            renames.append((path, dst))
-            requests.append((url, path, ''))
-        # mkstemp() creates the file system path, but if the files exist when
-        # the group download is requested, ubuntu-download-manager will
-        # complain and return an error.  So, delete all temporary files now so
-        # udm has a clear path to download to.
-        for path, dst in renames:
-            os.remove(path)
         object_path = iface.createDownloadGroup(
-            requests,     # The temporary requests.
+            [(url, dst, '') for url, dst in downloads],
             '',           # No hashes yet.
             False,        # Don't allow GSM yet.
             # https://bugs.freedesktop.org/show_bug.cgi?id=55594
@@ -223,13 +210,13 @@ class DBusDownloadManager:
         self._iface = dbus.Interface(download, OBJECT_INTERFACE)
         reactor = DownloadReactor(bus, self.callback, pausable)
         reactor.schedule(self._iface.start)
-        log.info('Running group download reactor')
+        log.info('[0x{:x}] Running group download reactor', id(self))
         reactor.run()
         # This download is complete so the object path is no longer
         # applicable.  Setting this to None will cause subsequent cancels to
         # be queued.
         self._iface = None
-        log.info('Group download reactor done')
+        log.info('[0x{:x}] Group download reactor done', id(self))
         if reactor.error is not None:
             log.error('Reactor error: {}'.format(reactor.error))
         if reactor.canceled:
@@ -241,19 +228,6 @@ class DBusDownloadManager:
             raise Canceled
         if reactor.timed_out:
             raise TimeoutError
-        # Now that everything succeeded, rename the temporary files.  Just to
-        # be extra cautious, set up a context manager to safely remove all
-        # temporary files in case of an error.  If there are no errors, then
-        # there will be nothing to remove.
-        with ExitStack() as resources:
-            for tmp, dst in renames:
-                resources.callback(safe_remove, tmp)
-            for tmp, dst in renames:
-                os.rename(tmp, dst)
-            # We only get here if all the renames succeeded, so there will be
-            # no temporary files to remove, so we can throw away the new
-            # ExitStack, which holds all the removals.
-            resources.pop_all()
 
     def cancel(self):
         """Cancel any current downloads."""
