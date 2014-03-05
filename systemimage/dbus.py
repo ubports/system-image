@@ -178,7 +178,8 @@ class Service(Object):
         if self._failure_count > 0:
             self._failure_count += 1
             self.UpdateFailed(self._failure_count, self._last_error)
-            log.info('Update failure count: {}', self._failure_count)
+            log.info('Update failures: {}; last error: {}',
+                     self._failure_count, self._last_error)
             return
         self._downloading = True
         log.info('Update is downloading')
@@ -235,9 +236,17 @@ class Service(Object):
         """Cancel a download."""
         self._loop.keepalive()
         self._api.cancel()
+        # If we're holding the checking lock, release it.
+        try:
+            self._checking.release()
+            log.info('release checking lock from CancelUpdate()')
+        except RuntimeError:
+            # We're not holding the lock.
+            pass
         # We're now in a failure state until the next CheckForUpdate.
         self._failure_count += 1
         self._last_error = 'Canceled'
+        log.info('CancelUpdate() called')
         # Only send this signal if we were in the middle of downloading.
         if self._downloading:
             self.UpdateFailed(self._failure_count, self._last_error)
