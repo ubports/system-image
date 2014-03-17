@@ -1,5 +1,6 @@
-system-image (2.2-0ubuntu1) UNRELEASED; urgency=medium
+system-image (2.2-0ubuntu1) trusty; urgency=medium
 
+  [ Barry Warsaw ]
   * New upstream release.
     - LP: #1284217 - When CheckForUpdate() is called a second time, while
       an auto-download is in progress, but after the first check is
@@ -22,7 +23,7 @@ system-image (2.2-0ubuntu1) UNRELEASED; urgency=medium
     /usr/bin/python3.  (LP: #1283277)
   * d/patches/lp1284217.patch: Removed; applied upstream.
 
- -- Barry Warsaw <barry@ubuntu.com>  Wed, 05 Mar 2014 16:29:13 -0500
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 17 Mar 2014 17:28:16 +0000
 
 system-image (2.1-0ubuntu4) trusty; urgency=medium
 
