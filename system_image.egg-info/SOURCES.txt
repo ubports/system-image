@@ -96,6 +96,10 @@ systemimage/tests/data/config_01.ini
 systemimage/tests/data/config_02.ini
 systemimage/tests/data/config_03.ini
 systemimage/tests/data/config_04.ini
+systemimage/tests/data/config_05.ini
+systemimage/tests/data/config_06.ini
+systemimage/tests/data/config_07.ini
+systemimage/tests/data/config_08.ini
 systemimage/tests/data/dbus-system.conf.in
 systemimage/tests/data/device-signing.gpg
 systemimage/tests/data/expired_cert.pem

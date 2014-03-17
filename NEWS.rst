@@ -2,6 +2,28 @@
 NEWS for system-image updater
 =============================
 
+2.2 (2014-03-05)
+================
+ * When `CheckForUpdate()` is called a second time, while an auto-download is
+   in progress, but after the first check is complete, we send an
+   `UpdateAvailableStatus` signal with the cached information.  (LP: #1284217)
+ * Close a race condition when manually downloading and issuing multiple
+   `CheckForUpdate` calls.  (LP: #1287919)
+ * Support disabling either the HTTP or HTTPS services for update (but not
+   both).  The ``[service]http_port`` or ``[service]https_port`` may be set to
+   the string ``disabled`` and the disabled protocol will fall back to the
+   enabled protocol.  Implementation given by Vojtech Bocek.  (LP: #1278589)
+ * Allow the channel.ini file to override the ``[service]`` section.
+ * Now that ubuntu-download-manager performs atomic renames of temporary
+   files, system-image no longer needs to do that.  (LP: #1287287)
+ * When an exception in the state machine occurs while checking for updates,
+   the exception is caught and logged.  When using the CLI, the result is an
+   exit code of 1.  When using the D-Bus API, an `UpdateAvailableStatus`
+   signal is sent with `error_reason` set to the exception string.  This
+   exception is *not* propagated back to GLib.  (LP: #1250817)
+ * Log directory path is passed to ubuntu-download-manager to assist in
+   debugging.  Given by Manuel de la Peña.  (LP: #1279532)
+
 2.1 (2014-02-20)
 ================
  * Internal improvements to SignatureError for better debugging. (LP: #1279056)

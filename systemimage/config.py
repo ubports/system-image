@@ -17,6 +17,7 @@
 
 __all__ = [
     'Configuration',
+    'DISABLED',
     'config',
     ]
 
@@ -31,14 +32,28 @@ from systemimage.helpers import (
     Bag, as_loglevel, as_object, as_timedelta, makedirs, temporary_directory)
 
 
+DISABLED = object()
+
+
 def expand_path(path):
     return os.path.abspath(os.path.expanduser(path))
+
+
+def port_value_converter(value):
+    if value.lower() in ('disabled', 'disable'):
+        return DISABLED
+    result = int(value)
+    if result < 0:
+        raise ValueError(value)
+    return result
 
 
 class Configuration:
     def __init__(self):
         # Defaults.
         self.config_file = None
+        self.service = Bag()
+        self.system = Bag()
         ini_path = resource_filename('systemimage.data', 'client.ini')
         self.load(ini_path)
         self._override = False
@@ -64,32 +79,57 @@ class Configuration:
         if files_read != [path]:
             raise FileNotFoundError(path)
         self.config_file = path
-        self.service = Bag(converters=dict(http_port=int,
-                                           https_port=int,
-                                           build_number=int),
+        self.service.update(converters=dict(http_port=port_value_converter,
+                                            https_port=port_value_converter,
+                                            build_number=int),
                            **parser['service'])
+        if (self.service.http_port is DISABLED and
+            self.service.https_port is DISABLED):
+            raise ValueError('Cannot disable both http and https ports')
         # Construct the HTTP and HTTPS base urls, which most applications will
-        # actually use.
+        # actually use.  We do this in two steps, in order to support
+        # disabling one or the other (but not both) protocols.
         if self.service.http_port == 80:
-            self.service['http_base'] = 'http://{}'.format(self.service.base)
+            http_base = 'http://{}'.format(self.service.base)
+        elif self.service.http_port is DISABLED:
+            http_base = None
         else:
-            self.service['http_base'] = 'http://{}:{}'.format(
+            http_base = 'http://{}:{}'.format(
                 self.service.base, self.service.http_port)
+        # HTTPS.
         if self.service.https_port == 443:
-            self.service['https_base'] = 'https://{}'.format(self.service.base)
+            https_base = 'https://{}'.format(self.service.base)
+        elif self.service.https_port is DISABLED:
+            https_base = None
         else:
-            self.service['https_base'] = 'https://{}:{}'.format(
+            https_base = 'https://{}:{}'.format(
                 self.service.base, self.service.https_port)
+        # Sanity check and final settings.
+        if http_base is None:
+            assert https_base is not None
+            http_base = https_base
+        if https_base is None:
+            assert http_base is not None
+            https_base = http_base
+        self.service['http_base'] = http_base
+        self.service['https_base'] = https_base
+        try:
+            self.system.update(converters=dict(timeout=as_timedelta,
+                                               build_file=expand_path,
+                                               loglevel=as_loglevel,
+                                               settings_db=expand_path,
+                                               tempdir=expand_path),
+                              **parser['system'])
+        except KeyError:
+            # If we're overriding via a channel.ini file, it's okay if the
+            # [system] section is missing.  However, the main configuration
+            # ini file must include all sections.
+            if not override:
+                raise
         # Short-circuit, since we're loading a channel.ini file.
         self._override = override
         if override:
             return
-        self.system = Bag(converters=dict(timeout=as_timedelta,
-                                          build_file=expand_path,
-                                          loglevel=as_loglevel,
-                                          settings_db=expand_path,
-                                          tempdir=expand_path),
-                          **parser['system'])
         self.gpg = Bag(**parser['gpg'])
         self.updater = Bag(**parser['updater'])
         self.hooks = Bag(converters=dict(device=as_object,

@@ -28,11 +28,12 @@ from contextlib import ExitStack
 from datetime import datetime, timedelta
 from gi.repository import GLib
 from systemimage.api import Mediator
-from systemimage.config import config
+from systemimage.config import Configuration, config
 from systemimage.download import Canceled
 from systemimage.gpg import SignatureError
 from systemimage.testing.helpers import (
-    ServerTestBase, configuration, copy, setup_index, sign, touch_build)
+    ServerTestBase, chmod, configuration, copy, setup_index, sign,
+    touch_build)
 from unittest.mock import patch
 
 
@@ -269,3 +270,16 @@ unmount system
         self.assertEqual(len(pauses), 1)
         self.assertEqual(len(resumes), 1)
         self.assertGreaterEqual(resumes[0] - pauses[0], timedelta(seconds=2.5))
+
+    @configuration
+    def test_state_machine_exceptions(self, ini_file):
+        # An exception in the state machine captures the exception and returns
+        # an error string in the Update instance.
+        self._setup_server_keyrings()
+        config = Configuration()
+        config.load(ini_file)
+        with chmod(config.updater.cache_partition, 0):
+            update = Mediator().check_for_update()
+        # There's no winning path, but there is an error.
+        self.assertFalse(update.is_available)
+        self.assertIn('Permission denied', update.error)

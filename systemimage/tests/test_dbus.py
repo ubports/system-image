@@ -18,18 +18,19 @@
 __all__ = [
     'TestDBusApply',
     'TestDBusCheckForUpdate',
+    'TestDBusCheckForUpdateException',
     'TestDBusClient',
     'TestDBusDownload',
     'TestDBusGetSet',
     'TestDBusInfo',
     'TestDBusInfoNoDetails',
-    'TestDBusLP1277589',
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
     'TestDBusMockFailResume',
     'TestDBusMockNoUpdate',
     'TestDBusMockUpdateAutoSuccess',
     'TestDBusMockUpdateManualSuccess',
+    'TestDBusMultipleChecksInFlight',
     'TestDBusPauseResume',
     'TestDBusProgress',
     'TestDBusRegressions',
@@ -49,7 +50,7 @@ from dbus.exceptions import DBusException
 from functools import partial
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
-from systemimage.helpers import safe_remove
+from systemimage.helpers import atomic, safe_remove
 from systemimage.reactor import Reactor
 from systemimage.testing.helpers import (
     copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
@@ -133,10 +134,48 @@ class DoubleCheckingReactor(Reactor):
         self.schedule(self.iface.CheckForUpdate)
 
     def _do_UpdateAvailableStatus(self, signal, path, *args, **kws):
+        # We'll keep doing this until we get the UpdateDownloaded signal.
         self.uas_signals.append(args)
         self.schedule(self.iface.CheckForUpdate)
 
     def _do_UpdateDownloaded(self, *args, **kws):
+        self.quit()
+
+
+class ManualUpdateReactor(Reactor):
+    def __init__(self, iface):
+        super().__init__(dbus.SystemBus())
+        self.iface = iface
+        self.rebooting = False
+        self.react_to('UpdateAvailableStatus')
+        self.react_to('UpdateProgress')
+        self.react_to('UpdateDownloaded')
+        self.react_to('Rebooting')
+        self.react_to('UpdateFailed')
+        self.iface.CheckForUpdate()
+
+    def _do_UpdateAvailableStatus(self, signal, path, *args, **kws):
+        # When the update is available, start the download.
+        self.iface.DownloadUpdate()
+
+    def _do_UpdateProgress(self, signal, path, *args, **kws):
+        # Once the download is in progress, initiate another check.  Only do
+        # this on the first progress signal.
+        if args == (0, 0):
+            self.iface.CheckForUpdate()
+
+    def _do_UpdateDownloaded(self, signal, path, *args, **kws):
+        # The update successfully downloaded, so apply the update now.
+        self.iface.ApplyUpdate()
+
+    def _do_UpdateFailed(self, signal, path, *args, **kws):
+        # Before LP: #1287919 was fixed, this signal would have been sent.
+        self.rebooting = False
+        self.quit()
+
+    def _do_Rebooting(self, signal, path, *args, **kws):
+        # The system is now rebooting <wink>.
+        self.rebooting = True
         self.quit()
 
 
@@ -1563,7 +1602,7 @@ unmount system
 """)
 
 
-class TestDBusLP1277589(_LiveTesting):
+class TestDBusMultipleChecksInFlight(_LiveTesting):
     def test_multiple_check_for_updates(self):
         # Log analysis of LP: #1277589 appears to show the following scenario,
         # reproduced in this test case:
@@ -1588,18 +1627,93 @@ class TestDBusLP1277589(_LiveTesting):
         # signal, we'll immediately issue *another* CheckForUpdate, which
         # should run while the auto-download is working.
         #
-        # At the end, we should not get another UpdateAvailableStatus signal,
-        # but we should get the UpdateDownloaded signal.
+        # As per LP: #1284217, we will get a second UpdateAvailableStatus
+        # signal, since the status is available even while the original
+        # request is being downloaded.
         reactor = DoubleCheckingReactor(self.iface)
         reactor.run()
-        self.assertEqual(len(reactor.uas_signals), 1)
+        # We need to have received at least 2 signals, but due to timing
+        # issues it could possibly be more.
+        self.assertGreater(len(reactor.uas_signals), 1)
+        # All received signals should have the same information.
+        for signal in reactor.uas_signals:
+            (is_available, downloading, available_version, update_size,
+             last_update_date,
+             #descriptions,
+             error_reason) = signal
+            self.assertTrue(is_available)
+            self.assertTrue(downloading)
+            self.assertEqual(available_version, '1600')
+            self.assertEqual(update_size, 314572800)
+            self.assertEqual(last_update_date, 'Unknown')
+            self.assertEqual(error_reason, '')
+
+    def test_multiple_check_for_updates_with_manual_downloading(self):
+        # Log analysis of LP: #1287919 (a refinement of LP: #1277589 with
+        # manual downloading enabled) shows that it's possible to enter the
+        # checking phase while a download of the data files is still running.
+        # When manually downloading, this will start another check, and as
+        # part of that check, the blacklist and other files will be deleted
+        # (in anticipation of them being re-downloaded).  When the data files
+        # are downloaded, the state machine that just did the data download
+        # may find its files deleted out from underneath it by the state
+        # machine doing the checking.
+        self.download_manually()
+        # Start by creating some big files which will take a while to
+        # download.
+        def write_callback(dst):
+            # Write a 100 MiB sized file.
+            with open(dst, 'wb') as fp:
+                for i in range(25600):
+                    fp.write(b'x' * 4096)
+        self._prepare_index('index_24.json', write_callback)
+        self._touch_build(0)
+        # Create a reactor that implements the following test plan:
+        # * Set the device to download manually.
+        # * Flash to an older revision
+        # * Open System Settings and wait for it to say Updates available
+        # * Click on About this phone
+        # * Click on Check for Update and wait for it to say Install 1 update
+        # * Click on Install 1 update and while the files are downloading,
+        #   swipe up from the bottom and click Back
+        # * Click on Check for Update again
+        # * Wait for the Update System overlay to come up, and then install
+        #   the update, and reboot
+        reactor = ManualUpdateReactor(self.iface)
+        reactor.run()
+        self.assertTrue(reactor.rebooting)
+
+
+class TestDBusCheckForUpdateException(_LiveTesting):
+    @classmethod
+    def setUpClass(cls):
+        ini_path = SystemImagePlugin.controller.ini_path
+        with open(ini_path, 'r', encoding='utf-8') as fp:
+            lines = fp.readlines()
+        with atomic(ini_path) as fp:
+            for line in lines:
+                key, sep, value = line.partition(': ')
+                if key == 'cache_partition':
+                    cls.bad_path = os.path.join(value.strip(), 'unwritable')
+                    print('{}: {}'.format(key, cls.bad_path), file=fp)
+                    os.makedirs(cls.bad_path, mode=0)
+                else:
+                    fp.write(line)
+        super().setUpClass()
+
+    def tearDown(self):
+        os.chmod(self.bad_path, 0o777)
+        super().tearDown()
+
+    def test_check_for_update_error(self):
+        # CheckForUpdate sees an error, in this case because the destination
+        # directory for downloads is not writable.  We'll get an
+        # UpdateAvailableStatus with an error string.
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
         (is_available, downloading, available_version, update_size,
          last_update_date,
-         #descriptions,
-         error_reason) = reactor.uas_signals[0]
-        self.assertTrue(is_available)
-        self.assertTrue(downloading)
-        self.assertEqual(available_version, '1600')
-        self.assertEqual(update_size, 314572800)
-        self.assertEqual(last_update_date, 'Unknown')
-        self.assertEqual(error_reason, '')
+         # descriptions,
+         error_reason) = reactor.signals[0]
+        self.assertIn('Permission denied', error_reason)

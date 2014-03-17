@@ -1,3 +1,29 @@
+system-image (2.2-0ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+    - LP: #1284217 - When CheckForUpdate() is called a second time, while
+      an auto-download is in progress, but after the first check is
+      complete, we send an UpdateAvailableStatus signal with the cached
+      information.
+    - LP: #1287919 - Close a race condition when manually downloading and
+      issuing multiple CheckForUpdate calls.
+    - LP: #1278589 - Support disabling either HTTP or HTTPS services for
+      custom system image servers.
+    - Allow the channel.ini file to override the [service] section.
+    - LP: #1287287 - Do not do atomic renames of temporary download files;
+      ubuntu-download-manager now supports this by default.
+    - LP: #1250817 - Exceptions in the state machine are caught and
+      logged, with an appropriate error message added to
+      UpdateAvailableStatus signals.  These exceptions do not percolate up
+      to the GLib main loop.
+    - LP: #1279532 - During testing, pass the log dir argument to
+      ubuntu-download-manager.
+  * d/rules: Add override_dh_python3 rule to set shebang line to
+    /usr/bin/python3.  (LP: #1283277)
+  * d/patches/lp1284217.patch: Removed; applied upstream.
+
+ -- Barry Warsaw <barry@ubuntu.com>  Wed, 05 Mar 2014 16:29:13 -0500
+
 system-image (2.1-0ubuntu4) trusty; urgency=medium
 
   [ Stéphane Graber ]
