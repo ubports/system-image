@@ -18,7 +18,8 @@
 __all__ = [
     'TestDBusApply',
     'TestDBusCheckForUpdate',
-    'TestDBusCheckForUpdateException',
+    'TestDBusCheckForUpdateToUnwritablePartition',
+    'TestDBusCheckForUpdateWithBrokenIndex',
     'TestDBusClient',
     'TestDBusDownload',
     'TestDBusGetSet',
@@ -1684,7 +1685,7 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         self.assertTrue(reactor.rebooting)
 
 
-class TestDBusCheckForUpdateException(_LiveTesting):
+class TestDBusCheckForUpdateToUnwritablePartition(_LiveTesting):
     @classmethod
     def setUpClass(cls):
         ini_path = SystemImagePlugin.controller.ini_path
@@ -1717,3 +1718,21 @@ class TestDBusCheckForUpdateException(_LiveTesting):
          # descriptions,
          error_reason) = reactor.signals[0]
         self.assertIn('Permission denied', error_reason)
+
+
+class TestDBusCheckForUpdateWithBrokenIndex(_LiveTesting):
+
+    def test_bad_index_file_crashes_hash(self):
+        # LP: #1222910.  A broken index.json file contained an image with type
+        # == 'delta' but no base field.  This breaks the hash calculation of
+        # that image and causes the check-for-update to fail.
+        self._prepare_index('index_25.json')
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        (is_available, downloading, available_version, update_size,
+         last_update_date,
+         # descriptions,
+         error_reason) = reactor.signals[0]
+        self.assertEqual(
+            error_reason, "'Image' object has no attribute 'base'")

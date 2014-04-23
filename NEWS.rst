@@ -2,6 +2,10 @@
 NEWS for system-image updater
 =============================
 
+2.3 (2014-XX-XX)
+================
+
+
 2.2 (2014-03-05)
 ================
  * When `CheckForUpdate()` is called a second time, while an auto-download is
