@@ -19,12 +19,14 @@ __all__ = [
     'Canceled',
     'DBusDownloadManager',
     'DuplicateDestinationError',
+    'Record',
     ]
 
 
 import dbus
 import logging
 
+from collections import namedtuple
 from io import StringIO
 from pprint import pformat
 from systemimage.config import config
@@ -59,6 +61,19 @@ class DuplicateDestinationError(Exception):
 
     def __str__(self):
         return '\n' + pformat(self.duplicates, indent=4, width=79)
+
+
+# A namedtuple is convenient here since we want to access items by their
+# attribute names.  However, we also want to allow for the checksum to default
+# to the empty string.  We do this by creating a prototypical record type and
+# using _replace() to replace non-default values.  See the namedtuple
+# documentation for details.
+_Record = namedtuple('Record', 'url destination checksum')('', '', '')
+_RecordType = type(_Record)
+
+def Record(url, destination, checksum=''):
+    return _Record._replace(
+        url=url, destination=destination, checksum=checksum)
 
 
 class DownloadReactor(Reactor):
@@ -160,9 +175,12 @@ class DBusDownloadManager:
         all-or-nothing function.  Either you get all the requested files
         or none of them.
 
-        :param downloads: A list of 2-tuples where the first item is the url to
-            download, and the second item is the destination file.
-        :type downloads: List of 2-tuples.
+        :params downloads: A list of `download records`, each of which may
+            either be a 2-tuple where the first item is the url to download,
+            and the second item is the destination file, or an instance of a
+            `Record` namedtuple with attributes `url`, `destination`, and
+            `checksum`.  The checksum may be the empty string.
+        :type downloads: List of 2-tuples or `Record`s.
         :param pausable: A flag specifying whether this download can be paused
             or not.  In general, data file downloads are pausable, but
             preliminary downloads are not.
@@ -179,12 +197,15 @@ class DBusDownloadManager:
         if len(downloads) == 0:
             # Nothing to download.  See LP: #1245597.
             return
-        destinations = set(dst for url, dst in downloads)
+        # Convert the downloads items to download records.
+        records = [item if isinstance(item, _RecordType) else Record(*item)
+                   for item in downloads]
+        destinations = set(record.destination for record in records)
         if len(destinations) < len(downloads):
             # Spend some extra effort to provide reasonable exception details.
             reverse = {}
-            for url, dst in downloads:
-                reverse.setdefault(dst, []).append(url)
+            for record in records:
+                reverse.setdefault(record.destination, []).append(record.url)
             duplicates = []
             for dst, urls in reverse.items():
                 if len(urls) > 1:
@@ -196,12 +217,15 @@ class DBusDownloadManager:
         # Better logging of the requested downloads.
         fp = StringIO()
         print('[0x{:x}] Requesting group download:'.format(id(self)), file=fp)
-        for url, dst in downloads:
-            print('\t{} -> {}'.format(url, dst), file=fp)
+        for record in records:
+            if record.checksum == '':
+                print('\t{} -> {}'.format(*record[:2]), file=fp)
+            else:
+                print('\t{} [{}] -> {}'.format(*record), file=fp)
         log.info('{}'.format(fp.getvalue()))
         object_path = iface.createDownloadGroup(
-            [(url, dst, '') for url, dst in downloads],
-            '',           # No hashes yet.
+            records,
+            'sha256',
             False,        # Don't allow GSM yet.
             # https://bugs.freedesktop.org/show_bug.cgi?id=55594
             dbus.Dictionary(signature='sv'),

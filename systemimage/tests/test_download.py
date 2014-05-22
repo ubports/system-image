@@ -22,6 +22,7 @@ __all__ = [
     'TestHTTPSDownloadsExpired',
     'TestHTTPSDownloadsNasty',
     'TestHTTPSDownloadsNoSelfSigned',
+    'TestRecord',
     ]
 
 
@@ -34,7 +35,7 @@ from datetime import datetime, timedelta
 from gi.repository import GLib
 from systemimage.config import config
 from systemimage.download import (
-    Canceled, DBusDownloadManager, DuplicateDestinationError)
+    Canceled, DBusDownloadManager, DuplicateDestinationError, Record)
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
     configuration, data_path, make_http_server)
@@ -88,6 +89,12 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(
             set(os.listdir(config.tempdir)),
             set(['channels.json', 'index.json']))
+
+    @configuration
+    def test_empty_download(self):
+        # Empty download set completes successfully.  LP: #1245597.
+        DBusDownloadManager().get_files([])
+        # No TimeoutError is raised.
 
     @configuration
     def test_user_agent(self):
@@ -351,3 +358,28 @@ class TestDownloadBigFiles(unittest.TestCase):
             self.assertEqual(len(resumes), 1)
             self.assertGreaterEqual(resumes[0] - pauses[0],
                                     timedelta(seconds=2.5))
+
+
+class TestRecord(unittest.TestCase):
+    def test_record(self):
+        # A record can provide three arguments, the url, destination, and
+        # checksum.
+        record = Record('src', 'dst', 'hash')
+        self.assertEqual(record.url, 'src')
+        self.assertEqual(record.destination, 'dst')
+        self.assertEqual(record.checksum, 'hash')
+
+    def test_record_default_checksum(self):
+        # The checksum is optional, and defaults to the empty string.
+        record = Record('src', 'dst')
+        self.assertEqual(record.url, 'src')
+        self.assertEqual(record.destination, 'dst')
+        self.assertEqual(record.checksum, '')
+
+    def test_too_few_arguments(self):
+        # At least two arguments must be given.
+        self.assertRaises(TypeError, Record, 'src')
+
+    def test_too_many_arguments(self):
+        # No more than three arguments may be given.
+        self.assertRaises(TypeError, Record, 'src', 'dst', 'hash', 'foo')

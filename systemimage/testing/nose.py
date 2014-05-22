@@ -73,6 +73,7 @@ class SystemImagePlugin(Plugin):
 
     def __init__(self):
         super().__init__()
+        self.timeouts = []
         self.patterns = []
         self.verbosity = 0
         self.log_file = None

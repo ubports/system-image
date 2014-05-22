@@ -262,7 +262,9 @@ class TestWinnerDownloads(unittest.TestCase):
         # Run the state machine until we're prepped to download
         state.run_until('download_files')
         # Now try to download the files and get the error.
-        self.assertRaises(ChecksumError, next, state)
+        with self.assertRaises(FileNotFoundError) as cm:
+            next(state)
+        self.assertIn('HASH ERROR', str(cm.exception))
 
     @configuration
     def test_download_winners_signed_by_wrong_key(self):
