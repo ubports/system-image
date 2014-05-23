@@ -28,6 +28,7 @@ import logging
 
 from collections import namedtuple
 from io import StringIO
+from operator import itemgetter
 from pprint import pformat
 from systemimage.config import config
 from systemimage.reactor import Reactor
@@ -201,16 +202,37 @@ class DBusDownloadManager:
         records = [item if isinstance(item, _RecordType) else Record(*item)
                    for item in downloads]
         destinations = set(record.destination for record in records)
+        # Check for duplicate destinations, specifically for a local file path
+        # coming from two different sources.  It's okay if there are duplicate
+        # destination records in the download request, but each of those must
+        # be specified by the same source url and have the same checksum.
+        #
+        # An easy quick check just asks if the set of destinations is smaller
+        # than the total number of requested downloads.  It can't be larger.
+        # If it *is* smaller, then there are some duplicates, however the
+        # duplicates may be legitimate, so look at the details.
+        #
+        # Note though that we cannot pass duplicates destinations to udm,
+        # so we have to filter out legitimate duplicates.  That's fine since
+        # they really are pointing to the same file, and will end up in the
+        # destination location.
         if len(destinations) < len(downloads):
-            # Spend some extra effort to provide reasonable exception details.
-            reverse = {}
+            by_destination = dict()
+            unique_downloads = set()
             for record in records:
-                reverse.setdefault(record.destination, []).append(record.url)
+                by_destination.setdefault(record.destination, set()).add(
+                    record)
+                unique_downloads.add(record)
             duplicates = []
-            for dst, urls in reverse.items():
-                if len(urls) > 1:
-                    duplicates.append((dst, urls))
-            raise DuplicateDestinationError(sorted(duplicates))
+            for dst, seen in by_destination.items():
+                if len(seen) > 1:
+                    # Tuples will look better in the pretty-printed output.
+                    duplicates.append(
+                        (dst, sorted(tuple(dup) for dup in seen)))
+            if len(duplicates) > 0:
+                raise DuplicateDestinationError(sorted(duplicates))
+            # Uniquify the downloads.
+            records = list(unique_downloads)
         bus = dbus.SystemBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
         iface = dbus.Interface(service, MANAGER_INTERFACE)

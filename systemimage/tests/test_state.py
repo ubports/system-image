@@ -1519,15 +1519,15 @@ class TestStateDuplicateDestinations(ServerTestBase):
         with self.assertRaises(DuplicateDestinationError) as cm:
             next(state)
         self.assertEqual(len(cm.exception.duplicates), 2)
-        dst, urls = cm.exception.duplicates[0]
+        dst, dupes = cm.exception.duplicates[0]
         self.assertEqual(os.path.basename(dst), '5.txt')
-        self.assertEqual(urls, [
-            'http://localhost:8980/3/4/5.txt',
-            'http://localhost:8980/5/6/5.txt',
-            ])
-        dst, urls = cm.exception.duplicates[1]
+        self.assertEqual([r[0] for r in dupes],
+                         ['http://localhost:8980/3/4/5.txt',
+                          'http://localhost:8980/5/6/5.txt',
+                         ])
+        dst, dupes = cm.exception.duplicates[1]
         self.assertEqual(os.path.basename(dst), '5.txt.asc')
-        self.assertEqual(urls, [
-            'http://localhost:8980/3/4/5.txt.asc',
-            'http://localhost:8980/5/6/5.txt.asc',
-            ])
+        self.assertEqual([r[0] for r in dupes],
+                         ['http://localhost:8980/3/4/5.txt.asc',
+                          'http://localhost:8980/5/6/5.txt.asc',
+                          ])
