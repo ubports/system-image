@@ -41,6 +41,7 @@ __all__ = [
 
 import os
 import dbus
+import json
 import time
 import shutil
 import unittest
@@ -49,6 +50,7 @@ from contextlib import ExitStack
 from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
+from hashlib import sha256
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
 from systemimage.helpers import atomic, safe_remove
@@ -1446,7 +1448,8 @@ class TestDBusPauseResume(_LiveTesting):
         # We have to hack the files to be rather large so that the download
         # doesn't complete before we get a chance to pause it.  Of course,
         # this breaks the signatures because we're changing the file contents
-        # after the .asc files have been written.
+        # after the .asc files have been written.  We do have to update the
+        # checksums in the index.json file, and then resign the index.
         for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
             full_path = os.path.join(
                 SystemImagePlugin.controller.serverdir, path)
@@ -1454,6 +1457,19 @@ class TestDBusPauseResume(_LiveTesting):
                 # 100 MiB
                 for i in range(25600):
                     fp.write(b'x' * 4096)
+        s = sha256()
+        for i in range(25600):
+            s.update(b'x' * 4096)
+        checksum = s.hexdigest()
+        index_path = os.path.join(SystemImagePlugin.controller.serverdir,
+                                  'stable', 'nexus7', 'index.json')
+        with open(index_path, 'r', encoding='utf-8') as fp:
+            index = json.load(fp)
+        for i in range(3):
+            index['images'][0]['files'][i]['checksum'] = checksum
+        with open(index_path, 'w', encoding='utf-8') as fp:
+            json.dump(index, fp)
+        sign(index_path, 'device-signing.gpg')
 
     def test_pause(self):
         self.download_manually()

@@ -1025,10 +1025,11 @@ class TestCachedFiles(ServerTestBase):
         def get_files(downloads, *args, **kws):
             if len(downloads) != 2:
                 raise AssertionError('Unexpected get_files() call')
-            for url, dst in downloads:
-                if os.path.basename(url) != os.path.basename(dst):
+            for record in downloads:
+                dst = os.path.basename(record.destination)
+                if os.path.basename(record.url) != dst:
                     raise AssertionError('Mismatched downloads')
-                if os.path.basename(dst) not in ('7.txt', '7.txt.asc'):
+                if dst not in ('7.txt', '7.txt.asc'):
                     raise AssertionError('Unexpected download')
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
@@ -1059,10 +1060,11 @@ class TestCachedFiles(ServerTestBase):
         def get_files(downloads, *args, **kws):
             if len(downloads) != 2:
                 raise AssertionError('Unexpected get_files() call')
-            for url, dst in downloads:
-                if os.path.basename(url) != os.path.basename(dst):
+            for record in downloads:
+                dst = os.path.basename(record.destination)
+                if os.path.basename(record.url) != dst:
                     raise AssertionError('Mismatched downloads')
-                if os.path.basename(dst) not in ('6.txt', '6.txt.asc'):
+                if dst not in ('6.txt', '6.txt.asc'):
                     raise AssertionError('Unexpected download')
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
@@ -1093,10 +1095,11 @@ class TestCachedFiles(ServerTestBase):
         def get_files(downloads, *args, **kws):
             if len(downloads) != 2:
                 raise AssertionError('Unexpected get_files() call')
-            for url, dst in downloads:
-                if os.path.basename(url) != os.path.basename(dst):
+            for record in downloads:
+                dst = os.path.basename(record.destination)
+                if os.path.basename(record.url) != dst:
                     raise AssertionError('Mismatched downloads')
-                if os.path.basename(dst) not in ('5.txt', '5.txt.asc'):
+                if dst not in ('5.txt', '5.txt.asc'):
                     raise AssertionError('Unexpected download')
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
@@ -1134,8 +1137,8 @@ class TestCachedFiles(ServerTestBase):
         requested_downloads = set()
         old_get_files = state.downloader.get_files
         def get_files(downloads, *args, **kws):
-            for dst, url in downloads:
-                requested_downloads.add(os.path.basename(dst))
+            for record in downloads:
+                requested_downloads.add(os.path.basename(record.destination))
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
         state.run_thru('download_files')
@@ -1171,8 +1174,8 @@ class TestCachedFiles(ServerTestBase):
         requested_downloads = set()
         old_get_files = state.downloader.get_files
         def get_files(downloads, *args, **kws):
-            for dst, url in downloads:
-                requested_downloads.add(os.path.basename(dst))
+            for record in downloads:
+                requested_downloads.add(os.path.basename(record.destination))
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
         state.run_thru('download_files')
@@ -1210,8 +1213,8 @@ class TestCachedFiles(ServerTestBase):
         requested_downloads = set()
         old_get_files = state.downloader.get_files
         def get_files(downloads, *args, **kws):
-            for dst, url in downloads:
-                requested_downloads.add(os.path.basename(dst))
+            for record in downloads:
+                requested_downloads.add(os.path.basename(record.destination))
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
         state.run_thru('download_files')
@@ -1516,15 +1519,15 @@ class TestStateDuplicateDestinations(ServerTestBase):
         with self.assertRaises(DuplicateDestinationError) as cm:
             next(state)
         self.assertEqual(len(cm.exception.duplicates), 2)
-        dst, urls = cm.exception.duplicates[0]
+        dst, dupes = cm.exception.duplicates[0]
         self.assertEqual(os.path.basename(dst), '5.txt')
-        self.assertEqual(urls, [
-            'http://localhost:8980/3/4/5.txt',
-            'http://localhost:8980/5/6/5.txt',
-            ])
-        dst, urls = cm.exception.duplicates[1]
+        self.assertEqual([r[0] for r in dupes],
+                         ['http://localhost:8980/3/4/5.txt',
+                          'http://localhost:8980/5/6/5.txt',
+                         ])
+        dst, dupes = cm.exception.duplicates[1]
         self.assertEqual(os.path.basename(dst), '5.txt.asc')
-        self.assertEqual(urls, [
-            'http://localhost:8980/3/4/5.txt.asc',
-            'http://localhost:8980/5/6/5.txt.asc',
-            ])
+        self.assertEqual([r[0] for r in dupes],
+                         ['http://localhost:8980/3/4/5.txt.asc',
+                          'http://localhost:8980/5/6/5.txt.asc',
+                          ])

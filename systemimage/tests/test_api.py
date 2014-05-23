@@ -22,11 +22,13 @@ __all__ = [
 
 
 import os
+import json
 import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timedelta
 from gi.repository import GLib
+from hashlib import sha256
 from systemimage.api import Mediator
 from systemimage.config import Configuration, config
 from systemimage.download import Canceled
@@ -233,6 +235,19 @@ unmount system
             full_path = os.path.join(self._serverdir, path)
             with open(full_path, 'wb') as fp:
                 fp.write(b'x' * 100 * MiB)
+        # We must update the file checksums in the index.json file, then we
+        # have to resign it.
+        index_path = os.path.join(
+            self._serverdir, 'stable', 'nexus7', 'index.json')
+        with open(index_path, 'r', encoding='utf-8') as fp:
+            index = json.load(fp)
+        checksum = sha256(b'x' * 100 * MiB).hexdigest()
+        for i in range(3):
+            index['images'][0]['files'][i]['checksum'] = checksum
+        with open(index_path, 'w', encoding='utf-8') as fp:
+            json.dump(index, fp)
+        sign(index_path, 'device-signing.gpg')
+        # Now the test is all set up.
         mediator = Mediator()
         pauses = []
         def do_paused(self, signal, path, paused):

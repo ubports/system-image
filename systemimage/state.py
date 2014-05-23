@@ -36,7 +36,7 @@ from itertools import islice
 from systemimage.candidates import get_candidates, iter_path
 from systemimage.channel import Channels
 from systemimage.config import config
-from systemimage.download import DBusDownloadManager
+from systemimage.download import DBusDownloadManager, Record
 from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import (
     atomic, makedirs, safe_remove, temporary_directory)
@@ -467,11 +467,12 @@ class State:
                 preserve.add(dst)
                 preserve.add(asc)
             else:
-                downloads.append((
+                # Add the data file, which has a checksum.
+                downloads.append(Record(
                     urljoin(config.service.http_base, filerec.path),
-                    dst,
-                    ))
-                downloads.append((
+                    dst, checksum))
+                # Add the signature file, which does not have a checksum.
+                downloads.append(Record(
                     urljoin(config.service.http_base, filerec.signature),
                     asc))
                 signatures.append((dst, asc))
@@ -479,8 +480,8 @@ class State:
         # For any files we're about to download, we must make sure that none
         # of the destination file paths exist, otherwise the downloader will
         # throw exceptions.
-        for url, dst in downloads:
-            safe_remove(dst)
+        for record in downloads:
+            safe_remove(record.destination)
         # Also delete cache partition files that we no longer need.
         for filename in os.listdir(cache_dir):
             path = os.path.join(cache_dir, filename)
@@ -494,8 +495,8 @@ class State:
             # raised or if the checksums don't match.  If everything's okay,
             # we'll clear the stack before the context manager exits so none
             # of the files will get removed.
-            for url, dst in downloads:
-                stack.callback(os.remove, dst)
+            for record in downloads:
+                stack.callback(os.remove, record.destination)
             # Although we should never get there, if the downloading step
             # fails, clear out the self.files list so there's no possibilty
             # we'll try to move them later.

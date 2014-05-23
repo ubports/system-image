@@ -4,7 +4,10 @@ NEWS for system-image updater
 
 2.3 (2014-XX-XX)
 ================
-
+ * Data file checksums are passed to ubuntu-download-manager where available.
+   (LP: #1262256)
+ * Certain duplicate destinations are allowed, if they have matching source
+   urls and checksums.  (LP: #1286542)
 
 2.2 (2014-03-05)
 ================
