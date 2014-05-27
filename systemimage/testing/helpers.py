@@ -438,7 +438,7 @@ def find_dbus_process(ini_path):
     # all kind of sucks, but should be effective in finding the one we need to
     # track.
     for process in psutil.process_iter():
-        cmdline = SPACE.join(process.cmdline)
+        cmdline = SPACE.join(process.cmdline())
         if 'systemimage.service' in cmdline and ini_path in cmdline:
             return process
     return None

@@ -71,7 +71,7 @@ def stop_system_image(controller):
 
 def _find_udm_process():
     for process in psutil.process_iter():
-        cmdline = SPACE.join(process.cmdline)
+        cmdline = SPACE.join(process.cmdline())
         if 'ubuntu-download-manager' in cmdline and '-stoppable' in cmdline:
             return process
     return None
