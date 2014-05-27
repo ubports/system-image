@@ -21,14 +21,15 @@ __all__ = [
     ]
 
 
-import os
 import sys
 import stat
 import logging
 
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
+from pathlib import Path
 from systemimage.config import config
-from systemimage.helpers import makedirs
+from systemimage.helpers import DEFAULT_DIRMODE
+from xdg.BaseDirectory import xdg_cache_home
 
 
 DATE_FMT = '%b %d %H:%M:%S %Y'
@@ -67,6 +68,15 @@ class FormattingLogRecord(logging.LogRecord):
             return super().getMessage()
 
 
+def _make_handler(path):
+    # issue21539 - mkdir(..., exist_ok=True)
+    with suppress(FileExistsError):
+        path.parent.mkdir(DEFAULT_DIRMODE, parents=True)
+    path.touch(LOGFILE_PERMISSIONS)
+    # Our handler will output in UTF-8 using {} style logging.
+    return logging.FileHandler(bytes(path), encoding='utf-8')
+
+
 def initialize(*, verbosity=0):
     """Initialize the loggers."""
     level = {
@@ -80,14 +90,11 @@ def initialize(*, verbosity=0):
     logging.setLogRecordFactory(FormattingLogRecord)
     # Now configure the application level logger based on the ini file.
     log = logging.getLogger('systemimage')
-    # Make sure the log directory exists.
-    makedirs(os.path.dirname(config.system.logfile))
-    # touch(1) - but preserve in case file already exists.
-    with open(config.system.logfile, 'a', encoding='utf-8'):
-        pass
-    os.chmod(config.system.logfile, LOGFILE_PERMISSIONS)
-    # Our handler will output in UTF-8 using {} style logging.
-    handler = logging.FileHandler(config.system.logfile, encoding='utf-8')
+    try:
+        handler = _make_handler(Path(config.system.logfile))
+    except PermissionError:
+        handler = _make_handler(
+            Path(xdg_cache_home) / 'system-image' / 'client.log')
     handler.setLevel(level)
     formatter = logging.Formatter(style='{', fmt=MSG_FMT, datefmt=DATE_FMT)
     handler.setFormatter(formatter)

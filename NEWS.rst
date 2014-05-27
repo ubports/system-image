@@ -8,6 +8,8 @@ NEWS for system-image updater
    (LP: #1262256)
  * Certain duplicate destinations are allowed, if they have matching source
    urls and checksums.  (LP: #1286542)
+ * When system-image-{cli,dbus} is run as non-root, use a fallback location
+   for the log file if the system log file isn't writable.  (LP: #1301995)
 
 2.2 (2014-03-05)
 ================
