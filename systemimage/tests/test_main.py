@@ -38,6 +38,7 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from functools import partial
 from io import StringIO
+from pathlib import Path
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from systemimage.config import Configuration, config
 from systemimage.helpers import safe_remove
@@ -433,6 +434,31 @@ class TestCLIMain(unittest.TestCase):
         # Ignore any leading timestamp and the trailing newline.
         self.assertEqual(logged[-38:-1],
                          'running state machine [stable/nexus7]')
+
+    @configuration
+    def test_log_file_permission_denied(self, ini_file):
+        # LP: #1301995 - some tests are run as non-root, meaning they don't
+        # have access to the system log file.  Use a fallback in that case.
+        config = Configuration()
+        config.load(ini_file)
+        # Set the log file to read-only.
+        system_log = Path(config.system.logfile)
+        system_log.touch(0o444, exist_ok=False)
+        # Mock the fallback cache directory location for testability.
+        tmpdir = self._resources.enter_context(temporary_directory())
+        self._resources.enter_context(
+            patch('systemimage.logging.xdg_cache_home', tmpdir))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--dry-run']))
+        cli_main()
+        # There should now be nothing in the system log file, and something in
+        # the fallback log file.
+        self.assertEqual(system_log.stat().st_size, 0)
+        fallback = Path(tmpdir) / 'system-image' / 'client.log'
+        self.assertGreater(fallback.stat().st_size, 0)
+        # The log file also has the expected permissions.
+        self.assertEqual(stat.filemode(fallback.stat().st_mode), '-rw-------')
 
     @configuration
     def test_bad_filter_type(self, ini_file):
