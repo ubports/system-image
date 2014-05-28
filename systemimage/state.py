@@ -558,7 +558,7 @@ class State:
         #   ((image_number, order), file_2, file_2.asc),
         #   ...
         # ]
-        log.info('preparing to reboot')
+        log.info('preparing recovery')
         collated = []
         zipper = zip(
             # items # 0, 2, 4, ...

@@ -12,6 +12,8 @@ NEWS for system-image updater
    for the log file if the system log file isn't writable.  (LP: #1301995)
  * `system-image-cli --list-channels` lists all the available channels,
    including aliases.  (LP: #1251291)
+ * `system-image-cli --no-reboot` downloads all files and prepares for
+   recovery, but does not actually issue a reboot.  (LP: #1279028)
 
 2.2 (2014-03-05)
 ================

@@ -78,6 +78,12 @@ def main():
                                 full updates or only delta updates.  The
                                 argument to this option must be either `full`
                                 or `delta`""")
+    parser.add_argument('-g', '--no-reboot',
+                        default=False, action='store_true',
+                        help="""Download (i.e. "get") all the data files and
+                                prepare for updating, but don't actually
+                                reboot the device into recovery to apply the
+                                update""")
     parser.add_argument('-i', '--info',
                         default=False, action='store_true',
                         help="""Show some information about the current
@@ -87,12 +93,12 @@ def main():
                         default=False, action='store_true',
                         help="""Calculate and print the upgrade path, but do
                                 not download or apply it""")
-    parser.add_argument('--list-channels',
-                        default=False, action='store_true',
-                        help="""List all available channels, then exit""")
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
+    parser.add_argument('--list-channels',
+                        default=False, action='store_true',
+                        help="""List all available channels, then exit""")
 
     args = parser.parse_args(sys.argv[1:])
     try:
@@ -256,7 +262,10 @@ def main():
         log.info('running state machine [{}/{}]',
                  config.channel, config.device)
         try:
-            list(state)
+            if args.no_reboot:
+                state.run_until('reboot')
+            else:
+                list(state)
         except KeyboardInterrupt:
             return 0
         except Exception:
@@ -264,6 +273,8 @@ def main():
             return 1
         else:
             return 0
+        finally:
+            log.info('state machine finished')
 
 
 if __name__ == '__main__':
