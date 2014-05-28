@@ -85,8 +85,6 @@ class Bag:
         return self.__untranslated__[key]
 
     def keys(self):
-        # Like `dict.keys()` but only here instead of the base class because
-        # I'm not sure this is generally useful.
         for key in self.__dict__:
             if not key.startswith('_'):
                 yield key
@@ -97,8 +95,6 @@ class Bag:
         return default
 
     def __iter__(self):
-        # Like `iter(dict)` but only here instead of the base class because
-        # I'm not sure this is generally useful.
         yield from self.keys()
 
     # Pickle protocol.
