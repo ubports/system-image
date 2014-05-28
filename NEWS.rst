@@ -10,6 +10,8 @@ NEWS for system-image updater
    urls and checksums.  (LP: #1286542)
  * When system-image-{cli,dbus} is run as non-root, use a fallback location
    for the log file if the system log file isn't writable.  (LP: #1301995)
+ * `system-image-cli --list-channels` lists all the available channels,
+   including aliases.  (LP: #1251291)
 
 2.2 (2014-03-05)
 ================

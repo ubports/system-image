@@ -87,6 +87,9 @@ def main():
                         default=False, action='store_true',
                         help="""Calculate and print the upgrade path, but do
                                 not download or apply it""")
+    parser.add_argument('--list-channels',
+                        default=False, action='store_true',
+                        help="""List all available channels, then exit""")
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
@@ -166,6 +169,22 @@ def main():
         details = version_detail()
         for key in sorted(details, reverse=True):
             print('version {}: {}'.format(key, details[key]))
+        return 0
+
+    if args.list_channels:
+        state = State()
+        try:
+            state.run_thru('get_channel')
+        except Exception:
+            log.exception('system-image-cli exception')
+            return 1
+        print('Available channels:')
+        for key in sorted(state.channels):
+            alias = state.channels[key].get('alias')
+            if alias is None:
+                print('    {}'.format(key))
+            else:
+                print('    {} (alias for: {})'.format(key, alias))
         return 0
 
     # We can either run the API directly or through DBus.

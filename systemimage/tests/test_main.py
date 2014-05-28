@@ -18,6 +18,7 @@
 __all__ = [
     'TestCLIDuplicateDestinations',
     'TestCLIFilters',
+    'TestCLIListChannels',
     'TestCLIMain',
     'TestCLIMainDryRun',
     'TestCLIMainDryRunAliases',
@@ -636,6 +637,39 @@ class TestCLIMainDryRunAliases(ServerTestBase):
         self.assertEqual(
             capture.getvalue(),
             'Upgrade path is 200:201:304 (saucy -> tubular)\n')
+
+
+class TestCLIListChannels(ServerTestBase):
+    INDEX_FILE = 'index_20.json'
+    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+
+    @configuration
+    def test_list_channels(self, ini_file):
+        # `system-image-cli --list-channels` shows all available channels,
+        # including aliases.
+        self._setup_server_keyrings()
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        head, tail = os.path.split(channel_ini)
+        copy('channel_05.ini', head, tail)
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.device.check_output',
+                      return_value='manta'))
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            resources.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--list-channels']))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), dedent("""\
+            Available channels:
+                daily (alias for: tubular)
+                saucy
+                tubular
+            """))
 
 
 class TestCLIFilters(ServerTestBase):
