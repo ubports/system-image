@@ -18,9 +18,11 @@
 __all__ = [
     'TestCLIDuplicateDestinations',
     'TestCLIFilters',
+    'TestCLIListChannels',
     'TestCLIMain',
     'TestCLIMainDryRun',
     'TestCLIMainDryRunAliases',
+    'TestCLINoReboot',
     'TestDBusMain',
     ]
 
@@ -430,10 +432,16 @@ class TestCLIMain(unittest.TestCase):
         cli_main()
         self.assertTrue(os.path.exists(config.system.logfile))
         with open(config.system.logfile, encoding='utf-8') as fp:
-            logged = fp.read()
+            logged = fp.readlines()
         # Ignore any leading timestamp and the trailing newline.
-        self.assertEqual(logged[-38:-1],
-                         'running state machine [stable/nexus7]')
+        self.assertRegex(
+            logged[0],
+            r'\[systemimage\] [^(]+ \(\d+\) '
+            r'running state machine \[stable/nexus7\]\n')
+        self.assertRegex(
+            logged[1],
+            r'\[systemimage\] [^(]+ \(\d+\) '
+            r'state machine finished\n')
 
     @configuration
     def test_log_file_permission_denied(self, ini_file):
@@ -623,6 +631,34 @@ class TestCLIMainDryRunAliases(ServerTestBase):
         head, tail = os.path.split(channel_ini)
         copy('channel_05.ini', head, tail)
         capture = StringIO()
+        self._resources.enter_context(
+            patch('systemimage.device.check_output', return_value='manta'))
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--dry-run']))
+        cli_main()
+        self.assertEqual(
+            capture.getvalue(),
+            'Upgrade path is 200:201:304 (saucy -> tubular)\n')
+
+
+class TestCLIListChannels(ServerTestBase):
+    INDEX_FILE = 'index_20.json'
+    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+
+    @configuration
+    def test_list_channels(self, ini_file):
+        # `system-image-cli --list-channels` shows all available channels,
+        # including aliases.
+        self._setup_server_keyrings()
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        head, tail = os.path.split(channel_ini)
+        copy('channel_05.ini', head, tail)
+        capture = StringIO()
         with ExitStack() as resources:
             resources.enter_context(
                 patch('systemimage.device.check_output',
@@ -631,11 +667,14 @@ class TestCLIMainDryRunAliases(ServerTestBase):
                 patch('builtins.print', partial(print, file=capture)))
             resources.enter_context(
                 patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run']))
+                      ['argv0', '-C', ini_file, '--list-channels']))
             cli_main()
-        self.assertEqual(
-            capture.getvalue(),
-            'Upgrade path is 200:201:304 (saucy -> tubular)\n')
+        self.assertMultiLineEqual(capture.getvalue(), dedent("""\
+            Available channels:
+                daily (alias for: tubular)
+                saucy
+                tubular
+            """))
 
 
 class TestCLIFilters(ServerTestBase):
@@ -718,6 +757,153 @@ class TestCLIDuplicateDestinations(ServerTestBase):
         # contain stack traces and random paths.  I bet we could hack
         # something in with doctest.OutputChecker.check_output(), but I'm not
         # sure it's worth it.
+
+
+class TestCLINoReboot(ServerTestBase):
+    INDEX_FILE = 'index_13.json'
+    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+
+    @configuration
+    def test_no_reboot(self, ini_file):
+        # `system-image-cli --no-reboot` downloads everything but does not
+        # reboot into recovery.
+        self._setup_server_keyrings()
+        capture = StringIO()
+        self._resources.enter_context(
+            patch('systemimage.device.check_output', return_value='manta'))
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--no-reboot',
+                   '-b', 0, '-c', 'daily']))
+        mock = self._resources.enter_context(
+            patch('systemimage.reboot.Reboot.reboot'))
+        cli_main()
+        # The reboot method was never called.
+        self.assertFalse(mock.called)
+        # All the expected files should be downloaded.
+        self.assertEqual(set(os.listdir(config.updater.data_partition)), set([
+            'blacklist.tar.xz',
+            'blacklist.tar.xz.asc',
+            ]))
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)), set([
+            '5.txt',
+            '5.txt.asc',
+            '6.txt',
+            '6.txt.asc',
+            '7.txt',
+            '7.txt.asc',
+            'device-signing.tar.xz',
+            'device-signing.tar.xz.asc',
+            'image-master.tar.xz',
+            'image-master.tar.xz.asc',
+            'image-signing.tar.xz',
+            'image-signing.tar.xz.asc',
+            'ubuntu_command',
+            ]))
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
+
+    @configuration
+    def test_g(self, ini_file):
+        # `system-image-cli -g` downloads everything but does not reboot into
+        # recovery.
+        self._setup_server_keyrings()
+        capture = StringIO()
+        self._resources.enter_context(
+            patch('systemimage.device.check_output', return_value='manta'))
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '-g', '-b', 0, '-c', 'daily']))
+        mock = self._resources.enter_context(
+            patch('systemimage.reboot.Reboot.reboot'))
+        cli_main()
+        # The reboot method was never called.
+        self.assertFalse(mock.called)
+        # All the expected files should be downloaded.
+        self.assertEqual(set(os.listdir(config.updater.data_partition)), set([
+            'blacklist.tar.xz',
+            'blacklist.tar.xz.asc',
+            ]))
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)), set([
+            '5.txt',
+            '5.txt.asc',
+            '6.txt',
+            '6.txt.asc',
+            '7.txt',
+            '7.txt.asc',
+            'device-signing.tar.xz',
+            'device-signing.tar.xz.asc',
+            'image-master.tar.xz',
+            'image-master.tar.xz.asc',
+            'image-signing.tar.xz',
+            'image-signing.tar.xz.asc',
+            'ubuntu_command',
+            ]))
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
+
+    @configuration
+    def test_rerun_after_no_reboot_reboots(self, ini_file):
+        # Running system-image-cli again after a `system-image-cli -g` does
+        # not download anything the second time, but does issue a reboot.
+        self._setup_server_keyrings()
+        capture = StringIO()
+        self._resources.enter_context(
+            patch('systemimage.device.check_output', return_value='manta'))
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        mock = self._resources.enter_context(
+            patch('systemimage.reboot.Reboot.reboot'))
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '-g', '-b', 0, '-c', 'daily']))
+            cli_main()
+        # The reboot method was never called.
+        self.assertFalse(mock.called)
+        # To prove nothing gets downloaded the second time, actually delete
+        # the data files from the server.
+        shutil.rmtree(os.path.join(self._serverdir, '3'))
+        shutil.rmtree(os.path.join(self._serverdir, '4'))
+        shutil.rmtree(os.path.join(self._serverdir, '5'))
+        with ExitStack() as stack:
+            # This time, call it without -g.
+            stack.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '-b', 0, '-c', 'daily']))
+            cli_main()
+        # The reboot method was never called.
+        self.assertTrue(mock.called)
 
 
 class TestDBusMain(unittest.TestCase):

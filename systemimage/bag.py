@@ -84,6 +84,19 @@ class Bag:
     def __getitem__(self, key):
         return self.__untranslated__[key]
 
+    def keys(self):
+        for key in self.__dict__:
+            if not key.startswith('_'):
+                yield key
+
+    def get(self, key, default=None):
+        if key in self.__dict__:
+            return self.__dict__[key]
+        return default
+
+    def __iter__(self):
+        yield from self.keys()
+
     # Pickle protocol.
 
     def __getstate__(self):
