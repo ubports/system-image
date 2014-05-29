@@ -23,7 +23,6 @@ __all__ = [
 
 import os
 import json
-import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timedelta
@@ -36,6 +35,7 @@ from systemimage.gpg import SignatureError
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, setup_index, sign,
     touch_build)
+from textwrap import dedent
 from unittest.mock import patch
 
 
@@ -134,15 +134,10 @@ class TestAPI(ServerTestBase):
         mediator = Mediator()
         self.assertTrue(mediator.check_for_update())
         # Make sure a reboot did not get issued.
-        got_reboot = False
-        def reboot_mock(self):
-            nonlocal got_reboot
-            got_reboot = True
-        with unittest.mock.patch(
-                'systemimage.reboot.Reboot.reboot', reboot_mock):
+        with patch('systemimage.reboot.Reboot.reboot') as reboot:
             mediator.download()
         # No reboot got issued.
-        self.assertFalse(got_reboot)
+        self.assertFalse(reboot.called)
         # But the command file did get written, and all the files are present.
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -185,17 +180,25 @@ unmount system
         self._setup_server_keyrings()
         mediator = Mediator()
         # Mock to check the state of reboot.
-        got_reboot = False
-        def reboot_mock(self):
-            nonlocal got_reboot
-            got_reboot = True
-        with unittest.mock.patch(
-                'systemimage.reboot.Reboot.reboot', reboot_mock):
+        with patch('systemimage.reboot.Reboot.reboot') as reboot:
             mediator.check_for_update()
             mediator.download()
-            self.assertFalse(got_reboot)
+            self.assertFalse(reboot.called)
             mediator.reboot()
-            self.assertTrue(got_reboot)
+            self.assertTrue(reboot.called)
+
+    @configuration
+    def test_factory_reset(self):
+        mediator = Mediator()
+        with patch('systemimage.reboot.Reboot.reboot') as reboot:
+            mediator.factory_reset()
+        self.assertTrue(reboot.called)
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, dedent("""\
+            format data
+            """))
 
     @configuration
     def test_cancel(self):

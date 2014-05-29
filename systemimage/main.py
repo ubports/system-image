@@ -33,6 +33,7 @@ from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
 from systemimage.helpers import last_update_date, makedirs, version_detail
 from systemimage.logging import initialize
+from systemimage.reboot import factory_reset
 from systemimage.settings import Settings
 from systemimage.state import State
 from textwrap import dedent
@@ -100,6 +101,11 @@ def main():
     parser.add_argument('--list-channels',
                         default=False, action='store_true',
                         help="""List all available channels, then exit""")
+    parser.add_argument('--factory-reset',
+                        default=False, action='store_true',
+                        help="""Perform a destructive factory reset and
+                                reboot.  WARNING: this will wipe all user data
+                                on the device!""")
     parser.add_argument('--show-settings',
                         default=False, action='store_true',
                         help="""Show all settings as key=value pairs,
@@ -135,6 +141,13 @@ def main():
         config.load(channel_ini, override=True)
     except FileNotFoundError:
         pass
+
+    # Perform a factory reset.
+    if args.factory_reset:
+        factory_reset()
+        # We should never get here, except possibly during the testing
+        # process, so just return as normal.
+        return 0
 
     # Handle all settings arguments.  They are mutually exclusive.
     if sum(bool(arg) for arg in

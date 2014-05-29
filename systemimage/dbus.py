@@ -320,6 +320,13 @@ class Service(Object):
         return Settings().get(key)
 
     @method('com.canonical.SystemImage')
+    def FactoryReset(self):
+        self._api.factory_reset()
+        # This code may or may not run.  We're racing against the system
+        # reboot procedure.
+        self.Rebooting(True)
+
+    @method('com.canonical.SystemImage')
     def Exit(self):
         """Quit the daemon immediately."""
         self._loop.quit()

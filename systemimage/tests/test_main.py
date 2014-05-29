@@ -24,6 +24,7 @@ __all__ = [
     'TestCLIMainDryRunAliases',
     'TestCLINoReboot',
     'TestCLISettings',
+    'TestCLIFactoryReset',
     'TestDBusMain',
     ]
 
@@ -906,6 +907,32 @@ unmount system
             cli_main()
         # The reboot method was never called.
         self.assertTrue(mock.called)
+
+
+class TestCLIFactoryReset(unittest.TestCase):
+    """Test the --factory-reset option for factory resets."""
+
+    @configuration
+    def test_factory_reset(self, ini_file):
+        # system-image-cli --factory-reset
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            mock = resources.enter_context(
+                patch('systemimage.reboot.Reboot.reboot'))
+            resources.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--factory-reset']))
+            cli_main()
+        # A reboot was issued.
+        self.assertTrue(mock.called)
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, dedent("""\
+            format data
+            """))
 
 
 class TestCLISettings(unittest.TestCase):

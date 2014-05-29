@@ -22,6 +22,7 @@ __all__ = [
     'TestDBusCheckForUpdateWithBrokenIndex',
     'TestDBusClient',
     'TestDBusDownload',
+    'TestDBusFactoryReset',
     'TestDBusGetSet',
     'TestDBusInfo',
     'TestDBusInfoNoDetails',
@@ -1416,6 +1417,25 @@ class TestDBusInfoNoDetails(_LiveTesting):
         self.assertEqual(channel, 'stable')
         self.assertEqual(last_update, '2022-08-01 04:45:45')
         self.assertEqual(details, {})
+
+
+class TestDBusFactoryReset(_LiveTesting):
+    def test_factory_reset(self):
+        # A factory reset is applied.
+        command_file = os.path.join(
+            self.config.updater.cache_partition, 'ubuntu_command')
+        self.assertFalse(os.path.exists(self.reboot_log))
+        self.assertFalse(os.path.exists(command_file))
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.FactoryReset)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(reactor.signals[0])
+        with open(self.reboot_log, encoding='utf-8') as fp:
+            reboot = fp.read()
+        self.assertEqual(reboot, '/sbin/reboot -f recovery')
+        with open(command_file, encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertEqual(command, 'format data\n')
 
 
 class TestDBusProgress(_LiveTesting):

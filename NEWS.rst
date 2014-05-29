@@ -4,6 +4,8 @@ NEWS for system-image updater
 
 2.3 (2014-XX-XX)
 ================
+ * Support factory resets.  `system-image-cli --factory-reset` and a new D-Bus
+   API method `FactoryReset()` are added.  (LP: #1207860)
  * Data file checksums are passed to ubuntu-download-manager where available.
    (LP: #1262256)
  * Certain duplicate destinations are allowed, if they have matching source
