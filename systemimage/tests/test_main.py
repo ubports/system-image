@@ -23,6 +23,7 @@ __all__ = [
     'TestCLIMainDryRun',
     'TestCLIMainDryRunAliases',
     'TestCLINoReboot',
+    'TestCLISettings',
     'TestDBusMain',
     ]
 
@@ -45,6 +46,7 @@ from pkg_resources import resource_filename, resource_string as resource_bytes
 from systemimage.config import Configuration, config
 from systemimage.helpers import safe_remove
 from systemimage.main import main as cli_main
+from systemimage.settings import Settings
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, data_path, find_dbus_process,
     temporary_directory, touch_build)
@@ -904,6 +906,199 @@ unmount system
             cli_main()
         # The reboot method was never called.
         self.assertTrue(mock.called)
+
+
+class TestCLISettings(unittest.TestCase):
+    """Test settings command line options."""
+
+    def setUp(self):
+        super().setUp()
+        self._resources = ExitStack()
+        try:
+            self._stdout = StringIO()
+            self._stderr = StringIO()
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            self._resources.enter_context(
+                patch('builtins.print', partial(print, file=self._stdout)))
+            # Patch argparse's stderr to capture its error messages.
+            self._resources.enter_context(
+                patch('argparse._sys.stderr', self._stderr))
+        except:
+            self._resources.close()
+            raise
+
+    def tearDown(self):
+        self._resources.close()
+        super().tearDown()
+
+    @configuration
+    def test_show_settings(self, ini_file):
+        # `system-image-cli --show-settings` shows all the keys and values in
+        # sorted  order by alphanumeric key name.
+        settings = Settings()
+        settings.set('peart', 'neil')
+        settings.set('lee', 'geddy')
+        settings.set('lifeson', 'alex')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--show-settings']))
+        cli_main()
+        self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
+            lee=geddy
+            lifeson=alex
+            peart=neil
+            """))
+
+    @configuration
+    def test_get_key(self, ini_file):
+        # `system-image-cli --get key` prints the key's value.
+        settings = Settings()
+        settings.set('ant', 'aunt')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--get', 'ant']))
+        cli_main()
+        self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
+            aunt
+            """))
+
+    @configuration
+    def test_get_keys(self, ini_file):
+        # `--get key` can be used multiple times.
+        settings = Settings()
+        settings.set('s', 'saucy')
+        settings.set('t', 'trusty')
+        settings.set('u', 'utopic')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--get', 's', '--get', 'u', '--get', 't']))
+        cli_main()
+        self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
+            saucy
+            utopic
+            trusty
+            """))
+
+    @configuration
+    def test_get_missing_key(self, ini_file):
+        # Since by definition a missing key has a default value, you can get
+        # missing keys.  Note that `auto_download` is the one weirdo.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--get', 'missing', '--get', 'auto_download']))
+        cli_main()
+        # This produces a blank line, since `missing` returns the empty
+        # string.  For better readability, don't indent the results.
+        self.assertMultiLineEqual(self._stdout.getvalue(), """\
+
+1
+""")
+
+    @configuration
+    def test_set_key(self, ini_file):
+        # `system-image-cli --set key=value` sets a key/value pair.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--set', 'bass=4']))
+        cli_main()
+        self.assertEqual(Settings().get('bass'), '4')
+
+    @configuration
+    def test_change_key(self, ini_file):
+        # `--set key=value` changes an existing key's value.
+        settings = Settings()
+        settings.set('a', 'ant')
+        settings.set('b', 'bee')
+        settings.set('c', 'cat')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--set', 'b=bat']))
+        cli_main()
+        self.assertEqual(settings.get('a'), 'ant')
+        self.assertEqual(settings.get('b'), 'bat')
+        self.assertEqual(settings.get('c'), 'cat')
+
+    @configuration
+    def test_set_keys(self, ini_file):
+        # `--set key=value` can be used multiple times.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--set', 'a=ant',
+                   '--set', 'b=bee',
+                   '--set', 'c=cat']))
+        cli_main()
+        settings = Settings()
+        self.assertEqual(settings.get('a'), 'ant')
+        self.assertEqual(settings.get('b'), 'bee')
+        self.assertEqual(settings.get('c'), 'cat')
+
+    @configuration
+    def test_del_key(self, ini_file):
+        # `system-image-cli --del key` removes a key from the database.
+        settings = Settings()
+        settings.set('ant', 'insect')
+        settings.set('bee', 'insect')
+        settings.set('cat', 'mammal')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--del', 'bee']))
+        cli_main()
+        settings = Settings()
+        self.assertEqual(settings.get('ant'), 'insect')
+        self.assertEqual(settings.get('cat'), 'mammal')
+        # When the key is missing, the empty string is the default.
+        self.assertEqual(settings.get('bee'), '')
+
+    @configuration
+    def test_del_keys(self, ini_file):
+        # `--del key` can be used multiple times.
+        settings = Settings()
+        settings.set('ant', 'insect')
+        settings.set('bee', 'insect')
+        settings.set('cat', 'mammal')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--del', 'bee', '--del', 'cat']))
+        cli_main()
+        settings = Settings()
+        self.assertEqual(settings.get('ant'), 'insect')
+        # When the key is missing, the empty string is the default.
+        self.assertEqual(settings.get('cat'), '')
+        self.assertEqual(settings.get('bee'), '')
+
+    @configuration
+    def test_del_missing_key(self, ini_file):
+        # When asked to delete a key that's not in the database, nothing
+        # much happens.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--del', 'missing']))
+        cli_main()
+        self.assertEqual(Settings().get('missing'), '')
+
+    @configuration
+    def test_mix_and_match(self, ini_file):
+        # Because argument order is not preserved, and any semantics for
+        # mixing and matching database arguments would be arbitrary, it is not
+        # allowed to mix them.
+        capture = StringIO()
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--set', 'c=cat', '--del', 'bee', '--get', 'dog']))
+        with self.assertRaises(SystemExit) as cm:
+            cli_main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual(
+            self._stderr.getvalue().splitlines()[-1],
+            'system-image-cli: error: Cannot mix and match settings arguments')
 
 
 class TestDBusMain(unittest.TestCase):

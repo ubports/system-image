@@ -33,6 +33,7 @@ from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
 from systemimage.helpers import last_update_date, makedirs, version_detail
 from systemimage.logging import initialize
+from systemimage.settings import Settings
 from systemimage.state import State
 from textwrap import dedent
 
@@ -99,6 +100,27 @@ def main():
     parser.add_argument('--list-channels',
                         default=False, action='store_true',
                         help="""List all available channels, then exit""")
+    parser.add_argument('--show-settings',
+                        default=False, action='store_true',
+                        help="""Show all settings as key=value pairs,
+                                then exit""")
+    parser.add_argument('--set',
+                        default=[], action='append', metavar='KEY=VAL',
+                        help="""Set a key and value in the settings, adding
+                                the key if it doesn't yet exist, or overriding
+                                its value if the key already exists.  Multiple
+                                --set arguments can be given.""")
+    parser.add_argument('--get',
+                        default=[], action='append', metavar='KEY',
+                        help="""Get the value for a key.  If the key does not
+                                exist, a default value is returned.  Multiple
+                                --get arguments can be given.""")
+    parser.add_argument('--del',
+                        default=[], action='append',
+                        metavar='KEY', dest='delete',
+                        help="""Delete the key and its value.  It is a no-op
+                                if the key does not exist.  Multiple
+                                --del arguments can be given.""")
 
     args = parser.parse_args(sys.argv[1:])
     try:
@@ -113,6 +135,34 @@ def main():
         config.load(channel_ini, override=True)
     except FileNotFoundError:
         pass
+
+    # Handle all settings arguments.  They are mutually exclusive.
+    if sum(bool(arg) for arg in
+           (args.set, args.get, args.delete, args.show_settings)) > 1:
+        parser.error('Cannot mix and match settings arguments')
+        assert 'parser.error() does not return'
+
+    if args.show_settings:
+        rows = sorted(Settings())
+        for row in rows:
+            print('{}={}'.format(*row))
+        return 0
+    if args.get:
+        settings = Settings()
+        for key in args.get:
+            print(settings.get(key))
+        return 0
+    if args.set:
+        settings = Settings()
+        for keyval in args.set:
+            key, val = keyval.split('=', 1)
+            settings.set(key, val)
+        return 0
+    if args.delete:
+        settings = Settings()
+        for key in args.delete:
+            settings.delete(key)
+        return 0
 
     # Sanity check -f/--filter.
     if args.filter is None:

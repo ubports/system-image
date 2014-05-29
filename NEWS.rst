@@ -14,6 +14,8 @@ NEWS for system-image updater
    including aliases.  (LP: #1251291)
  * `system-image-cli --no-reboot` downloads all files and prepares for
    recovery, but does not actually issue a reboot.  (LP: #1279028)
+ * Added `--show-settings`, `--get`, `--set`, and `--del` options for viewing,
+   changing, and setting all the internal database settings.  (LP: #1294273)
 
 2.2 (2014-03-05)
 ================
