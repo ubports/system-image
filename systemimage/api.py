@@ -25,6 +25,7 @@ __all__ = [
 import logging
 
 from systemimage.helpers import last_update_date
+from systemimage.reboot import factory_reset
 from systemimage.state import State
 
 log = logging.getLogger('systemimage')
@@ -124,3 +125,6 @@ class Mediator:
         """Issue the reboot."""
         # Transition through all remaining states.
         list(self._state)
+
+    def factory_reset(self):
+        factory_reset()
