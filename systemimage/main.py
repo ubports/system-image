@@ -106,6 +106,11 @@ def main():
                         help="""Perform a destructive factory reset and
                                 reboot.  WARNING: this will wipe all user data
                                 on the device!""")
+    parser.add_argument('--switch',
+                        default=None, action='store', metavar='CHANNEL',
+                        help="""Switch to the given channel.  This is
+                                equivalent to `-c CHANNEL -b 0`.""")
+    # Settings options.
     parser.add_argument('--show-settings',
                         default=False, action='store_true',
                         help="""Show all settings as key=value pairs,
@@ -196,7 +201,11 @@ def main():
     # We assume the cache_partition already exists, as does the /etc directory
     # (i.e. where the archive master key lives).
 
-    # Command line overrides.
+    # Command line overrides.  Process --switch first since if both it and
+    # -c/-b are given, the latter take precedence.
+    if args.switch is not None:
+        config.build_number = 0
+        config.channel = args.switch
     if args.build is not None:
         try:
             config.build_number = int(args.build)

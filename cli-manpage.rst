@@ -9,7 +9,7 @@ Ubuntu System Image Upgrader command line script
 :Author: Barry Warsaw <barry@ubuntu.com>
 :Date: 2013-10-23
 :Copyright: 2013-2014 Canonical Ltd.
-:Version: 2.0
+:Version: 2.3
 :Manual section: 1
 
 
@@ -47,6 +47,14 @@ OPTIONS
     Override the device's upgrade channel just this once.  Use in combination
     with ``--build 0`` to switch channels.
 
+--switch CHANNEL
+    This is a convenience alias for the combination of ``-b 0 -c CHANNEL``.
+    It is an easier way to switch channels.  If ``-switch`` is given with
+    ``-b`` and/or ``-c``, the latter take precedence.
+
+--list-channels
+    Lists the available channels, including aliases, and exits.
+
 -d DEVICE, --device DEVICE
     Override the device name just this once.
 
@@ -61,6 +69,10 @@ OPTIONS
 -n, --dry-run
     Calculate and print the upgrade path, but do not download or apply it.
 
+--no-reboot
+    Downloads all files and prepares for a reboot into recovery, but doesn't
+    actually issue the reboot.
+
 -v, --verbose
     Increase the logging verbosity.  With one ``-v``, logging goes to the
     console in addition to the log file, and logging at ``INFO`` level is
@@ -71,6 +83,25 @@ OPTIONS
     Use the given configuration file, otherwise use the default.  The program
     will optionally also read a ``channel.ini`` file in the same directory as
     ``FILE``.
+
+--factory-reset
+    Wipes the data partition and issues a reboot into recovery.  This
+    effectively performs a device factory reset.
+
+--show-settings
+    Show all the key/value pairs in the settings database.
+
+--get KEY
+    Print the value for the given key in the settings database.  If the key is
+    missing, a default value is printed.  May be given multiple times.
+
+--set KEY=VALUE
+    Set the value for the given key in the settings database.  If the key is
+    missing it is added.  May be given multiple times.
+
+--del KEY
+    Deletes the given key from the settings database.  If the key does not
+    exist, this is a no-op.  May be given multiple times.
 
 --dbus
     Run in D-Bus client mode.  Normally, ``system-image-cli`` runs directly
