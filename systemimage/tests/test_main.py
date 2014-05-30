@@ -415,6 +415,40 @@ class TestCLIMain(unittest.TestCase):
             """))
 
     @configuration
+    def test_switch_channel(self, ini_file):
+        # `system-image-cli --switch <channel>` is a convenience equivalent to
+        # `system-image-cli -b 0 --channel <channel>`.
+        touch_build(801, TIMESTAMP)
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--switch', 'utopic-proposed',
+                   '--info']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 0
+            device name: nexus7
+            channel: utopic-proposed
+            last update: 2013-08-01 12:11:10
+            """))
+
+    @configuration
+    def test_switch_channel_with_overrides(self, ini_file):
+        # The use of --switch is a convenience only, and if -b and/or -c is
+        # given explicitly, they override the convenience.
+        touch_build(801, TIMESTAMP)
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--switch', 'utopic-proposed',
+                   '-b', '1', '-c', 'utopic', '--info']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 1
+            device name: nexus7
+            channel: utopic
+            last update: 2013-08-01 12:11:10
+            """))
+
+    @configuration
     def test_log_file(self, ini_file):
         # Test that the system log file gets created and written.
         config = Configuration()
