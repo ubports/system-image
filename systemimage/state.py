@@ -39,7 +39,7 @@ from systemimage.config import config
 from systemimage.download import DBusDownloadManager, Record
 from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import (
-    atomic, makedirs, safe_remove, temporary_directory)
+    atomic, calculate_signature, makedirs, safe_remove, temporary_directory)
 from systemimage.index import Index
 from systemimage.keyring import KeyringError, get_keyring
 from urllib.parse import urljoin
@@ -69,7 +69,7 @@ def _use_cached(txt, asc, keyrings, checksum=None, blacklist=None):
     if checksum is None:
         return True
     with open(txt, 'rb') as fp:
-        got = hashlib.sha256(fp.read()).hexdigest()
+        got = calculate_signature(fp, hashlib.sha256)
         return got == checksum
 
 
@@ -508,7 +508,7 @@ class State:
             # Verify the checksums.
             for dst, checksum in checksums:
                 with open(dst, 'rb') as fp:
-                    got = hashlib.sha256(fp.read()).hexdigest()
+                    got = calculate_signature(fp, hashlib.sha256)
                     if got != checksum:
                         raise ChecksumError(dst, got, checksum)
             # Everything is fine so nothing needs to be cleared.

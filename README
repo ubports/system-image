@@ -1,0 +1,15 @@
+System Image Updater
+====================
+
+Tools for system image based upgrades. For more details, see:
+https://wiki.ubuntu.com/ImageBasedUpgrades
+
+
+Testing
+-------
+
+To test locally run:
+
+  python3 -m nose2 -v
+
+  

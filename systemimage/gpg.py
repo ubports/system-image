@@ -28,7 +28,10 @@ import tarfile
 
 from contextlib import ExitStack
 from systemimage.config import config
-from systemimage.helpers import temporary_directory
+from systemimage.helpers import (
+    calculate_signature,
+    temporary_directory
+)
 
 
 class SignatureError(Exception):
@@ -54,19 +57,19 @@ class SignatureError(Exception):
         # want to be able to quickly and easily compare the file on disk
         # against the file on the server.
         with open(self.signature_path, 'rb') as fp:
-            self.signature_checksum =  hashlib.md5(fp.read()).hexdigest()
+            self.signature_checksum =  calculate_signature(fp, hashlib.md5)
         with open(self.data_path, 'rb') as fp:
-            self.data_checksum = hashlib.md5(fp.read()).hexdigest()
+            self.data_checksum = calculate_signature(fp, hashlib.md5)
         self.keyring_checksums = []
         for path in self.keyrings:
             with open(path, 'rb') as fp:
-                checksum = hashlib.md5(fp.read()).hexdigest()
+                checksum = calculate_signature(fp, hashlib.md5)
                 self.keyring_checksums.append(checksum)
         if self.blacklist is None:
             self.blacklist_checksum = None
         else:
             with open(self.blacklist, 'rb') as fp:
-                self.blacklist_checksum = hashlib.md5(fp.read()).hexdigest()
+                self.blacklist_checksum = calculate_signature(fp, hashlib.md5)
 
     def __str__(self):
         if self.blacklist is None:

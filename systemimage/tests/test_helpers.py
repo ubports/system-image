@@ -24,15 +24,18 @@ __all__ = [
 
 
 import os
+import hashlib
 import logging
+import tempfile
 import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timedelta
 from systemimage.config import Configuration, config
 from systemimage.helpers import (
-    Bag, as_loglevel, as_object, as_timedelta, last_update_date,
-    phased_percentage, temporary_directory, version_detail)
+    Bag, as_loglevel, as_object, as_timedelta, calculate_signature,
+    last_update_date, phased_percentage, SIGNATURE_CHUNK_SIZE,
+    temporary_directory, version_detail)
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
 
@@ -255,3 +258,15 @@ class TestPhasedPercentage(unittest.TestCase):
             self.assertEqual(phased_percentage(reset=True), 81)
             # The next one will have a different value.
             self.assertEqual(phased_percentage(), 17)
+
+
+class TestSignature(unittest.TestCase):
+    def test_calculcate_signature(self):
+        with tempfile.TemporaryFile() as fp:
+            # ensure the file is bigger than chunk size
+            fp.write(b"\0" * (SIGNATURE_CHUNK_SIZE+1))
+            fp.seek(0)
+            hash1 = calculate_signature(fp, hashlib.sha256)
+            fp.seek(0)
+            hash2 = hashlib.sha256(fp.read()).hexdigest()
+            self.assertEqual(hash1, hash2)

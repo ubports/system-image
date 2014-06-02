@@ -49,6 +49,21 @@ from systemimage.bag import Bag
 LAST_UPDATE_FILE = '/userdata/.last_update'
 UNIQUE_MACHINE_ID_FILE = '/var/lib/dbus/machine-id'
 DEFAULT_DIRMODE = 0o02700
+SIGNATURE_CHUNK_SIZE = 1*1024*1024
+
+
+def calculate_signature(fp, hash_class):
+    """
+    Calculate the hexdigest hash signature for the open file 'fp' using
+    the given hash_class in a memory efficient way
+    """
+    hash = hash_class()
+    while True:
+        chunk = fp.read(SIGNATURE_CHUNK_SIZE)
+        if not chunk:
+            break
+        hash.update(chunk)
+    return hash.hexdigest()
 
 
 def safe_remove(path):
