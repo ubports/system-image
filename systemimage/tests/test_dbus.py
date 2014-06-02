@@ -54,7 +54,7 @@ from functools import partial
 from hashlib import sha256
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
-from systemimage.helpers import atomic, safe_remove
+from systemimage.helpers import MiB, atomic, safe_remove
 from systemimage.reactor import Reactor
 from systemimage.testing.helpers import (
     copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
@@ -836,7 +836,7 @@ class TestDBusMockUpdateAutoSuccess(_TestBase):
         self.assertTrue(is_available)
         self.assertTrue(downloading)
         self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(update_size, 1337 * MiB)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
         ## self.assertEqual(descriptions, [
         ##     {'description': 'Ubuntu Edge support',
@@ -962,7 +962,7 @@ class TestDBusMockUpdateManualSuccess(_TestBase):
         self.assertTrue(is_available)
         self.assertFalse(downloading)
         self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(update_size, 1337 * MiB)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
         ## self.assertEqual(descriptions, [
         ##     {'description': 'Ubuntu Edge support',
@@ -1010,7 +1010,7 @@ class TestDBusMockUpdateFailed(_TestBase):
         self.assertTrue(is_available)
         self.assertFalse(downloading)
         self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(update_size, 1337 * MiB)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
         ## self.assertEqual(descriptions, [
         ##     {'description': 'Ubuntu Edge support',
@@ -1044,7 +1044,7 @@ class TestDBusMockFailApply(_TestBase):
         self.assertTrue(is_available)
         self.assertFalse(downloading)
         self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(update_size, 1337 * MiB)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
         ## self.assertEqual(descriptions, [
         ##     {'description': 'Ubuntu Edge support',
@@ -1079,7 +1079,7 @@ class TestDBusMockFailResume(_TestBase):
         self.assertTrue(is_available)
         self.assertFalse(downloading)
         self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(update_size, 1337 * MiB)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
         ## self.assertEqual(descriptions, [
         ##     {'description': 'Ubuntu Edge support',
@@ -1123,7 +1123,7 @@ class TestDBusMockFailPause(_TestBase):
         self.assertTrue(is_available)
         self.assertTrue(downloading)
         self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * 1024 * 1024)
+        self.assertEqual(update_size, 1337 * MiB)
         self.assertEqual(last_update_date, '1983-09-13T12:13:14')
         ## self.assertEqual(descriptions, [
         ##     {'description': 'Ubuntu Edge support',

@@ -32,14 +32,12 @@ from systemimage.api import Mediator
 from systemimage.config import Configuration, config
 from systemimage.download import Canceled
 from systemimage.gpg import SignatureError
+from systemimage.helpers import MiB
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, setup_index, sign,
     touch_build)
 from textwrap import dedent
 from unittest.mock import patch
-
-
-MiB = 1024 * 1024
 
 
 class TestAPI(ServerTestBase):

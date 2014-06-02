@@ -669,13 +669,16 @@ class TestCLIMainDryRunAliases(ServerTestBase):
         copy('channel_05.ini', head, tail)
         capture = StringIO()
         self._resources.enter_context(
-            patch('systemimage.device.check_output', return_value='manta'))
-        self._resources.enter_context(
             patch('builtins.print', partial(print, file=capture)))
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '--dry-run']))
-        cli_main()
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            cli_main()
         self.assertEqual(
             capture.getvalue(),
             'Upgrade path is 200:201:304 (saucy -> tubular)\n')
@@ -696,15 +699,16 @@ class TestCLIListChannels(ServerTestBase):
         head, tail = os.path.split(channel_ini)
         copy('channel_05.ini', head, tail)
         capture = StringIO()
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.device.check_output',
-                      return_value='manta'))
-            resources.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            resources.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--list-channels']))
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--list-channels']))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
             cli_main()
         self.assertMultiLineEqual(capture.getvalue(), dedent("""\
             Available channels:
@@ -809,8 +813,6 @@ class TestCLINoReboot(ServerTestBase):
         self._setup_server_keyrings()
         capture = StringIO()
         self._resources.enter_context(
-            patch('systemimage.device.check_output', return_value='manta'))
-        self._resources.enter_context(
             patch('builtins.print', partial(print, file=capture)))
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
@@ -818,7 +820,12 @@ class TestCLINoReboot(ServerTestBase):
                    '-b', 0, '-c', 'daily']))
         mock = self._resources.enter_context(
             patch('systemimage.reboot.Reboot.reboot'))
-        cli_main()
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            cli_main()
         # The reboot method was never called.
         self.assertFalse(mock.called)
         # All the expected files should be downloaded.
@@ -863,15 +870,18 @@ unmount system
         self._setup_server_keyrings()
         capture = StringIO()
         self._resources.enter_context(
-            patch('systemimage.device.check_output', return_value='manta'))
-        self._resources.enter_context(
             patch('builtins.print', partial(print, file=capture)))
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '-g', '-b', 0, '-c', 'daily']))
         mock = self._resources.enter_context(
             patch('systemimage.reboot.Reboot.reboot'))
-        cli_main()
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            cli_main()
         # The reboot method was never called.
         self.assertFalse(mock.called)
         # All the expected files should be downloaded.
@@ -916,15 +926,17 @@ unmount system
         self._setup_server_keyrings()
         capture = StringIO()
         self._resources.enter_context(
-            patch('systemimage.device.check_output', return_value='manta'))
-        self._resources.enter_context(
             patch('builtins.print', partial(print, file=capture)))
         mock = self._resources.enter_context(
             patch('systemimage.reboot.Reboot.reboot'))
-        with ExitStack() as stack:
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '-g', '-b', 0, '-c', 'daily']))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '-g', '-b', 0, '-c', 'daily']))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
             cli_main()
         # The reboot method was never called.
         self.assertFalse(mock.called)
@@ -933,11 +945,8 @@ unmount system
         shutil.rmtree(os.path.join(self._serverdir, '3'))
         shutil.rmtree(os.path.join(self._serverdir, '4'))
         shutil.rmtree(os.path.join(self._serverdir, '5'))
-        with ExitStack() as stack:
-            # This time, call it without -g.
-            stack.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '-b', 0, '-c', 'daily']))
+        with patch('systemimage.main.sys.argv',
+                   ['argv0', '-C', ini_file, '-b', 0, '-c', 'daily']):
             cli_main()
         # The reboot method was never called.
         self.assertTrue(mock.called)

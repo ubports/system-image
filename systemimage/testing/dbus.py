@@ -28,7 +28,7 @@ from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.dbus import Service
-from systemimage.helpers import makedirs, safe_remove
+from systemimage.helpers import MiB, makedirs, safe_remove
 from unittest.mock import patch
 
 
@@ -56,7 +56,8 @@ def instrument(config, stack):
     stack.enter_context(
         patch('systemimage.reboot.check_call', safe_reboot.write))
     stack.enter_context(
-        patch('systemimage.device.check_output', return_value='nexus7'))
+        patch('systemimage.device.check_output', return_value='nexus7',
+              NAME='I'))
 
 
 class _LiveTestableService(Service):
@@ -118,7 +119,7 @@ class _UpdateAutoSuccess(Service):
 
     def _send_status(self):
         self.UpdateAvailableStatus(
-            True, self._auto_download, '42', 1337 * 1024 * 1024,
+            True, self._auto_download, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',
@@ -216,7 +217,7 @@ class _UpdateFailed(Service):
                if self._failure_count > 0
                else '')
         self.UpdateAvailableStatus(
-            True, False, '42', 1337 * 1024 * 1024,
+            True, False, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',
@@ -245,7 +246,7 @@ class _FailApply(Service):
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
-            True, False, '42', 1337 * 1024 * 1024,
+            True, False, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',
@@ -274,7 +275,7 @@ class _FailResume(Service):
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
-            True, False, '42', 1337 * 1024 * 1024,
+            True, False, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',
@@ -300,7 +301,7 @@ class _FailPause(Service):
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
-            True, True, '42', 1337 * 1024 * 1024,
+            True, True, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
             #[
             #{'description': 'Ubuntu Edge support',

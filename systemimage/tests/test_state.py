@@ -789,6 +789,10 @@ class TestStateNewChannelsFormat(ServerTestBase):
         config.load(data_path('channel_04.ini'), override=True)
         self._setup_server_keyrings()
         state = State()
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_until('reboot')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
@@ -849,6 +853,10 @@ class TestChannelAlias(ServerTestBase):
         touch_build(300)
         config.channel = 'daily'
         state = State()
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
@@ -889,6 +897,10 @@ class TestChannelAlias(ServerTestBase):
         touch_build(300)
         config.channel = 'daily'
         state = State()
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
@@ -930,11 +942,13 @@ class TestPhasedUpdates(ServerTestBase):
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.device.check_output', return_value='manta'))
-            resources.enter_context(
-                patch('systemimage.index.phased_percentage', return_value=66))
+        self._resources.enter_context(
+            patch('systemimage.index.phased_percentage', return_value=66))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
         self.assertEqual(_descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])
@@ -946,11 +960,13 @@ class TestPhasedUpdates(ServerTestBase):
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.device.check_output', return_value='manta'))
-            resources.enter_context(
-                patch('systemimage.index.phased_percentage', return_value=0))
+        self._resources.enter_context(
+            patch('systemimage.index.phased_percentage', return_value=0))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
         self.assertEqual(_descriptions(state.winner),
                          ['Full B', 'Delta B.1', 'Delta B.2'])
@@ -962,11 +978,13 @@ class TestPhasedUpdates(ServerTestBase):
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.device.check_output', return_value='manta'))
-            resources.enter_context(
-                patch('systemimage.index.phased_percentage', return_value=77))
+        self._resources.enter_context(
+            patch('systemimage.index.phased_percentage', return_value=77))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
         self.assertEqual(_descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])

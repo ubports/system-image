@@ -20,6 +20,8 @@ NEWS for system-image updater
     `system-image-cli -b 0 -c <channel>`.  (LP: #1249347)
  * Added `--show-settings`, `--get`, `--set`, and `--del` options for viewing,
    changing, and setting all the internal database settings.  (LP: #1294273)
+ * Improve memory usage when verifying file checksums.  Given by Michael
+   Vogt.  (LP: #1271684)
 
 2.2 (2014-03-05)
 ================

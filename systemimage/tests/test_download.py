@@ -28,7 +28,6 @@ __all__ = [
 
 
 import os
-import re
 import random
 import unittest
 
@@ -39,14 +38,12 @@ from hashlib import sha256
 from systemimage.config import config
 from systemimage.download import (
     Canceled, DBusDownloadManager, DuplicateDestinationError, Record)
-from systemimage.helpers import temporary_directory
+from systemimage.helpers import MiB, temporary_directory
 from systemimage.testing.helpers import (
     configuration, data_path, make_http_server)
 from systemimage.testing.nose import SystemImagePlugin
 from unittest.mock import patch
 from urllib.parse import urljoin
-
-MiB = 1024 * 1024
 
 
 def _http_pathify(downloads):
