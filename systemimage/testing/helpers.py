@@ -225,7 +225,7 @@ def configuration(function):
                 patch('systemimage.config._config', config))
             resources.enter_context(
                 patch('systemimage.device.check_output',
-                      return_value='nexus7', NAME='C'))
+                      return_value='nexus7'))
             # Make sure the cache_partition and data_partition exist.
             makedirs(config.updater.cache_partition)
             makedirs(config.updater.data_partition)
