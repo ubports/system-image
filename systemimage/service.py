@@ -107,6 +107,7 @@ def main():
              config.channel, config.device)
 
     with ExitStack() as stack:
+        from systemimage.testing.helpers import debug
         loop = Loop()
         testing_mode = getattr(args, 'testing', None)
         if testing_mode:
@@ -117,7 +118,13 @@ def main():
             from systemimage.dbus import Service
             config.dbus_service = Service(system_bus, '/Service', loop)
         try:
+            with debug() as dblog:
+                dblog('LOOP START', sys.argv,
+                      os.environ.get('COVERAGE_PROCESS_START'), os.getpid())
             loop.run()
+            with debug() as dblog:
+                dblog('LOOP STOP', sys.argv,
+                      os.environ.get('COVERAGE_PROCESS_START'), os.getpid())
         except KeyboardInterrupt:
             log.info('SystemImage dbus main loop interrupted')
         except:

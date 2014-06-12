@@ -57,6 +57,20 @@ def instrument(config, stack):
         patch('systemimage.reboot.check_call', safe_reboot.write))
     stack.enter_context(
         patch('systemimage.device.check_output', return_value='nexus7'))
+    # Integrate with subprocess coverage.
+    ini_file = os.environ.get('COVERAGE_PROCESS_START')
+    if ini_file is not None:
+        try:
+            import coverage
+        except ImportError:
+            pass
+        else:
+            from systemimage.testing.helpers import debug
+            with debug() as dblog:
+                dblog('COVERING! {}'.format(ini_file))
+            coverage.process_startup()
+            with debug() as dblog:
+                dblog('COVERING STARTED!')
 
 
 class _LiveTestableService(Service):

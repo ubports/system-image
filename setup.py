@@ -39,6 +39,7 @@ setup(
         ],
     tests_require = [
         'nose2',
+        'nose2-cov',
         ],
     test_suite = 'nose2.collector.collector',
     )
