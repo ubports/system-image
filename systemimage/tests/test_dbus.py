@@ -51,7 +51,6 @@ from contextlib import ExitStack
 from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
-from hashlib import sha256
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
 from systemimage.helpers import MiB, atomic, safe_remove
@@ -115,16 +114,20 @@ class PausingReactor(Reactor):
     def __init__(self, iface):
         super().__init__(dbus.SystemBus())
         self._iface = iface
+        self.pause_progress = 0
         self.paused = False
+        self.percentage = 0
         self.react_to('UpdateProgress')
         self.react_to('UpdatePaused')
 
     def _do_UpdateProgress(self, signal, path, percentage, eta):
-        if percentage == 0:
+        if self.pause_progress == 0 and percentage > 0:
             self._iface.PauseDownload()
+            self.pause_progress = percentage
 
     def _do_UpdatePaused(self, signal, path, percentage):
         self.paused = True
+        self.percentage = percentage
         self.quit()
 
 
@@ -1474,19 +1477,16 @@ class TestDBusPauseResume(_LiveTesting):
             full_path = os.path.join(
                 SystemImagePlugin.controller.serverdir, path)
             with open(full_path, 'wb') as fp:
-                # 100 MiB
-                for i in range(25600):
+                # 300 MiB
+                for i in range(76800):
                     fp.write(b'x' * 4096)
-        s = sha256()
-        for i in range(25600):
-            s.update(b'x' * 4096)
-        checksum = s.hexdigest()
+        # Disable the checksums - they just get in the way of these tests.
         index_path = os.path.join(SystemImagePlugin.controller.serverdir,
                                   'stable', 'nexus7', 'index.json')
         with open(index_path, 'r', encoding='utf-8') as fp:
             index = json.load(fp)
         for i in range(3):
-            index['images'][0]['files'][i]['checksum'] = checksum
+            index['images'][0]['files'][i]['checksum'] = ''
         with open(index_path, 'w', encoding='utf-8') as fp:
             json.dump(index, fp)
         sign(index_path, 'device-signing.gpg')
@@ -1503,6 +1503,16 @@ class TestDBusPauseResume(_LiveTesting):
         reactor.schedule(self.iface.DownloadUpdate)
         reactor.run(timeout=15)
         self.assertTrue(reactor.paused)
+        # There's a race condition between issuing the PauseDownload() call to
+        # u-d-m and it reacting to send us a `paused` signal.  The best we can
+        # know is that the pause percentage is in the range (0:100) and that
+        # it's greater than the percentage at which we issued the pause.  Even
+        # this is partly timing related, so we've hopefully tuned the file
+        # size to be big enough to trigger the expected behavior.  There's no
+        # other way to control the live u-d-m process.
+        self.assertGreater(reactor.percentage, 0)
+        self.assertLess(reactor.percentage, 100)
+        self.assertGreaterEqual(reactor.percentage, reactor.pause_progress)
         # Now let's resume the download.  Because we intentionally corrupted
         # the downloaded files, we'll get an UpdateFailed signal instead of
         # the successful UpdateDownloaded signal.
