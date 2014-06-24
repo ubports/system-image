@@ -28,7 +28,7 @@ from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.dbus import Service
-from systemimage.helpers import MiB, makedirs, safe_remove
+from systemimage.helpers import MiB, makedirs, safe_remove, version_detail
 from unittest.mock import patch
 
 
@@ -343,14 +343,32 @@ class _NoUpdate(Service):
 
 
 class _MoreInfo(Service):
+    def __init__(self, bus, object_path, loop):
+        super().__init__(bus, object_path, loop)
+        self._buildno = 45
+        self._device = 'nexus11'
+        self._channel = 'daily-proposed'
+        self._updated = '2099-08-01 04:45:45'
+        self._version = 'ubuntu=123,mako=456,custom=789'
+        self._checked = '2099-08-01 04:45:00'
+
     @method('com.canonical.SystemImage')
     def Reset(self):
         pass
 
     @method('com.canonical.SystemImage', out_signature='isssa{ss}')
     def Info(self):
-        return (45, 'nexus11', 'daily-proposed', '2099-08-01 04:45:45',
-                dict(ubuntu='123', mako='456', custom='789'))
+        return (self._buildno, self._device, self._channel, self._updated,
+                version_detail(self._version))
+
+    @method('com.canonical.SystemImage', out_signature='a{ss}')
+    def Information(self):
+        return dict(current_build_number=str(self._buildno),
+                    device_name=self._device,
+                    channel_name=self._channel,
+                    last_update_date=self._updated,
+                    version_detail=self._version,
+                    last_check_date=self._checked)
 
 
 def get_service(testing_mode, system_bus, object_path, loop):

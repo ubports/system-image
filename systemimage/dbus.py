@@ -26,6 +26,7 @@ import sys
 import logging
 import traceback
 
+from datetime import datetime
 from dbus.service import Object, method, signal
 from gi.repository import GLib
 from systemimage.api import Mediator
@@ -284,6 +285,19 @@ class Service(Object):
                 last_update_date(),
                 version_detail())
 
+    @method('com.canonical.SystemImage', out_signature='a{ss}')
+    def Information(self):
+        self._loop.keepalive()
+        settings = Settings()
+        return dict(
+            current_build_number=str(config.build_number),
+            device_name=config.device,
+            channel_name=config.channel,
+            last_update_date=last_update_date(),
+            version_detail=getattr(config.service, 'version_detail', ''),
+            last_check_date=settings.get('last_check_date'),
+            )
+
     @method('com.canonical.SystemImage', in_signature='ss')
     def SetSetting(self, key, value):
         """Set a key/value setting.
@@ -342,6 +356,9 @@ class Service(Object):
                               #descriptions,
                               error_reason):
         """Signal sent in response to a CheckForUpdate()."""
+        # For .Information()'s last_check_date value.
+        iso8601_now = datetime.now().replace(microsecond=0).isoformat(sep=' ')
+        Settings().set('last_check_date', iso8601_now)
         log.debug('EMIT UpdateAvailableStatus({}, {}, {}, {}, {}, {})',
                   is_available, downloading, available_version, update_size,
                   last_update_date, repr(error_reason))

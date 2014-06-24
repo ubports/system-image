@@ -169,7 +169,7 @@ class TestLastUpdateDate(unittest.TestCase):
         self.assertEqual(last_update_date(), '2013-12-11 10:09:08')
 
     @configuration
-    def test_version_details(self, ini_file):
+    def test_version_detail(self, ini_file):
         channel_ini = data_path('channel_03.ini')
         config.load(channel_ini, override=True)
         self.assertEqual(version_detail(),
@@ -180,6 +180,10 @@ class TestLastUpdateDate(unittest.TestCase):
         channel_ini = data_path('channel_01.ini')
         config.load(channel_ini, override=True)
         self.assertEqual(version_detail(), {})
+
+    def test_version_detail_from_argument(self):
+        self.assertEqual(version_detail('ubuntu=123,mako=456,custom=789'),
+                         dict(ubuntu='123', mako='456', custom='789'))
 
     @configuration
     def test_date_from_userdata_ignoring_fallbacks(self, ini_file):

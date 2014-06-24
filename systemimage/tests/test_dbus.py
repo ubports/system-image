@@ -25,7 +25,6 @@ __all__ = [
     'TestDBusFactoryReset',
     'TestDBusGetSet',
     'TestDBusInfo',
-    'TestDBusInfoNoDetails',
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
     'TestDBusMockFailResume',
@@ -37,6 +36,8 @@ __all__ = [
     'TestDBusProgress',
     'TestDBusRegressions',
     'TestDBusUseCache',
+    'TestLiveDBusInfo',
+    'TestLiveDBusInfoWithChannelIni',
     ]
 
 
@@ -51,10 +52,12 @@ from contextlib import ExitStack
 from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
+from pathlib import Path
 from systemimage.bindings import DBusClient
 from systemimage.config import Configuration
 from systemimage.helpers import MiB, atomic, safe_remove
 from systemimage.reactor import Reactor
+from systemimage.settings import Settings
 from systemimage.testing.helpers import (
     copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign)
@@ -335,7 +338,7 @@ class _LiveTesting(_TestBase):
         setup_index(index_file, serverdir, 'device-signing.gpg',
                     write_callback)
 
-    def _touch_build(self, version):
+    def _touch_build(self, version, timestamp=None):
         # Unlike the touch_build() helper, this one uses our own config object
         # rather than the global one.   It's not worth messing with
         # touch_build() to generalize it.
@@ -343,6 +346,9 @@ class _LiveTesting(_TestBase):
             'old style version number: {}'.format(version))
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
             print(version, file=fp)
+        if timestamp is not None:
+            timestamp = int(timestamp.timestamp())
+            os.utime(self.config.system.build_file, (timestamp, timestamp))
 
 
 class TestDBusCheckForUpdate(_LiveTesting):
@@ -398,10 +404,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
 
     def test_no_update_available(self):
         # Our device is newer than the version that's available.
-        self._touch_build(1701)
-        # Give /etc/ubuntu-build a predictable mtime.
-        timestamp = int(datetime(2013, 8, 1, 10, 11, 12).timestamp())
-        os.utime(self.config.system.build_file, (timestamp, timestamp))
+        self._touch_build(1701, datetime(2013, 8, 1, 10, 11, 12))
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -416,10 +419,12 @@ class TestDBusCheckForUpdate(_LiveTesting):
 
     def test_last_update_date(self):
         # Pretend the device got a previous update.  Now, there's no update
-        # available, but the date of the last update is provided in the signal.
-        self._touch_build(1701)
+        # available, but the date of the last update is provided in the
+        # signal.
+        timestamp = datetime(2013, 1, 20, 12, 1, 45)
+        self._touch_build(1701, timestamp)
+        timestamp = int(timestamp.timestamp())
         # Fake that there was a previous update.
-        timestamp = int(datetime(2013, 1, 20, 12, 1, 45).timestamp())
         channel_ini = os.path.join(
             os.path.dirname(SystemImagePlugin.controller.ini_path),
             'channel.ini')
@@ -1407,19 +1412,153 @@ class TestDBusInfo(_TestBase):
         self.assertEqual(last_update, '2099-08-01 04:45:45')
         self.assertEqual(details, dict(ubuntu='123', mako='456', custom='789'))
 
+    def test_information(self):
+        # .Information() with a channel.ini containing version details.
+        response = self.iface.Information()
+        self.assertEqual(
+            sorted(str(key) for key in response), [
+                'channel_name',
+                'current_build_number',
+                'device_name',
+                'last_check_date',
+                'last_update_date',
+                'version_detail',
+                ])
+        self.assertEqual(response['current_build_number'], '45')
+        self.assertEqual(response['device_name'], 'nexus11')
+        self.assertEqual(response['channel_name'], 'daily-proposed')
+        self.assertEqual(response['last_update_date'], '2099-08-01 04:45:45')
+        self.assertEqual(response['version_detail'],
+                         'ubuntu=123,mako=456,custom=789')
+        self.assertEqual(response['last_check_date'], '2099-08-01 04:45:00')
 
-class TestDBusInfoNoDetails(_LiveTesting):
-    def test_info_no_version_details(self):
+
+class TestLiveDBusInfo(_LiveTesting):
+    def test_info_no_version_detail(self):
         # .Info() where there is no channel.ini with version details.
-        self._touch_build(45)
-        timestamp = datetime(2022, 8, 1, 4, 45, 45).timestamp()
-        os.utime(self.config.system.build_file, (timestamp, timestamp))
+        self._touch_build(45, datetime(2022, 8, 1, 4, 45, 45))
         buildno, device, channel, last_update, details = self.iface.Info()
         self.assertEqual(buildno, 45)
         self.assertEqual(device, 'nexus7')
         self.assertEqual(channel, 'stable')
         self.assertEqual(last_update, '2022-08-01 04:45:45')
         self.assertEqual(details, {})
+
+    def test_information_before_check_no_details(self):
+        # .Information() where there is no channel.ini with version details,
+        # and no previous CheckForUpdate() call was made.
+        self._touch_build(45, datetime(2022, 8, 1, 4, 45, 45))
+        response = self.iface.Information()
+        self.assertEqual(response['current_build_number'], '45')
+        self.assertEqual(response['device_name'], 'nexus7')
+        self.assertEqual(response['channel_name'], 'stable')
+        self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
+        self.assertEqual(response['version_detail'], '')
+        self.assertEqual(response['last_check_date'], '')
+
+    def test_information_no_details(self):
+        # .Information() where there is no channel.ini with version details,
+        # but a previous CheckForUpdate() call was made.
+        self._touch_build(45, datetime(2022, 8, 1, 4, 45, 45))
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        # Before we get the information, let's poke a known value into the
+        # settings database.  Before we do that, make sure that the database
+        # already has a value in it.
+        config = Configuration()
+        config.load(SystemImagePlugin.controller.ini_path)
+        settings = Settings(config)
+        real_last_check_date = settings.get('last_check_date')
+        # We can't really test the last check date against anything in a
+        # robust way.  E.g. what if we just happen to be at 12:59:59 on
+        # December 31st?  Let's at least make sure it has a sane format.
+        self.assertRegex(real_last_check_date,
+                         r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
+        settings.set('last_check_date', '2055-08-01 21:12:00')
+        response = self.iface.Information()
+        self.assertEqual(response['current_build_number'], '45')
+        self.assertEqual(response['device_name'], 'nexus7')
+        self.assertEqual(response['channel_name'], 'stable')
+        self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
+        self.assertEqual(response['version_detail'], '')
+        self.assertEqual(response['last_check_date'], '2055-08-01 21:12:00')
+
+    def test_information(self):
+        # .Information() where there is a channel.ini with version details,
+        # and a previous CheckForUpdate() call was made.
+        self._touch_build(45)
+        ini_path = Path(SystemImagePlugin.controller.ini_path)
+        channel_path = ini_path.with_name('channel.ini')
+        with channel_path.open('w', encoding='utf-8') as fp:
+            print("""\
+[service]
+version_detail: ubuntu=222,mako=333,custom=444
+""", file=fp)
+        # Set last_update_date.
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        os.utime(str(channel_path), (timestamp, timestamp))
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        # Before we get the information, let's poke a known value into the
+        # settings database.  Before we do that, make sure that the database
+        # already has a value in it.
+        config = Configuration()
+        config.load(SystemImagePlugin.controller.ini_path)
+        settings = Settings(config)
+        real_last_check_date = settings.get('last_check_date')
+        # We can't really test the last check date against anything in a
+        # robust way.  E.g. what if we just happen to be at 12:59:59 on
+        # December 31st?  Let's at least make sure it has a sane format.
+        self.assertRegex(real_last_check_date,
+                         r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
+        settings.set('last_check_date', '2055-08-01 21:12:01')
+        response = self.iface.Information()
+        self.assertEqual(response['current_build_number'], '45')
+        self.assertEqual(response['device_name'], 'nexus7')
+        self.assertEqual(response['channel_name'], 'stable')
+        self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
+        self.assertEqual(response['version_detail'], '')
+        # We can't really check the returned last check date against anything
+        # in a robust way.  E.g. what if we just happen to be at 12:59:59 on
+        # December 31st?  Let's at least make sure it has a sane format.
+        self.assertRegex(response['last_check_date'], '2055-08-01 21:12:01')
+
+
+class TestLiveDBusInfoWithChannelIni(_LiveTesting):
+    @classmethod
+    def setUpClass(cls):
+        # This must be done before the D-Bus service is started.
+        ini_path = Path(SystemImagePlugin.controller.ini_path)
+        channel_path = ini_path.with_name('channel.ini')
+        with channel_path.open('w', encoding='utf-8') as fp:
+            print("""\
+[service]
+version_detail: ubuntu=222,mako=333,custom=444
+build_number: 42
+""", file=fp)
+        # Set last_update_date.
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        os.utime(str(channel_path), (timestamp, timestamp))
+        # Set the build number.
+        config = Configuration()
+        config.load(SystemImagePlugin.controller.ini_path)
+        # We can't use _touch_build().
+        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
+            print(45, file=fp)
+        super().setUpClass()
+
+    def test_information_before_check(self):
+        self._touch_build(45)
+        # .Information() where there is a channel.ini with version details,
+        # and no previous CheckForUpdate() call was made.
+        response = self.iface.Information()
+        self.assertEqual(response['current_build_number'], '42')
+        self.assertEqual(response['device_name'], 'nexus7')
+        self.assertEqual(response['channel_name'], 'stable')
+        self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
+        self.assertEqual(response['version_detail'],
+                         'ubuntu=222,mako=333,custom=444')
+        self.assertEqual(response['last_check_date'], '')
 
 
 class TestDBusFactoryReset(_LiveTesting):
