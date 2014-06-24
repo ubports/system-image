@@ -24,6 +24,11 @@ NEWS for system-image updater
    Vogt.  (LP: #1271684)
  * In the `UpdatePaused` signal, return a percentage value that's closer to
    reality than hardcoding it to 0.  (LP: #1274131)
+ * New D-Bus API method `.Information()` which is like `.Info()` except that
+   it returns extended information details, as a mapping of strings to
+   strings.  These details include a `last_check_date` which is the ISO 8601
+   timestamp of the last time an `UpdateAvailableStatus` signal was sent.
+   (LP: #1280169)
 
 2.2 (2014-03-05)
 ================

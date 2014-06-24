@@ -269,16 +269,17 @@ def last_update_date():
         return 'Unknown'
 
 
-def version_detail():
+def version_detail(details_string=None):
     """Return a dictionary of the version details."""
     # Avoid circular imports.
-    from systemimage.config import config
-    version_details = getattr(config.service, 'version_detail', None)
-    if version_details is None:
+    if details_string is None:
+        from systemimage.config import config
+        details_string = getattr(config.service, 'version_detail', None)
+    if details_string is None:
         return {}
     details = {}
-    if version_details is not None:
-        for item in version_details.strip().split(','):
+    if details is not None:
+        for item in details_string.strip().split(','):
             name, equals, version = item.partition('=')
             if equals != '=':
                 continue
