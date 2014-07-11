@@ -60,7 +60,7 @@ from systemimage.reactor import Reactor
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
     copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
-    setup_keyrings, sign)
+    setup_keyrings, sign, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
 
 
@@ -1237,10 +1237,7 @@ class TestDBusRegressions(_LiveTesting):
         head, tail = os.path.split(index_path)
         copy('index_18.json', head, tail)
         sign(index_path, 'device-signing.gpg')
-        with open(file_path, 'wb') as fp:
-            # 50MB
-            for chunk in range(12800):
-                fp.write(b'x' * 4096)
+        write_bytes(file_path, 50)
         sign(file_path, 'device-signing.gpg')
         # An update is available.
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
@@ -1615,10 +1612,7 @@ class TestDBusPauseResume(_LiveTesting):
         for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
             full_path = os.path.join(
                 SystemImagePlugin.controller.serverdir, path)
-            with open(full_path, 'wb') as fp:
-                # 300 MiB
-                for i in range(76800):
-                    fp.write(b'x' * 4096)
+            write_bytes(full_path, 500)
         # Disable the checksums - they just get in the way of these tests.
         index_path = os.path.join(SystemImagePlugin.controller.serverdir,
                                   'stable', 'nexus7', 'index.json')
@@ -1803,9 +1797,7 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         # download.
         def write_callback(dst):
             # Write a 100 MiB sized file.
-            with open(dst, 'wb') as fp:
-                for i in range(25600):
-                    fp.write(b'x' * 4096)
+            write_bytes(dst, 100)
         self._prepare_index('index_24.json', write_callback)
         # Create a reactor that will exit when the UpdateDownloaded signal is
         # received.  We're going to issue a CheckForUpdate with automatic
@@ -1849,9 +1841,7 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         # download.
         def write_callback(dst):
             # Write a 100 MiB sized file.
-            with open(dst, 'wb') as fp:
-                for i in range(25600):
-                    fp.write(b'x' * 4096)
+            write_bytes(dst, 100)
         self._prepare_index('index_24.json', write_callback)
         self._touch_build(0)
         # Create a reactor that implements the following test plan:

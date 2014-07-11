@@ -32,6 +32,7 @@ __all__ = [
     'setup_keyrings',
     'sign',
     'touch_build',
+    'write_bytes',
     ]
 
 
@@ -52,7 +53,7 @@ from pkg_resources import resource_filename, resource_string as resource_bytes
 from socket import SHUT_RDWR
 from systemimage.channel import Channels
 from systemimage.config import Configuration, config
-from systemimage.helpers import atomic, makedirs, temporary_directory
+from systemimage.helpers import MiB, atomic, makedirs, temporary_directory
 from systemimage.index import Index
 from systemimage.state import State
 from threading import Thread
@@ -408,6 +409,13 @@ def touch_build(version, timestamp=None):
             os.utime(channel_ini, (timestamp, timestamp))
         except FileNotFoundError:
             pass
+
+
+def write_bytes(path, size_in_mib):
+    # Write size_in_mib * 1MiB number of bytes to the file in path.
+    with open(path, 'wb') as fp:
+        for chunk in range(size_in_mib):
+            fp.write(b'x' * MiB)
 
 
 @contextmanager
