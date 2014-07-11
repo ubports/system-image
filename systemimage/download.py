@@ -28,7 +28,6 @@ import logging
 
 from collections import namedtuple
 from io import StringIO
-from operator import itemgetter
 from pprint import pformat
 from systemimage.config import config
 from systemimage.reactor import Reactor
@@ -84,6 +83,8 @@ class DownloadReactor(Reactor):
         self._pausable = pausable
         self.error = None
         self.canceled = False
+        self.received = 0
+        self.total = 0
         self.react_to('canceled')
         self.react_to('error')
         self.react_to('finished')
@@ -112,6 +113,8 @@ class DownloadReactor(Reactor):
         self.quit()
 
     def _do_progress(self, signal, path, received, total):
+        self.received = received
+        self.total = total
         self._print('PROGRESS:', received, total)
         if self._callback is not None:
             # Be defensive, so yes, use a bare except.  If an exception occurs
@@ -136,7 +139,9 @@ class DownloadReactor(Reactor):
             # main entry point for system-image-dbus, but that's actually a
             # bit of a pain, so do the expedient thing and grab the interface
             # here.
-            config.dbus_service.UpdatePaused(0)
+            percentage = (int(self.received / self.total * 100.0)
+                          if self.total > 0 else 0)
+            config.dbus_service.UpdatePaused(percentage)
 
     def _do_resumed(self, signal, path, resumed):
         self._print('RESUME:', resumed)

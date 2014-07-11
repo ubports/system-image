@@ -13,7 +13,7 @@ Ubuntu System Image Upgrader command line script
 :Manual section: 1
 
 
-SYNOPSYS
+SYNOPSIS
 ========
 
 system-image-cli [options]
