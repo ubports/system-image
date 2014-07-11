@@ -1579,7 +1579,7 @@ class TestDBusFactoryReset(_LiveTesting):
 
 class TestDBusProgress(_LiveTesting):
     def test_progress(self):
-        self.download_always()
+        self.download_manually()
         self._touch_build(0)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)

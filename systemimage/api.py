@@ -27,6 +27,7 @@ import logging
 from systemimage.helpers import last_update_date
 from systemimage.reboot import factory_reset
 from systemimage.state import State
+from unittest.mock import patch
 
 log = logging.getLogger('systemimage')
 
@@ -114,12 +115,8 @@ class Mediator:
     def download(self):
         """Download the available update."""
         # We only want callback progress during the actual download.
-        callback = self._state.downloader.callback
-        try:
-            self._state.downloader.callback = self._callback
+        with patch.object(self._state.downloader, 'callback', self._callback):
             self._state.run_until('reboot')
-        finally:
-            self._state.downloader.callback = callback
 
     def reboot(self):
         """Issue the reboot."""
