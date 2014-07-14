@@ -59,8 +59,8 @@ from systemimage.helpers import MiB, atomic, safe_remove
 from systemimage.reactor import Reactor
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
-    copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
-    setup_keyrings, sign, write_bytes)
+    copy, debuggable, find_dbus_process, make_http_server, setup_index,
+    setup_keyring_txz, setup_keyrings, sign, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
 
 
@@ -1222,6 +1222,7 @@ class TestDBusClient(_LiveTesting):
 class TestDBusRegressions(_LiveTesting):
     """Test that various regressions have been fixed."""
 
+    @debuggable
     def test_lp_1205398(self):
         # Reset state after cancel.
         self.download_manually()
@@ -1231,7 +1232,7 @@ class TestDBusRegressions(_LiveTesting):
         serverdir = SystemImagePlugin.controller.serverdir
         index_path = os.path.join(serverdir, 'stable', 'nexus7', 'index.json')
         file_path = os.path.join(serverdir, '5', '6', '7.txt')
-        # This index file has a 5/6/7/txt checksum equal to the one we're
+        # This index file has a 5/6/7.txt checksum equal to the one we're
         # going to create below.
         setup_index('index_18.json', serverdir, 'device-signing.gpg')
         head, tail = os.path.split(index_path)
@@ -1247,7 +1248,7 @@ class TestDBusRegressions(_LiveTesting):
          last_update_date,
          #descriptions,
          error_reason) = reactor.signals[0]
-        self.assertTrue(is_available)
+        self.assertTrue(is_available, msg=error_reason)
         self.assertFalse(downloading)
         self.assertFalse(os.path.exists(self.command_file))
         # Arrange for the download to be canceled after it starts.
@@ -1612,7 +1613,7 @@ class TestDBusPauseResume(_LiveTesting):
         for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
             full_path = os.path.join(
                 SystemImagePlugin.controller.serverdir, path)
-            write_bytes(full_path, 500)
+            write_bytes(full_path, 750)
         # Disable the checksums - they just get in the way of these tests.
         index_path = os.path.join(SystemImagePlugin.controller.serverdir,
                                   'stable', 'nexus7', 'index.json')
@@ -1630,6 +1631,8 @@ class TestDBusPauseResume(_LiveTesting):
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
+        # There must be an update available.
+        self.assertTrue(reactor.signals[0][0])
         # We're ready to start downloading.  We schedule a pause to happen in
         # a little bit and then ensure that we get the proper signal.
         reactor = PausingReactor(self.iface)
@@ -1688,7 +1691,7 @@ class TestDBusUseCache(_LiveTesting):
          last_update_date,
          #descriptions,
          error_reason) = reactor.signals[0]
-        self.assertTrue(is_available)
+        self.assertTrue(is_available, msg=error_reason)
         self.assertTrue(downloading)
         # Now, wait for the UpdateDownloaded signal.
         reactor = SignalCapturingReactor('UpdateDownloaded')

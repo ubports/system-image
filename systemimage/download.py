@@ -23,14 +23,17 @@ __all__ = [
     ]
 
 
+import os
 import dbus
 import logging
 
 from collections import namedtuple
 from io import StringIO
+from pathlib import Path
 from pprint import pformat
 from systemimage.config import config
 from systemimage.reactor import Reactor
+from traceback import print_exc
 
 
 # Parameterized for testing purposes.
@@ -94,16 +97,22 @@ class DownloadReactor(Reactor):
         self.react_to('started')
 
     def _print(self, *args, **kws):
-        ## from systemimage.testing.helpers import debug
-        ## with debug() as ddlog:
-        ##     ddlog(*args, **kws)
-        pass
+        from systemimage.testing.helpers import debug
+        with debug(check_flag=True) as ddlog:
+            ddlog(*args, **kws)
 
     def _do_started(self, signal, path, started):
         self._print('STARTED:', started)
 
     def _do_finished(self, signal, path, local_paths):
         self._print('FINISHED:', local_paths)
+        for local_path in local_paths:
+            # This raises ValueError if it's not true.
+            try:
+                Path(local_path).relative_to('/tmp')
+            except ValueError:
+                with open('/tmp/debug.log', 'a') as fp:
+                    print_exc(file=fp)
         self.quit()
 
     def _do_error(self, signal, path, error_message):
@@ -250,6 +259,9 @@ class DBusDownloadManager:
             else:
                 print('\t{} [{}] -> {}'.format(*record), file=fp)
         log.info('{}'.format(fp.getvalue()))
+        from systemimage.testing.helpers import debug
+        with debug(check_flag=True) as ddlog:
+            ddlog('createDownloadGroup:', records)
         object_path = iface.createDownloadGroup(
             records,
             'sha256',
@@ -279,6 +291,10 @@ class DBusDownloadManager:
             raise Canceled
         if reactor.timed_out:
             raise TimeoutError
+        # For sanity.
+        for record in records:
+            assert os.path.exists(record.destination), (
+                'Missing destination: {}'.format(record))
 
     def cancel(self):
         """Cancel any current downloads."""
