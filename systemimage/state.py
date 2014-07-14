@@ -278,8 +278,8 @@ class State:
                 (asc_url, asc_path),
                 ])
             # Once we're done with them, we can remove these files.
-            stack.callback(os.remove, channels_path)
-            stack.callback(os.remove, asc_path)
+            stack.callback(safe_remove, channels_path)
+            stack.callback(safe_remove, asc_path)
             # The channels.json file must be signed with the SYSTEM IMAGE
             # SIGNING key.  There may or may not be a blacklist.
             ctx = stack.enter_context(
