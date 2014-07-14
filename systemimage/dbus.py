@@ -190,12 +190,12 @@ class Service(Object):
             self.UpdateProgress(0, 0)
             self._api.download()
         except Exception:
+            log.exception('Download failed')
             self._failure_count += 1
             # This will return both the exception name and the exception
             # value, but not the traceback.
             self._last_error = EMPTYSTRING.join(
                 traceback.format_exception_only(*sys.exc_info()[:2]))
-            log.info('Update failed: {}', self._last_error)
             self.UpdateFailed(self._failure_count, self._last_error)
         else:
             log.info('Update downloaded')
