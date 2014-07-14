@@ -22,6 +22,7 @@ __all__ = [
     'copy',
     'data_path',
     'debug',
+    'debuggable',
     'find_dbus_process',
     'get_channels',
     'get_index',
@@ -49,6 +50,7 @@ import unittest
 from contextlib import ExitStack, contextmanager
 from functools import partial, wraps
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from socket import SHUT_RDWR
 from systemimage.channel import Channels
@@ -418,9 +420,24 @@ def write_bytes(path, size_in_mib):
             fp.write(b'x' * MiB)
 
 
+def debuggable(fn):
+    def wrapper(*args, **kws):
+        try:
+            path = Path('/tmp/debug.enabled')
+            path.touch()
+            return fn(*args, **kws)
+        finally:
+            path.unlink()
+    return wrapper
+
+
 @contextmanager
-def debug():
-    with open('/tmp/debug.log', 'a', encoding='utf-8') as fp:
+def debug(*, check_flag=False):
+    if not check_flag or os.path.exists('/tmp/debug.enabled'):
+        path = Path('/tmp/debug.log')
+    else:
+        path = Path(os.devnull)
+    with path.open('a', encoding='utf-8') as fp:
         function = partial(print, file=fp)
         function.fp = fp
         yield function
