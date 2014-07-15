@@ -207,17 +207,7 @@ class _TestBase(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        # Try to find the system-image-dbus process matching the current ini
-        # file used by the controller.  We'll use this to ensure that the
-        # process has exited.
-        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
-        if process is not None:
-            bus = dbus.SystemBus()
-            service = bus.get_object('com.canonical.SystemImage', '/Service')
-            iface = dbus.Interface(service, 'com.canonical.SystemImage')
-            iface.Exit()
-            # Wait for the process to exit, but only for a little while.
-            process.wait(60)
+        SystemImagePlugin.controller.stop_children()
         # Clear out the temporary directory.
         config = Configuration()
         config.load(SystemImagePlugin.controller.ini_path)
@@ -1222,7 +1212,6 @@ class TestDBusClient(_LiveTesting):
 class TestDBusRegressions(_LiveTesting):
     """Test that various regressions have been fixed."""
 
-    @debuggable
     def test_lp_1205398(self):
         # Reset state after cancel.
         self.download_manually()

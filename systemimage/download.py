@@ -106,13 +106,6 @@ class DownloadReactor(Reactor):
 
     def _do_finished(self, signal, path, local_paths):
         self._print('FINISHED:', local_paths)
-        for local_path in local_paths:
-            # This raises ValueError if it's not true.
-            try:
-                Path(local_path).relative_to('/tmp')
-            except ValueError:
-                with open('/tmp/debug.log', 'a') as fp:
-                    print_exc(file=fp)
         self.quit()
 
     def _do_error(self, signal, path, error_message):
@@ -259,9 +252,6 @@ class DBusDownloadManager:
             else:
                 print('\t{} [{}] -> {}'.format(*record), file=fp)
         log.info('{}'.format(fp.getvalue()))
-        from systemimage.testing.helpers import debug
-        with debug(check_flag=True) as ddlog:
-            ddlog('createDownloadGroup:', records)
         object_path = iface.createDownloadGroup(
             records,
             'sha256',
