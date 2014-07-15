@@ -29,6 +29,8 @@ NEWS for system-image updater
    strings.  These details include a `last_check_date` which is the ISO 8601
    timestamp of the last time an `UpdateAvailableStatus` signal was sent.
    (LP: #1280169)
+ * Set the GSM flag in ubuntu-download-manager based on the current s-i
+   download setting.  (LP: #1339157)
 
 2.2 (2014-03-05)
 ================
