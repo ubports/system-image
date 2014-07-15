@@ -59,8 +59,8 @@ from systemimage.helpers import MiB, atomic, safe_remove
 from systemimage.reactor import Reactor
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
-    copy, debuggable, find_dbus_process, make_http_server, setup_index,
-    setup_keyring_txz, setup_keyrings, sign, write_bytes)
+    copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
+    setup_keyrings, sign, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
 
 
@@ -344,14 +344,6 @@ class _LiveTesting(_TestBase):
 class TestDBusCheckForUpdate(_LiveTesting):
     """Test the SystemImage dbus service."""
 
-    def setUp(self):
-        super().setUp()
-        self._more_resources = ExitStack()
-
-    def tearDown(self):
-        self._more_resources.close()
-        super().tearDown()
-
     def test_update_available(self):
         # There is an update available.
         self.download_manually()
@@ -363,7 +355,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
          last_update_date,
          #descriptions,
          error_reason) = reactor.signals[0]
-        self.assertTrue(is_available)
+        self.assertTrue(is_available, msg=error_reason)
         self.assertFalse(downloading)
         self.assertEqual(available_version, '1600')
         self.assertEqual(update_size, 314572800)
@@ -383,7 +375,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
          last_update_date,
          # descriptions,
          error_reason) = reactor.signals[0]
-        self.assertTrue(is_available)
+        self.assertTrue(is_available, msg=error_reason)
         self.assertTrue(downloading)
         self.assertEqual(available_version, '1600')
         self.assertEqual(update_size, 314572800)
@@ -418,12 +410,13 @@ class TestDBusCheckForUpdate(_LiveTesting):
         channel_ini = os.path.join(
             os.path.dirname(SystemImagePlugin.controller.ini_path),
             'channel.ini')
-        self._more_resources.callback(safe_remove, channel_ini)
-        with open(channel_ini, 'w', encoding='utf-8'):
-            pass
-        os.utime(channel_ini, (timestamp, timestamp))
-        reactor = SignalCapturingReactor('UpdateAvailableStatus')
-        reactor.run(self.iface.CheckForUpdate)
+        with ExitStack() as resources:
+            resources.callback(safe_remove, channel_ini)
+            with open(channel_ini, 'w', encoding='utf-8'):
+                pass
+            os.utime(channel_ini, (timestamp, timestamp))
+            reactor = SignalCapturingReactor('UpdateAvailableStatus')
+            reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         (is_available, downloading, available_version, update_size,
          last_update_date,
@@ -448,7 +441,7 @@ class TestDBusCheckForUpdate(_LiveTesting):
          last_update_date,
          # descriptions,
          error_reason) = reactor.signals[0]
-        self.assertTrue(is_available)
+        self.assertTrue(is_available, msg=error_reason)
         self.assertTrue(downloading)
 
     @unittest.skip('LP: #1215586')

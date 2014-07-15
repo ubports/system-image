@@ -29,11 +29,9 @@ import logging
 
 from collections import namedtuple
 from io import StringIO
-from pathlib import Path
 from pprint import pformat
 from systemimage.config import config
 from systemimage.reactor import Reactor
-from traceback import print_exc
 
 
 # Parameterized for testing purposes.
