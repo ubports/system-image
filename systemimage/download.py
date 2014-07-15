@@ -32,6 +32,7 @@ from io import StringIO
 from pprint import pformat
 from systemimage.config import config
 from systemimage.reactor import Reactor
+from systemimage.settings import Settings
 
 
 # Parameterized for testing purposes.
@@ -259,6 +260,11 @@ class DBusDownloadManager:
             _headers())
         download = bus.get_object(OBJECT_NAME, object_path)
         self._iface = dbus.Interface(download, OBJECT_INTERFACE)
+        # Are GSM downloads allowed?  Yes, except if auto_download is set to 1
+        # (i.e. wifi-only).
+        allow_gsm = Settings().get('auto_download') != '1'
+        DBusDownloadManager._set_gsm(self._iface, allow_gsm=allow_gsm)
+        # Start the download.
         reactor = DownloadReactor(bus, self.callback, pausable)
         reactor.schedule(self._iface.start)
         log.info('[0x{:x}] Running group download reactor', id(self))
@@ -283,6 +289,11 @@ class DBusDownloadManager:
         for record in records:
             assert os.path.exists(record.destination), (
                 'Missing destination: {}'.format(record))
+
+    @staticmethod
+    def _set_gsm(iface, *, allow_gsm):
+        # This is a separate method for easier testing via mocks.
+        iface.allowGSMDownload(allow_gsm)
 
     def cancel(self):
         """Cancel any current downloads."""

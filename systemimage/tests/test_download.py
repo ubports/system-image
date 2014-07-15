@@ -19,6 +19,7 @@ __all__ = [
     'TestDownloadBigFiles',
     'TestDownloads',
     'TestDuplicateDownloads',
+    'TestGSMDownloads',
     'TestHTTPSDownloads',
     'TestHTTPSDownloadsExpired',
     'TestHTTPSDownloadsNasty',
@@ -35,10 +36,11 @@ from contextlib import ExitStack
 from datetime import datetime, timedelta
 from gi.repository import GLib
 from hashlib import sha256
-from systemimage.config import config
+from systemimage.config import Configuration, config
 from systemimage.download import (
     Canceled, DBusDownloadManager, DuplicateDestinationError, Record)
 from systemimage.helpers import MiB, temporary_directory
+from systemimage.settings import Settings
 from systemimage.testing.helpers import (
     configuration, data_path, make_http_server)
 from systemimage.testing.nose import SystemImagePlugin
@@ -62,18 +64,20 @@ def _https_pathify(downloads):
 
 class TestDownloads(unittest.TestCase):
     def setUp(self):
-        self._stack = ExitStack()
+        super().setUp()
+        self._resources = ExitStack()
         try:
             # Start the HTTP server running, vending files out of our test
             # data directory.
             directory = os.path.dirname(data_path('__init__.py'))
-            self._stack.push(make_http_server(directory, 8980))
+            self._resources.push(make_http_server(directory, 8980))
         except:
-            self._stack.close()
+            self._resources.close()
             raise
 
     def tearDown(self):
-        self._stack.close()
+        self._resources.close()
+        super().tearDown()
 
     @configuration
     def test_good_path(self):
@@ -236,6 +240,78 @@ class TestHTTPSDownloadsNasty(unittest.TestCase):
                     ]))
 
 
+class TestGSMDownloads(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        # Patch this method so that we can verify both the value of the flag
+        # that system-image sets and the value that u-d-m's group downloader
+        # records and uses.  This is the only thing we can really
+        # automatically test given that e.g. we won't have GSM in development.
+        self._gsm_set_flag = None
+        self._gsm_get_flag = None
+        self._original = None
+        def set_gsm(iface, *, allow_gsm):
+            self._gsm_set_flag = allow_gsm
+            self._original(iface, allow_gsm=allow_gsm)
+            self._gsm_get_flag = iface.isGSMDownloadAllowed()
+        self._resources = ExitStack()
+        try:
+            # Start the HTTP server running, vending files out of our test
+            # data directory.
+            directory = os.path.dirname(data_path('__init__.py'))
+            self._resources.push(make_http_server(directory, 8980))
+            # Patch the GSM setting method to capture what actually happens.
+            self._original = getattr(DBusDownloadManager, '_set_gsm')
+            self._resources.enter_context(patch(
+                'systemimage.download.DBusDownloadManager._set_gsm', set_gsm))
+            self._resources.callback(setattr, self, '_original', None)
+        except:
+            self._resources.close()
+            raise
+
+    def tearDown(self):
+        self._resources.close()
+        super().tearDown()
+
+    @configuration
+    def test_manual_downloads_gsm_allowed(self, ini_file):
+        # When auto_download is 0, manual downloads are enabled so assuming
+        # the user knows what they're doing, GSM downloads are allowed.
+        config = Configuration()
+        config.load(ini_file)
+        Settings(config).set('auto_download', '0')
+        DBusDownloadManager().get_files(_http_pathify([
+            ('channels_01.json', 'channels.json')
+            ]))
+        self.assertTrue(self._gsm_set_flag)
+        self.assertTrue(self._gsm_get_flag)
+
+    @configuration
+    def test_wifi_downloads_gsm_disallowed(self, ini_file):
+        # Obviously GSM downloads are not allowed when downloading
+        # automatically on wifi-only.
+        config = Configuration()
+        config.load(ini_file)
+        Settings(config).set('auto_download', '1')
+        DBusDownloadManager().get_files(_http_pathify([
+            ('channels_01.json', 'channels.json')
+            ]))
+        self.assertFalse(self._gsm_set_flag)
+        self.assertFalse(self._gsm_get_flag)
+
+    @configuration
+    def test_always_downloads_gsm_allowed(self, ini_file):
+        # GSM downloads are allowed when always downloading.
+        config = Configuration()
+        config.load(ini_file)
+        Settings(config).set('auto_download', '2')
+        DBusDownloadManager().get_files(_http_pathify([
+            ('channels_01.json', 'channels.json')
+            ]))
+        self.assertTrue(self._gsm_set_flag)
+        self.assertTrue(self._gsm_get_flag)
+
+
 class TestDownloadBigFiles(unittest.TestCase):
     @configuration
     def test_cancel(self):
@@ -369,16 +445,19 @@ class TestDuplicateDownloads(unittest.TestCase):
     maxDiff = None
 
     def setUp(self):
-        self._stack = ExitStack()
+        super().setUp()
+        self._resources = ExitStack()
         try:
-            self._serverdir = self._stack.enter_context(temporary_directory())
-            self._stack.push(make_http_server(self._serverdir, 8980))
+            self._serverdir = self._resources.enter_context(
+                temporary_directory())
+            self._resources.push(make_http_server(self._serverdir, 8980))
         except:
-            self._stack.close()
+            self._resources.close()
             raise
 
     def tearDown(self):
-        self._stack.close()
+        self._resources.close()
+        super().tearDown()
 
     @configuration
     def test_matched_duplicates(self):
