@@ -18,15 +18,23 @@
 
 __all__ = [
     'DBusClient',
+    'UASRecord',
     ]
 
 
 import dbus
 import logging
 
+from collections import namedtuple
 from systemimage.reactor import Reactor
 
 log = logging.getLogger('systemimage')
+
+
+# Use a namedtuple for more convenient argument unpacking.
+UASRecord = namedtuple('UASRecord',
+    'is_available downloading available_version update_size '
+    'last_update_date error_reason')
 
 
 class DBusClient(Reactor):
@@ -43,23 +51,20 @@ class DBusClient(Reactor):
         self.is_available = False
         self.downloaded = False
 
-    def _do_UpdateAvailableStatus(
-            self, signal, path,
-            is_available, downloading, available_version, update_size,
-            last_update_date,
-            #descriptions,
-            error_reason):
-        if error_reason != '':
+    def _do_UpdateAvailableStatus(self, signal, path, *args):
+        payload = UASRecord(*args)
+        if payload.error_reason != '':
             # Cancel the download, set the failed flag and log the reason.
-            log.error('CheckForUpdate returned an error: {}', error_reason)
+            log.error('CheckForUpdate returned an error: {}',
+                      payload.error_reason)
             self.failed = True
             self.quit()
             return
-        if not is_available:
+        if not payload.is_available:
             log.info('No update available')
             self.quit()
             return
-        if not downloading:
+        if not payload.downloading:
             # We should be in auto download mode, so why aren't we downloading
             # the update?  Do it manually.
             log.info('Update available, downloading manually')

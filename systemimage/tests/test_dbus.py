@@ -53,7 +53,7 @@ from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
 from pathlib import Path
-from systemimage.bindings import DBusClient
+from systemimage.bindings import DBusClient, UASRecord
 from systemimage.config import Configuration
 from systemimage.helpers import MiB, atomic, safe_remove
 from systemimage.reactor import Reactor
@@ -73,6 +73,10 @@ class SignalCapturingReactor(Reactor):
 
     def _default(self, signal, path, *args, **kws):
         self.signals.append(args)
+        self.quit()
+
+    def _do_UpdateAvailableStatus(self, signal, path, *args):
+        self.signals.append(UASRecord(*args))
         self.quit()
 
     def run(self, method=None, timeout=None):
@@ -143,9 +147,9 @@ class DoubleCheckingReactor(Reactor):
         self.react_to('UpdateDownloaded')
         self.schedule(self.iface.CheckForUpdate)
 
-    def _do_UpdateAvailableStatus(self, signal, path, *args, **kws):
+    def _do_UpdateAvailableStatus(self, signal, path, *args):
         # We'll keep doing this until we get the UpdateDownloaded signal.
-        self.uas_signals.append(args)
+        self.uas_signals.append(UASRecord(*args))
         self.schedule(self.iface.CheckForUpdate)
 
     def _do_UpdateDownloaded(self, *args, **kws):
@@ -351,18 +355,14 @@ class TestDBusCheckForUpdate(_LiveTesting):
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         # There's one boolean argument to the result.
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertTrue(is_available, msg=error_reason)
-        self.assertFalse(downloading)
-        self.assertEqual(available_version, '1600')
-        self.assertEqual(update_size, 314572800)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available, msg=signal.error_reason)
+        self.assertFalse(signal.downloading)
+        self.assertEqual(signal.available_version, '1600')
+        self.assertEqual(signal.update_size, 314572800)
         # This is the first update applied.
-        self.assertEqual(last_update_date, 'Unknown')
-        ## self.assertEqual(descriptions, [{'description': 'Full'}])
-        self.assertEqual(error_reason, '')
+        self.assertEqual(signal.last_update_date, 'Unknown')
+        self.assertEqual(signal.error_reason, '')
 
     def test_update_available_auto_download(self):
         # Automatically download the available update.
@@ -371,18 +371,14 @@ class TestDBusCheckForUpdate(_LiveTesting):
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         # There's one boolean argument to the result.
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         # descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertTrue(is_available, msg=error_reason)
-        self.assertTrue(downloading)
-        self.assertEqual(available_version, '1600')
-        self.assertEqual(update_size, 314572800)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available, msg=signal.error_reason)
+        self.assertTrue(signal.downloading)
+        self.assertEqual(signal.available_version, '1600')
+        self.assertEqual(signal.update_size, 314572800)
         # This is the first update applied.
-        self.assertEqual(last_update_date, 'Unknown')
-        ## self.assertEqual(descriptions, [{'description': 'Full'}])
-        self.assertEqual(error_reason, '')
+        self.assertEqual(signal.last_update_date, 'Unknown')
+        self.assertEqual(signal.error_reason, '')
 
     def test_no_update_available(self):
         # Our device is newer than the version that's available.
@@ -390,13 +386,10 @@ class TestDBusCheckForUpdate(_LiveTesting):
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertFalse(is_available)
+        signal = reactor.signals[0]
+        self.assertFalse(signal.is_available)
         # No update has been previously applied.
-        self.assertEqual(last_update_date, '2013-08-01 10:11:12')
+        self.assertEqual(signal.last_update_date, '2013-08-01 10:11:12')
         # All other values are undefined.
 
     def test_last_update_date(self):
@@ -418,13 +411,10 @@ class TestDBusCheckForUpdate(_LiveTesting):
             reactor = SignalCapturingReactor('UpdateAvailableStatus')
             reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertFalse(is_available)
+        signal = reactor.signals[0]
+        self.assertFalse(signal.is_available)
         # No update has been previously applied.
-        self.assertEqual(last_update_date, '2013-01-20 12:01:45')
+        self.assertEqual(signal.last_update_date, '2013-01-20 12:01:45')
         # All other values are undefined.
 
     def test_check_for_update_twice(self):
@@ -437,37 +427,9 @@ class TestDBusCheckForUpdate(_LiveTesting):
         reactor.run(two_calls)
         self.assertEqual(len(reactor.signals), 1)
         # There's one boolean argument to the result.
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         # descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertTrue(is_available, msg=error_reason)
-        self.assertTrue(downloading)
-
-    @unittest.skip('LP: #1215586')
-    def test_get_multilingual_descriptions(self):
-        # The descriptions are multilingual.
-        self._prepare_index('index_14.json')
-        reactor = SignalCapturingReactor('UpdateAvailableStatus')
-        reactor.run(self.iface.CheckForUpdate)
-        self.assertEqual(len(reactor.signals), 1)
-        # There's one boolean argument to the result.
-        (is_available, downloading, available_version, update_size,
-         last_update_date, descriptions, error_reason) = reactor.signals[0]
-        self.assertEqual(descriptions, [
-            {'description': 'Full B',
-             'description-en': 'The full B',
-            },
-            {'description': 'Delta B.1',
-             'description-en_US': 'This is the delta B.1',
-             'description-xx': 'XX This is the delta B.1',
-             'description-yy': 'YY This is the delta B.1',
-             'description-yy_ZZ': 'YY-ZZ This is the delta B.1',
-            },
-            {'description': 'Delta B.2',
-             'description-xx': 'Oh delta, my delta',
-             'description-xx_CC': 'This hyar is the delta B.2',
-            }])
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available, msg=signal.error_reason)
+        self.assertTrue(signal.downloading)
 
 
 class TestDBusDownload(_LiveTesting):
@@ -483,12 +445,9 @@ class TestDBusDownload(_LiveTesting):
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         # There's one boolean argument to the result.
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertTrue(is_available)
-        self.assertTrue(downloading)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available)
+        self.assertTrue(signal.downloading)
         # Now, wait for the UpdateDownloaded signal.
         reactor = SignalCapturingReactor('UpdateDownloaded')
         reactor.run()
@@ -516,12 +475,9 @@ unmount system
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         # There's one boolean argument to the result.
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertFalse(is_available)
-        self.assertFalse(downloading)
+        signal = reactor.signals[0]
+        self.assertFalse(signal.is_available)
+        self.assertFalse(signal.downloading)
         # Now, wait for the UpdateDownloaded signal, which isn't coming.
         reactor = SignalCapturingReactor('UpdateDownloaded')
         reactor.run(timeout=15)
@@ -537,13 +493,10 @@ unmount system
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         # There's one boolean argument to the result.
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertTrue(is_available)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available)
         # This is false because we're in manual download mode.
-        self.assertFalse(downloading)
+        self.assertFalse(signal.downloading)
         self.assertFalse(os.path.exists(self.command_file))
         # No UpdateDownloaded signal is coming.
         reactor = SignalCapturingReactor('UpdateDownloaded')
@@ -576,13 +529,10 @@ unmount system
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         # There's one boolean argument to the result.
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertFalse(is_available)
+        signal = reactor.signals[0]
+        self.assertFalse(signal.is_available)
         # This is false because we're in manual download mode.
-        self.assertFalse(downloading)
+        self.assertFalse(signal.downloading)
         # No UpdateDownloaded signal is coming
         reactor = SignalCapturingReactor('UpdateDownloaded')
         reactor.run(timeout=15)
@@ -618,12 +568,9 @@ unmount system
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertTrue(is_available)
-        self.assertFalse(downloading)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available)
+        self.assertFalse(signal.downloading)
         reactor = SignalCapturingReactor('UpdateFailed')
         reactor.run(self.iface.DownloadUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -743,12 +690,9 @@ class TestDBusApply(_LiveTesting):
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertTrue(is_available)
-        self.assertFalse(downloading)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available)
+        self.assertFalse(signal.downloading)
         # And now we can successfully download the update.
         reactor = SignalCapturingReactor('UpdateDownloaded')
         reactor.run(self.iface.DownloadUpdate)
@@ -796,8 +740,8 @@ class MockReactor(Reactor):
         self.downloaded = True
         self.quit()
 
-    def _do_UpdateAvailableStatus(self, signal, path, *args, **kws):
-        self.status = args
+    def _do_UpdateAvailableStatus(self, signal, path, *args):
+        self.status = UASRecord(*args)
         if not self.auto_download:
             # The download must be started manually.
             self.quit()
@@ -820,24 +764,13 @@ class TestDBusMockUpdateAutoSuccess(_TestBase):
         reactor = MockReactor(self.iface)
         reactor.schedule(self.iface.CheckForUpdate)
         reactor.run()
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.status
-        self.assertTrue(is_available)
-        self.assertTrue(downloading)
-        self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * MiB)
-        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        ## self.assertEqual(descriptions, [
-        ##     {'description': 'Ubuntu Edge support',
-        ##      'description-en_GB': 'change the background colour',
-        ##      'description-fr': "Support d'Ubuntu Edge",
-        ##     },
-        ##     {'description':
-        ##      'Flipped container with 200% boot speed improvement',
-        ##     }])
-        self.assertEqual(error_reason, '')
+        self.assertTrue(reactor.status.is_available)
+        self.assertTrue(reactor.status.downloading)
+        self.assertEqual(reactor.status.available_version, '42')
+        self.assertEqual(reactor.status.update_size, 1337 * MiB)
+        self.assertEqual(reactor.status.last_update_date,
+                         '1983-09-13T12:13:14')
+        self.assertEqual(reactor.status.error_reason, '')
         # We should have gotten 100 UpdateProgress signals, where each
         # increments the percentage by 1 and decrements the eta by 0.5.
         self.assertEqual(len(reactor.progress), 100)
@@ -946,24 +879,13 @@ class TestDBusMockUpdateManualSuccess(_TestBase):
         reactor.schedule(self.iface.CheckForUpdate)
         reactor.auto_download = False
         reactor.run()
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.status
-        self.assertTrue(is_available)
-        self.assertFalse(downloading)
-        self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * MiB)
-        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        ## self.assertEqual(descriptions, [
-        ##     {'description': 'Ubuntu Edge support',
-        ##      'description-en_GB': 'change the background colour',
-        ##      'description-fr': "Support d'Ubuntu Edge",
-        ##     },
-        ##     {'description':
-        ##      'Flipped container with 200% boot speed improvement',
-        ##     }])
-        self.assertEqual(error_reason, '')
+        self.assertTrue(reactor.status.is_available)
+        self.assertFalse(reactor.status.downloading)
+        self.assertEqual(reactor.status.available_version, '42')
+        self.assertEqual(reactor.status.update_size, 1337 * MiB)
+        self.assertEqual(reactor.status.last_update_date,
+                         '1983-09-13T12:13:14')
+        self.assertEqual(reactor.status.error_reason, '')
         # There should be no progress yet.
         self.assertEqual(len(reactor.progress), 0)
         reactor = MockReactor(self.iface)
@@ -994,24 +916,14 @@ class TestDBusMockUpdateFailed(_TestBase):
         reactor = MockReactor(self.iface)
         reactor.schedule(self.iface.CheckForUpdate)
         reactor.run()
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.status
-        self.assertTrue(is_available)
-        self.assertFalse(downloading)
-        self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * MiB)
-        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        ## self.assertEqual(descriptions, [
-        ##     {'description': 'Ubuntu Edge support',
-        ##      'description-en_GB': 'change the background colour',
-        ##      'description-fr': "Support d'Ubuntu Edge",
-        ##     },
-        ##     {'description':
-        ##      'Flipped container with 200% boot speed improvement',
-        ##     }])
-        self.assertEqual(error_reason, 'You need some network for downloading')
+        self.assertTrue(reactor.status.is_available)
+        self.assertFalse(reactor.status.downloading)
+        self.assertEqual(reactor.status.available_version, '42')
+        self.assertEqual(reactor.status.update_size, 1337 * MiB)
+        self.assertEqual(reactor.status.last_update_date,
+                         '1983-09-13T12:13:14')
+        self.assertEqual(reactor.status.error_reason,
+                         'You need some network for downloading')
         self.assertEqual(len(reactor.failed), 1)
         failure_count, reason = reactor.failed[0]
         self.assertEqual(failure_count, 2)
@@ -1028,24 +940,13 @@ class TestDBusMockFailApply(_TestBase):
         reactor = MockReactor(self.iface)
         reactor.schedule(self.iface.CheckForUpdate)
         reactor.run()
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.status
-        self.assertTrue(is_available)
-        self.assertFalse(downloading)
-        self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * MiB)
-        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        ## self.assertEqual(descriptions, [
-        ##     {'description': 'Ubuntu Edge support',
-        ##      'description-en_GB': 'change the background colour',
-        ##      'description-fr': "Support d'Ubuntu Edge",
-        ##     },
-        ##     {'description':
-        ##      'Flipped container with 200% boot speed improvement',
-        ##     }])
-        self.assertEqual(error_reason, '')
+        self.assertTrue(reactor.status.is_available)
+        self.assertFalse(reactor.status.downloading)
+        self.assertEqual(reactor.status.available_version, '42')
+        self.assertEqual(reactor.status.update_size, 1337 * MiB)
+        self.assertEqual(reactor.status.last_update_date,
+                         '1983-09-13T12:13:14')
+        self.assertEqual(reactor.status.error_reason, '')
         self.assertTrue(reactor.downloaded)
         reactor = SignalCapturingReactor('Rebooting')
         reactor.run(self.iface.ApplyUpdate)
@@ -1063,24 +964,13 @@ class TestDBusMockFailResume(_TestBase):
         reactor = MockReactor(self.iface)
         reactor.schedule(self.iface.CheckForUpdate)
         reactor.run()
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.status
-        self.assertTrue(is_available)
-        self.assertFalse(downloading)
-        self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * MiB)
-        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        ## self.assertEqual(descriptions, [
-        ##     {'description': 'Ubuntu Edge support',
-        ##      'description-en_GB': 'change the background colour',
-        ##      'description-fr': "Support d'Ubuntu Edge",
-        ##     },
-        ##     {'description':
-        ##      'Flipped container with 200% boot speed improvement',
-        ##     }])
-        self.assertEqual(error_reason, '')
+        self.assertTrue(reactor.status.is_available)
+        self.assertFalse(reactor.status.downloading)
+        self.assertEqual(reactor.status.available_version, '42')
+        self.assertEqual(reactor.status.update_size, 1337 * MiB)
+        self.assertEqual(reactor.status.last_update_date,
+                         '1983-09-13T12:13:14')
+        self.assertEqual(reactor.status.error_reason, '')
         # The download is already paused.
         self.assertEqual(len(reactor.pauses), 1)
         self.assertEqual(reactor.pauses[0], 42)
@@ -1107,24 +997,13 @@ class TestDBusMockFailPause(_TestBase):
         # natural way to pause the download.
         reactor.timeout = 5
         reactor.run()
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.status
-        self.assertTrue(is_available)
-        self.assertTrue(downloading)
-        self.assertEqual(available_version, '42')
-        self.assertEqual(update_size, 1337 * MiB)
-        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
-        ## self.assertEqual(descriptions, [
-        ##     {'description': 'Ubuntu Edge support',
-        ##      'description-en_GB': 'change the background colour',
-        ##      'description-fr': "Support d'Ubuntu Edge",
-        ##     },
-        ##     {'description':
-        ##      'Flipped container with 200% boot speed improvement',
-        ##     }])
-        self.assertEqual(error_reason, '')
+        self.assertTrue(reactor.status.is_available)
+        self.assertTrue(reactor.status.downloading)
+        self.assertEqual(reactor.status.available_version, '42')
+        self.assertEqual(reactor.status.update_size, 1337 * MiB)
+        self.assertEqual(reactor.status.last_update_date,
+                         '1983-09-13T12:13:14')
+        self.assertEqual(reactor.status.error_reason, '')
         self.assertEqual(len(reactor.progress), 1)
         percentage, eta = reactor.progress[0]
         self.assertEqual(percentage, 10)
@@ -1141,13 +1020,10 @@ class TestDBusMockNoUpdate(_TestBase):
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertFalse(is_available)
-        self.assertFalse(downloading)
-        self.assertEqual(last_update_date, '1983-09-13T12:13:14')
+        signal = reactor.signals[0]
+        self.assertFalse(signal.is_available)
+        self.assertFalse(signal.downloading)
+        self.assertEqual(signal.last_update_date, '1983-09-13T12:13:14')
         # All the other status variables can be ignored.
 
     def test_lp_1215946(self):
@@ -1226,12 +1102,9 @@ class TestDBusRegressions(_LiveTesting):
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertTrue(is_available, msg=error_reason)
-        self.assertFalse(downloading)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available, msg=signal.error_reason)
+        self.assertFalse(signal.downloading)
         self.assertFalse(os.path.exists(self.command_file))
         # Arrange for the download to be canceled after it starts.
         reactor = SignalCapturingReactor('UpdateFailed')
@@ -1245,12 +1118,9 @@ class TestDBusRegressions(_LiveTesting):
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertTrue(is_available)
-        self.assertFalse(downloading)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available)
+        self.assertFalse(signal.downloading)
         # Now we'll let the download proceed to completion.
         reactor = SignalCapturingReactor('UpdateDownloaded')
         reactor.run(self.iface.DownloadUpdate)
@@ -1669,12 +1539,9 @@ class TestDBusUseCache(_LiveTesting):
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         # There's one boolean argument to the result.
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         #descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertTrue(is_available, msg=error_reason)
-        self.assertTrue(downloading)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available, msg=signal.error_reason)
+        self.assertTrue(signal.downloading)
         # Now, wait for the UpdateDownloaded signal.
         reactor = SignalCapturingReactor('UpdateDownloaded')
         reactor.run()
@@ -1800,16 +1667,12 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         self.assertGreater(len(reactor.uas_signals), 1)
         # All received signals should have the same information.
         for signal in reactor.uas_signals:
-            (is_available, downloading, available_version, update_size,
-             last_update_date,
-             #descriptions,
-             error_reason) = signal
-            self.assertTrue(is_available)
-            self.assertTrue(downloading)
-            self.assertEqual(available_version, '1600')
-            self.assertEqual(update_size, 314572800)
-            self.assertEqual(last_update_date, 'Unknown')
-            self.assertEqual(error_reason, '')
+            self.assertTrue(signal.is_available)
+            self.assertTrue(signal.downloading)
+            self.assertEqual(signal.available_version, '1600')
+            self.assertEqual(signal.update_size, 314572800)
+            self.assertEqual(signal.last_update_date, 'Unknown')
+            self.assertEqual(signal.error_reason, '')
 
     def test_multiple_check_for_updates_with_manual_downloading(self):
         # Log analysis of LP: #1287919 (a refinement of LP: #1277589 with
@@ -1873,11 +1736,7 @@ class TestDBusCheckForUpdateToUnwritablePartition(_LiveTesting):
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         # descriptions,
-         error_reason) = reactor.signals[0]
-        self.assertIn('Permission denied', error_reason)
+        self.assertIn('Permission denied', reactor.signals[0].error_reason)
 
 
 class TestDBusCheckForUpdateWithBrokenIndex(_LiveTesting):
@@ -1890,9 +1749,6 @@ class TestDBusCheckForUpdateWithBrokenIndex(_LiveTesting):
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
-        (is_available, downloading, available_version, update_size,
-         last_update_date,
-         # descriptions,
-         error_reason) = reactor.signals[0]
         self.assertEqual(
-            error_reason, "'Image' object has no attribute 'base'")
+            reactor.signals[0].error_reason,
+            "'Image' object has no attribute 'base'")
