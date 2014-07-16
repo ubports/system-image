@@ -33,6 +33,7 @@ NEWS for system-image updater
    download setting.  (LP: #1339157)
  * The system-image-dbus(8) manpage now describes the full D-Bus API.  (LP:
    #1340882)
+ * Pay down some tech-debt.  (LP: #1342183)
 
 2.2 (2014-03-05)
 ================

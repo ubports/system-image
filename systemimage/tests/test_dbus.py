@@ -213,8 +213,7 @@ class _TestBase(unittest.TestCase):
     def tearDownClass(cls):
         SystemImagePlugin.controller.stop_children()
         # Clear out the temporary directory.
-        config = Configuration()
-        config.load(SystemImagePlugin.controller.ini_path)
+        config = Configuration(SystemImagePlugin.controller.ini_path)
         try:
             shutil.rmtree(config.system.tempdir)
         except FileNotFoundError:
@@ -265,8 +264,7 @@ class _LiveTesting(_TestBase):
             # keyring.  The four signed keyring tar.xz files and their
             # signatures end up in the proper location after the state machine
             # runs to completion.
-            config = Configuration()
-            config.load(SystemImagePlugin.controller.ini_path)
+            config = Configuration(SystemImagePlugin.controller.ini_path)
             setup_keyrings('archive-master', use_config=config)
             setup_keyring_txz(
                 'spare.gpg', 'image-master.gpg', dict(type='blacklist'),
@@ -297,8 +295,7 @@ class _LiveTesting(_TestBase):
         super().setUp()
         self._prepare_index('index_13.json')
         # We need a configuration file that agrees with the dbus client.
-        self.config = Configuration()
-        self.config.load(SystemImagePlugin.controller.ini_path)
+        self.config = Configuration(SystemImagePlugin.controller.ini_path)
         # For testing reboot preparation.
         self.command_file = os.path.join(
             self.config.updater.cache_partition, 'ubuntu_command')
@@ -1315,8 +1312,7 @@ class TestLiveDBusInfo(_LiveTesting):
         # Before we get the information, let's poke a known value into the
         # settings database.  Before we do that, make sure that the database
         # already has a value in it.
-        config = Configuration()
-        config.load(SystemImagePlugin.controller.ini_path)
+        config = Configuration(SystemImagePlugin.controller.ini_path)
         settings = Settings(config)
         real_last_check_date = settings.get('last_check_date')
         # We can't really test the last check date against anything in a
@@ -1352,8 +1348,7 @@ version_detail: ubuntu=222,mako=333,custom=444
         # Before we get the information, let's poke a known value into the
         # settings database.  Before we do that, make sure that the database
         # already has a value in it.
-        config = Configuration()
-        config.load(SystemImagePlugin.controller.ini_path)
+        config = Configuration(SystemImagePlugin.controller.ini_path)
         settings = Settings(config)
         real_last_check_date = settings.get('last_check_date')
         # We can't really test the last check date against anything in a
@@ -1390,8 +1385,7 @@ build_number: 42
         timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
         os.utime(str(channel_path), (timestamp, timestamp))
         # Set the build number.
-        config = Configuration()
-        config.load(SystemImagePlugin.controller.ini_path)
+        config = Configuration(SystemImagePlugin.controller.ini_path)
         # We can't use _touch_build().
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
             print(45, file=fp)
@@ -1546,8 +1540,7 @@ class TestDBusUseCache(_LiveTesting):
         reactor = SignalCapturingReactor('UpdateDownloaded')
         reactor.run()
         self.assertEqual(len(reactor.signals), 1)
-        config = Configuration()
-        config.load(SystemImagePlugin.controller.ini_path)
+        config = Configuration(SystemImagePlugin.controller.ini_path)
         self.assertEqual(set(os.listdir(config.updater.cache_partition)),
                          set((
                              '5.txt',

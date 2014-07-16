@@ -31,8 +31,7 @@ from systemimage.testing.helpers import configuration
 class TestSettings(unittest.TestCase):
     @configuration
     def test_creation(self, ini_file):
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self.assertFalse(os.path.exists(config.system.settings_db))
         settings = Settings()
         self.assertTrue(os.path.exists(config.system.settings_db))

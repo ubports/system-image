@@ -148,8 +148,7 @@ class TestLastUpdateDate(unittest.TestCase):
     @configuration
     def test_date_unknown(self, ini_file):
         # No fallbacks.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
         self.assertFalse(os.path.exists(channel_ini))
         self.assertFalse(os.path.exists(config.system.build_file))

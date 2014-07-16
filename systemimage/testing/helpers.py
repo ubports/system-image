@@ -222,8 +222,7 @@ def configuration(function):
             with atomic(ini_file) as fp:
                 print(template.format(tmpdir=temp_tmpdir,
                                       vardir=temp_vardir), file=fp)
-            config = Configuration()
-            config.load(ini_file)
+            config = Configuration(ini_file)
             resources.enter_context(
                 patch('systemimage.config._config', config))
             resources.enter_context(

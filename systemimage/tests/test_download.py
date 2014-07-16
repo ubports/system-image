@@ -277,8 +277,7 @@ class TestGSMDownloads(unittest.TestCase):
     def test_manual_downloads_gsm_allowed(self, ini_file):
         # When auto_download is 0, manual downloads are enabled so assuming
         # the user knows what they're doing, GSM downloads are allowed.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         Settings(config).set('auto_download', '0')
         DBusDownloadManager().get_files(_http_pathify([
             ('channels_01.json', 'channels.json')
@@ -290,8 +289,7 @@ class TestGSMDownloads(unittest.TestCase):
     def test_wifi_downloads_gsm_disallowed(self, ini_file):
         # Obviously GSM downloads are not allowed when downloading
         # automatically on wifi-only.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         Settings(config).set('auto_download', '1')
         DBusDownloadManager().get_files(_http_pathify([
             ('channels_01.json', 'channels.json')
@@ -302,8 +300,7 @@ class TestGSMDownloads(unittest.TestCase):
     @configuration
     def test_always_downloads_gsm_allowed(self, ini_file):
         # GSM downloads are allowed when always downloading.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         Settings(config).set('auto_download', '2')
         DBusDownloadManager().get_files(_http_pathify([
             ('channels_01.json', 'channels.json')

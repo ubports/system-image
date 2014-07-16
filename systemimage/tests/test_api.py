@@ -292,8 +292,7 @@ unmount system
         # An exception in the state machine captures the exception and returns
         # an error string in the Update instance.
         self._setup_server_keyrings()
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         with chmod(config.updater.cache_partition, 0):
             update = Mediator().check_for_update()
         # There's no winning path, but there is an error.
