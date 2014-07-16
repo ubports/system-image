@@ -789,6 +789,10 @@ class TestStateNewChannelsFormat(ServerTestBase):
         config.load(data_path('channel_04.ini'), override=True)
         self._setup_server_keyrings()
         state = State()
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_until('reboot')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
@@ -849,6 +853,10 @@ class TestChannelAlias(ServerTestBase):
         touch_build(300)
         config.channel = 'daily'
         state = State()
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
@@ -889,6 +897,10 @@ class TestChannelAlias(ServerTestBase):
         touch_build(300)
         config.channel = 'daily'
         state = State()
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
@@ -930,11 +942,13 @@ class TestPhasedUpdates(ServerTestBase):
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.device.check_output', return_value='manta'))
-            resources.enter_context(
-                patch('systemimage.index.phased_percentage', return_value=66))
+        self._resources.enter_context(
+            patch('systemimage.index.phased_percentage', return_value=66))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
         self.assertEqual(_descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])
@@ -946,11 +960,13 @@ class TestPhasedUpdates(ServerTestBase):
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.device.check_output', return_value='manta'))
-            resources.enter_context(
-                patch('systemimage.index.phased_percentage', return_value=0))
+        self._resources.enter_context(
+            patch('systemimage.index.phased_percentage', return_value=0))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
         self.assertEqual(_descriptions(state.winner),
                          ['Full B', 'Delta B.1', 'Delta B.2'])
@@ -962,11 +978,13 @@ class TestPhasedUpdates(ServerTestBase):
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.device.check_output', return_value='manta'))
-            resources.enter_context(
-                patch('systemimage.index.phased_percentage', return_value=77))
+        self._resources.enter_context(
+            patch('systemimage.index.phased_percentage', return_value=77))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
         self.assertEqual(_descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])
@@ -1025,10 +1043,11 @@ class TestCachedFiles(ServerTestBase):
         def get_files(downloads, *args, **kws):
             if len(downloads) != 2:
                 raise AssertionError('Unexpected get_files() call')
-            for url, dst in downloads:
-                if os.path.basename(url) != os.path.basename(dst):
+            for record in downloads:
+                dst = os.path.basename(record.destination)
+                if os.path.basename(record.url) != dst:
                     raise AssertionError('Mismatched downloads')
-                if os.path.basename(dst) not in ('7.txt', '7.txt.asc'):
+                if dst not in ('7.txt', '7.txt.asc'):
                     raise AssertionError('Unexpected download')
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
@@ -1059,10 +1078,11 @@ class TestCachedFiles(ServerTestBase):
         def get_files(downloads, *args, **kws):
             if len(downloads) != 2:
                 raise AssertionError('Unexpected get_files() call')
-            for url, dst in downloads:
-                if os.path.basename(url) != os.path.basename(dst):
+            for record in downloads:
+                dst = os.path.basename(record.destination)
+                if os.path.basename(record.url) != dst:
                     raise AssertionError('Mismatched downloads')
-                if os.path.basename(dst) not in ('6.txt', '6.txt.asc'):
+                if dst not in ('6.txt', '6.txt.asc'):
                     raise AssertionError('Unexpected download')
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
@@ -1093,10 +1113,11 @@ class TestCachedFiles(ServerTestBase):
         def get_files(downloads, *args, **kws):
             if len(downloads) != 2:
                 raise AssertionError('Unexpected get_files() call')
-            for url, dst in downloads:
-                if os.path.basename(url) != os.path.basename(dst):
+            for record in downloads:
+                dst = os.path.basename(record.destination)
+                if os.path.basename(record.url) != dst:
                     raise AssertionError('Mismatched downloads')
-                if os.path.basename(dst) not in ('5.txt', '5.txt.asc'):
+                if dst not in ('5.txt', '5.txt.asc'):
                     raise AssertionError('Unexpected download')
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
@@ -1134,8 +1155,8 @@ class TestCachedFiles(ServerTestBase):
         requested_downloads = set()
         old_get_files = state.downloader.get_files
         def get_files(downloads, *args, **kws):
-            for dst, url in downloads:
-                requested_downloads.add(os.path.basename(dst))
+            for record in downloads:
+                requested_downloads.add(os.path.basename(record.destination))
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
         state.run_thru('download_files')
@@ -1171,8 +1192,8 @@ class TestCachedFiles(ServerTestBase):
         requested_downloads = set()
         old_get_files = state.downloader.get_files
         def get_files(downloads, *args, **kws):
-            for dst, url in downloads:
-                requested_downloads.add(os.path.basename(dst))
+            for record in downloads:
+                requested_downloads.add(os.path.basename(record.destination))
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
         state.run_thru('download_files')
@@ -1210,8 +1231,8 @@ class TestCachedFiles(ServerTestBase):
         requested_downloads = set()
         old_get_files = state.downloader.get_files
         def get_files(downloads, *args, **kws):
-            for dst, url in downloads:
-                requested_downloads.add(os.path.basename(dst))
+            for record in downloads:
+                requested_downloads.add(os.path.basename(record.destination))
             return old_get_files(downloads, *args, **kws)
         state.downloader.get_files = get_files
         state.run_thru('download_files')
@@ -1516,15 +1537,15 @@ class TestStateDuplicateDestinations(ServerTestBase):
         with self.assertRaises(DuplicateDestinationError) as cm:
             next(state)
         self.assertEqual(len(cm.exception.duplicates), 2)
-        dst, urls = cm.exception.duplicates[0]
+        dst, dupes = cm.exception.duplicates[0]
         self.assertEqual(os.path.basename(dst), '5.txt')
-        self.assertEqual(urls, [
-            'http://localhost:8980/3/4/5.txt',
-            'http://localhost:8980/5/6/5.txt',
-            ])
-        dst, urls = cm.exception.duplicates[1]
+        self.assertEqual([r[0] for r in dupes],
+                         ['http://localhost:8980/3/4/5.txt',
+                          'http://localhost:8980/5/6/5.txt',
+                         ])
+        dst, dupes = cm.exception.duplicates[1]
         self.assertEqual(os.path.basename(dst), '5.txt.asc')
-        self.assertEqual(urls, [
-            'http://localhost:8980/3/4/5.txt.asc',
-            'http://localhost:8980/5/6/5.txt.asc',
-            ])
+        self.assertEqual([r[0] for r in dupes],
+                         ['http://localhost:8980/3/4/5.txt.asc',
+                          'http://localhost:8980/5/6/5.txt.asc',
+                          ])

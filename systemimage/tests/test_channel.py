@@ -128,8 +128,6 @@ class TestLoadChannel(unittest.TestCase):
         # We get an error if the signature on the channels.json file is bad.
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
-        config = Configuration()
-        config.load(ini_file)
         self._state.run_thru('get_channel')
         # At this point, the state machine has determined that the
         # channels.json file is not signed with the cached image signing key,
@@ -167,8 +165,7 @@ class TestLoadChannel(unittest.TestCase):
                           os.path.join(self._serverdir, 'gpg',
                                        'image-signing.tar.xz'))
         # This will succeed by grabbing a new image-signing key.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         with open(config.gpg.image_signing, 'rb') as fp:
             checksum = hashlib.md5(fp.read()).digest()
         next(self._state)
@@ -196,8 +193,7 @@ class TestLoadChannel(unittest.TestCase):
         # cause the state machine to try to download a new image signing key,
         # so let's put the cached one up on the server.  This will still be
         # backlisted though.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         key_path = os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz')
         shutil.copy(config.gpg.image_signing, key_path)
         shutil.copy(config.gpg.image_signing + '.asc', key_path + '.asc')

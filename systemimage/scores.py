@@ -28,11 +28,11 @@ import logging
 
 from io import StringIO
 from itertools import count
+from systemimage.helpers import MiB
 
 log = logging.getLogger('systemimage')
 
 COLON = ':'
-MiB = 2 ** 20
 
 
 class Scorer:
