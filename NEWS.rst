@@ -31,6 +31,8 @@ NEWS for system-image updater
    (LP: #1280169)
  * Set the GSM flag in ubuntu-download-manager based on the current s-i
    download setting.  (LP: #1339157)
+ * The system-image-dbus(8) manpage now describes the full D-Bus API.  (LP:
+   #1340882)
 
 2.2 (2014-03-05)
 ================
