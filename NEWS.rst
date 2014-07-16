@@ -33,6 +33,9 @@ NEWS for system-image updater
    download setting.  (LP: #1339157)
  * The system-image-dbus(8) manpage now describes the full D-Bus API.  (LP:
    #1340882)
+ * Fix the D-Bus mock service so that the downloading flag for
+   `UpdateAvailableStatus` will correctly return true when checking twice
+   under manual downloads.  (LP: #1273354)
  * Pay down some tech-debt.  (LP: #1342183)
 
 2.2 (2014-03-05)
