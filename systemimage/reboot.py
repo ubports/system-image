@@ -18,12 +18,18 @@
 __all__ = [
     'BaseReboot',
     'Reboot',
+    'factory_reset',
     ]
 
 
+import os
 import logging
 
 from subprocess import CalledProcessError, check_call
+from systemimage.config import config
+from systemimage.helpers import atomic
+
+log = logging.getLogger('systemimage')
 
 
 class BaseReboot:
@@ -38,10 +44,19 @@ class Reboot(BaseReboot):
     """Issue a standard reboot."""
 
     def reboot(self):
-        log = logging.getLogger('systemimage')
         try:
             check_call('/sbin/reboot -f recovery'.split(),
                        universal_newlines=True)
         except CalledProcessError as error:
             log.exception('reboot exit status: {}'.format(error.returncode))
             raise
+
+
+def factory_reset():
+    """Perform a factory reset."""
+    command_file = os.path.join(
+        config.updater.cache_partition, 'ubuntu_command')
+    with atomic(command_file) as fp:
+        print('format data', file=fp)
+    log.info('Performing a factory reset')
+    config.hooks.reboot().reboot()

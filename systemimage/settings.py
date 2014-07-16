@@ -71,3 +71,14 @@ class Settings:
                     return AUTO_DOWNLOAD_DEFAULT
                 return ''
             return row[0]
+
+    def delete(self, key):
+        with self._cursor() as c:
+            c.execute('delete from settings where key = ?', (key,))
+
+    def __iter__(self):
+        # Iterate over all rows, ignoring implementation details.
+        with self._cursor() as c:
+            for row in c.execute('select * from settings'):
+                if not row[0].startswith('_'):
+                    yield row

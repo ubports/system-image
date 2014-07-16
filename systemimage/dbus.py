@@ -26,6 +26,7 @@ import sys
 import logging
 import traceback
 
+from datetime import datetime
 from dbus.service import Object, method, signal
 from gi.repository import GLib
 from systemimage.api import Mediator
@@ -101,9 +102,6 @@ class Service(Object):
             self._update.version,
             self._update.size,
             self._update.last_update_date,
-            # XXX 2013-08-22 - the u/i cannot currently currently handle the
-            # array of dictionaries data type.  LP: #1215586
-            #self._update.descriptions,
             self._update.error)
         # Stop GLib from calling this method again.
         return False
@@ -138,9 +136,6 @@ class Service(Object):
                     self._update.version,
                     self._update.size,
                     self._update.last_update_date,
-                    # XXX 2013-08-22 - the u/i cannot currently currently
-                    # handle the array of dictionaries data type.  LP:
-                    # #1215586 self._update.descriptions,
                     "")
             log.info('checking lock not acquired')
             return
@@ -189,12 +184,12 @@ class Service(Object):
             self.UpdateProgress(0, 0)
             self._api.download()
         except Exception:
+            log.exception('Download failed')
             self._failure_count += 1
             # This will return both the exception name and the exception
             # value, but not the traceback.
             self._last_error = EMPTYSTRING.join(
                 traceback.format_exception_only(*sys.exc_info()[:2]))
-            log.info('Update failed: {}', self._last_error)
             self.UpdateFailed(self._failure_count, self._last_error)
         else:
             log.info('Update downloaded')
@@ -284,6 +279,19 @@ class Service(Object):
                 last_update_date(),
                 version_detail())
 
+    @method('com.canonical.SystemImage', out_signature='a{ss}')
+    def Information(self):
+        self._loop.keepalive()
+        settings = Settings()
+        return dict(
+            current_build_number=str(config.build_number),
+            device_name=config.device,
+            channel_name=config.channel,
+            last_update_date=last_update_date(),
+            version_detail=getattr(config.service, 'version_detail', ''),
+            last_check_date=settings.get('last_check_date'),
+            )
+
     @method('com.canonical.SystemImage', in_signature='ss')
     def SetSetting(self, key, value):
         """Set a key/value setting.
@@ -320,21 +328,27 @@ class Service(Object):
         return Settings().get(key)
 
     @method('com.canonical.SystemImage')
+    def FactoryReset(self):
+        self._api.factory_reset()
+        # This code may or may not run.  We're racing against the system
+        # reboot procedure.
+        self.Rebooting(True)
+
+    @method('com.canonical.SystemImage')
     def Exit(self):
         """Quit the daemon immediately."""
         self._loop.quit()
 
-    # XXX 2013-08-22 The u/i cannot currently handle the array of dictionaries
-    # data type for the descriptions.  LP: #1215586
-    #@signal('com.canonical.SystemImage', signature='bbsisaa{ss}s')
     @signal('com.canonical.SystemImage', signature='bbsiss')
     def UpdateAvailableStatus(self,
                               is_available, downloading,
                               available_version, update_size,
                               last_update_date,
-                              #descriptions,
                               error_reason):
         """Signal sent in response to a CheckForUpdate()."""
+        # For .Information()'s last_check_date value.
+        iso8601_now = datetime.now().replace(microsecond=0).isoformat(sep=' ')
+        Settings().set('last_check_date', iso8601_now)
         log.debug('EMIT UpdateAvailableStatus({}, {}, {}, {}, {}, {})',
                   is_available, downloading, available_version, update_size,
                   last_update_date, repr(error_reason))

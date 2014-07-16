@@ -24,7 +24,6 @@ __all__ = [
 import os
 import json
 import shutil
-import hashlib
 import logging
 import tarfile
 
@@ -36,10 +35,10 @@ from itertools import islice
 from systemimage.candidates import get_candidates, iter_path
 from systemimage.channel import Channels
 from systemimage.config import config
-from systemimage.download import DBusDownloadManager
+from systemimage.download import DBusDownloadManager, Record
 from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import (
-    atomic, makedirs, safe_remove, temporary_directory)
+    atomic, calculate_signature, makedirs, safe_remove, temporary_directory)
 from systemimage.index import Index
 from systemimage.keyring import KeyringError, get_keyring
 from urllib.parse import urljoin
@@ -69,7 +68,7 @@ def _use_cached(txt, asc, keyrings, checksum=None, blacklist=None):
     if checksum is None:
         return True
     with open(txt, 'rb') as fp:
-        got = hashlib.sha256(fp.read()).hexdigest()
+        got = calculate_signature(fp)
         return got == checksum
 
 
@@ -279,8 +278,8 @@ class State:
                 (asc_url, asc_path),
                 ])
             # Once we're done with them, we can remove these files.
-            stack.callback(os.remove, channels_path)
-            stack.callback(os.remove, asc_path)
+            stack.callback(safe_remove, channels_path)
+            stack.callback(safe_remove, asc_path)
             # The channels.json file must be signed with the SYSTEM IMAGE
             # SIGNING key.  There may or may not be a blacklist.
             ctx = stack.enter_context(
@@ -467,11 +466,12 @@ class State:
                 preserve.add(dst)
                 preserve.add(asc)
             else:
-                downloads.append((
+                # Add the data file, which has a checksum.
+                downloads.append(Record(
                     urljoin(config.service.http_base, filerec.path),
-                    dst,
-                    ))
-                downloads.append((
+                    dst, checksum))
+                # Add the signature file, which does not have a checksum.
+                downloads.append(Record(
                     urljoin(config.service.http_base, filerec.signature),
                     asc))
                 signatures.append((dst, asc))
@@ -479,8 +479,8 @@ class State:
         # For any files we're about to download, we must make sure that none
         # of the destination file paths exist, otherwise the downloader will
         # throw exceptions.
-        for url, dst in downloads:
-            safe_remove(dst)
+        for record in downloads:
+            safe_remove(record.destination)
         # Also delete cache partition files that we no longer need.
         for filename in os.listdir(cache_dir):
             path = os.path.join(cache_dir, filename)
@@ -494,8 +494,8 @@ class State:
             # raised or if the checksums don't match.  If everything's okay,
             # we'll clear the stack before the context manager exits so none
             # of the files will get removed.
-            for url, dst in downloads:
-                stack.callback(os.remove, dst)
+            for record in downloads:
+                stack.callback(os.remove, record.destination)
             # Although we should never get there, if the downloading step
             # fails, clear out the self.files list so there's no possibilty
             # we'll try to move them later.
@@ -507,7 +507,7 @@ class State:
             # Verify the checksums.
             for dst, checksum in checksums:
                 with open(dst, 'rb') as fp:
-                    got = hashlib.sha256(fp.read()).hexdigest()
+                    got = calculate_signature(fp)
                     if got != checksum:
                         raise ChecksumError(dst, got, checksum)
             # Everything is fine so nothing needs to be cleared.
@@ -557,7 +557,7 @@ class State:
         #   ((image_number, order), file_2, file_2.asc),
         #   ...
         # ]
-        log.info('preparing to reboot')
+        log.info('preparing recovery')
         collated = []
         zipper = zip(
             # items # 0, 2, 4, ...

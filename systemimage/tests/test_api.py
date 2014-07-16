@@ -22,22 +22,22 @@ __all__ = [
 
 
 import os
-import unittest
+import json
 
 from contextlib import ExitStack
 from datetime import datetime, timedelta
 from gi.repository import GLib
+from hashlib import sha256
 from systemimage.api import Mediator
 from systemimage.config import Configuration, config
 from systemimage.download import Canceled
 from systemimage.gpg import SignatureError
+from systemimage.helpers import MiB
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, setup_index, sign,
     touch_build)
+from textwrap import dedent
 from unittest.mock import patch
-
-
-MiB = 1024 * 1024
 
 
 class TestAPI(ServerTestBase):
@@ -132,15 +132,10 @@ class TestAPI(ServerTestBase):
         mediator = Mediator()
         self.assertTrue(mediator.check_for_update())
         # Make sure a reboot did not get issued.
-        got_reboot = False
-        def reboot_mock(self):
-            nonlocal got_reboot
-            got_reboot = True
-        with unittest.mock.patch(
-                'systemimage.reboot.Reboot.reboot', reboot_mock):
+        with patch('systemimage.reboot.Reboot.reboot') as reboot:
             mediator.download()
         # No reboot got issued.
-        self.assertFalse(got_reboot)
+        self.assertFalse(reboot.called)
         # But the command file did get written, and all the files are present.
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -183,17 +178,25 @@ unmount system
         self._setup_server_keyrings()
         mediator = Mediator()
         # Mock to check the state of reboot.
-        got_reboot = False
-        def reboot_mock(self):
-            nonlocal got_reboot
-            got_reboot = True
-        with unittest.mock.patch(
-                'systemimage.reboot.Reboot.reboot', reboot_mock):
+        with patch('systemimage.reboot.Reboot.reboot') as reboot:
             mediator.check_for_update()
             mediator.download()
-            self.assertFalse(got_reboot)
+            self.assertFalse(reboot.called)
             mediator.reboot()
-            self.assertTrue(got_reboot)
+            self.assertTrue(reboot.called)
+
+    @configuration
+    def test_factory_reset(self):
+        mediator = Mediator()
+        with patch('systemimage.reboot.Reboot.reboot') as reboot:
+            mediator.factory_reset()
+        self.assertTrue(reboot.called)
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, dedent("""\
+            format data
+            """))
 
     @configuration
     def test_cancel(self):
@@ -233,6 +236,19 @@ unmount system
             full_path = os.path.join(self._serverdir, path)
             with open(full_path, 'wb') as fp:
                 fp.write(b'x' * 100 * MiB)
+        # We must update the file checksums in the index.json file, then we
+        # have to resign it.
+        index_path = os.path.join(
+            self._serverdir, 'stable', 'nexus7', 'index.json')
+        with open(index_path, 'r', encoding='utf-8') as fp:
+            index = json.load(fp)
+        checksum = sha256(b'x' * 100 * MiB).hexdigest()
+        for i in range(3):
+            index['images'][0]['files'][i]['checksum'] = checksum
+        with open(index_path, 'w', encoding='utf-8') as fp:
+            json.dump(index, fp)
+        sign(index_path, 'device-signing.gpg')
+        # Now the test is all set up.
         mediator = Mediator()
         pauses = []
         def do_paused(self, signal, path, paused):
@@ -276,8 +292,7 @@ unmount system
         # An exception in the state machine captures the exception and returns
         # an error string in the Update instance.
         self._setup_server_keyrings()
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         with chmod(config.updater.cache_partition, 0):
             update = Mediator().check_for_update()
         # There's no winning path, but there is an error.
