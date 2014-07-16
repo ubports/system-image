@@ -117,14 +117,13 @@ class _UpdateAutoSuccess(Service):
         GLib.timeout_add_seconds(3, self._send_status)
 
     def _send_status(self):
+        if self._auto_download:
+            self._downloading = True
         self.UpdateAvailableStatus(
-            True, self._auto_download, '42', 1337 * MiB,
+            True, self._downloading, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
             '')
-        if (    self._auto_download and
-                not self._downloading and
-                not self._rebootable):
-            self._downloading = True
+        if self._downloading and not self._rebootable:
             self.UpdateProgress(0, 50.0)
             GLib.timeout_add(500, self._send_more_status)
         if self._paused:

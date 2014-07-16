@@ -902,6 +902,27 @@ class TestDBusMockUpdateManualSuccess(_TestBase):
         self.assertEqual(len(reactor.signals), 1)
         self.assertTrue(reactor.signals[0])
 
+    def test_second_uas_signal_is_still_downloading(self):
+        # LP: #1273354 claims that if you "trigger the download, close system
+        # settings, and reopen it, the signal UpdateAvailableStatus will send
+        # downloading==false, instead of true".
+        reactor = MockReactor(self.iface)
+        reactor.schedule(self.iface.CheckForUpdate)
+        reactor.auto_download = False
+        reactor.run()
+        self.assertTrue(reactor.status.is_available)
+        self.assertFalse(reactor.status.downloading)
+        # Now trigger the download, but ignore any signals that come from it.
+        self.iface.DownloadUpdate()
+        # Simulate closing and re-opening system settings by creating a new
+        # reactor and issuing another check.
+        reactor = MockReactor(self.iface)
+        reactor.schedule(self.iface.CheckForUpdate)
+        reactor.auto_download = False
+        reactor.run()
+        self.assertTrue(reactor.status.is_available)
+        self.assertTrue(reactor.status.downloading)
+
 
 class TestDBusMockUpdateFailed(_TestBase):
     mode = 'update-failed'
