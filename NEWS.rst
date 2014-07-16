@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-2.3 (2014-XX-XX)
+2.3 (2014-07-16)
 ================
  * Support factory resets.  `system-image-cli --factory-reset` and a new D-Bus
    API method `FactoryReset()` are added.  (LP: #1207860)
