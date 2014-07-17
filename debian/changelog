@@ -36,8 +36,10 @@ system-image (2.3-0ubuntu1) UNRELEASED; urgency=medium
       flag for UpdateAvailableStatus will correctly return true when
       checking twice under manual downloads.
     - LP: #1342183 - Pay down some tech-debt.
-  * d/watch, d/upstream/signing-key.asc: Add Barry's GPG signing key so
+  * d/watch, d/upstream/signing-key.asc: Added Barry's GPG signing key so
     that uscan will verify the signature of the download.
+  * d/control: Updated Build-Depends.
+  * d/rules: Updated, and add --buildsystem=pybuild.
 
  -- Barry Warsaw <barry@ubuntu.com>  Wed, 16 Jul 2014 18:23:07 -0400
 
