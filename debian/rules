@@ -17,6 +17,8 @@ test-python%:
 	tox -e py$${nodot}
 
 override_dh_auto_test: $(PYTHON3:%=test-python%)
+else
+override_dh_auto_test:
 endif
 
 # pybuild can't yet handle Python 3 packages that don't start with "python3-".

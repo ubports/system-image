@@ -39,7 +39,14 @@ system-image (2.3-0ubuntu1) UNRELEASED; urgency=medium
   * d/watch, d/upstream/signing-key.asc: Added Barry's GPG signing key so
     that uscan will verify the signature of the download.
   * d/control: Updated Build-Depends.
-  * d/rules: Updated, and add --buildsystem=pybuild.
+  * d/rules:
+    - Updated, and add --buildsystem=pybuild.
+    - Fix 'nocheck' test short-circuiting.
+  * d/tests:
+    - control: Update dependencies and restrictions.
+    - dryrun: New schroot-compatible limited test suite.  The existing
+      smoketest test requires isolation-container so isn't compatible with
+      schroot.
 
  -- Barry Warsaw <barry@ubuntu.com>  Wed, 16 Jul 2014 18:23:07 -0400
 

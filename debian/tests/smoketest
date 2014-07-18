@@ -1,9 +1,11 @@
 #!/bin/sh
 #
 # autopkgtest check: Run a smoke test with actual built system components.
-# This requires network access to system-image.ubuntu.com.
+# This requires network access to system-image.ubuntu.com and is
+# isolation-container restricted, so it requires an isolated test container
+# like QEMU.
 #
-# Copyright (C) 2013 Canonical Ltd.
+# Copyright (C) 2013-2014 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 set -e

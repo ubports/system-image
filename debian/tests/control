@@ -1,2 +1,7 @@
 Tests: smoketest
-Depends: @, ubuntu-download-manager, dbus, dbus-x11, python-tox, python3-nose2, python3-psutil
+Restrictions: isolation-container
+Depends: @, ubuntu-download-manager, dbus, dbus-x11, python3-psutil, python3-xdg
+
+Tests: dryrun
+Restrictions: allow-stderr
+Depends: @, ubuntu-download-manager, dbus, dbus-x11, python3-psutil, python3-xdg, python3-setuptools, python3-nose2
