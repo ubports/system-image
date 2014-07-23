@@ -20,19 +20,22 @@ __all__ = [
     'TestConverters',
     'TestLastUpdateDate',
     'TestPhasedPercentage',
+    'TestSignature',
     ]
 
 
 import os
+import hashlib
 import logging
+import tempfile
 import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timedelta
 from systemimage.config import Configuration, config
 from systemimage.helpers import (
-    Bag, as_loglevel, as_object, as_timedelta, last_update_date,
-    phased_percentage, temporary_directory, version_detail)
+    Bag, MiB, as_loglevel, as_object, as_timedelta, calculate_signature,
+    last_update_date, phased_percentage, temporary_directory, version_detail)
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
 
@@ -145,8 +148,7 @@ class TestLastUpdateDate(unittest.TestCase):
     @configuration
     def test_date_unknown(self, ini_file):
         # No fallbacks.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
         self.assertFalse(os.path.exists(channel_ini))
         self.assertFalse(os.path.exists(config.system.build_file))
@@ -166,7 +168,7 @@ class TestLastUpdateDate(unittest.TestCase):
         self.assertEqual(last_update_date(), '2013-12-11 10:09:08')
 
     @configuration
-    def test_version_details(self, ini_file):
+    def test_version_detail(self, ini_file):
         channel_ini = data_path('channel_03.ini')
         config.load(channel_ini, override=True)
         self.assertEqual(version_detail(),
@@ -177,6 +179,10 @@ class TestLastUpdateDate(unittest.TestCase):
         channel_ini = data_path('channel_01.ini')
         config.load(channel_ini, override=True)
         self.assertEqual(version_detail(), {})
+
+    def test_version_detail_from_argument(self):
+        self.assertEqual(version_detail('ubuntu=123,mako=456,custom=789'),
+                         dict(ubuntu='123', mako='456', custom='789'))
 
     @configuration
     def test_date_from_userdata_ignoring_fallbacks(self, ini_file):
@@ -255,3 +261,37 @@ class TestPhasedPercentage(unittest.TestCase):
             self.assertEqual(phased_percentage(reset=True), 81)
             # The next one will have a different value.
             self.assertEqual(phased_percentage(), 17)
+
+
+class TestSignature(unittest.TestCase):
+    def test_calculate_signature(self):
+        # Check the default hash algorithm.
+        with tempfile.TemporaryFile() as fp:
+            # Ensure the file is bigger than chunk size.
+            fp.write(b'\0' * (MiB + 1))
+            fp.seek(0)
+            hash1 = calculate_signature(fp)
+            fp.seek(0)
+            hash2 = hashlib.sha256(fp.read()).hexdigest()
+            self.assertEqual(hash1, hash2)
+
+    def test_calculate_signature_alternative_hash(self):
+        # Check an alternative hash algorithm.
+        with tempfile.TemporaryFile() as fp:
+            # Ensure the file is bigger than chunk size.
+            fp.write(b'\0' * (MiB + 1))
+            fp.seek(0)
+            hash1 = calculate_signature(fp, hashlib.md5)
+            fp.seek(0)
+            hash2 = hashlib.md5(fp.read()).hexdigest()
+            self.assertEqual(hash1, hash2)
+
+    def test_calculate_signature_chunk_size(self):
+        # Check that a file of exactly the chunk size works.
+        with tempfile.TemporaryFile() as fp:
+            fp.write(b'\0' * MiB)
+            fp.seek(0)
+            hash1 = calculate_signature(fp)
+            fp.seek(0)
+            hash2 = hashlib.sha256(fp.read()).hexdigest()
+            self.assertEqual(hash1, hash2)

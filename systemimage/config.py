@@ -49,13 +49,14 @@ def port_value_converter(value):
 
 
 class Configuration:
-    def __init__(self):
+    def __init__(self, ini_file=None):
         # Defaults.
         self.config_file = None
         self.service = Bag()
         self.system = Bag()
-        ini_path = resource_filename('systemimage.data', 'client.ini')
-        self.load(ini_path)
+        if ini_file is None:
+            ini_file = resource_filename('systemimage.data', 'client.ini')
+        self.load(ini_file)
         self._override = False
         # 2013-10-14 BAW This is a placeholder for rendezvous between the
         # downloader and the D-Bus service.  When running udner D-Bus and we

@@ -31,8 +31,7 @@ from systemimage.testing.helpers import configuration
 class TestSettings(unittest.TestCase):
     @configuration
     def test_creation(self, ini_file):
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self.assertFalse(os.path.exists(config.system.settings_db))
         settings = Settings()
         self.assertTrue(os.path.exists(config.system.settings_db))
@@ -47,6 +46,23 @@ class TestSettings(unittest.TestCase):
         settings = Settings()
         settings.set('permanent', 'waves')
         self.assertEqual(settings.get('permanent'), 'waves')
+
+    @configuration
+    def test_delete(self):
+        # Keys can be deleted.
+        settings = Settings()
+        settings.set('moving', 'pictures')
+        self.assertEqual(settings.get('moving'), 'pictures')
+        settings.delete('moving')
+        # The empty string is the default.
+        self.assertEqual(settings.get('moving'), '')
+
+    @configuration
+    def test_delete_missing(self):
+        # Nothing much happens if you ask to delete a missing key.
+        settings = Settings()
+        settings.delete('missing')
+        self.assertEqual(settings.get('missing'), '')
 
     @configuration
     def test_update(self):
@@ -72,3 +88,14 @@ class TestSettings(unittest.TestCase):
     def test_prepopulated(self):
         # Some keys are pre-populated with default values.
         self.assertEqual(Settings().get('auto_download'), '1')
+
+    @configuration
+    def test_iterate(self):
+        # Iterate over all keys.
+        settings = Settings()
+        settings.set('a', 'ant')
+        settings.set('b', 'bee')
+        settings.set('c', 'cat')
+        keyval = list(settings)
+        keyval.sort()
+        self.assertEqual(keyval, [('a', 'ant'), ('b', 'bee'), ('c', 'cat')])

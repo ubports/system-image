@@ -7,6 +7,7 @@ Priority: optional
 Build-Depends: dbus,
                dbus-x11,
                debhelper (>= 8),
+               dh-python,
                python-docutils,
                python-tox,
                python3-all (>= 3.3),
@@ -17,6 +18,7 @@ Build-Depends: dbus,
                python3-pkg-resources,
                python3-psutil,
                python3-setuptools,
+               python3-xdg,
                ubuntu-download-manager
 Standards-Version: 3.9.5
 XS-Testsuite: autopkgtest

@@ -18,10 +18,12 @@
 __all__ = [
     'DEFAULT_DIRMODE',
     'ExtendedEncoder',
+    'MiB',
     'as_loglevel',
     'as_object',
     'as_timedelta',
     'atomic',
+    'calculate_signature',
     'last_update_date',
     'makedirs',
     'phased_percentage',
@@ -42,6 +44,7 @@ import tempfile
 
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timedelta
+from hashlib import sha256
 from importlib import import_module
 from systemimage.bag import Bag
 
@@ -49,6 +52,29 @@ from systemimage.bag import Bag
 LAST_UPDATE_FILE = '/userdata/.last_update'
 UNIQUE_MACHINE_ID_FILE = '/var/lib/dbus/machine-id'
 DEFAULT_DIRMODE = 0o02700
+MiB = 1 << 20
+
+
+def calculate_signature(fp, hash_class=None):
+    """Calculate the hex digest hash signature for a file stream.
+
+    :param fp: The open file object.  This function will read the entire
+        contents of the file, leaving the file pointer at the end.  It is the
+        responsibility of the caller to both open and close the file.
+    :type fp: File-like object with `.read(count)` method.
+    :param hash_class: The hash class to use.  Defaults to `hashlib.sha256`.
+    :type hash_class: Object having both `.update(bytes)` and `.hexdigest()`
+        methods.
+    :return: The hex digest of the contents of the file.
+    :rtype: str
+    """
+    checksum = (sha256 if hash_class is None else hash_class)()
+    while True:
+        chunk = fp.read(MiB)
+        if not chunk:
+            break
+        checksum.update(chunk)
+    return checksum.hexdigest()
 
 
 def safe_remove(path):
@@ -243,16 +269,17 @@ def last_update_date():
         return 'Unknown'
 
 
-def version_detail():
+def version_detail(details_string=None):
     """Return a dictionary of the version details."""
     # Avoid circular imports.
-    from systemimage.config import config
-    version_details = getattr(config.service, 'version_detail', None)
-    if version_details is None:
+    if details_string is None:
+        from systemimage.config import config
+        details_string = getattr(config.service, 'version_detail', None)
+    if details_string is None:
         return {}
     details = {}
-    if version_details is not None:
-        for item in version_details.strip().split(','):
+    if details is not None:
+        for item in details_string.strip().split(','):
             name, equals, version = item.partition('=')
             if equals != '=':
                 continue

@@ -18,9 +18,13 @@
 __all__ = [
     'TestCLIDuplicateDestinations',
     'TestCLIFilters',
+    'TestCLIListChannels',
     'TestCLIMain',
     'TestCLIMainDryRun',
     'TestCLIMainDryRunAliases',
+    'TestCLINoReboot',
+    'TestCLISettings',
+    'TestCLIFactoryReset',
     'TestDBusMain',
     ]
 
@@ -38,10 +42,12 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from functools import partial
 from io import StringIO
+from pathlib import Path
 from pkg_resources import resource_filename, resource_string as resource_bytes
 from systemimage.config import Configuration, config
 from systemimage.helpers import safe_remove
 from systemimage.main import main as cli_main
+from systemimage.settings import Settings
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, data_path, find_dbus_process,
     temporary_directory, touch_build)
@@ -173,8 +179,7 @@ class TestCLIMain(unittest.TestCase):
         with open(config_ini, 'w', encoding='utf-8') as fp:
             fp.write(configuration)
         # Invoking main() creates the directories.
-        config = Configuration()
-        config.load(config_ini)
+        config = Configuration(config_ini)
         self.assertFalse(os.path.exists(config.system.tempdir))
         self.assertFalse(os.path.exists(config.system.logfile))
         self._resources.enter_context(patch(
@@ -196,8 +201,6 @@ class TestCLIMain(unittest.TestCase):
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '--info']))
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
@@ -218,8 +221,7 @@ class TestCLIMain(unittest.TestCase):
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '--info']))
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         touch_build(1701)
         timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
         os.utime(config.system.build_file, (timestamp_1, timestamp_1))
@@ -242,8 +244,7 @@ class TestCLIMain(unittest.TestCase):
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '--info']))
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         touch_build(1701)
         timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
         os.utime(config.system.build_file, (timestamp_1, timestamp_1))
@@ -259,8 +260,6 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_build_number(self, ini_file):
         # -b/--build overrides the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         # Use --build to override the default build number.
         self._resources.enter_context(
@@ -279,8 +278,6 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_device_name(self, ini_file):
         # -d/--device overrides the device type.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
@@ -298,8 +295,6 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_channel_name(self, ini_file):
         # -c/--channel overrides the channel.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
@@ -337,8 +332,6 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_all_overrides(self, ini_file):
         # Use -b -d and -c together.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         # Use --build to override the default build number.
         self._resources.enter_context(
@@ -377,8 +370,6 @@ class TestCLIMain(unittest.TestCase):
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '-i']))
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
@@ -395,8 +386,6 @@ class TestCLIMain(unittest.TestCase):
         head, tail = os.path.split(channel_ini)
         copy('channel_01.ini', head, tail)
         os.utime(channel_ini, (TIMESTAMP, TIMESTAMP))
-        config = Configuration()
-        config.load(ini_file)
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '-i']))
@@ -409,10 +398,43 @@ class TestCLIMain(unittest.TestCase):
             """))
 
     @configuration
+    def test_switch_channel(self, ini_file):
+        # `system-image-cli --switch <channel>` is a convenience equivalent to
+        # `system-image-cli -b 0 --channel <channel>`.
+        touch_build(801, TIMESTAMP)
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--switch', 'utopic-proposed',
+                   '--info']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 0
+            device name: nexus7
+            channel: utopic-proposed
+            last update: 2013-08-01 12:11:10
+            """))
+
+    @configuration
+    def test_switch_channel_with_overrides(self, ini_file):
+        # The use of --switch is a convenience only, and if -b and/or -c is
+        # given explicitly, they override the convenience.
+        touch_build(801, TIMESTAMP)
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--switch', 'utopic-proposed',
+                   '-b', '1', '-c', 'utopic', '--info']))
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 1
+            device name: nexus7
+            channel: utopic
+            last update: 2013-08-01 12:11:10
+            """))
+
+    @configuration
     def test_log_file(self, ini_file):
         # Test that the system log file gets created and written.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self.assertFalse(os.path.exists(config.system.logfile))
         class FakeState:
             def __init__(self, candidate_filter):
@@ -429,10 +451,40 @@ class TestCLIMain(unittest.TestCase):
         cli_main()
         self.assertTrue(os.path.exists(config.system.logfile))
         with open(config.system.logfile, encoding='utf-8') as fp:
-            logged = fp.read()
+            logged = fp.readlines()
         # Ignore any leading timestamp and the trailing newline.
-        self.assertEqual(logged[-38:-1],
-                         'running state machine [stable/nexus7]')
+        self.assertRegex(
+            logged[0],
+            r'\[systemimage\] [^(]+ \(\d+\) '
+            r'running state machine \[stable/nexus7\]\n')
+        self.assertRegex(
+            logged[1],
+            r'\[systemimage\] [^(]+ \(\d+\) '
+            r'state machine finished\n')
+
+    @configuration
+    def test_log_file_permission_denied(self, ini_file):
+        # LP: #1301995 - some tests are run as non-root, meaning they don't
+        # have access to the system log file.  Use a fallback in that case.
+        config = Configuration(ini_file)
+        # Set the log file to read-only.
+        system_log = Path(config.system.logfile)
+        system_log.touch(0o444, exist_ok=False)
+        # Mock the fallback cache directory location for testability.
+        tmpdir = self._resources.enter_context(temporary_directory())
+        self._resources.enter_context(
+            patch('systemimage.logging.xdg_cache_home', tmpdir))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--dry-run']))
+        cli_main()
+        # There should now be nothing in the system log file, and something in
+        # the fallback log file.
+        self.assertEqual(system_log.stat().st_size, 0)
+        fallback = Path(tmpdir) / 'system-image' / 'client.log'
+        self.assertGreater(fallback.stat().st_size, 0)
+        # The log file also has the expected permissions.
+        self.assertEqual(stat.filemode(fallback.stat().st_mode), '-rw-------')
 
     @configuration
     def test_bad_filter_type(self, ini_file):
@@ -490,8 +542,7 @@ class TestCLIMain(unittest.TestCase):
     def test_state_machine_exceptions(self, ini_file):
         # If an exception happens during the state machine run, the error is
         # logged and main exits with code 1.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self._resources.enter_context(
             patch('systemimage.main.sys.argv', ['argv0', '-C', ini_file]))
         # Making the cache directory unwritable is a good way to trigger a
@@ -503,8 +554,7 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_state_machine_exceptions_dry_run(self, ini_file):
         # Like above, but doing only a --dry-run.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         # Making the cache directory unwritable is a good way to trigger a
         # crash.  Be sure to set it back though!
         self._resources.enter_context(
@@ -548,8 +598,6 @@ class TestCLIMainDryRun(ServerTestBase):
         # the code.
         capture = StringIO()
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701)
         with ExitStack() as resources:
             resources.enter_context(
@@ -597,19 +645,54 @@ class TestCLIMainDryRunAliases(ServerTestBase):
         head, tail = os.path.split(channel_ini)
         copy('channel_05.ini', head, tail)
         capture = StringIO()
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.device.check_output',
-                      return_value='manta'))
-            resources.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            resources.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run']))
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--dry-run']))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
             cli_main()
         self.assertEqual(
             capture.getvalue(),
             'Upgrade path is 200:201:304 (saucy -> tubular)\n')
+
+
+class TestCLIListChannels(ServerTestBase):
+    INDEX_FILE = 'index_20.json'
+    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+
+    @configuration
+    def test_list_channels(self, ini_file):
+        # `system-image-cli --list-channels` shows all available channels,
+        # including aliases.
+        self._setup_server_keyrings()
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        head, tail = os.path.split(channel_ini)
+        copy('channel_05.ini', head, tail)
+        capture = StringIO()
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--list-channels']))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), dedent("""\
+            Available channels:
+                daily (alias for: tubular)
+                saucy
+                tubular
+            """))
 
 
 class TestCLIFilters(ServerTestBase):
@@ -629,8 +712,6 @@ class TestCLIFilters(ServerTestBase):
         # the code.
         capture = StringIO()
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(100)
         with ExitStack() as resources:
             resources.enter_context(
@@ -651,8 +732,6 @@ class TestCLIFilters(ServerTestBase):
         # the code.
         capture = StringIO()
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(100)
         with ExitStack() as resources:
             resources.enter_context(
@@ -692,6 +771,377 @@ class TestCLIDuplicateDestinations(ServerTestBase):
         # contain stack traces and random paths.  I bet we could hack
         # something in with doctest.OutputChecker.check_output(), but I'm not
         # sure it's worth it.
+
+
+class TestCLINoReboot(ServerTestBase):
+    INDEX_FILE = 'index_13.json'
+    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+
+    @configuration
+    def test_no_reboot(self, ini_file):
+        # `system-image-cli --no-reboot` downloads everything but does not
+        # reboot into recovery.
+        self._setup_server_keyrings()
+        capture = StringIO()
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--no-reboot',
+                   '-b', 0, '-c', 'daily']))
+        mock = self._resources.enter_context(
+            patch('systemimage.reboot.Reboot.reboot'))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            cli_main()
+        # The reboot method was never called.
+        self.assertFalse(mock.called)
+        # All the expected files should be downloaded.
+        self.assertEqual(set(os.listdir(config.updater.data_partition)), set([
+            'blacklist.tar.xz',
+            'blacklist.tar.xz.asc',
+            ]))
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)), set([
+            '5.txt',
+            '5.txt.asc',
+            '6.txt',
+            '6.txt.asc',
+            '7.txt',
+            '7.txt.asc',
+            'device-signing.tar.xz',
+            'device-signing.tar.xz.asc',
+            'image-master.tar.xz',
+            'image-master.tar.xz.asc',
+            'image-signing.tar.xz',
+            'image-signing.tar.xz.asc',
+            'ubuntu_command',
+            ]))
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
+
+    @configuration
+    def test_g(self, ini_file):
+        # `system-image-cli -g` downloads everything but does not reboot into
+        # recovery.
+        self._setup_server_keyrings()
+        capture = StringIO()
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '-g', '-b', 0, '-c', 'daily']))
+        mock = self._resources.enter_context(
+            patch('systemimage.reboot.Reboot.reboot'))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            cli_main()
+        # The reboot method was never called.
+        self.assertFalse(mock.called)
+        # All the expected files should be downloaded.
+        self.assertEqual(set(os.listdir(config.updater.data_partition)), set([
+            'blacklist.tar.xz',
+            'blacklist.tar.xz.asc',
+            ]))
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)), set([
+            '5.txt',
+            '5.txt.asc',
+            '6.txt',
+            '6.txt.asc',
+            '7.txt',
+            '7.txt.asc',
+            'device-signing.tar.xz',
+            'device-signing.tar.xz.asc',
+            'image-master.tar.xz',
+            'image-master.tar.xz.asc',
+            'image-signing.tar.xz',
+            'image-signing.tar.xz.asc',
+            'ubuntu_command',
+            ]))
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
+
+    @configuration
+    def test_rerun_after_no_reboot_reboots(self, ini_file):
+        # Running system-image-cli again after a `system-image-cli -g` does
+        # not download anything the second time, but does issue a reboot.
+        self._setup_server_keyrings()
+        capture = StringIO()
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        mock = self._resources.enter_context(
+            patch('systemimage.reboot.Reboot.reboot'))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '-g', '-b', 0, '-c', 'daily']))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            cli_main()
+        # The reboot method was never called.
+        self.assertFalse(mock.called)
+        # To prove nothing gets downloaded the second time, actually delete
+        # the data files from the server.
+        shutil.rmtree(os.path.join(self._serverdir, '3'))
+        shutil.rmtree(os.path.join(self._serverdir, '4'))
+        shutil.rmtree(os.path.join(self._serverdir, '5'))
+        with patch('systemimage.main.sys.argv',
+                   ['argv0', '-C', ini_file, '-b', 0, '-c', 'daily']):
+            cli_main()
+        # The reboot method was never called.
+        self.assertTrue(mock.called)
+
+
+class TestCLIFactoryReset(unittest.TestCase):
+    """Test the --factory-reset option for factory resets."""
+
+    @configuration
+    def test_factory_reset(self, ini_file):
+        # system-image-cli --factory-reset
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            mock = resources.enter_context(
+                patch('systemimage.reboot.Reboot.reboot'))
+            resources.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--factory-reset']))
+            cli_main()
+        # A reboot was issued.
+        self.assertTrue(mock.called)
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, dedent("""\
+            format data
+            """))
+
+
+class TestCLISettings(unittest.TestCase):
+    """Test settings command line options."""
+
+    def setUp(self):
+        super().setUp()
+        self._resources = ExitStack()
+        try:
+            self._stdout = StringIO()
+            self._stderr = StringIO()
+            # We patch builtin print() rather than sys.stdout because the
+            # latter can mess with pdb output should we need to trace through
+            # the code.
+            self._resources.enter_context(
+                patch('builtins.print', partial(print, file=self._stdout)))
+            # Patch argparse's stderr to capture its error messages.
+            self._resources.enter_context(
+                patch('argparse._sys.stderr', self._stderr))
+        except:
+            self._resources.close()
+            raise
+
+    def tearDown(self):
+        self._resources.close()
+        super().tearDown()
+
+    @configuration
+    def test_show_settings(self, ini_file):
+        # `system-image-cli --show-settings` shows all the keys and values in
+        # sorted  order by alphanumeric key name.
+        settings = Settings()
+        settings.set('peart', 'neil')
+        settings.set('lee', 'geddy')
+        settings.set('lifeson', 'alex')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--show-settings']))
+        cli_main()
+        self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
+            lee=geddy
+            lifeson=alex
+            peart=neil
+            """))
+
+    @configuration
+    def test_get_key(self, ini_file):
+        # `system-image-cli --get key` prints the key's value.
+        settings = Settings()
+        settings.set('ant', 'aunt')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--get', 'ant']))
+        cli_main()
+        self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
+            aunt
+            """))
+
+    @configuration
+    def test_get_keys(self, ini_file):
+        # `--get key` can be used multiple times.
+        settings = Settings()
+        settings.set('s', 'saucy')
+        settings.set('t', 'trusty')
+        settings.set('u', 'utopic')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--get', 's', '--get', 'u', '--get', 't']))
+        cli_main()
+        self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
+            saucy
+            utopic
+            trusty
+            """))
+
+    @configuration
+    def test_get_missing_key(self, ini_file):
+        # Since by definition a missing key has a default value, you can get
+        # missing keys.  Note that `auto_download` is the one weirdo.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--get', 'missing', '--get', 'auto_download']))
+        cli_main()
+        # This produces a blank line, since `missing` returns the empty
+        # string.  For better readability, don't indent the results.
+        self.assertMultiLineEqual(self._stdout.getvalue(), """\
+
+1
+""")
+
+    @configuration
+    def test_set_key(self, ini_file):
+        # `system-image-cli --set key=value` sets a key/value pair.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--set', 'bass=4']))
+        cli_main()
+        self.assertEqual(Settings().get('bass'), '4')
+
+    @configuration
+    def test_change_key(self, ini_file):
+        # `--set key=value` changes an existing key's value.
+        settings = Settings()
+        settings.set('a', 'ant')
+        settings.set('b', 'bee')
+        settings.set('c', 'cat')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--set', 'b=bat']))
+        cli_main()
+        self.assertEqual(settings.get('a'), 'ant')
+        self.assertEqual(settings.get('b'), 'bat')
+        self.assertEqual(settings.get('c'), 'cat')
+
+    @configuration
+    def test_set_keys(self, ini_file):
+        # `--set key=value` can be used multiple times.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--set', 'a=ant',
+                   '--set', 'b=bee',
+                   '--set', 'c=cat']))
+        cli_main()
+        settings = Settings()
+        self.assertEqual(settings.get('a'), 'ant')
+        self.assertEqual(settings.get('b'), 'bee')
+        self.assertEqual(settings.get('c'), 'cat')
+
+    @configuration
+    def test_del_key(self, ini_file):
+        # `system-image-cli --del key` removes a key from the database.
+        settings = Settings()
+        settings.set('ant', 'insect')
+        settings.set('bee', 'insect')
+        settings.set('cat', 'mammal')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--del', 'bee']))
+        cli_main()
+        settings = Settings()
+        self.assertEqual(settings.get('ant'), 'insect')
+        self.assertEqual(settings.get('cat'), 'mammal')
+        # When the key is missing, the empty string is the default.
+        self.assertEqual(settings.get('bee'), '')
+
+    @configuration
+    def test_del_keys(self, ini_file):
+        # `--del key` can be used multiple times.
+        settings = Settings()
+        settings.set('ant', 'insect')
+        settings.set('bee', 'insect')
+        settings.set('cat', 'mammal')
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--del', 'bee', '--del', 'cat']))
+        cli_main()
+        settings = Settings()
+        self.assertEqual(settings.get('ant'), 'insect')
+        # When the key is missing, the empty string is the default.
+        self.assertEqual(settings.get('cat'), '')
+        self.assertEqual(settings.get('bee'), '')
+
+    @configuration
+    def test_del_missing_key(self, ini_file):
+        # When asked to delete a key that's not in the database, nothing
+        # much happens.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--del', 'missing']))
+        cli_main()
+        self.assertEqual(Settings().get('missing'), '')
+
+    @configuration
+    def test_mix_and_match(self, ini_file):
+        # Because argument order is not preserved, and any semantics for
+        # mixing and matching database arguments would be arbitrary, it is not
+        # allowed to mix them.
+        capture = StringIO()
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--set', 'c=cat', '--del', 'bee', '--get', 'dog']))
+        with self.assertRaises(SystemExit) as cm:
+            cli_main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual(
+            self._stderr.getvalue().splitlines()[-1],
+            'system-image-cli: error: Cannot mix and match settings arguments')
 
 
 class TestDBusMain(unittest.TestCase):
@@ -760,8 +1210,7 @@ class TestDBusMain(unittest.TestCase):
         #
         # The config.ini file names the `stable` channel.  Let's create an
         # ubuntu-build file with a fake version number.
-        config = Configuration()
-        config.load(self.ini_path)
+        config = Configuration(self.ini_path)
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
             print(33, file=fp)
         # Now, write a channel.ini file to override both of these.
@@ -775,8 +1224,7 @@ class TestDBusMain(unittest.TestCase):
 
     def test_temp_directory(self):
         # The temporary directory gets created if it doesn't exist.
-        config = Configuration()
-        config.load(self.ini_path)
+        config = Configuration(self.ini_path)
         # The temporary directory may have already been created via the
         # .set_mode() call in the setUp().  That invokes a 'stopper' for the
         # -dbus process, which has the perverse effect of first D-Bus
@@ -796,8 +1244,7 @@ class TestDBusMain(unittest.TestCase):
 
     def test_permissions(self):
         # LP: #1235975 - The created tempdir had unsafe permissions.
-        config = Configuration()
-        config.load(self.ini_path)
+        config = Configuration(self.ini_path)
         # See above.
         try:
             shutil.rmtree(config.system.tempdir)

@@ -2,6 +2,48 @@
 NEWS for system-image updater
 =============================
 
+2.3.1 (2014-07-23)
+==================
+ * Fix a traceback that occurs when the `systemimage.testing` subpackage isn't
+   available, as is the case when the system-image-dev binary package is not
+   installed.
+
+2.3 (2014-07-16)
+================
+ * Support factory resets.  `system-image-cli --factory-reset` and a new D-Bus
+   API method `FactoryReset()` are added.  (LP: #1207860)
+ * Data file checksums are passed to ubuntu-download-manager where available.
+   (LP: #1262256)
+ * Certain duplicate destinations are allowed, if they have matching source
+   urls and checksums.  (LP: #1286542)
+ * When system-image-{cli,dbus} is run as non-root, use a fallback location
+   for the log file if the system log file isn't writable.  (LP: #1301995)
+ * `system-image-cli --list-channels` lists all the available channels,
+   including aliases.  (LP: #1251291)
+ * `system-image-cli --no-reboot` downloads all files and prepares for
+   recovery, but does not actually issue a reboot.  (LP: #1279028)
+  * `system-image-cli --switch <channel>` is a convenient alias for
+    `system-image-cli -b 0 -c <channel>`.  (LP: #1249347)
+ * Added `--show-settings`, `--get`, `--set`, and `--del` options for viewing,
+   changing, and setting all the internal database settings.  (LP: #1294273)
+ * Improve memory usage when verifying file checksums.  Given by Michael
+   Vogt.  (LP: #1271684)
+ * In the `UpdatePaused` signal, return a percentage value that's closer to
+   reality than hardcoding it to 0.  (LP: #1274131)
+ * New D-Bus API method `.Information()` which is like `.Info()` except that
+   it returns extended information details, as a mapping of strings to
+   strings.  These details include a `last_check_date` which is the ISO 8601
+   timestamp of the last time an `UpdateAvailableStatus` signal was sent.
+   (LP: #1280169)
+ * Set the GSM flag in ubuntu-download-manager based on the current s-i
+   download setting.  (LP: #1339157)
+ * The system-image-dbus(8) manpage now describes the full D-Bus API.  (LP:
+   #1340882)
+ * Fix the D-Bus mock service so that the downloading flag for
+   `UpdateAvailableStatus` will correctly return true when checking twice
+   under manual downloads.  (LP: #1273354)
+ * Pay down some tech-debt.  (LP: #1342183)
+
 2.2 (2014-03-05)
 ================
  * When `CheckForUpdate()` is called a second time, while an auto-download is

@@ -139,3 +139,22 @@ class TestBag(unittest.TestCase):
         bag.update(a='5', b='6')
         self.assertEqual(bag.a, '5')
         self.assertEqual(bag.b, 6)
+
+
+    def test_keys(self):
+        bag = Bag(c=1, b=2, a=3)
+        self.assertEqual(sorted(bag.keys()), ['a', 'b', 'c'])
+
+    def test_iter(self):
+        # Iteration is over the available keys.
+        bag = Bag(c=1, b=2, a=3)
+        self.assertEqual(sorted(bag, reverse=True), ['c', 'b', 'a'])
+
+    def test_get(self):
+        # You can get a single key.  If missing, None or a supplied default is
+        # returned.
+        bag = Bag(c=1, b=2, a=3)
+        self.assertEqual(bag.get('b'), 2)
+        self.assertIsNone(bag.get('missing'))
+        missing = object()
+        self.assertIs(bag.get('missing', missing), missing)

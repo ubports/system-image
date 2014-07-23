@@ -33,6 +33,8 @@ from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
 from systemimage.helpers import last_update_date, makedirs, version_detail
 from systemimage.logging import initialize
+from systemimage.reboot import factory_reset
+from systemimage.settings import Settings
 from systemimage.state import State
 from textwrap import dedent
 
@@ -78,6 +80,12 @@ def main():
                                 full updates or only delta updates.  The
                                 argument to this option must be either `full`
                                 or `delta`""")
+    parser.add_argument('-g', '--no-reboot',
+                        default=False, action='store_true',
+                        help="""Download (i.e. "get") all the data files and
+                                prepare for updating, but don't actually
+                                reboot the device into recovery to apply the
+                                update""")
     parser.add_argument('-i', '--info',
                         default=False, action='store_true',
                         help="""Show some information about the current
@@ -90,6 +98,40 @@ def main():
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
+    parser.add_argument('--list-channels',
+                        default=False, action='store_true',
+                        help="""List all available channels, then exit""")
+    parser.add_argument('--factory-reset',
+                        default=False, action='store_true',
+                        help="""Perform a destructive factory reset and
+                                reboot.  WARNING: this will wipe all user data
+                                on the device!""")
+    parser.add_argument('--switch',
+                        default=None, action='store', metavar='CHANNEL',
+                        help="""Switch to the given channel.  This is
+                                equivalent to `-c CHANNEL -b 0`.""")
+    # Settings options.
+    parser.add_argument('--show-settings',
+                        default=False, action='store_true',
+                        help="""Show all settings as key=value pairs,
+                                then exit""")
+    parser.add_argument('--set',
+                        default=[], action='append', metavar='KEY=VAL',
+                        help="""Set a key and value in the settings, adding
+                                the key if it doesn't yet exist, or overriding
+                                its value if the key already exists.  Multiple
+                                --set arguments can be given.""")
+    parser.add_argument('--get',
+                        default=[], action='append', metavar='KEY',
+                        help="""Get the value for a key.  If the key does not
+                                exist, a default value is returned.  Multiple
+                                --get arguments can be given.""")
+    parser.add_argument('--del',
+                        default=[], action='append',
+                        metavar='KEY', dest='delete',
+                        help="""Delete the key and its value.  It is a no-op
+                                if the key does not exist.  Multiple
+                                --del arguments can be given.""")
 
     args = parser.parse_args(sys.argv[1:])
     try:
@@ -104,6 +146,41 @@ def main():
         config.load(channel_ini, override=True)
     except FileNotFoundError:
         pass
+
+    # Perform a factory reset.
+    if args.factory_reset:
+        factory_reset()
+        # We should never get here, except possibly during the testing
+        # process, so just return as normal.
+        return 0
+
+    # Handle all settings arguments.  They are mutually exclusive.
+    if sum(bool(arg) for arg in
+           (args.set, args.get, args.delete, args.show_settings)) > 1:
+        parser.error('Cannot mix and match settings arguments')
+        assert 'parser.error() does not return'
+
+    if args.show_settings:
+        rows = sorted(Settings())
+        for row in rows:
+            print('{}={}'.format(*row))
+        return 0
+    if args.get:
+        settings = Settings()
+        for key in args.get:
+            print(settings.get(key))
+        return 0
+    if args.set:
+        settings = Settings()
+        for keyval in args.set:
+            key, val = keyval.split('=', 1)
+            settings.set(key, val)
+        return 0
+    if args.delete:
+        settings = Settings()
+        for key in args.delete:
+            settings.delete(key)
+        return 0
 
     # Sanity check -f/--filter.
     if args.filter is None:
@@ -124,7 +201,11 @@ def main():
     # We assume the cache_partition already exists, as does the /etc directory
     # (i.e. where the archive master key lives).
 
-    # Command line overrides.
+    # Command line overrides.  Process --switch first since if both it and
+    # -c/-b are given, the latter take precedence.
+    if args.switch is not None:
+        config.build_number = 0
+        config.channel = args.switch
     if args.build is not None:
         try:
             config.build_number = int(args.build)
@@ -166,6 +247,22 @@ def main():
         details = version_detail()
         for key in sorted(details, reverse=True):
             print('version {}: {}'.format(key, details[key]))
+        return 0
+
+    if args.list_channels:
+        state = State()
+        try:
+            state.run_thru('get_channel')
+        except Exception:
+            log.exception('system-image-cli exception')
+            return 1
+        print('Available channels:')
+        for key in sorted(state.channels):
+            alias = state.channels[key].get('alias')
+            if alias is None:
+                print('    {}'.format(key))
+            else:
+                print('    {} (alias for: {})'.format(key, alias))
         return 0
 
     # We can either run the API directly or through DBus.
@@ -237,7 +334,10 @@ def main():
         log.info('running state machine [{}/{}]',
                  config.channel, config.device)
         try:
-            list(state)
+            if args.no_reboot:
+                state.run_until('reboot')
+            else:
+                list(state)
         except KeyboardInterrupt:
             return 0
         except Exception:
@@ -245,6 +345,8 @@ def main():
             return 1
         else:
             return 0
+        finally:
+            log.info('state machine finished')
 
 
 if __name__ == '__main__':
