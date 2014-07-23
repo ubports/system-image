@@ -29,6 +29,7 @@ __all__ = [
 
 
 import os
+import sys
 import random
 import unittest
 
@@ -133,6 +134,20 @@ class TestDownloads(unittest.TestCase):
             set(['channels.json', 'index.json']))
         self.assertEqual(received_bytes, 669)
         self.assertEqual(total_bytes, 669)
+
+    @configuration
+    def test_no_dev_package(self):
+        # system-image-dev contains the systemimage.testing subpackage, but
+        # this is not normally installed on the device.  When it's missing,
+        # the DownloadReactor's _print() debugging method should no-op.
+        #
+        # To test this, we patch systemimage.testing in sys.modules so that an
+        # ImportError is raised when it tries to import it.
+        with patch.dict(sys.modules, {'systemimage.testing.helpers': None}):
+            DBusDownloadManager().get_files(_http_pathify([
+                ('channels_01.json', 'channels.json'),
+                ]))
+        self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
 
 
 class TestHTTPSDownloads(unittest.TestCase):
