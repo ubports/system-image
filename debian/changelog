@@ -1,5 +1,6 @@
-system-image (2.3.1-0ubuntu1) UNRELEASED; urgency=medium
+system-image (2.3.1-0ubuntu1) utopic; urgency=medium
 
+  [ Barry Warsaw ]
   * New upstream release.
     - LP: #1207860 - Support factory resets.  system-image-cli
       --factory-reset and a new D-Bus API method FactoryReset() are added.
@@ -52,7 +53,7 @@ system-image (2.3.1-0ubuntu1) UNRELEASED; urgency=medium
     - smoketest-noreboot: Added full update test, with no reboot.
   * New upstream release.
 
- -- Barry Warsaw <barry@ubuntu.com>  Wed, 23 Jul 2014 13:56:26 -0400
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Wed, 23 Jul 2014 23:07:39 +0000
 
 system-image (2.2-0ubuntu1) trusty; urgency=medium
 
