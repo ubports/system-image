@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-2.3.1 (2014-XX-XX)
+2.3.1 (2014-07-23)
 ==================
  * Fix a traceback that occurs when the `systemimage.testing` subpackage isn't
    available, as is the case when the system-image-dev binary package is not
