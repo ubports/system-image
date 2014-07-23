@@ -28,11 +28,22 @@ import dbus
 import logging
 
 from collections import namedtuple
+from contextlib import suppress
 from io import StringIO
 from pprint import pformat
 from systemimage.config import config
 from systemimage.reactor import Reactor
 from systemimage.settings import Settings
+
+# The systemimage.testing module will not be available on installed systems
+# unless the system-image-dev binary package is installed, which is not usually
+# the case.  Disable _print() debugging in that case.
+def _print(*args, **kws):
+    with suppress(ImportError):
+        # We must import this here to avoid circular imports.
+        from systemimage.testing.helpers import debug
+        with debug(check_flag=True) as ddlog:
+            ddlog(*args, **kws)
 
 
 # Parameterized for testing purposes.
@@ -95,20 +106,15 @@ class DownloadReactor(Reactor):
         self.react_to('resumed')
         self.react_to('started')
 
-    def _print(self, *args, **kws):
-        from systemimage.testing.helpers import debug
-        with debug(check_flag=True) as ddlog:
-            ddlog(*args, **kws)
-
     def _do_started(self, signal, path, started):
-        self._print('STARTED:', started)
+        _print('STARTED:', started)
 
     def _do_finished(self, signal, path, local_paths):
-        self._print('FINISHED:', local_paths)
+        _print('FINISHED:', local_paths)
         self.quit()
 
     def _do_error(self, signal, path, error_message):
-        self._print('ERROR:', error_message)
+        _print('ERROR:', error_message)
         log.error(error_message)
         self.error = error_message
         self.quit()
@@ -116,7 +122,7 @@ class DownloadReactor(Reactor):
     def _do_progress(self, signal, path, received, total):
         self.received = received
         self.total = total
-        self._print('PROGRESS:', received, total)
+        _print('PROGRESS:', received, total)
         if self._callback is not None:
             # Be defensive, so yes, use a bare except.  If an exception occurs
             # in the callback, log it, but continue onward.
@@ -129,12 +135,12 @@ class DownloadReactor(Reactor):
         # Why would we get this signal if it *wasn't* canceled?  Anyway,
         # this'll be a D-Bus data type so converted it to a vanilla Python
         # boolean.
-        self._print('CANCELED:', canceled)
+        _print('CANCELED:', canceled)
         self.canceled = bool(canceled)
         self.quit()
 
     def _do_paused(self, signal, path, paused):
-        self._print('PAUSE:', paused, self._pausable)
+        _print('PAUSE:', paused, self._pausable)
         if self._pausable and config.dbus_service is not None:
             # We could plumb through the `service` object from service.py (the
             # main entry point for system-image-dbus, but that's actually a
@@ -145,11 +151,11 @@ class DownloadReactor(Reactor):
             config.dbus_service.UpdatePaused(percentage)
 
     def _do_resumed(self, signal, path, resumed):
-        self._print('RESUME:', resumed)
+        _print('RESUME:', resumed)
         # There currently is no UpdateResumed() signal.
 
     def _default(self, *args, **kws):
-        self._print('SIGNAL:', args, kws)
+        _print('SIGNAL:', args, kws)
 
 
 class DBusDownloadManager:

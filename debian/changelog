@@ -1,4 +1,4 @@
-system-image (2.3-0ubuntu1) UNRELEASED; urgency=medium
+system-image (2.3.1-0ubuntu1) UNRELEASED; urgency=medium
 
   * New upstream release.
     - LP: #1207860 - Support factory resets.  system-image-cli
@@ -43,12 +43,16 @@ system-image (2.3-0ubuntu1) UNRELEASED; urgency=medium
     - Updated, and add --buildsystem=pybuild.
     - Fix 'nocheck' test short-circuiting.
   * d/tests:
-    - control: Update dependencies and restrictions.
+    - control: Update dependencies and restrictions.  The smoketest test
+      should not include the system-image-dev package, for a more
+      realistic simulation of the installed enviroment.
     - dryrun: New schroot-compatible limited test suite.  The existing
       smoketest test requires isolation-container so isn't compatible with
       schroot.
+    - smoketest-noreboot: Added full update test, with no reboot.
+  * New upstream release.
 
- -- Barry Warsaw <barry@ubuntu.com>  Wed, 16 Jul 2014 18:23:07 -0400
+ -- Barry Warsaw <barry@ubuntu.com>  Wed, 23 Jul 2014 13:56:26 -0400
 
 system-image (2.2-0ubuntu1) trusty; urgency=medium
 
