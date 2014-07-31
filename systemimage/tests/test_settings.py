@@ -23,9 +23,13 @@ __all__ = [
 import os
 import unittest
 
+from contextlib import ExitStack
+from pathlib import Path
 from systemimage.config import Configuration
+from systemimage.helpers import temporary_directory
 from systemimage.settings import Settings
-from systemimage.testing.helpers import configuration
+from systemimage.testing.helpers import chmod, configuration
+from unittest.mock import patch
 
 
 class TestSettings(unittest.TestCase):
@@ -99,3 +103,30 @@ class TestSettings(unittest.TestCase):
         keyval = list(settings)
         keyval.sort()
         self.assertEqual(keyval, [('a', 'ant'), ('b', 'bee'), ('c', 'cat')])
+
+    @configuration
+    def test_settings_db_permission_denied(self, ini_file):
+        # LP: #1349478 - some tests are run as non-root, meaning they don't
+        # have write permission to /var/lib/system-image.  This is where
+        # settings.db gets created, but if the process can't create files
+        # there, we get a sqlite3 exception.
+        config = Configuration(ini_file)
+        db_file = Path(config.system.settings_db)
+        self.assertFalse(db_file.exists())
+        with ExitStack() as resources:
+            resources.enter_context(chmod(str(db_file.parent), 0o555))
+            # With no fallback, this will fail.
+            with patch('systemimage.settings.Settings._check_fallback',
+                       side_effect=RuntimeError):
+                self.assertRaises(RuntimeError, Settings)
+            # Now, set the XDG cache directory to a temporary directory, allow
+            # the fallback to work and try again.
+            tmpdir = resources.enter_context(temporary_directory())
+            resources.enter_context(
+                patch('systemimage.settings.xdg_cache_home', tmpdir))
+            settings = Settings()
+            settings.set('bar', 'baz')
+            self.assertEqual(Settings().get('bar'), 'baz')
+        # The settings.db file still doesn't exist because it got
+        # created in a different place.
+        self.assertFalse(db_file.exists())

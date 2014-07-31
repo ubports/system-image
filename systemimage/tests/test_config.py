@@ -28,7 +28,7 @@ import unittest
 
 from datetime import timedelta
 from pkg_resources import resource_filename
-from subprocess import check_output
+from subprocess import CalledProcessError, check_output
 from systemimage.config import Configuration
 from systemimage.device import SystemProperty
 from systemimage.reboot import Reboot
@@ -198,7 +198,10 @@ class TestConfiguration(unittest.TestCase):
         config = Configuration()
         # Silence the log exceptions this will provoke.
         with patch('systemimage.device.logging.getLogger'):
-            self.assertEqual(config.device, '?')
+            # It's possible getprop actually does exist on the system.
+            with patch('systemimage.device.check_output',
+                       side_effect=CalledProcessError(1, 'ignore')):
+                self.assertEqual(config.device, '?')
 
     @configuration
     def test_get_channel(self, ini_file):
