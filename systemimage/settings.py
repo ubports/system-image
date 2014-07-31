@@ -23,7 +23,9 @@ __all__ = [
 import sqlite3
 
 from contextlib import contextmanager
+from pathlib import Path
 from systemimage.config import config
+from xdg.BaseDirectory import xdg_cache_home
 
 SCHEMA_VERSION = '1'
 AUTO_DOWNLOAD_DEFAULT = '1'
@@ -32,7 +34,16 @@ AUTO_DOWNLOAD_DEFAULT = '1'
 class Settings:
     def __init__(self, use_config=None):
         self._use_config = use_config
-        # If the database file does not yet exist, create it.
+        # If the database file does not yet exist, create it.  This could fail,
+        # as LP: #1349478 describes, if the parent directory containing
+        # settings.db is not writable by the process.  In that case, fall back
+        # to a user path.
+        self._dbpath = None
+        try:
+            with self._cursor():
+                pass
+        except sqlite3.OperationalError:
+            self._check_fallback()
         with self._cursor() as c:
             c.execute('select tbl_name from sqlite_master')
             if len(c.fetchall()) == 0:
@@ -43,12 +54,24 @@ class Settings:
             c.execute('insert into settings values ("__version__", ?)',
                       (SCHEMA_VERSION,))
 
+    def _check_fallback(self):
+        # This is refactored into a separate method for testing purposes.
+        self._dbpath = Path(xdg_cache_home) / 'lib' / 'settings.db'
+        try:
+            self._dbpath.parent.mkdir(parents=True)
+        except FileExistsError:
+            # http://bugs.python.org/issue21539
+            pass
+        with self._cursor():
+            pass
+
     @contextmanager
     def _cursor(self):
-        dbpath = (config.system.settings_db
-                  if self._use_config is None
-                  else self._use_config.system.settings_db)
-        with sqlite3.connect(dbpath) as conn:
+        if self._dbpath is None:
+            self._dbpath = (config.system.settings_db
+                            if self._use_config is None
+                            else self._use_config.system.settings_db)
+        with sqlite3.connect(str(self._dbpath)) as conn:
             yield conn.cursor()
 
     def set(self, key, value):

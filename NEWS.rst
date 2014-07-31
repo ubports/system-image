@@ -2,6 +2,12 @@
 NEWS for system-image updater
 =============================
 
+2.3.2 (2014-07-31)
+==================
+ * When system-image-{cli,dbus} is run as non-root, use a fallback location
+   for the settings.db file, if the parent directory isn't writable.
+   (LP: #1349478)
+
 2.3.1 (2014-07-23)
 ==================
  * Fix a traceback that occurs when the `systemimage.testing` subpackage isn't

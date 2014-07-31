@@ -1,3 +1,12 @@
+system-image (2.3.2-0ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+    - LP: #1349478 - When system-image-{cli,dbus} is run as non-root, use
+      a fallback location for the settings.db file, if the parent
+      directory isn't writable.
+
+ -- Barry Warsaw <barry@ubuntu.com>  Thu, 31 Jul 2014 17:07:00 -0400
+
 system-image (2.3.1-0ubuntu1) utopic; urgency=medium
 
   [ Barry Warsaw ]
