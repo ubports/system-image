@@ -1,5 +1,6 @@
-system-image (2.3.2-0ubuntu2) UNRELEASED; urgency=medium
+system-image (2.3.2-0ubuntu2) utopic; urgency=medium
 
+  [ Barry Warsaw ]
   * New upstream release.
     - LP: #1349478 - When system-image-{cli,dbus} is run as non-root, use
       a fallback location for the settings.db file, if the parent
@@ -10,7 +11,10 @@ system-image (2.3.2-0ubuntu2) UNRELEASED; urgency=medium
       on python3-dbus and python3-xdg, while -dbus and -cli only need to
       depend on system-image-common.
 
- -- Barry Warsaw <barry@ubuntu.com>  Fri, 01 Aug 2014 14:32:02 -0400
+  [ Ubuntu daily release ]
+  * New rebuild forced
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Fri, 01 Aug 2014 18:33:39 +0000
 
 system-image (2.3.1-0ubuntu1) utopic; urgency=medium
 
