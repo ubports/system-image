@@ -4,6 +4,11 @@ system-image (2.3.2-0ubuntu1) UNRELEASED; urgency=medium
     - LP: #1349478 - When system-image-{cli,dbus} is run as non-root, use
       a fallback location for the settings.db file, if the parent
       directory isn't writable.
+  * d/control:
+    - Bump X-Python3-Version to (Python) 3.4.
+    - Update run-time dependencies so that system-image-common now depends
+      on python3-dbus and python3-xdg, while -dbus and -cli only need to
+      depend on system-image-common.
 
  -- Barry Warsaw <barry@ubuntu.com>  Thu, 31 Jul 2014 17:07:00 -0400
 

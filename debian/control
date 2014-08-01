@@ -2,7 +2,7 @@ Source: system-image
 Maintainer: Barry Warsaw <barry@ubuntu.com>
 Homepage: https://wiki.ubuntu.com/ImageBasedUpgrades
 Section: python
-X-Python3-Version: >= 3.3
+X-Python3-Version: >= 3.4
 Priority: optional
 Build-Depends: dbus,
                dbus-x11,
@@ -36,9 +36,7 @@ Description: Ubuntu system image updater command line client
 
 Package: system-image-dbus
 Architecture: all
-Depends: python3-dbus,
-         python3-gi,
-         system-image-common (= ${binary:Version}),
+Depends: system-image-common (= ${binary:Version}),
          ${misc:Depends},
          ${python3:Depends}
 Description: Ubuntu system image updater command line client
@@ -46,8 +44,11 @@ Description: Ubuntu system image updater command line client
 
 Package: system-image-common
 Architecture: all
-Depends: python3-gnupg,
+Depends: python3-dbus,
+         python3-gi,
+         python3-gnupg,
          python3-pkg-resources,
+         python3-xdg,
          ubuntu-download-manager,
          ${misc:Depends},
          ${python3:Depends}
