@@ -1,4 +1,4 @@
-system-image (2.3.2-0ubuntu1) UNRELEASED; urgency=medium
+system-image (2.3.2-0ubuntu2) UNRELEASED; urgency=medium
 
   * New upstream release.
     - LP: #1349478 - When system-image-{cli,dbus} is run as non-root, use
@@ -10,7 +10,7 @@ system-image (2.3.2-0ubuntu1) UNRELEASED; urgency=medium
       on python3-dbus and python3-xdg, while -dbus and -cli only need to
       depend on system-image-common.
 
- -- Barry Warsaw <barry@ubuntu.com>  Thu, 31 Jul 2014 17:07:00 -0400
+ -- Barry Warsaw <barry@ubuntu.com>  Fri, 01 Aug 2014 14:32:02 -0400
 
 system-image (2.3.1-0ubuntu1) utopic; urgency=medium
 
