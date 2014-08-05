@@ -28,7 +28,7 @@ import unittest
 
 from datetime import timedelta
 from pkg_resources import resource_filename
-from subprocess import check_output
+from subprocess import CalledProcessError, check_output
 from systemimage.config import Configuration
 from systemimage.device import SystemProperty
 from systemimage.reboot import Reboot
@@ -40,8 +40,7 @@ from unittest.mock import patch
 class TestConfiguration(unittest.TestCase):
     def test_defaults(self):
         default_ini = resource_filename('systemimage.data', 'client.ini')
-        config = Configuration()
-        config.load(default_ini)
+        config = Configuration(default_ini)
         # [service]
         self.assertEqual(config.service.base, 'system-image.ubuntu.com')
         self.assertEqual(config.service.http_base,
@@ -86,8 +85,7 @@ class TestConfiguration(unittest.TestCase):
         # Read a basic .ini file and check that the various attributes and
         # values are correct.
         ini_file = data_path('config_01.ini')
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         # [service]
         self.assertEqual(config.service.base, 'phablet.example.com')
         self.assertEqual(config.service.http_base,
@@ -128,8 +126,7 @@ class TestConfiguration(unittest.TestCase):
     def test_nonstandard_ports(self):
         # config_02.ini has non-standard http and https ports.
         ini_file = data_path('config_02.ini')
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self.assertEqual(config.service.base, 'phablet.example.com')
         self.assertEqual(config.service.http_base,
                          'http://phablet.example.com:8080')
@@ -139,8 +136,7 @@ class TestConfiguration(unittest.TestCase):
     def test_disabled_http_port(self):
         # config_05.ini has http port disabled and non-standard https port.
         ini_file = data_path('config_05.ini')
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self.assertEqual(config.service.base, 'phablet.example.com')
         self.assertEqual(config.service.http_base,
                          'https://phablet.example.com:80443')
@@ -150,8 +146,7 @@ class TestConfiguration(unittest.TestCase):
     def test_disabled_https_port(self):
         # config_06.ini has https port disabled and standard http port.
         ini_file = data_path('config_06.ini')
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self.assertEqual(config.service.base, 'phablet.example.com')
         self.assertEqual(config.service.http_base,
                          'http://phablet.example.com')
@@ -179,22 +174,19 @@ class TestConfiguration(unittest.TestCase):
     def test_get_build_number(self, ini_file):
         # The current build number is stored in a file specified in the
         # configuration file.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         touch_build(1500)
         self.assertEqual(config.build_number, 1500)
 
     @configuration
     def test_get_build_number_missing(self, ini_file):
         # The build file is missing, so the build number defaults to 0.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self.assertEqual(config.build_number, 0)
 
     @configuration
     def test_get_device_name(self, ini_file):
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         # The device name as we'd expect it to work on a real image.
         with patch('systemimage.device.check_output', return_value='nexus7'):
             self.assertEqual(config.device, 'nexus7')
@@ -206,18 +198,19 @@ class TestConfiguration(unittest.TestCase):
         config = Configuration()
         # Silence the log exceptions this will provoke.
         with patch('systemimage.device.logging.getLogger'):
-            self.assertEqual(config.device, '?')
+            # It's possible getprop actually does exist on the system.
+            with patch('systemimage.device.check_output',
+                       side_effect=CalledProcessError(1, 'ignore')):
+                self.assertEqual(config.device, '?')
 
     @configuration
     def test_get_channel(self, ini_file):
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self.assertEqual(config.channel, 'stable')
 
     @configuration
     def test_overrides(self, ini_file):
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self.assertEqual(config.build_number, 0)
         self.assertEqual(config.device, 'nexus7')
         self.assertEqual(config.channel, 'stable')
@@ -250,8 +243,7 @@ class TestConfiguration(unittest.TestCase):
         # If a /etc/system-image/channels.ini file exists, it overrides any
         # previously set options.
         default_ini = resource_filename('systemimage.data', 'client.ini')
-        config = Configuration()
-        config.load(default_ini)
+        config = Configuration(default_ini)
         # [service]
         self.assertEqual(config.service.base, 'system-image.ubuntu.com')
         self.assertEqual(config.service.http_base,
@@ -275,8 +267,7 @@ class TestConfiguration(unittest.TestCase):
     def test_channel_ini_may_override_system_section(self):
         # Overrides may include the [system] section.
         default_ini = resource_filename('systemimage.data', 'client.ini')
-        config = Configuration()
-        config.load(default_ini)
+        config = Configuration(default_ini)
         channel_ini = data_path('channel_02.ini')
         config.load(channel_ini, override=True)
         self.assertEqual(config.system.build_file,
@@ -288,8 +279,7 @@ class TestConfiguration(unittest.TestCase):
     def test_channel_ini_ignored_sections(self):
         # Only the [service] and [system] section in channel.ini is used.
         default_ini = resource_filename('systemimage.data', 'client.ini')
-        config = Configuration()
-        config.load(default_ini)
+        config = Configuration(default_ini)
         channel_ini = data_path('channel_02.ini')
         config.load(channel_ini, override=True)
         # channel_02.ini sets this to 1h, but it's not overridden.
@@ -298,8 +288,7 @@ class TestConfiguration(unittest.TestCase):
     def test_tempdir(self):
         # config.tempdir is randomly created.
         default_ini = resource_filename('systemimage.data', 'client.ini')
-        config = Configuration()
-        config.load(default_ini)
+        config = Configuration(default_ini)
         self.assertEqual(config.tempdir[:18], '/tmp/system-image-')
         self.assertEqual(stat.filemode(os.stat(config.tempdir).st_mode),
                          'drwx--S---')
@@ -323,3 +312,8 @@ class TestConfiguration(unittest.TestCase):
         stdout = check_output(command, universal_newlines=True)
         self.assertEqual(stdout[:29], 'drwx--S--- /tmp/system-image-')
         self.assertFalse(os.path.exists(stdout.split()[1]))
+
+    def test_constructor(self):
+        # LP: #1342183: Configuration constructor takes an ini_file argument.
+        config = Configuration(data_path('config_01.ini'))
+        self.assertEqual(config.service.base, 'phablet.example.com')

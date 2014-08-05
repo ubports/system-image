@@ -2,7 +2,19 @@
 NEWS for system-image updater
 =============================
 
-2.3 (2014-XX-XX)
+2.3.2 (2014-07-31)
+==================
+ * When system-image-{cli,dbus} is run as non-root, use a fallback location
+   for the settings.db file, if the parent directory isn't writable.
+   (LP: #1349478)
+
+2.3.1 (2014-07-23)
+==================
+ * Fix a traceback that occurs when the `systemimage.testing` subpackage isn't
+   available, as is the case when the system-image-dev binary package is not
+   installed.
+
+2.3 (2014-07-16)
 ================
  * Support factory resets.  `system-image-cli --factory-reset` and a new D-Bus
    API method `FactoryReset()` are added.  (LP: #1207860)
@@ -29,6 +41,14 @@ NEWS for system-image updater
    strings.  These details include a `last_check_date` which is the ISO 8601
    timestamp of the last time an `UpdateAvailableStatus` signal was sent.
    (LP: #1280169)
+ * Set the GSM flag in ubuntu-download-manager based on the current s-i
+   download setting.  (LP: #1339157)
+ * The system-image-dbus(8) manpage now describes the full D-Bus API.  (LP:
+   #1340882)
+ * Fix the D-Bus mock service so that the downloading flag for
+   `UpdateAvailableStatus` will correctly return true when checking twice
+   under manual downloads.  (LP: #1273354)
+ * Pay down some tech-debt.  (LP: #1342183)
 
 2.2 (2014-03-05)
 ================

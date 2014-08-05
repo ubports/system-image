@@ -179,8 +179,7 @@ class TestCLIMain(unittest.TestCase):
         with open(config_ini, 'w', encoding='utf-8') as fp:
             fp.write(configuration)
         # Invoking main() creates the directories.
-        config = Configuration()
-        config.load(config_ini)
+        config = Configuration(config_ini)
         self.assertFalse(os.path.exists(config.system.tempdir))
         self.assertFalse(os.path.exists(config.system.logfile))
         self._resources.enter_context(patch(
@@ -202,8 +201,6 @@ class TestCLIMain(unittest.TestCase):
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '--info']))
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
@@ -224,8 +221,7 @@ class TestCLIMain(unittest.TestCase):
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '--info']))
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         touch_build(1701)
         timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
         os.utime(config.system.build_file, (timestamp_1, timestamp_1))
@@ -248,8 +244,7 @@ class TestCLIMain(unittest.TestCase):
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '--info']))
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         touch_build(1701)
         timestamp_1 = int(datetime(2011, 1, 8, 2, 3, 4).timestamp())
         os.utime(config.system.build_file, (timestamp_1, timestamp_1))
@@ -265,8 +260,6 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_build_number(self, ini_file):
         # -b/--build overrides the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         # Use --build to override the default build number.
         self._resources.enter_context(
@@ -285,8 +278,6 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_device_name(self, ini_file):
         # -d/--device overrides the device type.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
@@ -304,8 +295,6 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_channel_name(self, ini_file):
         # -c/--channel overrides the channel.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
@@ -343,8 +332,6 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_all_overrides(self, ini_file):
         # Use -b -d and -c together.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         # Use --build to override the default build number.
         self._resources.enter_context(
@@ -383,8 +370,6 @@ class TestCLIMain(unittest.TestCase):
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '-i']))
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701, TIMESTAMP)
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
@@ -401,8 +386,6 @@ class TestCLIMain(unittest.TestCase):
         head, tail = os.path.split(channel_ini)
         copy('channel_01.ini', head, tail)
         os.utime(channel_ini, (TIMESTAMP, TIMESTAMP))
-        config = Configuration()
-        config.load(ini_file)
         self._resources.enter_context(
             patch('systemimage.main.sys.argv',
                   ['argv0', '-C', ini_file, '-i']))
@@ -451,8 +434,7 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_log_file(self, ini_file):
         # Test that the system log file gets created and written.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self.assertFalse(os.path.exists(config.system.logfile))
         class FakeState:
             def __init__(self, candidate_filter):
@@ -484,8 +466,7 @@ class TestCLIMain(unittest.TestCase):
     def test_log_file_permission_denied(self, ini_file):
         # LP: #1301995 - some tests are run as non-root, meaning they don't
         # have access to the system log file.  Use a fallback in that case.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         # Set the log file to read-only.
         system_log = Path(config.system.logfile)
         system_log.touch(0o444, exist_ok=False)
@@ -561,8 +542,7 @@ class TestCLIMain(unittest.TestCase):
     def test_state_machine_exceptions(self, ini_file):
         # If an exception happens during the state machine run, the error is
         # logged and main exits with code 1.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         self._resources.enter_context(
             patch('systemimage.main.sys.argv', ['argv0', '-C', ini_file]))
         # Making the cache directory unwritable is a good way to trigger a
@@ -574,8 +554,7 @@ class TestCLIMain(unittest.TestCase):
     @configuration
     def test_state_machine_exceptions_dry_run(self, ini_file):
         # Like above, but doing only a --dry-run.
-        config = Configuration()
-        config.load(ini_file)
+        config = Configuration(ini_file)
         # Making the cache directory unwritable is a good way to trigger a
         # crash.  Be sure to set it back though!
         self._resources.enter_context(
@@ -619,8 +598,6 @@ class TestCLIMainDryRun(ServerTestBase):
         # the code.
         capture = StringIO()
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(1701)
         with ExitStack() as resources:
             resources.enter_context(
@@ -735,8 +712,6 @@ class TestCLIFilters(ServerTestBase):
         # the code.
         capture = StringIO()
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(100)
         with ExitStack() as resources:
             resources.enter_context(
@@ -757,8 +732,6 @@ class TestCLIFilters(ServerTestBase):
         # the code.
         capture = StringIO()
         # Set up the build number.
-        config = Configuration()
-        config.load(ini_file)
         touch_build(100)
         with ExitStack() as resources:
             resources.enter_context(
@@ -1237,8 +1210,7 @@ class TestDBusMain(unittest.TestCase):
         #
         # The config.ini file names the `stable` channel.  Let's create an
         # ubuntu-build file with a fake version number.
-        config = Configuration()
-        config.load(self.ini_path)
+        config = Configuration(self.ini_path)
         with open(config.system.build_file, 'w', encoding='utf-8') as fp:
             print(33, file=fp)
         # Now, write a channel.ini file to override both of these.
@@ -1252,8 +1224,7 @@ class TestDBusMain(unittest.TestCase):
 
     def test_temp_directory(self):
         # The temporary directory gets created if it doesn't exist.
-        config = Configuration()
-        config.load(self.ini_path)
+        config = Configuration(self.ini_path)
         # The temporary directory may have already been created via the
         # .set_mode() call in the setUp().  That invokes a 'stopper' for the
         # -dbus process, which has the perverse effect of first D-Bus
@@ -1273,8 +1244,7 @@ class TestDBusMain(unittest.TestCase):
 
     def test_permissions(self):
         # LP: #1235975 - The created tempdir had unsafe permissions.
-        config = Configuration()
-        config.load(self.ini_path)
+        config = Configuration(self.ini_path)
         # See above.
         try:
             shutil.rmtree(config.system.tempdir)

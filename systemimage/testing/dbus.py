@@ -131,22 +131,13 @@ class _UpdateAutoSuccess(Service):
         GLib.timeout_add_seconds(3, self._send_status)
 
     def _send_status(self):
-        self.UpdateAvailableStatus(
-            True, self._auto_download, '42', 1337 * MiB,
-            '1983-09-13T12:13:14',
-            #[
-            #{'description': 'Ubuntu Edge support',
-            # 'description-en_GB': 'change the background colour',
-            # 'description-fr': "Support d'Ubuntu Edge",
-            #},
-            #{'description':
-            # 'Flipped container with 200% boot speed improvement',
-            #"}],
-            '')
-        if (    self._auto_download and
-                not self._downloading and
-                not self._rebootable):
+        if self._auto_download:
             self._downloading = True
+        self.UpdateAvailableStatus(
+            True, self._downloading, '42', 1337 * MiB,
+            '1983-09-13T12:13:14',
+            '')
+        if self._downloading and not self._rebootable:
             self.UpdateProgress(0, 50.0)
             GLib.timeout_add(500, self._send_more_status)
         if self._paused:
@@ -232,14 +223,6 @@ class _UpdateFailed(Service):
         self.UpdateAvailableStatus(
             True, False, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
-            #[
-            #{'description': 'Ubuntu Edge support',
-            # 'description-en_GB': 'change the background colour',
-            # 'description-fr': "Support d'Ubuntu Edge",
-            #},
-            #{'description':
-            # 'Flipped container with 200% boot speed improvement',
-            #}],
             msg)
         if self._failure_count > 0:
             self._failure_count += 1
@@ -261,14 +244,6 @@ class _FailApply(Service):
         self.UpdateAvailableStatus(
             True, False, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
-            #[
-            #{'description': 'Ubuntu Edge support',
-            # 'description-en_GB': 'change the background colour',
-            # 'description-fr': "Support d'Ubuntu Edge",
-            #},
-            #{'description':
-            # 'Flipped container with 200% boot speed improvement',
-            #}],
             '')
         self.UpdateDownloaded()
 
@@ -290,14 +265,6 @@ class _FailResume(Service):
         self.UpdateAvailableStatus(
             True, False, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
-            #[
-            #{'description': 'Ubuntu Edge support',
-            # 'description-en_GB': 'change the background colour',
-            # 'description-fr': "Support d'Ubuntu Edge",
-            #},
-            #{'description':
-            # 'Flipped container with 200% boot speed improvement',
-            #}],
             '')
         self.UpdatePaused(42)
 
@@ -316,14 +283,6 @@ class _FailPause(Service):
         self.UpdateAvailableStatus(
             True, True, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
-            #[
-            #{'description': 'Ubuntu Edge support',
-            # 'description-en_GB': 'change the background colour',
-            # 'description-fr': "Support d'Ubuntu Edge",
-            #},
-            #{'description':
-            # 'Flipped container with 200% boot speed improvement',
-            #}],
             '')
         self.UpdateProgress(10, 0)
 
@@ -345,14 +304,6 @@ class _NoUpdate(Service):
         self.UpdateAvailableStatus(
             False, False, '', 0,
             '1983-09-13T12:13:14',
-            #[
-            #{'description': 'Ubuntu Edge support',
-            # 'description-en_GB': 'change the background colour',
-            # 'description-fr': "Support d'Ubuntu Edge",
-            #},
-            #{'description':
-            # 'Flipped container with 200% boot speed improvement',
-            #}],
             '')
 
 

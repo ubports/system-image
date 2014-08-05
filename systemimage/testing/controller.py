@@ -163,11 +163,7 @@ class Controller:
                   file=fp)
 
     def _configure_services(self):
-        # If the dbus-daemon is already running, kill all the children.
-        if self.daemon_pid is not None:
-            for stopper in self._stoppers:
-                stopper(self)
-        del self._stoppers[:]
+        self.stop_children()
         # Now we have to set up the .service files.  We use the Python
         # executable used to run the tests, executing the entry point as would
         # happen in a deployed script or virtualenv.
@@ -244,9 +240,15 @@ class Controller:
             self._stack.close()
             raise
 
+    def stop_children(self):
+        # If the dbus-daemon is already running, kill all the children.
+        if self.daemon_pid is not None:
+            for stopper in self._stoppers:
+                stopper(self)
+        del self._stoppers[:]
+
     def _kill(self, pid):
-        for stopper in self._stoppers:
-            stopper(self)
+        self.stop_children()
         process = psutil.Process(pid)
         process.terminate()
         process.wait(60)
