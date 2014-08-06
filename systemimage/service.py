@@ -51,6 +51,43 @@ __version__ = resource_bytes(
 
 def main():
     global config
+    # This environment variable gets set by tox when the test suite is run via
+    # the `coverage` tox environment.  If that's the case, enable coverage as
+    # early as possible.
+    # Integrate with subprocess coverage.
+    from systemimage.testing.helpers import debug
+    from coverage.control import coverage as C
+    class DebugC(C):
+        def _atexit(self):
+            with debug() as ddlog:
+                ddlog('=====>SERVICE AT EXIT...')
+            super()._atexit()
+            with debug() as ddlog:
+                ddlog('=====>SERVICE AT EXIT.')
+    ini_file = os.environ.get('COVERAGE_PROCESS_START')
+    if ini_file is not None:
+        os.chdir(os.environ.get('HERE'))
+        with debug() as ddlog:
+            ddlog('SERVICE:', ini_file)
+        try:
+            # import coverage
+            pass
+        except ImportError as e:
+            with debug() as ddlog:
+                ddlog('SERVICE: Could not import coverage', e)
+            pass
+        else:
+            with debug() as ddlog:
+                ddlog('SERVICE: starting coverage:',
+                      os.getpid(), os.getcwd())
+            cov = DebugC(config_file=ini_file, auto_data=True)
+            cov.start()
+            cov._warn_no_data = False
+            cov._warn_unimported_source = False
+            #coverage.process_startup()
+            with debug() as ddlog:
+                ddlog('SERVICE: coverage started')
+    # Parse arguments.
     parser = argparse.ArgumentParser(
         prog='system-image-dbus',
         description='Ubuntu System Image Upgrader DBus service')
@@ -107,9 +144,10 @@ def main():
              config.channel, config.device)
 
     with ExitStack() as stack:
-        from systemimage.testing.helpers import debug
         loop = Loop()
         testing_mode = getattr(args, 'testing', None)
+        with debug() as ddlog:
+            ddlog('SERVICE testing?', testing_mode)
         if testing_mode:
             instrument(config, stack)
             config.dbus_service = get_service(
@@ -118,13 +156,7 @@ def main():
             from systemimage.dbus import Service
             config.dbus_service = Service(system_bus, '/Service', loop)
         try:
-            with debug() as dblog:
-                dblog('LOOP START', sys.argv,
-                      os.environ.get('COVERAGE_PROCESS_START'), os.getpid())
             loop.run()
-            with debug() as dblog:
-                dblog('LOOP STOP', sys.argv,
-                      os.environ.get('COVERAGE_PROCESS_START'), os.getpid())
         except KeyboardInterrupt:
             log.info('SystemImage dbus main loop interrupted')
         except:
