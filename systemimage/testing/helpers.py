@@ -558,9 +558,6 @@ if Coverage is not None:
     def maybe_start_coverage():
         ini_file = os.environ.get('COVERAGE_PROCESS_START')
         if ini_file is not None:
-            os.chdir(os.path.dirname(ini_file))
-            with debug() as ddlog:
-                ddlog('SERVICE:', ini_file)
             try:
                 # import coverage
                 pass
