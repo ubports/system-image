@@ -117,9 +117,6 @@ def main():
     with ExitStack() as stack:
         loop = Loop()
         testing_mode = getattr(args, 'testing', None)
-        from systemimage.testing.helpers import debug
-        with debug() as ddlog:
-            ddlog('SERVICE testing?', testing_mode)
         if testing_mode:
             instrument(config, stack)
             config.dbus_service = get_service(

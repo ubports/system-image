@@ -554,13 +554,6 @@ class ServerTestBase(unittest.TestCase):
 
 # Optional code coverage.
 if Coverage is not None:
-    class _DebuggingCoverage(Coverage):
-        def _atexit(self):
-            with debug() as ddlog:
-                ddlog('=====>COVERAGE ATEXIT...', os.getpid())
-            super()._atexit()
-            with debug() as ddlog:
-                ddlog('=====>COVERAGE ATEXIT.', os.getpid())
     # Helper to start coverage if being invoked via tox.
     def maybe_start_coverage():
         ini_file = os.environ.get('COVERAGE_PROCESS_START')
@@ -571,21 +564,13 @@ if Coverage is not None:
             try:
                 # import coverage
                 pass
-            except ImportError as e:
-                with debug() as ddlog:
-                    ddlog('SERVICE: Could not import coverage', e)
+            except ImportError:
                 pass
             else:
-                with debug() as ddlog:
-                    ddlog('SERVICE: starting coverage:',
-                          os.getpid(), os.getcwd())
-                cov = _DebuggingCoverage(config_file=ini_file, auto_data=True)
+                cov = Coverage(config_file=ini_file, auto_data=True)
                 cov.start()
                 cov._warn_no_data = False
                 cov._warn_unimported_source = False
-                #coverage.process_startup()
-                with debug() as ddlog:
-                    ddlog('SERVICE: coverage started')
 else:
     def maybe_start_coverage():
         pass
