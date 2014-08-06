@@ -90,6 +90,11 @@ class SystemImagePlugin(Plugin):
 
     @configuration
     def startTestRun(self, event):
+        from systemimage.testing.helpers import debug, maybe_start_coverage
+        import os
+        with debug() as ddlog:
+            ddlog('MAIN PROCESS:', os.getcwd(), os.getpid())
+        maybe_start_coverage()
         from systemimage.config import config
         if self.log_file is not None:
             config.system.logfile = self.log_file

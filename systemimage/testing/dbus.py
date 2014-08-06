@@ -58,24 +58,24 @@ def instrument(config, stack):
     stack.enter_context(
         patch('systemimage.device.check_output', return_value='nexus7'))
     # Integrate with subprocess coverage.
-    from systemimage.testing.helpers import debug
-    ini_file = os.environ.get('COVERAGE_PROCESS_START')
-    if ini_file is not None:
-        with debug() as ddlog:
-            ddlog('DBUS:', ini_file)
-        try:
-            import coverage
-        except ImportError as e:
-            with debug() as ddlog:
-                ddlog('DBUS: Could not import coverage', e)
-            pass
-        else:
-            with debug() as ddlog:
-                ddlog('DBUS: starting coverage:',
-                      os.getpid(), os.getcwd())
-            coverage.process_startup()
-            with debug() as ddlog:
-                ddlog('DBUS: coverage started')
+    ## from systemimage.testing.helpers import debug
+    ## ini_file = os.environ.get('COVERAGE_PROCESS_START')
+    ## if ini_file is not None:
+    ##     with debug() as ddlog:
+    ##         ddlog('DBUS:', ini_file)
+    ##     try:
+    ##         import coverage
+    ##     except ImportError as e:
+    ##         with debug() as ddlog:
+    ##             ddlog('DBUS: Could not import coverage', e)
+    ##         pass
+    ##     else:
+    ##         with debug() as ddlog:
+    ##             ddlog('DBUS: starting coverage:',
+    ##                   os.getpid(), os.getcwd())
+    ##         coverage.process_startup()
+    ##         with debug() as ddlog:
+    ##             ddlog('DBUS: coverage started')
 
 
 class _LiveTestableService(Service):

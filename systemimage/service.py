@@ -43,6 +43,11 @@ try:
 except ImportError:
     instrument = None
     get_service = None
+try:
+    from systemimage.testing.helpers import maybe_start_coverage
+except ImportError:
+    def maybe_start_coverage():
+        pass
 
 
 __version__ = resource_bytes(
@@ -51,42 +56,8 @@ __version__ = resource_bytes(
 
 def main():
     global config
-    # This environment variable gets set by tox when the test suite is run via
-    # the `coverage` tox environment.  If that's the case, enable coverage as
-    # early as possible.
-    # Integrate with subprocess coverage.
-    from systemimage.testing.helpers import debug
-    from coverage.control import coverage as C
-    class DebugC(C):
-        def _atexit(self):
-            with debug() as ddlog:
-                ddlog('=====>SERVICE AT EXIT...')
-            super()._atexit()
-            with debug() as ddlog:
-                ddlog('=====>SERVICE AT EXIT.')
-    ini_file = os.environ.get('COVERAGE_PROCESS_START')
-    if ini_file is not None:
-        os.chdir(os.environ.get('HERE'))
-        with debug() as ddlog:
-            ddlog('SERVICE:', ini_file)
-        try:
-            # import coverage
-            pass
-        except ImportError as e:
-            with debug() as ddlog:
-                ddlog('SERVICE: Could not import coverage', e)
-            pass
-        else:
-            with debug() as ddlog:
-                ddlog('SERVICE: starting coverage:',
-                      os.getpid(), os.getcwd())
-            cov = DebugC(config_file=ini_file, auto_data=True)
-            cov.start()
-            cov._warn_no_data = False
-            cov._warn_unimported_source = False
-            #coverage.process_startup()
-            with debug() as ddlog:
-                ddlog('SERVICE: coverage started')
+    # If enabled, start code coverage collection as early as possible.
+    maybe_start_coverage()
     # Parse arguments.
     parser = argparse.ArgumentParser(
         prog='system-image-dbus',
@@ -146,6 +117,7 @@ def main():
     with ExitStack() as stack:
         loop = Loop()
         testing_mode = getattr(args, 'testing', None)
+        from systemimage.testing.helpers import debug
         with debug() as ddlog:
             ddlog('SERVICE testing?', testing_mode)
         if testing_mode:

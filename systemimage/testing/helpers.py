@@ -27,6 +27,7 @@ __all__ = [
     'get_channels',
     'get_index',
     'make_http_server',
+    'maybe_start_coverage',
     'reset_envar',
     'setup_index',
     'setup_keyring_txz',
@@ -60,6 +61,12 @@ from systemimage.index import Index
 from systemimage.state import State
 from threading import Thread
 from unittest.mock import patch
+
+# It's okay if this module isn't available.
+try:
+    from coverage.control import coverage as Coverage
+except ImportError:
+    Coverage = None
 
 
 EMPTYSTRING = ''
@@ -543,3 +550,42 @@ class ServerTestBase(unittest.TestCase):
                 dict(type='device-signing'),
                 os.path.join(self._serverdir, self.CHANNEL, self.DEVICE,
                              'device-signing.tar.xz'))
+
+
+# Optional code coverage.
+if Coverage is not None:
+    class _DebuggingCoverage(Coverage):
+        def _atexit(self):
+            with debug() as ddlog:
+                ddlog('=====>COVERAGE ATEXIT...', os.getpid())
+            super()._atexit()
+            with debug() as ddlog:
+                ddlog('=====>COVERAGE ATEXIT.', os.getpid())
+    # Helper to start coverage if being invoked via tox.
+    def maybe_start_coverage():
+        ini_file = os.environ.get('COVERAGE_PROCESS_START')
+        if ini_file is not None:
+            os.chdir(os.path.dirname(ini_file))
+            with debug() as ddlog:
+                ddlog('SERVICE:', ini_file)
+            try:
+                # import coverage
+                pass
+            except ImportError as e:
+                with debug() as ddlog:
+                    ddlog('SERVICE: Could not import coverage', e)
+                pass
+            else:
+                with debug() as ddlog:
+                    ddlog('SERVICE: starting coverage:',
+                          os.getpid(), os.getcwd())
+                cov = _DebuggingCoverage(config_file=ini_file, auto_data=True)
+                cov.start()
+                cov._warn_no_data = False
+                cov._warn_unimported_source = False
+                #coverage.process_startup()
+                with debug() as ddlog:
+                    ddlog('SERVICE: coverage started')
+else:
+    def maybe_start_coverage():
+        pass
