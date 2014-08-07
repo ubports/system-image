@@ -16,6 +16,7 @@
 """Test helpers."""
 
 __all__ = [
+    'Coverage',
     'ServerTestBase',
     'chmod',
     'configuration',
@@ -27,7 +28,6 @@ __all__ = [
     'get_channels',
     'get_index',
     'make_http_server',
-    'maybe_start_coverage',
     'reset_envar',
     'setup_index',
     'setup_keyring_txz',
@@ -64,9 +64,9 @@ from unittest.mock import patch
 
 # It's okay if this module isn't available.
 try:
-    from coverage.control import coverage as Coverage
+    from coverage.control import coverage as _Coverage
 except ImportError:
-    Coverage = None
+    _Coverage = None
 
 
 EMPTYSTRING = ''
@@ -468,9 +468,10 @@ def find_dbus_process(ini_path):
     # for the specific ini_path for the instance we care about.  Yeah, this
     # all kind of sucks, but should be effective in finding the one we need to
     # track.
+    from systemimage.testing.controller import Controller
     for process in psutil.process_iter():
         cmdline = SPACE.join(process.cmdline())
-        if 'systemimage.service' in cmdline and ini_path in cmdline:
+        if Controller.MODULE in cmdline and ini_path in cmdline:
             return process
     return None
 
@@ -552,22 +553,26 @@ class ServerTestBase(unittest.TestCase):
                              'device-signing.tar.xz'))
 
 
-# Optional code coverage.
-if Coverage is not None:
-    # Helper to start coverage if being invoked via tox.
-    def maybe_start_coverage():
+# Helper to perform code coverage if being invoked via tox.
+class Coverage:
+    def __init__(self):
+        self._coverage = None
         ini_file = os.environ.get('COVERAGE_PROCESS_START')
-        if ini_file is not None:
-            try:
-                # import coverage
-                pass
-            except ImportError:
-                pass
-            else:
-                cov = Coverage(config_file=ini_file, auto_data=True)
-                cov.start()
-                cov._warn_no_data = False
-                cov._warn_unimported_source = False
-else:
-    def maybe_start_coverage():
-        pass
+        if _Coverage is not None and ini_file is not None:
+            self._coverage =_Coverage(config_file=ini_file, auto_data=True)
+
+    def start(self):
+        if self._coverage is not None:
+            # Stolen from coverage.process_startup()
+            self._coverage.erase()
+            self._coverage.start()
+            self._coverage._warn_no_data = False
+            self._coverage._warn_unimported_source = False
+
+    def stop(self):
+        if self._coverage is not None:
+            self._coverage.stop()
+
+    def combine(self):
+        if self._coverage is not None:
+            self._coverage.combine()

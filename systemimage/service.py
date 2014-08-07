@@ -43,11 +43,6 @@ try:
 except ImportError:
     instrument = None
     get_service = None
-try:
-    from systemimage.testing.helpers import maybe_start_coverage
-except ImportError:
-    def maybe_start_coverage():
-        pass
 
 
 __version__ = resource_bytes(
@@ -57,7 +52,6 @@ __version__ = resource_bytes(
 def main():
     global config
     # If enabled, start code coverage collection as early as possible.
-    maybe_start_coverage()
     # Parse arguments.
     parser = argparse.ArgumentParser(
         prog='system-image-dbus',

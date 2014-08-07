@@ -27,7 +27,7 @@ from dbus.mainloop.glib import DBusGMainLoop
 from nose2.events import Plugin
 from systemimage.logging import initialize
 from systemimage.testing.controller import Controller
-from systemimage.testing.helpers import configuration
+from systemimage.testing.helpers import Coverage, configuration
 
 
 # Why are these tests set up like this?
@@ -76,6 +76,7 @@ class SystemImagePlugin(Plugin):
         self.patterns = []
         self.verbosity = 0
         self.log_file = None
+        self.coverage = Coverage()
         self.addArgument(self.patterns, 'P', 'pattern',
                          'Add a test matching pattern')
         def bump(ignore):
@@ -90,8 +91,7 @@ class SystemImagePlugin(Plugin):
 
     @configuration
     def startTestRun(self, event):
-        from systemimage.testing.helpers import maybe_start_coverage
-        maybe_start_coverage()
+        self.coverage.start()
         from systemimage.config import config
         if self.log_file is not None:
             config.system.logfile = self.log_file
@@ -132,6 +132,7 @@ class SystemImagePlugin(Plugin):
 
     def afterTestRun(self, event):
         SystemImagePlugin.controller.stop()
+        self.coverage.stop()
         # Let other plugins continue printing.
         return None
 

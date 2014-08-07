@@ -112,7 +112,7 @@ DLSERVICE = '/usr/bin/ubuntu-download-manager'
 
 SERVICES = [
    ('com.canonical.SystemImage',
-    '{python} -m systemimage.service -C {self.ini_path} --testing {self.mode}',
+    '{python} -m {self.MODULE} -C {self.ini_path} --testing {self.mode}',
     start_system_image,
     stop_system_image,
    ),
@@ -127,6 +127,8 @@ SERVICES = [
 
 class Controller:
     """Start and stop D-Bus service under test."""
+
+    MODULE = 'systemimage.testing.service'
 
     def __init__(self, logfile=None):
         # Non-public.
