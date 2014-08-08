@@ -154,7 +154,7 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(exception, 'Exception in progress callback')
         # The file still got downloaded.
         self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
-                
+
     @configuration
     def test_no_dev_package(self):
         # system-image-dev contains the systemimage.testing subpackage, but

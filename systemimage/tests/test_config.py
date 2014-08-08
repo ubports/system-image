@@ -212,7 +212,6 @@ class TestConfiguration(unittest.TestCase):
             with patch('systemimage.device.check_output',
                        side_effect=FileNotFoundError):
                 self.assertEqual(config.device, '?')
-        
 
     @configuration
     def test_get_channel(self, ini_file):
