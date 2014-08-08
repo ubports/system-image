@@ -26,6 +26,7 @@ import stat
 import logging
 import unittest
 
+from contextlib import ExitStack, contextmanager
 from datetime import timedelta
 from pkg_resources import resource_filename
 from subprocess import CalledProcessError, check_output
@@ -35,6 +36,21 @@ from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
+
+
+@contextmanager
+def _patch_device_hook():
+    # The device hook has two things that generally need patching.  The first
+    # is the logging output, which is just noise for testing purposes, so
+    # silence it.  The second is that the `getprop` command may actually exist
+    # on test system, and we want a consistent environment (i.e. the
+    # assumption that the command does not exist).
+    with ExitStack() as resources:
+        resources.enter_context(patch('systemimage.device.logging.getLogger'))
+        resources.enter_context(
+            patch('systemimage.device.check_output',
+                  side_effect=FileNotFoundError))
+        yield resources.pop_all()
 
 
 class TestConfiguration(unittest.TestCase):
@@ -206,12 +222,8 @@ class TestConfiguration(unittest.TestCase):
     def test_device_no_getprop_fallback(self):
         # Like above, but a FileNotFoundError occurs instead.
         config = Configuration()
-        # Silence the log exceptions this will provoke.
-        with patch('systemimage.device.logging.getLogger'):
-            # It's possible getprop actually does exist on the system.
-            with patch('systemimage.device.check_output',
-                       side_effect=FileNotFoundError):
-                self.assertEqual(config.device, '?')
+        with _patch_device_hook():
+            self.assertEqual(config.device, '?')
 
     @configuration
     def test_get_channel(self, ini_file):
@@ -334,3 +346,25 @@ class TestConfiguration(unittest.TestCase):
         ini_file = data_path('config_09.ini')
         config = Configuration()
         self.assertRaises(KeyError, config.load, ini_file)
+
+    def test_channel_ini_device_override(self):
+        # A channel.ini file can override the device name.
+        config = Configuration(data_path('config_01.ini'))
+        config.load(data_path('channel_06.ini'), override=True)
+        self.assertEqual(config.device, 'shoephone')
+
+    def test_channel_ini_missing_device_override(self):
+        # The channel.ini can omit the [service]device setting, in which case
+        # the hook is still used.
+        config = Configuration(data_path('config_01.ini'))
+        config.load(data_path('channel_05.ini'), override=True)
+        with _patch_device_hook():
+            self.assertEqual(config.device, '?')
+
+    def test_channel_ini_empty_device_override(self):
+        # The channel.ini can have an empty [service]device setting, in which
+        # case the hook is still used.
+        config = Configuration(data_path('config_01.ini'))
+        config.load(data_path('channel_07.ini'), override=True)
+        with _patch_device_hook():
+            self.assertEqual(config.device, '?')

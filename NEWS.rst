@@ -4,6 +4,8 @@ NEWS for system-image updater
 
 2.4 (2014-XX-XX)
 ================
+ * The channel.ini file can override the device name by setting
+   ``[service]device``.  (LP: #1353178)
  * Add optional instrumentation to collect code coverage data during test
    suite run via tox.  (LP: #1324241)
 

@@ -61,6 +61,10 @@ https_port
 channel
     The upgrade channel.
 
+device
+    The device name.  If missing or unset (i.e. the empty string), then the
+    device is calculated using the ``[hooks]device`` callback.
+
 build_number
     The system's current build number.
 
