@@ -55,6 +55,18 @@ class TestAPI(ServerTestBase):
         self.assertTrue(update.is_available)
 
     @configuration
+    def test_update_available_cached(self):
+        # If we try to check twice on the same mediator object, the second one
+        # will return the cached update.
+        self._setup_server_keyrings()
+        mediator = Mediator()
+        update_1 = mediator.check_for_update()
+        self.assertTrue(update_1.is_available)
+        update_2 = mediator.check_for_update()
+        self.assertTrue(update_2.is_available)
+        self.assertIs(update_1, update_2)
+
+    @configuration
     def test_update_available_version(self):
         # An update is available.  What's the target version number?
         self._setup_server_keyrings()

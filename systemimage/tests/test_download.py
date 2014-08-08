@@ -25,7 +25,6 @@ __all__ = [
     'TestHTTPSDownloadsNasty',
     'TestHTTPSDownloadsNoSelfSigned',
     'TestRecord',
-    'TestTimeout',
     ]
 
 
@@ -169,10 +168,21 @@ class TestDownloads(unittest.TestCase):
                 ]))
         self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
 
-    def test_repr(self):
-        downloader = DBusDownloadManager()
-        self.assertRegex(
-            repr(downloader), '<DBusDownloadManager at 0x[0-9a-f]+>')
+    @configuration
+    def test_timeout(self):
+        # If the reactor times out, we get an exception.  We fake the timeout
+        # by setting the attribute on the reactor, even though it successfully
+        # completes its download without timing out.
+        def finish_with_timeout(self, *args, **kws):
+            self.timed_out = True
+            self.quit()
+        with patch('systemimage.download.DownloadReactor._do_finished',
+                   finish_with_timeout):
+            self.assertRaises(
+                TimeoutError,
+                DBusDownloadManager().get_files,
+                _http_pathify([('channels_01.json', 'channels.json')])
+                )
 
 
 class TestHTTPSDownloads(unittest.TestCase):
@@ -588,29 +598,3 @@ class TestDuplicateDownloads(unittest.TestCase):
             (   'http://localhost:8980/source.dat',
                 'local.dat',
                 '809ecb6ebc8bcefc733f6f2ec44f791abeed6a99edf0cc31519637898aebd52d')])]""")
-
-
-class TestTimeout(unittest.TestCase):
-    def setUp(self):
-        super().setUp()
-        self._resources = ExitStack()
-        self._serverdir = self._resources.enter_context(
-            temporary_directory())
-        self._resources.push(make_http_server(self._serverdir, 8980))
-
-    def tearDown(self):
-        self._resources.close()
-        super().tearDown()
-
-    @configuration
-    def test_timeout(self):
-        # If the reactor times out, we get an exception.
-        from systemimage import reactor
-        # We need a huge file that will take longer than the timeout to load.
-        write_bytes(os.path.join(self._serverdir, 'bigfile.dat'), 1000)
-        with patch.object(reactor, 'TIMEOUT_SECONDS', 1):
-            self.assertRaises(
-                TimeoutError,
-                DBusDownloadManager().get_files,
-                _http_pathify([('bigfile.dat', 'bigfile.dat')])
-                )

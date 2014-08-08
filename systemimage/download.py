@@ -171,7 +171,7 @@ class DBusDownloadManager:
         self._queued_cancel = False
         self.callback = callback
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return '<DBusDownloadManager at 0x{:x}>'.format(id(self))
 
     def get_files(self, downloads, *, pausable=False):

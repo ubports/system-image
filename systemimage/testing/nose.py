@@ -20,43 +20,15 @@ __all__ = [
     ]
 
 
-import os
 import re
 import atexit
 
 from dbus.mainloop.glib import DBusGMainLoop
 from nose2.events import Plugin
-
-# It's okay if this module isn't available.
-try:
-    from coverage.control import coverage as _Coverage
-except ImportError:
-    _Coverage = None
-
-
-# Helper to perform code coverage if being invoked via tox.
-class Coverage:
-    def __init__(self):
-        self._coverage = None
-        ini_file = os.environ.get('COVERAGE_PROCESS_START')
-        if _Coverage is not None and ini_file is not None:
-            self._coverage =_Coverage(config_file=ini_file, auto_data=True)
-
-    def start(self):
-        if self._coverage is not None:
-            # Stolen from coverage.process_startup()
-            self._coverage.erase()
-            self._coverage.start()
-            self._coverage._warn_no_data = False
-            self._coverage._warn_unimported_source = False
-
-    def stop(self):
-        if self._coverage is not None:
-            self._coverage.stop()
-
-    def combine(self):
-        if self._coverage is not None:
-            self._coverage.combine()
+from systemimage.config import config
+from systemimage.logging import initialize
+from systemimage.testing.controller import Controller
+from systemimage.testing.helpers import configuration
 
 
 # Why are these tests set up like this?
@@ -101,15 +73,6 @@ class SystemImagePlugin(Plugin):
     controller = None
 
     def __init__(self):
-        # First things first.  Start code coverage collection.  Do this before
-        # any other imports from the systemimage package!
-        self.coverage = Coverage()
-        self.coverage.start()
-        # Fix the startTestRun() method.  Do it this way instead of -- as we
-        # normally would -- as a decorator, to avoid importing systemimage
-        # modules before coverage is started.
-        from systemimage.testing.helpers import configuration
-        self.startTestRun = configuration(self.startTestRun)
         super().__init__()
         self.patterns = []
         self.verbosity = 0
@@ -126,12 +89,8 @@ class SystemImagePlugin(Plugin):
                        'Set the log file for the test run',
                        nargs=1)
 
+    @configuration
     def startTestRun(self, event):
-        # Don't import these at module scope, in order to maximize code
-        # coverage.
-        from systemimage.logging import initialize
-        from systemimage.testing.controller import Controller
-        from systemimage.config import config
         if self.log_file is not None:
             config.system.logfile = self.log_file
         DBusGMainLoop(set_as_default=True)
@@ -171,7 +130,6 @@ class SystemImagePlugin(Plugin):
 
     def afterTestRun(self, event):
         SystemImagePlugin.controller.stop()
-        self.coverage.stop()
         # Let other plugins continue printing.
         return None
 

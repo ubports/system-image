@@ -138,7 +138,7 @@ def main():
         config.load(args.config)
     except FileNotFoundError as error:
         parser.error('\nConfiguration file not found: {}'.format(error))
-        assert 'parser.error() does not return'
+        assert 'parser.error() does not return' # pragma: no cover
     # Load the optional channel.ini file, which must live next to the
     # configuration file.  It's okay if this file does not exist.
     channel_ini = os.path.join(os.path.dirname(args.config), 'channel.ini')
@@ -158,7 +158,7 @@ def main():
     if sum(bool(arg) for arg in
            (args.set, args.get, args.delete, args.show_settings)) > 1:
         parser.error('Cannot mix and match settings arguments')
-        assert 'parser.error() does not return'
+        assert 'parser.error() does not return' # pragma: no cover
 
     if args.show_settings:
         rows = sorted(Settings())
@@ -191,7 +191,7 @@ def main():
         candidate_filter = delta_filter
     else:
         parser.error('Bad filter type: {}'.format(args.filter))
-        assert 'parser.error() does not return'
+        assert 'parser.error() does not return' # pragma: no cover
 
     # Create the temporary directory if it doesn't exist.
     makedirs(config.system.tempdir)
@@ -212,7 +212,7 @@ def main():
         except ValueError:
             parser.error(
                 '-b/--build requires an integer: {}'.format(args.build))
-            assert 'parser.error() does not return'
+            assert 'parser.error() does not return' # pragma: no cover
     if args.channel is not None:
         config.channel = args.channel
     if args.device is not None:

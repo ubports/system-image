@@ -40,7 +40,7 @@ from systemimage.main import DEFAULT_CONFIG_FILE
 # the systemimage-dev binary package is installed in Ubuntu.
 try:
     from systemimage.testing.dbus import instrument, get_service
-except ImportError:
+except ImportError: # pragma: no cover
     instrument = None
     get_service = None
 
@@ -68,7 +68,7 @@ def main():
                         default=0, action='count',
                         help='Increase verbosity')
     # Hidden argument for special setup required by test environment.
-    if instrument is not None:
+    if instrument is not None: # pragma: no branch
         parser.add_argument('--testing',
                             default=False, action='store',
                             help=argparse.SUPPRESS)
@@ -78,7 +78,7 @@ def main():
         config.load(args.config)
     except FileNotFoundError as error:
         parser.error('\nConfiguration file not found: {}'.format(error))
-        assert 'parser.error() does not return'
+        assert 'parser.error() does not return' # pragma: no cover
     # Load the optional channel.ini file, which must live next to the
     # configuration file.  It's okay if this file does not exist.
     channel_ini = os.path.join(os.path.dirname(args.config), 'channel.ini')
@@ -129,5 +129,5 @@ def main():
             log.info('SystemImage dbus main loop exited')
 
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     sys.exit(main())

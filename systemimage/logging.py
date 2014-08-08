@@ -117,7 +117,7 @@ def initialize(*, verbosity=0):
 
 
 @contextmanager
-def debug_logging():
+def debug_logging(): # pragma: no cover
     # getEffectiveLevel() is the best we can do, but it's good enough because
     # we always set the level of the logger.
     log = logging.getLogger('systemimage')

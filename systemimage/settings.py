@@ -40,7 +40,7 @@ class Settings:
         # to a user path.
         self._dbpath = None
         try:
-            with self._cursor():
+            with self._cursor(): # pragma: no branch
                 pass
         except sqlite3.OperationalError:
             self._check_fallback()

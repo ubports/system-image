@@ -19,14 +19,30 @@ This is arranged so that the test suite can enable code coverage data
 collection as early as possible in the private bus D-Bus activated processes.
 """
 
+import os
+
+# It's okay if this module isn't available.
+try:
+    from coverage.control import coverage as _Coverage
+except ImportError:
+    _Coverage = None
+
+
 def main():
-    # All imports happen here so that we have the best possible chance of
-    # instrumenting all relevant code.
-    from systemimage.testing.nose import Coverage
-    Coverage().start()
+    # Enable code coverage.
+    ini_file = os.environ.get('COVERAGE_PROCESS_START')
+    if _Coverage is not None and ini_file is not None:
+        coverage =_Coverage(config_file=ini_file, auto_data=True)
+        # Stolen from coverage.process_startup()
+        coverage.erase()
+        coverage.start()
+        coverage._warn_no_data = False
+        coverage._warn_unimported_source = False
+    # All systemimage imports happen here so that we have the best possible
+    # chance of instrumenting all relevant code.
+    from systemimage.service import main as real_main
     # Now run the actual D-Bus service.
-    from systemimage.service import main
-    return main()
+    return real_main()
 
 
 if __name__ == '__main__':
