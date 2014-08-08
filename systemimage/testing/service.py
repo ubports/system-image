@@ -22,7 +22,7 @@ collection as early as possible in the private bus D-Bus activated processes.
 def main():
     # All imports happen here so that we have the best possible chance of
     # instrumenting all relevant code.
-    from systemimage.testing.helpers import Coverage
+    from systemimage.testing.nose import Coverage
     Coverage().start()
     # Now run the actual D-Bus service.
     from systemimage.service import main

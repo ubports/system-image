@@ -16,7 +16,6 @@
 """Test helpers."""
 
 __all__ = [
-    'Coverage',
     'ServerTestBase',
     'chmod',
     'configuration',
@@ -61,12 +60,6 @@ from systemimage.index import Index
 from systemimage.state import State
 from threading import Thread
 from unittest.mock import patch
-
-# It's okay if this module isn't available.
-try:
-    from coverage.control import coverage as _Coverage
-except ImportError:
-    _Coverage = None
 
 
 EMPTYSTRING = ''
@@ -551,28 +544,3 @@ class ServerTestBase(unittest.TestCase):
                 dict(type='device-signing'),
                 os.path.join(self._serverdir, self.CHANNEL, self.DEVICE,
                              'device-signing.tar.xz'))
-
-
-# Helper to perform code coverage if being invoked via tox.
-class Coverage:
-    def __init__(self):
-        self._coverage = None
-        ini_file = os.environ.get('COVERAGE_PROCESS_START')
-        if _Coverage is not None and ini_file is not None:
-            self._coverage =_Coverage(config_file=ini_file, auto_data=True)
-
-    def start(self):
-        if self._coverage is not None:
-            # Stolen from coverage.process_startup()
-            self._coverage.erase()
-            self._coverage.start()
-            self._coverage._warn_no_data = False
-            self._coverage._warn_unimported_source = False
-
-    def stop(self):
-        if self._coverage is not None:
-            self._coverage.stop()
-
-    def combine(self):
-        if self._coverage is not None:
-            self._coverage.combine()

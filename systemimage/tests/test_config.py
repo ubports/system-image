@@ -203,6 +203,17 @@ class TestConfiguration(unittest.TestCase):
                        side_effect=CalledProcessError(1, 'ignore')):
                 self.assertEqual(config.device, '?')
 
+    def test_device_no_getprop_fallback(self):
+        # Like above, but a FileNotFoundError occurs instead.
+        config = Configuration()
+        # Silence the log exceptions this will provoke.
+        with patch('systemimage.device.logging.getLogger'):
+            # It's possible getprop actually does exist on the system.
+            with patch('systemimage.device.check_output',
+                       side_effect=FileNotFoundError):
+                self.assertEqual(config.device, '?')
+        
+
     @configuration
     def test_get_channel(self, ini_file):
         config = Configuration(ini_file)
@@ -317,3 +328,10 @@ class TestConfiguration(unittest.TestCase):
         # LP: #1342183: Configuration constructor takes an ini_file argument.
         config = Configuration(data_path('config_01.ini'))
         self.assertEqual(config.service.base, 'phablet.example.com')
+
+    def test_main_ini_file_must_contain_system_stanza(self):
+        # It's okay if an override is missing the [system] stanza, but the
+        # main ini file (i.e. non-override) must contain it.
+        ini_file = data_path('config_09.ini')
+        config = Configuration()
+        self.assertRaises(KeyError, config.load, ini_file)

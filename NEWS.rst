@@ -2,6 +2,11 @@
 NEWS for system-image updater
 =============================
 
+2.4 (2014-XX-XX)
+================
+ * Add optional instrumentation to collect code coverage data during test
+   suite run via tox.  (LP: #1324241)
+
 2.3.2 (2014-07-31)
 ==================
  * When system-image-{cli,dbus} is run as non-root, use a fallback location

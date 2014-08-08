@@ -1538,6 +1538,12 @@ class TestDBusPauseResume(_LiveTesting):
         else:
             raise AssertionError('Did not find expected error output')
 
+    def test_must_be_downloading_to_pause(self):
+        # You get an error string if you try to pause the download but no
+        # download is in progress.
+        error_message = self.iface.PauseDownload()
+        self.assertEqual(error_message, 'not downloading')
+
 
 class TestDBusUseCache(_LiveTesting):
     # See LP: #1217098
