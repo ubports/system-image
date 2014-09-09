@@ -1,3 +1,14 @@
+system-image (2.3.2-0ubuntu3) UNRELEASED; urgency=medium
+
+  * d/control: Remove tox as a build dependency to avoid having to MIR tox,
+    virtualenv, and pip.
+  * d/rules:
+    - Call nose2 explicitly to avoid use of tox.
+    - Remove unnecessary override_dh_auto_clean rule.
+  * d/system-image-common.post{inst,rm}: `set -e` to make lintian happy.
+
+ -- Barry Warsaw <barry@ubuntu.com>  Tue, 09 Sep 2014 11:05:09 -0400
+
 system-image (2.3.2-0ubuntu2) utopic; urgency=medium
 
   [ Barry Warsaw ]
