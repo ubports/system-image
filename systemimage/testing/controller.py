@@ -130,7 +130,7 @@ class Controller:
 
     MODULE = 'systemimage.testing.service'
 
-    def __init__(self, logfile=None):
+    def __init__(self, logfile=None, loglevel='info'):
         # Non-public.
         self._stack = ExitStack()
         self._stoppers = []
@@ -160,8 +160,10 @@ class Controller:
         template = resource_bytes(
             'systemimage.tests.data', 'config_03.ini').decode('utf-8')
         with open(self.ini_path, 'w', encoding='utf-8') as fp:
-            print(template.format(tmpdir=ini_tmpdir, vardir=ini_vardir,
-                                  logfile=ini_logfile),
+            print(template.format(tmpdir=ini_tmpdir,
+                                  vardir=ini_vardir,
+                                  logfile=ini_logfile,
+                                  loglevel=loglevel),
                   file=fp)
 
     def _configure_services(self):

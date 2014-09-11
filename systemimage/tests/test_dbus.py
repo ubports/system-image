@@ -1809,7 +1809,7 @@ class TestDBusMockCrashers(_TestBase):
         def safe_run():
             with suppress(DBusException):
                 self.iface.CrashSignal()
-        reactor.run(safe_run, timeout=15)
+        reactor.run(safe_run, timeout=5)
         # The signal never made it.
         self.assertEqual(len(reactor.signals), 0)
         self.assertFalse(process.is_running())

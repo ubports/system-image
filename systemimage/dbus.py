@@ -40,6 +40,7 @@ from threading import Lock
 
 EMPTYSTRING = ''
 log = logging.getLogger('systemimage')
+dbus_log = logging.getLogger('systemimage.dbus')
 
 
 def log_and_exit(function):
@@ -51,18 +52,16 @@ def log_and_exit(function):
     @wraps(function)
     def wrapper(*args, **kws):
         try:
-            log.info('>>> {}', function.__name__)
+            dbus_log.info('>>> {}', function.__name__)
             retval = function(*args, **kws)
-            log.info('<<< {}', function.__name__)
+            dbus_log.info('<<< {}', function.__name__)
             return retval
         except:
-            log.info('!!! {}', function.__name__)
-            log.exception('Error in D-Bus method')
+            dbus_log.info('!!! {}', function.__name__)
+            dbus_log.exception('Error in D-Bus method')
             self = args[0]
             assert isinstance(self, Service), args[0]
             sys.exit(1)
-        else:
-            log.info('+++ {}', function.__name__)
     return wrapper
 
 

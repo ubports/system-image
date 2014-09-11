@@ -22,6 +22,7 @@ __all__ = [
 
 import re
 import atexit
+import logging
 
 from dbus.mainloop.glib import DBusGMainLoop
 from nose2.events import Plugin
@@ -77,16 +78,22 @@ class SystemImagePlugin(Plugin):
         self.patterns = []
         self.verbosity = 0
         self.log_file = None
+        self.log_level = 'info'
         self.addArgument(self.patterns, 'P', 'pattern',
                          'Add a test matching pattern')
         def bump(ignore):
             self.verbosity += 1
-        self.addFlag(bump, 'V', 'Verbosity',
+        self.addFlag(bump, 'V', 'verbosity',
                      'Increase system-image verbosity')
         def set_log_file(path):
             self.log_file = path[0]
         self.addOption(set_log_file, 'L', 'logfile',
                        'Set the log file for the test run',
+                       nargs=1)
+        def set_dbus_loglevel(level):
+            self.log_level = 'info:{}'.format(level[0])
+        self.addOption(set_dbus_loglevel, 'M', 'loglevel',
+                       'Set the systemimage.dbus log level',
                        nargs=1)
 
     @configuration
@@ -101,7 +108,8 @@ class SystemImagePlugin(Plugin):
         # individual services, and we can write new dbus configuration files
         # and HUP the dbus-launch to re-read them, but we cannot change bus
         # addresses after the initial one is set.
-        SystemImagePlugin.controller = Controller(self.log_file)
+        SystemImagePlugin.controller = Controller(
+            self.log_file, self.log_level)
         SystemImagePlugin.controller.start()
         atexit.register(SystemImagePlugin.controller.stop)
 

@@ -70,7 +70,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
-        self.assertEqual(config.system.loglevel, logging.INFO)
+        self.assertEqual(config.system.loglevel,
+                         (logging.INFO, logging.ERROR))
         self.assertEqual(config.system.settings_db,
                          '/var/lib/system-image/settings.db')
         # [hooks]
@@ -115,7 +116,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
-        self.assertEqual(config.system.loglevel, logging.ERROR)
+        self.assertEqual(config.system.loglevel,
+                         (logging.ERROR, logging.ERROR))
         self.assertEqual(config.system.settings_db,
                          '/var/lib/phablet/settings.db')
         self.assertEqual(config.system.timeout, timedelta(seconds=10))
@@ -138,6 +140,14 @@ class TestConfiguration(unittest.TestCase):
                          '/var/lib/phablet/updater')
         # [dbus]
         self.assertEqual(config.dbus.lifetime.total_seconds(), 120)
+
+    def test_special_dbus_logging_level(self):
+        # Read a config.ini that has a loglevel value with an explicit dbus
+        # logging level.
+        ini_file = data_path('config_10.ini')
+        config = Configuration(ini_file)
+        self.assertEqual(config.system.loglevel,
+                         (logging.CRITICAL, logging.DEBUG))
 
     def test_nonstandard_ports(self):
         # config_02.ini has non-standard http and https ports.
