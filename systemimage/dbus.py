@@ -18,6 +18,7 @@
 __all__ = [
     'Loop',
     'Service',
+    'log_and_exit',
     ]
 
 
@@ -28,6 +29,7 @@ import traceback
 
 from datetime import datetime
 from dbus.service import Object, method, signal
+from functools import wraps
 from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
@@ -38,6 +40,30 @@ from threading import Lock
 
 EMPTYSTRING = ''
 log = logging.getLogger('systemimage')
+
+
+def log_and_exit(function):
+    """Decorator for D-Bus methods to handle tracebacks.
+
+    Put this *above* the @method or @signal decorator.  It will cause
+    the exception to be logged and the D-Bus service will exit.
+    """
+    @wraps(function)
+    def wrapper(*args, **kws):
+        try:
+            log.info('>>> {}', function.__name__)
+            retval = function(*args, **kws)
+            log.info('<<< {}', function.__name__)
+            return retval
+        except:
+            log.info('!!! {}', function.__name__)
+            log.exception('Error in D-Bus method')
+            self = args[0]
+            assert isinstance(self, Service), args[0]
+            sys.exit(1)
+        else:
+            log.info('+++ {}', function.__name__)
+    return wrapper
 
 
 class Loop:

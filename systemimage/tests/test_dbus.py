@@ -25,6 +25,7 @@ __all__ = [
     'TestDBusFactoryReset',
     'TestDBusGetSet',
     'TestDBusInfo',
+    'TestDBusMockCrashers',
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
     'TestDBusMockFailResume',
@@ -48,7 +49,7 @@ import time
 import shutil
 import unittest
 
-from contextlib import ExitStack
+from contextlib import ExitStack, suppress
 from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
@@ -228,8 +229,11 @@ class _TestBase(unittest.TestCase):
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
 
     def tearDown(self):
-        self.iface.Reset()
+        self.reset_service()
         super().tearDown()
+
+    def reset_service(self):
+        self.iface.Reset()
 
     def download_manually(self):
         self.iface.SetSetting('auto_download', '0')
@@ -1760,7 +1764,6 @@ class TestDBusCheckForUpdateToUnwritablePartition(_LiveTesting):
 
 
 class TestDBusCheckForUpdateWithBrokenIndex(_LiveTesting):
-
     def test_bad_index_file_crashes_hash(self):
         # LP: #1222910.  A broken index.json file contained an image with type
         # == 'delta' but no base field.  This breaks the hash calculation of
@@ -1772,3 +1775,55 @@ class TestDBusCheckForUpdateWithBrokenIndex(_LiveTesting):
         self.assertEqual(
             reactor.signals[0].error_reason,
             "'Image' object has no attribute 'base'")
+
+
+class TestDBusMockCrashers(_TestBase):
+    """Tests error handling in methods and signals."""
+
+    mode = 'crasher'
+
+    def reset_service(self):
+        # No-op this so we don't get the tear down .Reset() call messing with
+        # our expected results.
+        pass
+
+    def test_method_good_path(self):
+        # This tests a wrapped method that does not traceback.
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        self.iface.Okay()
+        self.assertTrue(process.is_running())
+
+    def test_method_crasher(self):
+        # When this method tracebacks, a log will be written and the process
+        # exited.  There's no good way to test that the log was written, but
+        # it's easy to test that the process exits.
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        with suppress(DBusException):
+            self.iface.Crash()
+        self.assertFalse(process.is_running())
+
+    def test_signal_crasher(self):
+        # Here, it's the signal that tracebacks.
+        reactor = SignalCapturingReactor('SignalCrash')
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        def safe_run():
+            with suppress(DBusException):
+                self.iface.CrashSignal()
+        reactor.run(safe_run, timeout=15)
+        # The signal never made it.
+        self.assertEqual(len(reactor.signals), 0)
+        self.assertFalse(process.is_running())
+
+    def test_crash_after_signal(self):
+        # Here, the method tracebacks, but not until after it sends the
+        # signal, which we should still receive.
+        reactor = SignalCapturingReactor('SignalOkay')
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        def safe_run():
+            with suppress(DBusException):
+                self.iface.CrashAfterSignal()
+        reactor.run(safe_run, timeout=15)
+        # The signal made it.
+        self.assertEqual(len(reactor.signals), 1)
+        # But the process didn't.
+        self.assertFalse(process.is_running())

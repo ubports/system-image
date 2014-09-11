@@ -27,7 +27,7 @@ from dbus.service import method, signal
 from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
-from systemimage.dbus import Service
+from systemimage.dbus import Service, log_and_exit
 from systemimage.helpers import MiB, makedirs, safe_remove, version_detail
 from unittest.mock import patch
 
@@ -322,6 +322,39 @@ class _MoreInfo(Service):
                     last_check_date=self._checked)
 
 
+class _Crasher(Service):
+    @log_and_exit
+    @method('com.canonical.SystemImage')
+    def Crash(self):
+        1/0
+
+    @log_and_exit
+    @signal('com.canonical.SystemImage')
+    def SignalCrash(self):
+        1/0
+
+    @log_and_exit
+    @signal('com.canonical.SystemImage')
+    def SignalOkay(self):
+        pass
+
+    @log_and_exit
+    @method('com.canonical.SystemImage')
+    def CrashSignal(self):
+        self.SignalCrash()
+
+    @log_and_exit
+    @method('com.canonical.SystemImage')
+    def Okay(self):
+        pass
+
+    @log_and_exit
+    @method('com.canonical.SystemImage')
+    def CrashAfterSignal(self):
+        self.SignalOkay()
+        1/0
+
+
 def get_service(testing_mode, system_bus, object_path, loop):
     """Return the appropriate service class for the testing mode."""
     if testing_mode == 'live':
@@ -342,6 +375,8 @@ def get_service(testing_mode, system_bus, object_path, loop):
         ServiceClass = _NoUpdate
     elif testing_mode == 'more-info':
         ServiceClass = _MoreInfo
+    elif testing_mode == 'crasher':
+        ServiceClass = _Crasher
     else:
         raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
     return ServiceClass(system_bus, object_path, loop)
