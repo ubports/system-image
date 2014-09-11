@@ -76,10 +76,17 @@ class TestConverters(unittest.TestCase):
         self.assertRaises(ValueError, as_timedelta, '3x')
 
     def test_as_loglevel(self):
-        self.assertEqual(as_loglevel('error'), logging.ERROR)
+        # The default D-Bus log level is ERROR.
+        self.assertEqual(as_loglevel('critical'),
+                         (logging.CRITICAL, logging.ERROR))
 
     def test_as_loglevel_uppercase(self):
-        self.assertEqual(as_loglevel('ERROR'), logging.ERROR)
+        self.assertEqual(as_loglevel('CRITICAL'),
+                         (logging.CRITICAL, logging.ERROR))
+
+    def test_as_dbus_loglevel(self):
+        self.assertEqual(as_loglevel('error:info'),
+                         (logging.ERROR, logging.INFO))
 
     def test_as_loglevel_unknown(self):
         self.assertRaises(ValueError, as_loglevel, 'BADNESS')

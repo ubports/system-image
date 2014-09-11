@@ -1461,9 +1461,9 @@ class TestDBusProgress(_LiveTesting):
         reactor.schedule(self.iface.DownloadUpdate)
         reactor.run()
         # The only progress we can count on is the first and last ones.  All
-        # will have an eta of 0, since that value is not calculatable right
-        # now.  The first progress will have percentage 0 and the last will
-        # have percentage 100.
+        # will have an eta of 0, since that value is not calculable right now.
+        # The first progress will have percentage 0 and the last will have
+        # percentage 100.
         self.assertGreaterEqual(len(reactor.progress), 2)
         percentage, eta = reactor.progress[0]
         self.assertEqual(percentage, 0)

@@ -50,7 +50,7 @@ def _patch_device_hook():
         resources.enter_context(
             patch('systemimage.device.check_output',
                   side_effect=FileNotFoundError))
-        yield resources.pop_all()
+        yield
 
 
 class TestConfiguration(unittest.TestCase):

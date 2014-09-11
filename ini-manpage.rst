@@ -105,7 +105,7 @@ loglevel
     following `log levels`_ from least verbose to most verbose: ``DEBUG``,
     ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``.  In this case, the
     "systemimage" logger will be placed at this level, while the
-    "systemimage.dbus" logger will be placed at the ``CRITICAL`` level.
+    "systemimage.dbus" logger will be placed at the ``ERROR`` level.
 
     `loglevel` can also describe two levels, separated by a colon.  In this
     case, the main logger is placed at the first level, while the D-Bus logger
