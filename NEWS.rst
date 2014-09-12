@@ -8,6 +8,12 @@ NEWS for system-image updater
    ``[service]device``.  (LP: #1353178)
  * Add optional instrumentation to collect code coverage data during test
    suite run via tox.  (LP: #1324241)
+ * When an exception occurs in a `system-image-dbus` D-Bus method, signal, or
+   callback, this exception is logged in the standard log file, and the
+   process exits.  Also, `[system]loglevel` can now take an optional ":level"
+   prefix which can be used to set the log level for the D-Bus API methods.
+   By default, they log at `ERROR` level, but can be set lower for debugging
+   purposes.  (LP: #1279970)
 
 2.3.2 (2014-07-31)
 ==================

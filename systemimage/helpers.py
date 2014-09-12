@@ -191,10 +191,20 @@ def as_timedelta(value):
 
 
 def as_loglevel(value):
-    level = getattr(logging, value.upper(), None)
-    if level is None or not isinstance(level, int):
+    # The value can now be a single name, like "info" or two names separated
+    # by a colon, such as "info:debug".  In the later case, the second name is
+    # used to initialize the systemimage.dbus logger.  In the former case, the
+    # dbus logger defaults to 'error'.
+    main, colon, dbus = value.upper().partition(':')
+    if len(dbus) == 0:
+        dbus = 'ERROR'
+    main_level = getattr(logging, main, None)
+    if main_level is None or not isinstance(main_level, int):
         raise ValueError
-    return level
+    dbus_level = getattr(logging, dbus, None)
+    if dbus_level is None or not isinstance(dbus_level, int):
+        raise ValueError
+    return main_level, dbus_level
 
 
 class ExtendedEncoder(json.JSONEncoder):

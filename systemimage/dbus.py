@@ -18,6 +18,7 @@
 __all__ = [
     'Loop',
     'Service',
+    'log_and_exit',
     ]
 
 
@@ -28,6 +29,7 @@ import traceback
 
 from datetime import datetime
 from dbus.service import Object, method, signal
+from functools import wraps
 from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
@@ -38,6 +40,29 @@ from threading import Lock
 
 EMPTYSTRING = ''
 log = logging.getLogger('systemimage')
+dbus_log = logging.getLogger('systemimage.dbus')
+
+
+def log_and_exit(function):
+    """Decorator for D-Bus methods to handle tracebacks.
+
+    Put this *above* the @method or @signal decorator.  It will cause
+    the exception to be logged and the D-Bus service will exit.
+    """
+    @wraps(function)
+    def wrapper(*args, **kws):
+        try:
+            dbus_log.info('>>> {}', function.__name__)
+            retval = function(*args, **kws)
+            dbus_log.info('<<< {}', function.__name__)
+            return retval
+        except:
+            dbus_log.info('!!! {}', function.__name__)
+            dbus_log.exception('Error in D-Bus method')
+            self = args[0]
+            assert isinstance(self, Service), args[0]
+            sys.exit(1)
+    return wrapper
 
 
 class Loop:
@@ -81,6 +106,7 @@ class Service(Object):
         self._failure_count = 0
         self._last_error = ''
 
+    @log_and_exit
     def _check_for_update(self):
         # Asynchronous method call.
         log.info('Enter _check_for_update()')
@@ -108,6 +134,7 @@ class Service(Object):
 
     # 2013-07-25 BAW: should we use the rather underdocumented async_callbacks
     # argument to @method?
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         """Find out whether an update is available.
@@ -150,6 +177,7 @@ class Service(Object):
         # this method can return immediately.
         GLib.timeout_add(50, self._check_for_update)
 
+    @log_and_exit
     def _progress_callback(self, received, total):
         # Plumb the progress through our own D-Bus API.  Our API is defined as
         # signalling a percentage and an eta.  We can calculate the percentage
@@ -158,6 +186,7 @@ class Service(Object):
         eta = 0
         self.UpdateProgress(percentage, eta)
 
+    @log_and_exit
     def _download(self):
         if self._downloading and self._paused:
             self._api.resume()
@@ -198,11 +227,25 @@ class Service(Object):
             self._last_error = ''
             self._rebootable = True
         self._downloading = False
-        log.info('release checking lock from _download()')
-        self._checking.release()
+        log.info('releasing checking lock from _download()')
+        try:
+            self._checking.release()
+        except RuntimeError:
+            # 2014-09-11 BAW: We don't own the lock.  There are several reasons
+            # why this can happen including: 1) the client canceled the
+            # download while it was in progress, and CancelUpdate() already
+            # released the lock; 2) the client called DownloadUpdate() without
+            # first calling CheckForUpdate(); 3) the client called DU()
+            # multiple times in a row but the update was already downloaded and
+            # all the file signatures have been verified.  I can't think of
+            # reason why we shouldn't just ignore the double release, so
+            # that's what we do.  See LP: #1365646.
+            pass
+        log.info('released checking lock from _download()')
         # Stop GLib from calling this method again.
         return False
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def DownloadUpdate(self):
         """Download the available update.
@@ -214,6 +257,7 @@ class Service(Object):
         self._loop.keepalive()
         GLib.timeout_add(50, self._download)
 
+    @log_and_exit
     @method('com.canonical.SystemImage', out_signature='s')
     def PauseDownload(self):
         """Pause a downloading update."""
@@ -226,6 +270,7 @@ class Service(Object):
             error_message = 'not downloading'
         return error_message
 
+    @log_and_exit
     @method('com.canonical.SystemImage', out_signature='s')
     def CancelUpdate(self):
         """Cancel a download."""
@@ -241,7 +286,6 @@ class Service(Object):
         # We're now in a failure state until the next CheckForUpdate.
         self._failure_count += 1
         self._last_error = 'Canceled'
-        log.info('CancelUpdate() called')
         # Only send this signal if we were in the middle of downloading.
         if self._downloading:
             self.UpdateFailed(self._failure_count, self._last_error)
@@ -249,6 +293,7 @@ class Service(Object):
         # reason in this string.
         return ''
 
+    @log_and_exit
     def _apply_update(self):
         self._loop.keepalive()
         if not self._rebootable:
@@ -264,12 +309,14 @@ class Service(Object):
         self._rebootable = False
         self.Rebooting(True)
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         """Apply the update, rebooting the device."""
         GLib.timeout_add(50, self._apply_update)
         return ''
 
+    @log_and_exit
     @method('com.canonical.SystemImage', out_signature='isssa{ss}')
     def Info(self):
         self._loop.keepalive()
@@ -279,6 +326,7 @@ class Service(Object):
                 last_update_date(),
                 version_detail())
 
+    @log_and_exit
     @method('com.canonical.SystemImage', out_signature='a{ss}')
     def Information(self):
         self._loop.keepalive()
@@ -292,6 +340,7 @@ class Service(Object):
             last_check_date=settings.get('last_check_date'),
             )
 
+    @log_and_exit
     @method('com.canonical.SystemImage', in_signature='ss')
     def SetSetting(self, key, value):
         """Set a key/value setting.
@@ -321,12 +370,14 @@ class Service(Object):
             # Send the signal.
             self.SettingChanged(key, value)
 
+    @log_and_exit
     @method('com.canonical.SystemImage', in_signature='s', out_signature='s')
     def GetSetting(self, key):
         """Get a setting."""
         self._loop.keepalive()
         return Settings().get(key)
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def FactoryReset(self):
         self._api.factory_reset()
@@ -334,11 +385,13 @@ class Service(Object):
         # reboot procedure.
         self.Rebooting(True)
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def Exit(self):
         """Quit the daemon immediately."""
         self._loop.quit()
 
+    @log_and_exit
     @signal('com.canonical.SystemImage', signature='bbsiss')
     def UpdateAvailableStatus(self,
                               is_available, downloading,
@@ -354,18 +407,21 @@ class Service(Object):
                   last_update_date, repr(error_reason))
         self._loop.keepalive()
 
+    @log_and_exit
     @signal('com.canonical.SystemImage', signature='id')
     def UpdateProgress(self, percentage, eta):
         """Download progress."""
         log.debug('EMIT UpdateProgress({}, {})', percentage, eta)
         self._loop.keepalive()
 
+    @log_and_exit
     @signal('com.canonical.SystemImage')
     def UpdateDownloaded(self):
         """The update has been successfully downloaded."""
         log.debug('EMIT UpdateDownloaded()')
         self._loop.keepalive()
 
+    @log_and_exit
     @signal('com.canonical.SystemImage', signature='is')
     def UpdateFailed(self, consecutive_failure_count, last_reason):
         """The update failed for some reason."""
@@ -373,18 +429,21 @@ class Service(Object):
                   consecutive_failure_count, repr(last_reason))
         self._loop.keepalive()
 
+    @log_and_exit
     @signal('com.canonical.SystemImage', signature='i')
     def UpdatePaused(self, percentage):
         """The download got paused."""
         log.debug('EMIT UpdatePaused({})', percentage)
         self._loop.keepalive()
 
+    @log_and_exit
     @signal('com.canonical.SystemImage', signature='ss')
     def SettingChanged(self, key, new_value):
         """A setting value has change."""
         log.debug('EMIT SettingChanged({}, {})', repr(key), repr(new_value))
         self._loop.keepalive()
 
+    @log_and_exit
     @signal('com.canonical.SystemImage', signature='b')
     def Rebooting(self, status):
         """The system is rebooting."""

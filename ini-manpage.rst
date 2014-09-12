@@ -8,9 +8,9 @@ Ubuntu System Image Upgrader configuration file
 -----------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2014-07-15
+:Date: 2014-09-11
 :Copyright: 2013-2014 Canonical Ltd.
-:Version: 2.3
+:Version: 2.4
 :Manual section: 5
 
 
@@ -95,10 +95,21 @@ logfile
     The file where logging output will be sent.
 
 loglevel
-    The level at which logging information will be emitted.  This is a string
-    corresponding to the following `log levels`_ from least verbose to most
-    verbose: ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``.  The
-    value of this variable is case insensitive.
+    The level at which logging information will be emitted.  There are two
+    loggers which both log messages to `logfile`.  "systemimage" is the main
+    logger, but additional logging can go to the "systemimage.dbus" logger.
+    The latter is used in debugging situations to get more information about
+    the D-Bus service.
+
+    `loglevel` can be a single case-insensitive string corresponding to the
+    following `log levels`_ from least verbose to most verbose: ``DEBUG``,
+    ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``.  In this case, the
+    "systemimage" logger will be placed at this level, while the
+    "systemimage.dbus" logger will be placed at the ``ERROR`` level.
+
+    `loglevel` can also describe two levels, separated by a colon.  In this
+    case, the main logger is placed at the first level, while the D-Bus logger
+    is placed at the second level.  For example: ``debug:info``.
 
 timeout
     The maximum allowed time interval for downloading the individual files.
