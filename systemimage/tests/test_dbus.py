@@ -1150,6 +1150,28 @@ class TestDBusRegressions(_LiveTesting):
         # And now there is a command file for the update.
         self.assertTrue(os.path.exists(self.command_file))
 
+    def test_lp_1365646(self):
+        # After an automatic download is complete, we got three DownloadUpdate
+        # calls with no intervening CheckForUpdate.  This causes a crash since
+        # an unlocked checking lock was released.
+        self.download_always()
+        # Do a normal automatic download.
+        reactor = SignalCapturingReactor('UpdateDownloaded')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        # Now, just do a manual DownloadUpdate.  We should get an almost
+        # immediate UpdateDownloaded in response.  Nothing actually gets
+        # downloaded, but the files in the cache are still valid.  The bug
+        # referenced by this method would cause s-i-d to crash, so as long as
+        # the process still exists after the signal is received, the bug is
+        # fixed.  The crash doesn't actually effect any client behavior!  But
+        # the traceback does show up in the crash reporter.
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        reactor = SignalCapturingReactor('UpdateDownloaded')
+        reactor.run(self.iface.DownloadUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(process.is_running())
+
 
 class TestDBusGetSet(_TestBase):
     """Test the DBus client's key/value settings."""

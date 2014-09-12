@@ -14,6 +14,7 @@ NEWS for system-image updater
    prefix which can be used to set the log level for the D-Bus API methods.
    By default, they log at `ERROR` level, but can be set lower for debugging
    purposes.  (LP: #1279970)
+ * Don't crash when releasing an unacquired checking lock.  (LP: #1365646)
 
 2.3.2 (2014-07-31)
 ==================
