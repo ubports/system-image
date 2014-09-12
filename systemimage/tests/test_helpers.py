@@ -219,6 +219,38 @@ class TestLastUpdateDate(unittest.TestCase):
             # Run the test.
             self.assertEqual(last_update_date(), '2010-09-08 07:06:05')
 
+    @configuration
+    def test_last_date_no_permission(self, ini_file):
+        # LP: #1365761 reports a problem where stat'ing /userdata/.last_update
+        # results in a PermissionError.  In that case it should just use a
+        # fall back, in this case the channel.ini file.
+        channel_ini = os.path.join(
+            os.path.dirname(ini_file), 'channel.ini')
+        with open(channel_ini, 'w', encoding='utf-8'):
+            pass
+        # This creates the ubuntu-build file, but not the channel.ini file.
+        timestamp_1 = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
+        touch_build(2, timestamp_1)
+        # Now, the channel.ini file.
+        timestamp_2 = int(datetime(2022, 3, 4, 5, 6, 7).timestamp())
+        os.utime(channel_ini, (timestamp_2, timestamp_2))
+        # Now create an stat'able /userdata/.last_update file.
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            userdata_path = os.path.join(tmpdir, '.last_update')
+            stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
+                                      userdata_path))
+            timestamp = int(datetime(2012, 11, 10, 9, 8, 7).timestamp())
+            with open(userdata_path, 'w'):
+                # i.e. touch(1)
+                pass
+            os.utime(userdata_path, (timestamp, timestamp))
+            # Make the file unreadable.
+            stack.callback(os.chmod, tmpdir, 0o777)
+            os.chmod(tmpdir, 0o000)
+            # The last update date will be the date of the channel.ini file.
+            self.assertEqual(last_update_date(), '2022-03-04 05:06:07')
+
 
 class TestPhasedPercentage(unittest.TestCase):
     def setUp(self):

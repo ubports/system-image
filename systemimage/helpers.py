@@ -273,7 +273,7 @@ def last_update_date():
             # Seconds resolution.
             timestamp = timestamp.replace(microsecond=0)
             return str(timestamp)
-        except FileNotFoundError:
+        except (FileNotFoundError, PermissionError):
             pass
     else:
         return 'Unknown'

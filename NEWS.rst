@@ -15,6 +15,8 @@ NEWS for system-image updater
    By default, they log at `ERROR` level, but can be set lower for debugging
    purposes.  (LP: #1279970)
  * Don't crash when releasing an unacquired checking lock.  (LP: #1365646)
+ * When checking files for `last_update_date()` ignore PermissionErrors and
+   just keep checking the fallbacks.  (LP: #1365761)
 
 2.3.2 (2014-07-31)
 ==================
