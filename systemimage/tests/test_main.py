@@ -1278,5 +1278,5 @@ class TestDBusMain(unittest.TestCase):
             second.kill()
             second.communicate()
             raise
-        self.assertNotEqual(second.pid, proc)
+        self.assertNotEqual(second.pid, proc.pid)
         self.assertEqual(code, 2)
