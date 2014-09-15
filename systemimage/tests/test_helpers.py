@@ -19,12 +19,14 @@
 __all__ = [
     'TestConverters',
     'TestLastUpdateDate',
+    'TestMiscellaneous',
     'TestPhasedPercentage',
     'TestSignature',
     ]
 
 
 import os
+import shutil
 import hashlib
 import logging
 import tempfile
@@ -63,6 +65,9 @@ class TestConverters(unittest.TestCase):
             AttributeError,
             as_object('systemimage.tests.test_helpers.NoSuchTest'))
 
+    def test_as_object_not_equal(self):
+        self.assertNotEqual(as_object('systemimage.helpers.Bag'), object())
+
     def test_as_timedelta_seconds(self):
         self.assertEqual(as_timedelta('2s'), timedelta(seconds=2))
 
@@ -74,6 +79,15 @@ class TestConverters(unittest.TestCase):
 
     def test_as_timedelta_unknown(self):
         self.assertRaises(ValueError, as_timedelta, '3x')
+
+    def test_as_timedelta_no_keywords(self):
+        self.assertRaises(ValueError, as_timedelta, '')
+
+    def test_as_timedelta_repeated_interval(self):
+        self.assertRaises(ValueError, as_timedelta, '2s2s')
+
+    def test_as_timedelta_float(self):
+        self.assertEqual(as_timedelta('0.5d'), timedelta(hours=12))
 
     def test_as_loglevel(self):
         # The default D-Bus log level is ERROR.
@@ -90,6 +104,9 @@ class TestConverters(unittest.TestCase):
 
     def test_as_loglevel_unknown(self):
         self.assertRaises(ValueError, as_loglevel, 'BADNESS')
+
+    def test_as_bad_dbus_loglevel(self):
+        self.assertRaises(ValueError, as_loglevel, 'error:basicConfig')
 
 
 class TestLastUpdateDate(unittest.TestCase):
@@ -190,6 +207,9 @@ class TestLastUpdateDate(unittest.TestCase):
     def test_version_detail_from_argument(self):
         self.assertEqual(version_detail('ubuntu=123,mako=456,custom=789'),
                          dict(ubuntu='123', mako='456', custom='789'))
+
+    def test_no_version_in_version_detail(self):
+        self.assertEqual(version_detail('ubuntu,mako,custom'), {})
 
     @configuration
     def test_date_from_userdata_ignoring_fallbacks(self, ini_file):
@@ -334,3 +354,11 @@ class TestSignature(unittest.TestCase):
             fp.seek(0)
             hash2 = hashlib.sha256(fp.read()).hexdigest()
             self.assertEqual(hash1, hash2)
+
+
+class TestMiscellaneous(unittest.TestCase):
+    def test_temporary_directory_finally_test_coverage(self):
+        with temporary_directory() as path:
+            shutil.rmtree(path)
+            self.assertFalse(os.path.exists(path))
+        self.assertFalse(os.path.exists(path))
