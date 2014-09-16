@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-2.4 (2014-XX-XX)
+2.4 (2014-09-16)
 ================
  * The channel.ini file can override the device name by setting
    ``[service]device``.  (LP: #1353178)
@@ -16,7 +16,7 @@ NEWS for system-image updater
    purposes.  (LP: #1279970)
  * Don't crash when releasing an unacquired checking lock.  (LP: #1365646)
  * When checking files for `last_update_date()` ignore PermissionErrors and
-   just keep checking the fallbacks.  (LP: #1365761)
+   just keep checking the fall backs.  (LP: #1365761)
  * `system-image-cli --dbus` has been deprecated and will be removed in the
    future.  (LP: #1369714)
 
