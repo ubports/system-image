@@ -103,13 +103,6 @@ OPTIONS
     Deletes the given key from the settings database.  If the key does not
     exist, this is a no-op.  May be given multiple times.
 
---dbus
-    Run in D-Bus client mode.  Normally, ``system-image-cli`` runs directly
-    against the internal API.  With this switch, it instead acts as a D-Bus
-    client, performing all operations against the ``system-image-dbus``
-    service.  This mode more closely mimics how a user interface would perform
-    updates.
-
 
 FILES
 =====
