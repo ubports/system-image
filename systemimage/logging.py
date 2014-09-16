@@ -59,7 +59,7 @@ class FormattingLogRecord(logging.LogRecord):
         super().__init__(name, *args, **kws)
 
     def getMessage(self):
-        if self._use_format:
+        if self._use_format:                        # pragma: no branch
             msg = str(self.msg)
             if self.args:
                 msg = msg.format(*self.args)
@@ -103,16 +103,16 @@ def initialize(*, verbosity=0):
         log.addHandler(handler)
         log.propagate = False
         # If we want more verbosity, add a stream handler.
-        if verbosity == 0:
+        if verbosity == 0:                          # pragma: no branch
             # Set the log level.
             log.setLevel(level)
-            continue
-        handler = logging.StreamHandler(stream=sys.stderr)
-        handler.setLevel(level)
-        handler.setFormatter(formatter)
-        log.addHandler(handler)
-        # Set the overall level on the log object to the minimum level.
-        log.setLevel(level)
+        else:                                       # pragma: no cover
+            handler = logging.StreamHandler(stream=sys.stderr)
+            handler.setLevel(level)
+            handler.setFormatter(formatter)
+            log.addHandler(handler)
+            # Set the overall level on the log object to the minimum level.
+            log.setLevel(level)
     # Please be quiet gnupg.
     gnupg_log = logging.getLogger('gnupg')
     gnupg_log.propagate = False

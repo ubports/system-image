@@ -128,7 +128,7 @@ class Context:
         # condition, but I don't see any good way to eliminate this given
         # python-gnupg's behavior.
         for path in self._keyrings:
-            if not os.path.exists(path):
+            if not os.path.exists(path):            # pragma: no branch
                 raise FileNotFoundError(path)
         if blacklist is not None:
             if not os.path.exists(blacklist):
@@ -148,7 +148,7 @@ class Context:
                                     dir=config.tempdir))
             self._ctx = gnupg.GPG(gnupghome=home, keyring=self._keyrings)
             self._stack.callback(setattr, self, '_ctx', None)
-        except:
+        except:              # pragma: no cover
             # Restore all context and re-raise the exception.
             self._stack.close()
             raise

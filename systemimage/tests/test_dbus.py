@@ -25,6 +25,7 @@ __all__ = [
     'TestDBusFactoryReset',
     'TestDBusGetSet',
     'TestDBusInfo',
+    'TestDBusMiscellaneous',
     'TestDBusMockCrashers',
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
@@ -101,6 +102,22 @@ class AutoDownloadCancelingReactor(Reactor):
 
     def _do_UpdateFailed(self, signal, path, *args, **kws):
         self.got_update_failed = True
+        self.quit()
+
+
+class MiscellaneousCancelingReactor(Reactor):
+    def __init__(self, iface):
+        super().__init__(dbus.SystemBus())
+        self._iface = iface
+        self.update_failures = []
+        self.react_to('UpdateProgress')
+        self.react_to('UpdateFailed')
+
+    def _do_UpdateProgress(self, signal, path, *args, **kws):
+        self._iface.CancelUpdate()
+
+    def _do_UpdateFailed(self, signal, path, *args, **kws):
+        self.update_failures.append(args)
         self.quit()
 
 
@@ -578,8 +595,7 @@ unmount system
         failure_count, last_reason = reactor.signals[0]
         self.assertEqual(failure_count, 1)
         # Don't count on a specific error message.
-        self.assertEqual(
-            last_reason[:46], 'systemimage.download.DuplicateDestinationError')
+        self.assertEqual(last_reason[:25], 'DuplicateDestinationError')
 
 
 class TestDBusApply(_LiveTesting):
@@ -684,7 +700,7 @@ class TestDBusApply(_LiveTesting):
         reactor.run(self.iface.DownloadUpdate)
         self.assertEqual(len(reactor.signals), 1)
         failure_count, reason = reactor.signals[0]
-        self.assertEqual(failure_count, 2)
+        self.assertEqual(failure_count, 1)
         self.assertNotEqual(reason, '')
         self.assertFalse(os.path.exists(self.command_file))
         # The next check resets the failure count and succeeds.
@@ -1554,6 +1570,7 @@ class TestDBusPauseResume(_LiveTesting):
         failure_count, last_error = reactor.signals[0]
         self.assertEqual(failure_count, 1)
         check_next = False
+        import sys; print(last_error, file=sys.stderr)
         for line in last_error.splitlines():
             line = line.strip()
             if check_next:
@@ -1848,4 +1865,31 @@ class TestDBusMockCrashers(_TestBase):
         # The signal made it.
         self.assertEqual(len(reactor.signals), 1)
         # But the process didn't.
+        process.wait(5)
         self.assertFalse(process.is_running())
+
+
+class TestDBusMiscellaneous(_LiveTesting):
+    """Various other random tests to improve coverage."""
+
+    def test_lone_cancel(self):
+        # Canceling an update while none is in progress will trigger an
+        # ignored exception when the checking lock, which is not acquired, is
+        # attempted to be released.  That's fine.  Note too that since no
+        # download is in progress, *no* UpdateFailed signal will be received.
+        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.run(self.iface.CancelUpdate, timeout=5)
+        self.assertEqual(len(reactor.signals), 0)
+
+    def test_cancel_while_downloading(self):
+        # Wait until we're actually downloading data files, then cancel the
+        # update.  This tests another code coverage path.
+        self.download_always()
+        reactor = MiscellaneousCancelingReactor(self.iface)
+        reactor.schedule(self.iface.CheckForUpdate)
+        reactor.run()
+        self.assertEqual(len(reactor.update_failures), 1)
+        failure = reactor.update_failures[0]
+        # Failure count.
+        self.assertEqual(failure[0], 1)
+        self.assertEqual(failure[1], 'Canceled')

@@ -103,7 +103,7 @@ def main():
     if code == dbus.bus.REQUEST_NAME_REPLY_EXISTS:
         # Another instance already owns this name.  Exit.
         log.error('Cannot get exclusive ownership of bus name.')
-        sys.exit(2)
+        return 2
 
     log.info('SystemImage dbus main loop starting [{}/{}]',
              config.channel, config.device)
@@ -120,14 +120,14 @@ def main():
             config.dbus_service = Service(system_bus, '/Service', loop)
         try:
             loop.run()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt:                   # pragma: no cover
             log.info('SystemImage dbus main loop interrupted')
-        except:
+        except:                                     # pragma: no cover
             log.exception('D-Bus loop exception')
             raise
         else:
             log.info('SystemImage dbus main loop exited')
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':                        # pragma: no cover
     sys.exit(main())

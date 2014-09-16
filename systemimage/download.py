@@ -141,7 +141,8 @@ class DownloadReactor(Reactor):
 
     def _do_paused(self, signal, path, paused):
         _print('PAUSE:', paused, self._pausable)
-        if self._pausable and config.dbus_service is not None:
+        send_paused = self._pausable and config.dbus_service is not None
+        if send_paused:
             # We could plumb through the `service` object from service.py (the
             # main entry point for system-image-dbus, but that's actually a
             # bit of a pain, so do the expedient thing and grab the interface
@@ -155,7 +156,7 @@ class DownloadReactor(Reactor):
         # There currently is no UpdateResumed() signal.
 
     def _default(self, *args, **kws):
-        _print('SIGNAL:', args, kws)
+        _print('SIGNAL:', args, kws)                # pragma: no cover
 
 
 class DBusDownloadManager:
