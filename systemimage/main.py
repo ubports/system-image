@@ -25,6 +25,7 @@ import os
 import sys
 import logging
 import argparse
+import warnings
 
 from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
@@ -138,7 +139,7 @@ def main():
         config.load(args.config)
     except FileNotFoundError as error:
         parser.error('\nConfiguration file not found: {}'.format(error))
-        assert 'parser.error() does not return'
+        assert 'parser.error() does not return' # pragma: no cover
     # Load the optional channel.ini file, which must live next to the
     # configuration file.  It's okay if this file does not exist.
     channel_ini = os.path.join(os.path.dirname(args.config), 'channel.ini')
@@ -158,7 +159,7 @@ def main():
     if sum(bool(arg) for arg in
            (args.set, args.get, args.delete, args.show_settings)) > 1:
         parser.error('Cannot mix and match settings arguments')
-        assert 'parser.error() does not return'
+        assert 'parser.error() does not return' # pragma: no cover
 
     if args.show_settings:
         rows = sorted(Settings())
@@ -191,7 +192,7 @@ def main():
         candidate_filter = delta_filter
     else:
         parser.error('Bad filter type: {}'.format(args.filter))
-        assert 'parser.error() does not return'
+        assert 'parser.error() does not return' # pragma: no cover
 
     # Create the temporary directory if it doesn't exist.
     makedirs(config.system.tempdir)
@@ -212,7 +213,7 @@ def main():
         except ValueError:
             parser.error(
                 '-b/--build requires an integer: {}'.format(args.build))
-            assert 'parser.error() does not return'
+            assert 'parser.error() does not return' # pragma: no cover
     if args.channel is not None:
         config.channel = args.channel
     if args.device is not None:
@@ -265,8 +266,13 @@ def main():
                 print('    {} (alias for: {})'.format(key, alias))
         return 0
 
-    # We can either run the API directly or through DBus.
-    if args.dbus:
+    # 2014-09-15 BAW: --dbus is deprecated (LP: #1369714) and will be removed
+    # in system-image 2.5 (LP: #1369717).
+    if args.dbus:                                   # pragma: no cover
+        print('WARNING: --dbus is deprecated and will be removed soon',
+              file=sys.stderr)
+        warnings.warn('--dbus is deprecated and will be removed soon',
+                      DeprecationWarning)
         client = DBusClient()
         client.check_for_update()
         if not client.is_available:
@@ -288,7 +294,7 @@ def main():
     # can take a long time to download all the data files.  As a compromise,
     # we'll output some dots to stderr at verbosity 1, but we won't log these
     # dots since they would just be noise.  This doesn't have to be perfect.
-    if args.verbose == 1:
+    if args.verbose == 1:                           # pragma: no cover
         dot_count = 0
         def callback(received, total):
             nonlocal dot_count
@@ -338,7 +344,7 @@ def main():
                 state.run_until('reboot')
             else:
                 list(state)
-        except KeyboardInterrupt:
+        except KeyboardInterrupt:                   # pragma: no cover
             return 0
         except Exception:
             log.exception('system-image-cli exception')
@@ -349,5 +355,5 @@ def main():
             log.info('state machine finished')
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':                          # pragma: no cover
     sys.exit(main())
