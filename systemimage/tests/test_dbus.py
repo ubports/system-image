@@ -1570,7 +1570,6 @@ class TestDBusPauseResume(_LiveTesting):
         failure_count, last_error = reactor.signals[0]
         self.assertEqual(failure_count, 1)
         check_next = False
-        import sys; print(last_error, file=sys.stderr)
         for line in last_error.splitlines():
             line = line.strip()
             if check_next:
