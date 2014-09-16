@@ -28,8 +28,9 @@ import atexit
 from configparser import ConfigParser
 from contextlib import ExitStack
 from pkg_resources import resource_filename
+from systemimage.bag import Bag
 from systemimage.helpers import (
-    Bag, as_loglevel, as_object, as_timedelta, makedirs, temporary_directory)
+    as_loglevel, as_object, as_timedelta, makedirs, temporary_directory)
 
 
 DISABLED = object()

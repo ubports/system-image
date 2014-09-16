@@ -17,7 +17,6 @@
 
 __all__ = [
     'DEFAULT_DIRMODE',
-    'ExtendedEncoder',
     'MiB',
     'as_loglevel',
     'as_object',
@@ -35,7 +34,6 @@ __all__ = [
 
 import os
 import re
-import json
 import time
 import random
 import shutil
@@ -46,13 +44,13 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime, timedelta
 from hashlib import sha256
 from importlib import import_module
-from systemimage.bag import Bag
 
 
 LAST_UPDATE_FILE = '/userdata/.last_update'
 UNIQUE_MACHINE_ID_FILE = '/var/lib/dbus/machine-id'
 DEFAULT_DIRMODE = 0o02700
 MiB = 1 << 20
+EMPTYSTRING = ''
 
 
 def calculate_signature(fp, hash_class=None):
@@ -166,18 +164,15 @@ def as_timedelta(value):
     # will properly complain if there's more than one dot.
     components = sorted(re.findall(r'([\d.]+[smhdw])', value), key=_sortkey)
     # Complain if the components are out of order.
-    if ''.join(components) != value:
+    if EMPTYSTRING.join(components) != value:
         raise ValueError
     keywords = dict((interval[0].lower(), interval)
                     for interval in ('weeks', 'days', 'hours',
                                      'minutes', 'seconds'))
     keyword_arguments = {}
     for interval in components:
-        if len(interval) == 0:
-            raise ValueError
-        keyword = keywords.get(interval[-1].lower())
-        if keyword is None:
-            raise ValueError
+        assert len(interval) > 0, 'Unexpected value: {}'.format(interval)
+        keyword = keywords[interval[-1].lower()]
         if keyword in keyword_arguments:
             raise ValueError
         if '.' in interval[:-1]:
@@ -207,24 +202,6 @@ def as_loglevel(value):
     return main_level, dbus_level
 
 
-class ExtendedEncoder(json.JSONEncoder):
-    """An extended JSON encoder which knows about other data types."""
-
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        elif isinstance(obj, timedelta):
-            # as_timedelta() does not recognize microseconds, so convert these
-            # to floating seconds, but only if there are any seconds.
-            if obj.seconds > 0 or obj.microseconds > 0:
-                seconds = obj.seconds + obj.microseconds / 1000000.0
-                return '{0}d{1}s'.format(obj.days, seconds)
-            return '{0}d'.format(obj.days)
-        elif isinstance(obj, Bag):
-            return obj.original
-        return json.JSONEncoder.default(self, obj)
-
-
 @contextmanager
 def temporary_directory(*args, **kws):
     """A context manager that creates a temporary directory.
@@ -244,10 +221,7 @@ def temporary_directory(*args, **kws):
 
 
 def makedirs(dir, mode=DEFAULT_DIRMODE):
-    try:
-        os.makedirs(dir, mode=mode, exist_ok=True)
-    except (PermissionError, FileExistsError):
-        pass
+    os.makedirs(dir, mode=mode, exist_ok=True)
 
 
 def last_update_date():
@@ -288,12 +262,11 @@ def version_detail(details_string=None):
     if details_string is None:
         return {}
     details = {}
-    if details is not None:
-        for item in details_string.strip().split(','):
-            name, equals, version = item.partition('=')
-            if equals != '=':
-                continue
-            details[name] = version
+    for item in details_string.strip().split(','):
+        name, equals, version = item.partition('=')
+        if equals != '=':
+            continue
+        details[name] = version
     return details
 
 

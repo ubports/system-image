@@ -63,7 +63,7 @@ class Reactor:
         if method is None:
             # See if there's a default catch all.
             method = getattr(self, '_default', None)
-        if method is None:
+        if method is None:                          # pragma: no cover
             log.info('No handler for signal {}: {} {}', signal, args, kws)
         else:
             method(signal, path, *args, **kws)

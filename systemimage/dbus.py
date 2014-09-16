@@ -25,7 +25,6 @@ __all__ = [
 import os
 import sys
 import logging
-import traceback
 
 from datetime import datetime
 from dbus.service import Object, method, signal
@@ -215,10 +214,14 @@ class Service(Object):
         except Exception:
             log.exception('Download failed')
             self._failure_count += 1
-            # This will return both the exception name and the exception
-            # value, but not the traceback.
-            self._last_error = EMPTYSTRING.join(
-                traceback.format_exception_only(*sys.exc_info()[:2]))
+            # Set the last error string to the exception's class name.
+            exception, value = sys.exc_info()[:2]
+            # if there's no meaningful value, omit it.
+            value_str = str(value)
+            name = exception.__name__
+            self._last_error = ('{}'.format(name)
+                                if len(value_str) == 0
+                                else '{}: {}'.format(name, value))
             self.UpdateFailed(self._failure_count, self._last_error)
         else:
             log.info('Update downloaded')
@@ -275,20 +278,20 @@ class Service(Object):
     def CancelUpdate(self):
         """Cancel a download."""
         self._loop.keepalive()
+        # During the download, this will cause an UpdateFailed signal to be
+        # issued, as part of the exception handling in _download().  If we're
+        # not downloading, then no signal need be sent.  There's no need to
+        # send *another* signal when downloading, because we never will be
+        # downloading by the time we get past this next call.
         self._api.cancel()
         # If we're holding the checking lock, release it.
         try:
+            log.info('releasing checking lock from CancelUpdate()')
             self._checking.release()
-            log.info('release checking lock from CancelUpdate()')
+            log.info('released checking lock from CancelUpdate()')
         except RuntimeError:
             # We're not holding the lock.
             pass
-        # We're now in a failure state until the next CheckForUpdate.
-        self._failure_count += 1
-        self._last_error = 'Canceled'
-        # Only send this signal if we were in the middle of downloading.
-        if self._downloading:
-            self.UpdateFailed(self._failure_count, self._last_error)
         # XXX 2013-08-22: If we can't cancel the current download, return the
         # reason in this string.
         return ''

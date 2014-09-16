@@ -17,6 +17,8 @@ NEWS for system-image updater
  * Don't crash when releasing an unacquired checking lock.  (LP: #1365646)
  * When checking files for `last_update_date()` ignore PermissionErrors and
    just keep checking the fallbacks.  (LP: #1365761)
+ * `system-image-cli --dbus` has been deprecated and will be removed in the
+   future.  (LP: #1369714)
 
 2.3.2 (2014-07-31)
 ==================

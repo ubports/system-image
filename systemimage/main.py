@@ -25,6 +25,7 @@ import os
 import sys
 import logging
 import argparse
+import warnings
 
 from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
@@ -265,8 +266,13 @@ def main():
                 print('    {} (alias for: {})'.format(key, alias))
         return 0
 
-    # We can either run the API directly or through DBus.
-    if args.dbus:
+    # 2014-09-15 BAW: --dbus is deprecated (LP: #1369714) and will be removed
+    # in system-image 2.5 (LP: #1369717).
+    if args.dbus:                                   # pragma: no cover
+        print('WARNING: --dbus is deprecated and will be removed soon',
+              file=sys.stderr)
+        warnings.warn('--dbus is deprecated and will be removed soon',
+                      DeprecationWarning)
         client = DBusClient()
         client.check_for_update()
         if not client.is_available:
@@ -288,7 +294,7 @@ def main():
     # can take a long time to download all the data files.  As a compromise,
     # we'll output some dots to stderr at verbosity 1, but we won't log these
     # dots since they would just be noise.  This doesn't have to be perfect.
-    if args.verbose == 1:
+    if args.verbose == 1:                           # pragma: no cover
         dot_count = 0
         def callback(received, total):
             nonlocal dot_count
@@ -338,7 +344,7 @@ def main():
                 state.run_until('reboot')
             else:
                 list(state)
-        except KeyboardInterrupt:
+        except KeyboardInterrupt:                   # pragma: no cover
             return 0
         except Exception:
             log.exception('system-image-cli exception')
@@ -349,5 +355,5 @@ def main():
             log.info('state machine finished')
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':                          # pragma: no cover
     sys.exit(main())
