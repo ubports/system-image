@@ -59,12 +59,12 @@ class FormattingLogRecord(logging.LogRecord):
         super().__init__(name, *args, **kws)
 
     def getMessage(self):
-        if self._use_format:                        # pragma: no branch
+        if self._use_format:
             msg = str(self.msg)
             if self.args:
                 msg = msg.format(*self.args)
             return msg
-        else:
+        else:                                       # pragma: no cover
             return super().getMessage()
 
 

@@ -142,7 +142,7 @@ class DownloadReactor(Reactor):
     def _do_paused(self, signal, path, paused):
         _print('PAUSE:', paused, self._pausable)
         send_paused = self._pausable and config.dbus_service is not None
-        if send_paused:
+        if send_paused:                             # pragma: no branch
             # We could plumb through the `service` object from service.py (the
             # main entry point for system-image-dbus, but that's actually a
             # bit of a pain, so do the expedient thing and grab the interface
@@ -317,10 +317,10 @@ class DBusDownloadManager:
 
     def pause(self):
         """Pause the download, but only if one is in progress."""
-        if self._iface is not None:
+        if self._iface is not None:                 # pragma: no branch
             self._iface.pause()
 
     def resume(self):
         """Resume the download, but only if one is in progress."""
-        if self._iface is not None:
+        if self._iface is not None:                 # pragma: no branch
             self._iface.resume()

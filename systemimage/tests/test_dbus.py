@@ -948,7 +948,7 @@ class TestDBusMockUpdateFailed(_TestBase):
     mode = 'update-failed'
 
     def test_scenario_1(self):
-        # The server is already in falure mode.  A CheckForUpdate() restarts
+        # The server is already in failure mode.  A CheckForUpdate() restarts
         # the check, which returns information about the new update.  It
         # auto-starts, but this fails.
         reactor = MockReactor(self.iface)
@@ -966,6 +966,29 @@ class TestDBusMockUpdateFailed(_TestBase):
         failure_count, reason = reactor.failed[0]
         self.assertEqual(failure_count, 2)
         self.assertEqual(reason, 'You need some network for downloading')
+
+    def test_scenario_2(self):
+        # The server starts out in a failure mode.  When we ask it to download
+        # an update, because it's not already downloading and the failure mode
+        # has not been reset, we get an UpdateFailed signal.
+        self.iface.CheckForUpdate()
+        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.run(self.iface.DownloadUpdate, timeout=10)
+        self.assertEqual(len(reactor.signals), 1)
+        failure_count, last_error = reactor.signals[0]
+        # The failure_count will be three because:
+        # 1) it gets set to 1 in the mock's constructor.
+        # 2) the mock's CheckForUpdate() bumps it to two.
+        # 3) the mock's superclass's DownloadUpdate bumps it to three after it
+        #    checks to see if downloading is paused (it's not), and if the
+        #    download is available (it is, though mocked).
+        #
+        # The code in #3 that terminates with bumping the failure count is the
+        # bit we're really trying to test here.  An UpdateFailed signal gets
+        # sent (the only one in this test, as seen above) and it contains the
+        # current failure count as accounted above, and the mock's last error.
+        self.assertEqual(failure_count, 3)
+        self.assertEqual(last_error, 'mock service failed')
 
 
 class TestDBusMockFailApply(_TestBase):

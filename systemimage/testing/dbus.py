@@ -207,6 +207,7 @@ class _UpdateFailed(Service):
 
     def _reset(self):
         self._failure_count = 1
+        self._last_error = 'mock service failed'
 
     @log_and_exit
     @method('com.canonical.SystemImage')
@@ -219,6 +220,11 @@ class _UpdateFailed(Service):
         msg = ('You need some network for downloading'
                if self._failure_count > 0
                else '')
+        # Fake enough of the update status to trick _download() into checking
+        # the failure state.
+        class Update:
+            is_available = True
+        self._update = Update()
         self.UpdateAvailableStatus(
             True, False, '42', 1337 * MiB,
             '1983-09-13T12:13:14',

@@ -25,7 +25,6 @@ __all__ = [
 import os
 import sys
 import logging
-import traceback
 
 from datetime import datetime
 from dbus.service import Object, method, signal

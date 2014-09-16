@@ -128,7 +128,7 @@ class Context:
         # condition, but I don't see any good way to eliminate this given
         # python-gnupg's behavior.
         for path in self._keyrings:
-            if not os.path.exists(path):            # pragma: no branch
+            if not os.path.exists(path):            # pragma: no cover
                 raise FileNotFoundError(path)
         if blacklist is not None:
             if not os.path.exists(blacklist):
