@@ -80,7 +80,7 @@ class Mediator:
         self._update = None
         self._callback = callback
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return '<Mediator at 0x{:x} | State at 0x{:x}>'.format(
             id(self), id(self._state))
 

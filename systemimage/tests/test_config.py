@@ -26,6 +26,7 @@ import stat
 import logging
 import unittest
 
+from contextlib import ExitStack, contextmanager
 from datetime import timedelta
 from pkg_resources import resource_filename
 from subprocess import CalledProcessError, check_output
@@ -35,6 +36,21 @@ from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
+
+
+@contextmanager
+def _patch_device_hook():
+    # The device hook has two things that generally need patching.  The first
+    # is the logging output, which is just noise for testing purposes, so
+    # silence it.  The second is that the `getprop` command may actually exist
+    # on test system, and we want a consistent environment (i.e. the
+    # assumption that the command does not exist).
+    with ExitStack() as resources:
+        resources.enter_context(patch('systemimage.device.logging.getLogger'))
+        resources.enter_context(
+            patch('systemimage.device.check_output',
+                  side_effect=FileNotFoundError))
+        yield
 
 
 class TestConfiguration(unittest.TestCase):
@@ -54,7 +70,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
-        self.assertEqual(config.system.loglevel, logging.INFO)
+        self.assertEqual(config.system.loglevel,
+                         (logging.INFO, logging.ERROR))
         self.assertEqual(config.system.settings_db,
                          '/var/lib/system-image/settings.db')
         # [hooks]
@@ -99,7 +116,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.system.build_file, '/etc/ubuntu-build')
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
-        self.assertEqual(config.system.loglevel, logging.ERROR)
+        self.assertEqual(config.system.loglevel,
+                         (logging.ERROR, logging.ERROR))
         self.assertEqual(config.system.settings_db,
                          '/var/lib/phablet/settings.db')
         self.assertEqual(config.system.timeout, timedelta(seconds=10))
@@ -122,6 +140,14 @@ class TestConfiguration(unittest.TestCase):
                          '/var/lib/phablet/updater')
         # [dbus]
         self.assertEqual(config.dbus.lifetime.total_seconds(), 120)
+
+    def test_special_dbus_logging_level(self):
+        # Read a config.ini that has a loglevel value with an explicit dbus
+        # logging level.
+        ini_file = data_path('config_10.ini')
+        config = Configuration(ini_file)
+        self.assertEqual(config.system.loglevel,
+                         (logging.CRITICAL, logging.DEBUG))
 
     def test_nonstandard_ports(self):
         # config_02.ini has non-standard http and https ports.
@@ -202,6 +228,12 @@ class TestConfiguration(unittest.TestCase):
             with patch('systemimage.device.check_output',
                        side_effect=CalledProcessError(1, 'ignore')):
                 self.assertEqual(config.device, '?')
+
+    def test_device_no_getprop_fallback(self):
+        # Like above, but a FileNotFoundError occurs instead.
+        config = Configuration()
+        with _patch_device_hook():
+            self.assertEqual(config.device, '?')
 
     @configuration
     def test_get_channel(self, ini_file):
@@ -317,3 +349,32 @@ class TestConfiguration(unittest.TestCase):
         # LP: #1342183: Configuration constructor takes an ini_file argument.
         config = Configuration(data_path('config_01.ini'))
         self.assertEqual(config.service.base, 'phablet.example.com')
+
+    def test_main_ini_file_must_contain_system_stanza(self):
+        # It's okay if an override is missing the [system] stanza, but the
+        # main ini file (i.e. non-override) must contain it.
+        ini_file = data_path('config_09.ini')
+        config = Configuration()
+        self.assertRaises(KeyError, config.load, ini_file)
+
+    def test_channel_ini_device_override(self):
+        # A channel.ini file can override the device name.
+        config = Configuration(data_path('config_01.ini'))
+        config.load(data_path('channel_06.ini'), override=True)
+        self.assertEqual(config.device, 'shoephone')
+
+    def test_channel_ini_missing_device_override(self):
+        # The channel.ini can omit the [service]device setting, in which case
+        # the hook is still used.
+        config = Configuration(data_path('config_01.ini'))
+        config.load(data_path('channel_05.ini'), override=True)
+        with _patch_device_hook():
+            self.assertEqual(config.device, '?')
+
+    def test_channel_ini_empty_device_override(self):
+        # The channel.ini can have an empty [service]device setting, in which
+        # case the hook is still used.
+        config = Configuration(data_path('config_01.ini'))
+        config.load(data_path('channel_07.ini'), override=True)
+        with _patch_device_hook():
+            self.assertEqual(config.device, '?')

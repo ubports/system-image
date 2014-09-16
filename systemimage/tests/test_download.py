@@ -40,10 +40,10 @@ from hashlib import sha256
 from systemimage.config import Configuration, config
 from systemimage.download import (
     Canceled, DBusDownloadManager, DuplicateDestinationError, Record)
-from systemimage.helpers import MiB, temporary_directory
+from systemimage.helpers import temporary_directory
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
-    configuration, data_path, make_http_server)
+    configuration, data_path, make_http_server, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
 from unittest.mock import patch
 from urllib.parse import urljoin
@@ -136,6 +136,25 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(total_bytes, 669)
 
     @configuration
+    def test_download_with_broken_callback(self):
+        # If the callback raises an exception, it is logged and ignored.
+        def callback(receive, total):
+            raise RuntimeError
+        exception = None
+        def capture(message):
+            nonlocal exception
+            exception = message
+        downloader = DBusDownloadManager(callback)
+        with patch('systemimage.download.log.exception', capture):
+            downloader.get_files(_http_pathify([
+                ('channels_01.json', 'channels.json'),
+                ]))
+        # The exception got logged.
+        self.assertEqual(exception, 'Exception in progress callback')
+        # The file still got downloaded.
+        self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
+
+    @configuration
     def test_no_dev_package(self):
         # system-image-dev contains the systemimage.testing subpackage, but
         # this is not normally installed on the device.  When it's missing,
@@ -148,6 +167,22 @@ class TestDownloads(unittest.TestCase):
                 ('channels_01.json', 'channels.json'),
                 ]))
         self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
+
+    @configuration
+    def test_timeout(self):
+        # If the reactor times out, we get an exception.  We fake the timeout
+        # by setting the attribute on the reactor, even though it successfully
+        # completes its download without timing out.
+        def finish_with_timeout(self, *args, **kws):
+            self.timed_out = True
+            self.quit()
+        with patch('systemimage.download.DownloadReactor._do_finished',
+                   finish_with_timeout):
+            self.assertRaises(
+                TimeoutError,
+                DBusDownloadManager().get_files,
+                _http_pathify([('channels_01.json', 'channels.json')])
+                )
 
 
 class TestHTTPSDownloads(unittest.TestCase):
@@ -333,10 +368,8 @@ class TestDownloadBigFiles(unittest.TestCase):
             serverdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(serverdir, 8980))
             # Create a couple of big files to download.
-            with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
-                fp.write(b'x' * 10 * MiB)
-            with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
-                fp.write(b'x' * 10 * MiB)
+            write_bytes(os.path.join(serverdir, 'bigfile_1.dat'), 10)
+            write_bytes(os.path.join(serverdir, 'bigfile_2.dat'), 10)
             # The download service doesn't provide reliable cancel
             # granularity, so instead, we mock the 'started' signal to
             # immediately cancel the download.
@@ -364,12 +397,9 @@ class TestDownloadBigFiles(unittest.TestCase):
             serverdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(serverdir, 8980))
             # Create a couple of big files to download.
-            with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
-                fp.write(b'x' * 10 * MiB)
-            with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
-                fp.write(b'x' * 10 * MiB)
-            with open(os.path.join(serverdir, 'bigfile_3.dat'), 'wb') as fp:
-                fp.write(b'x' * 10 * MiB)
+            write_bytes(os.path.join(serverdir, 'bigfile_1.dat'), 10)
+            write_bytes(os.path.join(serverdir, 'bigfile_2.dat'), 10)
+            write_bytes(os.path.join(serverdir, 'bigfile_3.dat'), 10)
             downloads = _http_pathify([
                 ('bigfile_1.dat', 'bigfile_1.dat'),
                 ('bigfile_2.dat', 'bigfile_2.dat'),
@@ -388,12 +418,9 @@ class TestDownloadBigFiles(unittest.TestCase):
             serverdir = stack.enter_context(temporary_directory())
             stack.push(make_http_server(serverdir, 8980))
             # Create a couple of big files to download.
-            with open(os.path.join(serverdir, 'bigfile_1.dat'), 'wb') as fp:
-                fp.write(b'x' * 10 * MiB)
-            with open(os.path.join(serverdir, 'bigfile_2.dat'), 'wb') as fp:
-                fp.write(b'x' * 10 * MiB)
-            with open(os.path.join(serverdir, 'bigfile_3.dat'), 'wb') as fp:
-                fp.write(b'x' * 10 * MiB)
+            write_bytes(os.path.join(serverdir, 'bigfile_1.dat'), 10)
+            write_bytes(os.path.join(serverdir, 'bigfile_2.dat'), 10)
+            write_bytes(os.path.join(serverdir, 'bigfile_3.dat'), 10)
             downloads = _http_pathify([
                 ('bigfile_1.dat', 'bigfile_1.dat'),
                 ('bigfile_2.dat', 'bigfile_2.dat'),

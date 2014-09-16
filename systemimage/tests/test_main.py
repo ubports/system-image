@@ -694,6 +694,33 @@ class TestCLIListChannels(ServerTestBase):
                 tubular
             """))
 
+    @configuration
+    def test_list_channels_exception(self, ini_file):
+        # If an exception occurs while getting the list of channels, we get a
+        # non-zero exit status.
+        self._setup_server_keyrings()
+        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        head, tail = os.path.split(channel_ini)
+        copy('channel_05.ini', head, tail)
+        capture = StringIO()
+        self._resources.enter_context(
+            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file, '--list-channels']))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with ExitStack() as more:
+            more.enter_context(
+                patch('systemimage.device.check_output', return_value='manta'))
+            more.enter_context(
+                patch('systemimage.state.State._get_channel',
+                      side_effect=RuntimeError))
+            status = cli_main()
+        self.assertEqual(status, 1)
+
 
 class TestCLIFilters(ServerTestBase):
     INDEX_FILE = 'index_15.json'
@@ -1268,7 +1295,10 @@ class TestDBusMain(unittest.TestCase):
         # Attempt to start a second process on the same system bus.
         env = dict(
             DBUS_SYSTEM_BUS_ADDRESS=os.environ['DBUS_SYSTEM_BUS_ADDRESS'])
-        args = (sys.executable, '-m', 'systemimage.service',
+        coverage_env = os.environ.get('COVERAGE_PROCESS_START')
+        if coverage_env is not None:
+            env['COVERAGE_PROCESS_START'] = coverage_env
+        args = (sys.executable, '-m', 'systemimage.testing.service',
                 '-C', self.ini_path)
         second = subprocess.Popen(args, universal_newlines=True, env=env)
         # Allow a TimeoutExpired exception to fail the test.
@@ -1278,5 +1308,5 @@ class TestDBusMain(unittest.TestCase):
             second.kill()
             second.communicate()
             raise
-        self.assertNotEqual(second.pid, proc)
+        self.assertNotEqual(second.pid, proc.pid)
         self.assertEqual(code, 2)

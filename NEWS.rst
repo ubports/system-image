@@ -2,6 +2,24 @@
 NEWS for system-image updater
 =============================
 
+2.4 (2014-09-16)
+================
+ * The channel.ini file can override the device name by setting
+   ``[service]device``.  (LP: #1353178)
+ * Add optional instrumentation to collect code coverage data during test
+   suite run via tox.  (LP: #1324241)
+ * When an exception occurs in a `system-image-dbus` D-Bus method, signal, or
+   callback, this exception is logged in the standard log file, and the
+   process exits.  Also, `[system]loglevel` can now take an optional ":level"
+   prefix which can be used to set the log level for the D-Bus API methods.
+   By default, they log at `ERROR` level, but can be set lower for debugging
+   purposes.  (LP: #1279970)
+ * Don't crash when releasing an unacquired checking lock.  (LP: #1365646)
+ * When checking files for `last_update_date()` ignore PermissionErrors and
+   just keep checking the fall backs.  (LP: #1365761)
+ * `system-image-cli --dbus` has been deprecated and will be removed in the
+   future.  (LP: #1369714)
+
 2.3.2 (2014-07-31)
 ==================
  * When system-image-{cli,dbus} is run as non-root, use a fallback location
