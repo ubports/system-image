@@ -41,7 +41,7 @@ class Settings:
         self._dbpath = None
         try:
             with self._cursor():
-                pass
+                pass             # pragma: no branch
         except sqlite3.OperationalError:
             self._check_fallback()
         with self._cursor() as c:

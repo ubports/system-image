@@ -25,6 +25,8 @@ __all__ = [
     'TestDBusFactoryReset',
     'TestDBusGetSet',
     'TestDBusInfo',
+    'TestDBusMiscellaneous',
+    'TestDBusMockCrashers',
     'TestDBusMockFailApply',
     'TestDBusMockFailPause',
     'TestDBusMockFailResume',
@@ -48,7 +50,7 @@ import time
 import shutil
 import unittest
 
-from contextlib import ExitStack
+from contextlib import ExitStack, suppress
 from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
@@ -100,6 +102,22 @@ class AutoDownloadCancelingReactor(Reactor):
 
     def _do_UpdateFailed(self, signal, path, *args, **kws):
         self.got_update_failed = True
+        self.quit()
+
+
+class MiscellaneousCancelingReactor(Reactor):
+    def __init__(self, iface):
+        super().__init__(dbus.SystemBus())
+        self._iface = iface
+        self.update_failures = []
+        self.react_to('UpdateProgress')
+        self.react_to('UpdateFailed')
+
+    def _do_UpdateProgress(self, signal, path, *args, **kws):
+        self._iface.CancelUpdate()
+
+    def _do_UpdateFailed(self, signal, path, *args, **kws):
+        self.update_failures.append(args)
         self.quit()
 
 
@@ -228,8 +246,11 @@ class _TestBase(unittest.TestCase):
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
 
     def tearDown(self):
-        self.iface.Reset()
+        self.reset_service()
         super().tearDown()
+
+    def reset_service(self):
+        self.iface.Reset()
 
     def download_manually(self):
         self.iface.SetSetting('auto_download', '0')
@@ -574,8 +595,7 @@ unmount system
         failure_count, last_reason = reactor.signals[0]
         self.assertEqual(failure_count, 1)
         # Don't count on a specific error message.
-        self.assertEqual(
-            last_reason[:46], 'systemimage.download.DuplicateDestinationError')
+        self.assertEqual(last_reason[:25], 'DuplicateDestinationError')
 
 
 class TestDBusApply(_LiveTesting):
@@ -680,7 +700,7 @@ class TestDBusApply(_LiveTesting):
         reactor.run(self.iface.DownloadUpdate)
         self.assertEqual(len(reactor.signals), 1)
         failure_count, reason = reactor.signals[0]
-        self.assertEqual(failure_count, 2)
+        self.assertEqual(failure_count, 1)
         self.assertNotEqual(reason, '')
         self.assertFalse(os.path.exists(self.command_file))
         # The next check resets the failure count and succeeds.
@@ -928,7 +948,7 @@ class TestDBusMockUpdateFailed(_TestBase):
     mode = 'update-failed'
 
     def test_scenario_1(self):
-        # The server is already in falure mode.  A CheckForUpdate() restarts
+        # The server is already in failure mode.  A CheckForUpdate() restarts
         # the check, which returns information about the new update.  It
         # auto-starts, but this fails.
         reactor = MockReactor(self.iface)
@@ -946,6 +966,29 @@ class TestDBusMockUpdateFailed(_TestBase):
         failure_count, reason = reactor.failed[0]
         self.assertEqual(failure_count, 2)
         self.assertEqual(reason, 'You need some network for downloading')
+
+    def test_scenario_2(self):
+        # The server starts out in a failure mode.  When we ask it to download
+        # an update, because it's not already downloading and the failure mode
+        # has not been reset, we get an UpdateFailed signal.
+        self.iface.CheckForUpdate()
+        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.run(self.iface.DownloadUpdate, timeout=10)
+        self.assertEqual(len(reactor.signals), 1)
+        failure_count, last_error = reactor.signals[0]
+        # The failure_count will be three because:
+        # 1) it gets set to 1 in the mock's constructor.
+        # 2) the mock's CheckForUpdate() bumps it to two.
+        # 3) the mock's superclass's DownloadUpdate bumps it to three after it
+        #    checks to see if downloading is paused (it's not), and if the
+        #    download is available (it is, though mocked).
+        #
+        # The code in #3 that terminates with bumping the failure count is the
+        # bit we're really trying to test here.  An UpdateFailed signal gets
+        # sent (the only one in this test, as seen above) and it contains the
+        # current failure count as accounted above, and the mock's last error.
+        self.assertEqual(failure_count, 3)
+        self.assertEqual(last_error, 'mock service failed')
 
 
 class TestDBusMockFailApply(_TestBase):
@@ -1145,6 +1188,28 @@ class TestDBusRegressions(_LiveTesting):
         self.assertEqual(len(reactor.signals), 1)
         # And now there is a command file for the update.
         self.assertTrue(os.path.exists(self.command_file))
+
+    def test_lp_1365646(self):
+        # After an automatic download is complete, we got three DownloadUpdate
+        # calls with no intervening CheckForUpdate.  This causes a crash since
+        # an unlocked checking lock was released.
+        self.download_always()
+        # Do a normal automatic download.
+        reactor = SignalCapturingReactor('UpdateDownloaded')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        # Now, just do a manual DownloadUpdate.  We should get an almost
+        # immediate UpdateDownloaded in response.  Nothing actually gets
+        # downloaded, but the files in the cache are still valid.  The bug
+        # referenced by this method would cause s-i-d to crash, so as long as
+        # the process still exists after the signal is received, the bug is
+        # fixed.  The crash doesn't actually effect any client behavior!  But
+        # the traceback does show up in the crash reporter.
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        reactor = SignalCapturingReactor('UpdateDownloaded')
+        reactor.run(self.iface.DownloadUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(process.is_running())
 
 
 class TestDBusGetSet(_TestBase):
@@ -1457,9 +1522,9 @@ class TestDBusProgress(_LiveTesting):
         reactor.schedule(self.iface.DownloadUpdate)
         reactor.run()
         # The only progress we can count on is the first and last ones.  All
-        # will have an eta of 0, since that value is not calculatable right
-        # now.  The first progress will have percentage 0 and the last will
-        # have percentage 100.
+        # will have an eta of 0, since that value is not calculable right now.
+        # The first progress will have percentage 0 and the last will have
+        # percentage 100.
         self.assertGreaterEqual(len(reactor.progress), 2)
         percentage, eta = reactor.progress[0]
         self.assertEqual(percentage, 0)
@@ -1537,6 +1602,12 @@ class TestDBusPauseResume(_LiveTesting):
                 check_next = True
         else:
             raise AssertionError('Did not find expected error output')
+
+    def test_must_be_downloading_to_pause(self):
+        # You get an error string if you try to pause the download but no
+        # download is in progress.
+        error_message = self.iface.PauseDownload()
+        self.assertEqual(error_message, 'not downloading')
 
 
 class TestDBusUseCache(_LiveTesting):
@@ -1754,7 +1825,6 @@ class TestDBusCheckForUpdateToUnwritablePartition(_LiveTesting):
 
 
 class TestDBusCheckForUpdateWithBrokenIndex(_LiveTesting):
-
     def test_bad_index_file_crashes_hash(self):
         # LP: #1222910.  A broken index.json file contained an image with type
         # == 'delta' but no base field.  This breaks the hash calculation of
@@ -1766,3 +1836,84 @@ class TestDBusCheckForUpdateWithBrokenIndex(_LiveTesting):
         self.assertEqual(
             reactor.signals[0].error_reason,
             "'Image' object has no attribute 'base'")
+
+
+class TestDBusMockCrashers(_TestBase):
+    """Tests error handling in methods and signals."""
+
+    mode = 'crasher'
+
+    def reset_service(self):
+        # No-op this so we don't get the tear down .Reset() call messing with
+        # our expected results.
+        pass
+
+    def test_method_good_path(self):
+        # This tests a wrapped method that does not traceback.
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        self.iface.Okay()
+        self.assertTrue(process.is_running())
+
+    def test_method_crasher(self):
+        # When this method tracebacks, a log will be written and the process
+        # exited.  There's no good way to test that the log was written, but
+        # it's easy to test that the process exits.
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        with suppress(DBusException):
+            self.iface.Crash()
+        process.wait(5)
+        self.assertFalse(process.is_running())
+
+    def test_signal_crasher(self):
+        # Here, it's the signal that tracebacks.
+        reactor = SignalCapturingReactor('SignalCrash')
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        def safe_run():
+            with suppress(DBusException):
+                self.iface.CrashSignal()
+        reactor.run(safe_run, timeout=5)
+        # The signal never made it.
+        self.assertEqual(len(reactor.signals), 0)
+        process.wait(5)
+        self.assertFalse(process.is_running())
+
+    def test_crash_after_signal(self):
+        # Here, the method tracebacks, but not until after it sends the
+        # signal, which we should still receive.
+        reactor = SignalCapturingReactor('SignalOkay')
+        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
+        def safe_run():
+            with suppress(DBusException):
+                self.iface.CrashAfterSignal()
+        reactor.run(safe_run, timeout=15)
+        # The signal made it.
+        self.assertEqual(len(reactor.signals), 1)
+        # But the process didn't.
+        process.wait(5)
+        self.assertFalse(process.is_running())
+
+
+class TestDBusMiscellaneous(_LiveTesting):
+    """Various other random tests to improve coverage."""
+
+    def test_lone_cancel(self):
+        # Canceling an update while none is in progress will trigger an
+        # ignored exception when the checking lock, which is not acquired, is
+        # attempted to be released.  That's fine.  Note too that since no
+        # download is in progress, *no* UpdateFailed signal will be received.
+        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.run(self.iface.CancelUpdate, timeout=5)
+        self.assertEqual(len(reactor.signals), 0)
+
+    def test_cancel_while_downloading(self):
+        # Wait until we're actually downloading data files, then cancel the
+        # update.  This tests another code coverage path.
+        self.download_always()
+        reactor = MiscellaneousCancelingReactor(self.iface)
+        reactor.schedule(self.iface.CheckForUpdate)
+        reactor.run()
+        self.assertEqual(len(reactor.update_failures), 1)
+        failure = reactor.update_failures[0]
+        # Failure count.
+        self.assertEqual(failure[0], 1)
+        self.assertEqual(failure[1], 'Canceled')

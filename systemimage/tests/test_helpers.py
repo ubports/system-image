@@ -19,12 +19,14 @@
 __all__ = [
     'TestConverters',
     'TestLastUpdateDate',
+    'TestMiscellaneous',
     'TestPhasedPercentage',
     'TestSignature',
     ]
 
 
 import os
+import shutil
 import hashlib
 import logging
 import tempfile
@@ -32,9 +34,10 @@ import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timedelta
+from systemimage.bag import Bag
 from systemimage.config import Configuration, config
 from systemimage.helpers import (
-    Bag, MiB, as_loglevel, as_object, as_timedelta, calculate_signature,
+    MiB, as_loglevel, as_object, as_timedelta, calculate_signature,
     last_update_date, phased_percentage, temporary_directory, version_detail)
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
@@ -42,7 +45,7 @@ from unittest.mock import patch
 
 class TestConverters(unittest.TestCase):
     def test_as_object_good_path(self):
-        self.assertEqual(as_object('systemimage.helpers.Bag'), Bag)
+        self.assertEqual(as_object('systemimage.bag.Bag'), Bag)
 
     def test_as_object_no_dot(self):
         self.assertRaises(ValueError, as_object, 'foo')
@@ -63,6 +66,9 @@ class TestConverters(unittest.TestCase):
             AttributeError,
             as_object('systemimage.tests.test_helpers.NoSuchTest'))
 
+    def test_as_object_not_equal(self):
+        self.assertNotEqual(as_object('systemimage.bag.Bag'), object())
+
     def test_as_timedelta_seconds(self):
         self.assertEqual(as_timedelta('2s'), timedelta(seconds=2))
 
@@ -75,14 +81,33 @@ class TestConverters(unittest.TestCase):
     def test_as_timedelta_unknown(self):
         self.assertRaises(ValueError, as_timedelta, '3x')
 
+    def test_as_timedelta_no_keywords(self):
+        self.assertRaises(ValueError, as_timedelta, '')
+
+    def test_as_timedelta_repeated_interval(self):
+        self.assertRaises(ValueError, as_timedelta, '2s2s')
+
+    def test_as_timedelta_float(self):
+        self.assertEqual(as_timedelta('0.5d'), timedelta(hours=12))
+
     def test_as_loglevel(self):
-        self.assertEqual(as_loglevel('error'), logging.ERROR)
+        # The default D-Bus log level is ERROR.
+        self.assertEqual(as_loglevel('critical'),
+                         (logging.CRITICAL, logging.ERROR))
 
     def test_as_loglevel_uppercase(self):
-        self.assertEqual(as_loglevel('ERROR'), logging.ERROR)
+        self.assertEqual(as_loglevel('CRITICAL'),
+                         (logging.CRITICAL, logging.ERROR))
+
+    def test_as_dbus_loglevel(self):
+        self.assertEqual(as_loglevel('error:info'),
+                         (logging.ERROR, logging.INFO))
 
     def test_as_loglevel_unknown(self):
         self.assertRaises(ValueError, as_loglevel, 'BADNESS')
+
+    def test_as_bad_dbus_loglevel(self):
+        self.assertRaises(ValueError, as_loglevel, 'error:basicConfig')
 
 
 class TestLastUpdateDate(unittest.TestCase):
@@ -184,6 +209,9 @@ class TestLastUpdateDate(unittest.TestCase):
         self.assertEqual(version_detail('ubuntu=123,mako=456,custom=789'),
                          dict(ubuntu='123', mako='456', custom='789'))
 
+    def test_no_version_in_version_detail(self):
+        self.assertEqual(version_detail('ubuntu,mako,custom'), {})
+
     @configuration
     def test_date_from_userdata_ignoring_fallbacks(self, ini_file):
         # Even when /etc/system-image/channel.ini and /etc/ubuntu-build exist,
@@ -211,6 +239,38 @@ class TestLastUpdateDate(unittest.TestCase):
             touch_build(2, timestamp)
             # Run the test.
             self.assertEqual(last_update_date(), '2010-09-08 07:06:05')
+
+    @configuration
+    def test_last_date_no_permission(self, ini_file):
+        # LP: #1365761 reports a problem where stat'ing /userdata/.last_update
+        # results in a PermissionError.  In that case it should just use a
+        # fall back, in this case the channel.ini file.
+        channel_ini = os.path.join(
+            os.path.dirname(ini_file), 'channel.ini')
+        with open(channel_ini, 'w', encoding='utf-8'):
+            pass
+        # This creates the ubuntu-build file, but not the channel.ini file.
+        timestamp_1 = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
+        touch_build(2, timestamp_1)
+        # Now, the channel.ini file.
+        timestamp_2 = int(datetime(2022, 3, 4, 5, 6, 7).timestamp())
+        os.utime(channel_ini, (timestamp_2, timestamp_2))
+        # Now create an stat'able /userdata/.last_update file.
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            userdata_path = os.path.join(tmpdir, '.last_update')
+            stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
+                                      userdata_path))
+            timestamp = int(datetime(2012, 11, 10, 9, 8, 7).timestamp())
+            with open(userdata_path, 'w'):
+                # i.e. touch(1)
+                pass
+            os.utime(userdata_path, (timestamp, timestamp))
+            # Make the file unreadable.
+            stack.callback(os.chmod, tmpdir, 0o777)
+            os.chmod(tmpdir, 0o000)
+            # The last update date will be the date of the channel.ini file.
+            self.assertEqual(last_update_date(), '2022-03-04 05:06:07')
 
 
 class TestPhasedPercentage(unittest.TestCase):
@@ -295,3 +355,11 @@ class TestSignature(unittest.TestCase):
             fp.seek(0)
             hash2 = hashlib.sha256(fp.read()).hexdigest()
             self.assertEqual(hash1, hash2)
+
+
+class TestMiscellaneous(unittest.TestCase):
+    def test_temporary_directory_finally_test_coverage(self):
+        with temporary_directory() as path:
+            shutil.rmtree(path)
+            self.assertFalse(os.path.exists(path))
+        self.assertFalse(os.path.exists(path))

@@ -80,7 +80,7 @@ class Scorer:
         log.debug('{}'.format(fp.getvalue()))
         return scores[0][2]
 
-    def score(self, candidates):
+    def score(self, candidates): # pragma: no cover
         """Like `choose()` except returns the candidate path scores.
 
         Subclasses are expected to override this method.

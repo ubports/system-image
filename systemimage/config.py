@@ -28,8 +28,9 @@ import atexit
 from configparser import ConfigParser
 from contextlib import ExitStack
 from pkg_resources import resource_filename
+from systemimage.bag import Bag
 from systemimage.helpers import (
-    Bag, as_loglevel, as_object, as_timedelta, makedirs, temporary_directory)
+    as_loglevel, as_object, as_timedelta, makedirs, temporary_directory)
 
 
 DISABLED = object()
@@ -46,6 +47,10 @@ def port_value_converter(value):
     if result < 0:
         raise ValueError(value)
     return result
+
+
+def device_converter(value):
+    return value.strip()
 
 
 class Configuration:
@@ -82,7 +87,9 @@ class Configuration:
         self.config_file = path
         self.service.update(converters=dict(http_port=port_value_converter,
                                             https_port=port_value_converter,
-                                            build_number=int),
+                                            build_number=int,
+                                            device=device_converter,
+                                            ),
                            **parser['service'])
         if (self.service.http_port is DISABLED and
             self.service.https_port is DISABLED):
@@ -170,9 +177,15 @@ class Configuration:
 
     @property
     def device(self):
-        # It's safe to cache this.
         if self._device is None:
-            self._device = self.hooks.device().get_device()
+            # Start by looking for a [service]device setting.  Use this if it
+            # exists, otherwise fall back to calling the hook.
+            self._device = getattr(self.service, 'device', None)
+            # The key could exist in the channel.ini file, but its value could
+            # be empty.  That's semantically equivalent to a missing
+            # [service]device setting.
+            if not self._device:
+                self._device = self.hooks.device().get_device()
         return self._device
 
     @device.setter

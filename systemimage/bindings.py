@@ -53,7 +53,7 @@ class DBusClient(Reactor):
 
     def _do_UpdateAvailableStatus(self, signal, path, *args):
         payload = UASRecord(*args)
-        if payload.error_reason != '':
+        if payload.error_reason != '':              # pragma: no cover
             # Cancel the download, set the failed flag and log the reason.
             log.error('CheckForUpdate returned an error: {}',
                       payload.error_reason)
@@ -64,7 +64,7 @@ class DBusClient(Reactor):
             log.info('No update available')
             self.quit()
             return
-        if not payload.downloading:
+        if not payload.downloading:                 # pragma: no cover
             # We should be in auto download mode, so why aren't we downloading
             # the update?  Do it manually.
             log.info('Update available, downloading manually')
