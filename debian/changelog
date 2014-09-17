@@ -1,6 +1,27 @@
 system-image (2.4-0ubuntu1) UNRELEASED; urgency=medium
 
   * New upstream release.
+    - LP: #1353178 - The channel.ini file can override the device name by
+      setting `[service]device`.
+    - LP: #1324241 - Add optional instrumentation to collect code coverage
+      data during test suite run via tox.
+    - LP: #1279970 - When an exception occurs in a `system-image-dbus`
+      D-Bus method, signal, or callback, this exception is logged in the
+      standard log file, and the process exits.  Also, `[system]loglevel`
+      can now take an optional ":level" prefix which can be used to set
+      the log level for the D-Bus API methods.  By default, they log at
+      `ERROR` level, but can be set lower for debugging purposes.
+    - LP: #1365646 - Don't crash when releasing an unacquired checking lock.
+    - LP: #1365761 - When checking files for `last_update_date()` ignore
+      PermissionErrors and just keep checking the fall backs.
+    - LP: #1369714 - `system-image-cli --dbus` has been deprecated and
+      will be removed in the future.
+  * d/control: Remove tox as a build dependency to avoid having to MIR tox,
+    virtualenv, and pip.
+  * d/rules:
+    - Call nose2 explicitly to avoid use of tox.
+    - Remove unnecessary override_dh_auto_clean rule.
+  * d/system-image-common.post{inst,rm}: `set -e` to make lintian happy.
 
  -- Barry Warsaw <barry@ubuntu.com>  Tue, 16 Sep 2014 22:58:59 -0400
 

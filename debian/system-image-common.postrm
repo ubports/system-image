@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 # On purge, remove the log file and directory, as well as the lib directory
 # and configuration file.
 
