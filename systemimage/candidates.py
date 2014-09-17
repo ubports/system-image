@@ -75,7 +75,7 @@ def get_candidates(index, build):
                 fulls.add(image)
         elif image.type == 'delta':
             deltas.add(image)
-        else:
+        else: # pragma: no cover
             # BAW 2013-04-30: log and ignore.
             raise AssertionError('unknown image type: {}'.format(image.type))
     # Load up the roots of candidate upgrade paths.

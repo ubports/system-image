@@ -2,6 +2,7 @@ MANIFEST.in
 NEWS.rst
 README.rst
 cli-manpage.rst
+coverage.ini
 dbus-manpage.rst
 ini-manpage.rst
 setup.cfg
@@ -51,6 +52,7 @@ systemimage/testing/dbus.py
 systemimage/testing/demo.py
 systemimage/testing/helpers.py
 systemimage/testing/nose.py
+systemimage/testing/service.py
 systemimage/tests/__init__.py
 systemimage/tests/test_api.py
 systemimage/tests/test_bag.py
@@ -79,6 +81,8 @@ systemimage/tests/data/channel_02.ini
 systemimage/tests/data/channel_03.ini
 systemimage/tests/data/channel_04.ini
 systemimage/tests/data/channel_05.ini
+systemimage/tests/data/channel_06.ini
+systemimage/tests/data/channel_07.ini
 systemimage/tests/data/channels_01.json
 systemimage/tests/data/channels_02.json
 systemimage/tests/data/channels_03.json
@@ -101,6 +105,8 @@ systemimage/tests/data/config_05.ini
 systemimage/tests/data/config_06.ini
 systemimage/tests/data/config_07.ini
 systemimage/tests/data/config_08.ini
+systemimage/tests/data/config_09.ini
+systemimage/tests/data/config_10.ini
 systemimage/tests/data/dbus-system.conf.in
 systemimage/tests/data/device-signing.gpg
 systemimage/tests/data/expired_cert.pem

@@ -35,7 +35,7 @@ log = logging.getLogger('systemimage')
 class BaseReboot:
     """Common reboot actions."""
 
-    def reboot(self):
+    def reboot(self): # pragma: no cover
         """Subclasses must override this."""
         raise NotImplementedError
 

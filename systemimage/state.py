@@ -52,6 +52,12 @@ COLON = ':'
 class ChecksumError(Exception):
     """Exception raised when a file's checksum does not match."""
 
+    def __init__(self, destination, got, checksum):
+        super().__init__()
+        self.destination = destination
+        self.got = got
+        self.expected = checksum
+
 
 def _copy_if_missing(src, dstdir):
     dst_path = os.path.join(dstdir, os.path.basename(src))

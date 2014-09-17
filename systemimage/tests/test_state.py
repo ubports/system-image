@@ -23,6 +23,7 @@ __all__ = [
     'TestDailyProposed',
     'TestFileOrder',
     'TestKeyringDoubleChecks',
+    'TestMiscellaneous',
     'TestPhasedUpdates',
     'TestRebooting',
     'TestState',
@@ -43,7 +44,8 @@ from subprocess import CalledProcessError
 from systemimage.config import config
 from systemimage.download import DuplicateDestinationError
 from systemimage.gpg import Context, SignatureError
-from systemimage.state import State
+from systemimage.helpers import calculate_signature
+from systemimage.state import ChecksumError, State
 from systemimage.testing.demo import DemoDevice
 from systemimage.testing.helpers import (
     ServerTestBase, configuration, copy, data_path, get_index,
@@ -52,7 +54,9 @@ from systemimage.testing.helpers import (
 from systemimage.testing.nose import SystemImagePlugin
 # FIXME
 from systemimage.tests.test_candidates import _descriptions
-from unittest.mock import patch
+from unittest.mock import call, patch
+
+BAD_SIGNATURE = 'f' * 64
 
 
 class TestState(unittest.TestCase):
@@ -1549,3 +1553,79 @@ class TestStateDuplicateDestinations(ServerTestBase):
                          ['http://localhost:8980/3/4/5.txt.asc',
                           'http://localhost:8980/5/6/5.txt.asc',
                           ])
+
+
+class TestMiscellaneous(ServerTestBase):
+    """Test a few additional things for full code coverage."""
+
+    INDEX_FILE = 'index_13.json'
+    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    @configuration
+    def test_checksum_error(self):
+        # _download_files() verifies the checksums of all the downloaded
+        # files.  If any of them fail, you get an exception.
+        self._setup_server_keyrings()
+        state = State()
+        state.run_until('download_files')
+        # It's tricky to cause a checksum error.  We can't corrupt the local
+        # downloaded copy of the data file because _download_files() doesn't
+        # give us a good hook into the post-download, pre-checksum logic.  We
+        # can't corrupt the server file because the lower-level downloading
+        # logic will complain.  Instead, we mock the calculate_signature()
+        # function to produce a broken checksum for one of the files.
+        real_signature = None
+        def broken_calc(fp, hash_class=None):
+            nonlocal real_signature
+            signature = calculate_signature(fp, hash_class)
+            if os.path.basename(fp.name) == '6.txt':
+                real_signature = signature
+                return BAD_SIGNATURE
+            return signature
+        with patch('systemimage.state.calculate_signature', broken_calc):
+            with self.assertRaises(ChecksumError) as cm:
+                state.run_thru('download_files')
+        self.assertEqual(os.path.basename(cm.exception.destination), '6.txt')
+        self.assertEqual(cm.exception.got, BAD_SIGNATURE)
+        self.assertIsNotNone(real_signature)
+        self.assertEqual(cm.exception.expected, real_signature)
+
+    @configuration
+    def test_get_blacklist_2_finds_no_blacklist(self):
+        # Getting the blacklist can fail even the second time.  That's fine,
+        # but output gets logged.
+        self._setup_server_keyrings()
+        state = State()
+        # we want get_blacklist_1 to fail with a SignatureError so that it
+        # will try to get the master key and then attempt a refetch of the
+        # blacklist.  Let's just corrupt the original blacklist file.
+        blacklist = os.path.join(self._serverdir, 'gpg', 'blacklist.tar.xz')
+        with open(blacklist, 'ba+') as fp:
+            fp.write(b'x')
+        state.run_until('get_blacklist_2')
+        # Now we delete the blacklist file from the server, so as to trigger
+        # the expected log message.
+        os.remove(blacklist)
+        with patch('systemimage.state.log.info') as capture:
+            state.run_thru('get_blacklist_2')
+        self.assertEqual(capture.call_args,
+                         call('No blacklist found on second attempt'))
+        # Even though there's no blacklist file, everything still gets
+        # downloaded correctly.
+        state.run_until('reboot')
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")

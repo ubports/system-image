@@ -28,7 +28,7 @@ from subprocess import CalledProcessError, check_output
 class BaseDevice:
     """Common device calculation actions."""
 
-    def get_device(self):
+    def get_device(self): # pragma: no cover
         """Subclasses must override this."""
         raise NotImplementedError
 
