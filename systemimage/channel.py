@@ -22,7 +22,7 @@ __all__ = [
 
 import json
 
-from systemimage.helpers import Bag
+from systemimage.bag import Bag
 
 
 def _parse_device_mappings(device_mapping):

@@ -27,7 +27,7 @@ from dbus.service import method, signal
 from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
-from systemimage.dbus import Service
+from systemimage.dbus import Service, log_and_exit
 from systemimage.helpers import MiB, makedirs, safe_remove, version_detail
 from unittest.mock import patch
 
@@ -62,6 +62,7 @@ def instrument(config, stack):
 class _LiveTestableService(Service):
     """For testing purposes only."""
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
         self._api = Mediator()
@@ -77,6 +78,7 @@ class _LiveTestableService(Service):
         del config.build_number
         safe_remove(config.system.settings_db)
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def TearDown(self):
         # Like CancelUpdate() except it sends a different signal that's only
@@ -84,6 +86,7 @@ class _LiveTestableService(Service):
         self._api.cancel()
         self.TornDown()
 
+    @log_and_exit
     @signal('com.canonical.SystemImage')
     def TornDown(self):
         pass
@@ -106,16 +109,19 @@ class _UpdateAutoSuccess(Service):
         self._percentage = 0
         self._rebootable = False
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
         self._reset()
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         if self._failure_count > 0:
             self._reset()
         GLib.timeout_add_seconds(3, self._send_status)
 
+    @log_and_exit
     def _send_status(self):
         if self._auto_download:
             self._downloading = True
@@ -132,6 +138,7 @@ class _UpdateAutoSuccess(Service):
             self.UpdateDownloaded()
         return False
 
+    @log_and_exit
     def _send_more_status(self):
         if self._canceled:
             self._downloading = False
@@ -151,6 +158,7 @@ class _UpdateAutoSuccess(Service):
         # Continue sending more status.
         return True
 
+    @log_and_exit
     @method('com.canonical.SystemImage', out_signature='s')
     def PauseDownload(self):
         if self._downloading:
@@ -159,6 +167,7 @@ class _UpdateAutoSuccess(Service):
         # Otherwise it's a no-op.
         return ''
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def DownloadUpdate(self):
         self._paused = False
@@ -168,6 +177,7 @@ class _UpdateAutoSuccess(Service):
                 self.UpdateProgress(0, 50.0)
                 GLib.timeout_add(500, self._send_more_status)
 
+    @log_and_exit
     @method('com.canonical.SystemImage', out_signature='s')
     def CancelUpdate(self):
         if self._downloading:
@@ -175,6 +185,7 @@ class _UpdateAutoSuccess(Service):
         # Otherwise it's a no-op.
         return ''
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         # Always succeeds.
@@ -196,16 +207,24 @@ class _UpdateFailed(Service):
 
     def _reset(self):
         self._failure_count = 1
+        self._last_error = 'mock service failed'
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
         self._reset()
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         msg = ('You need some network for downloading'
                if self._failure_count > 0
                else '')
+        # Fake enough of the update status to trick _download() into checking
+        # the failure state.
+        class Update:
+            is_available = True
+        self._update = Update()
         self.UpdateAvailableStatus(
             True, False, '42', 1337 * MiB,
             '1983-09-13T12:13:14',
@@ -214,6 +233,7 @@ class _UpdateFailed(Service):
             self._failure_count += 1
             self.UpdateFailed(self._failure_count, msg)
 
+    @log_and_exit
     @method('com.canonical.SystemImage', out_signature='s')
     def CancelUpdate(self):
         self._failure_count = 0
@@ -221,10 +241,12 @@ class _UpdateFailed(Service):
 
 
 class _FailApply(Service):
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
         pass
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
@@ -233,6 +255,7 @@ class _FailApply(Service):
             '')
         self.UpdateDownloaded()
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         # The update cannot be applied.
@@ -242,10 +265,12 @@ class _FailApply(Service):
 
 
 class _FailResume(Service):
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
         pass
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
@@ -254,16 +279,19 @@ class _FailResume(Service):
             '')
         self.UpdatePaused(42)
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def DownloadUpdate(self):
         self.UpdateFailed(9, 'You need some network for downloading')
 
 
 class _FailPause(Service):
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
         pass
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         self.UpdateAvailableStatus(
@@ -272,20 +300,24 @@ class _FailPause(Service):
             '')
         self.UpdateProgress(10, 0)
 
+    @log_and_exit
     @method('com.canonical.SystemImage', out_signature='s')
     def PauseDownload(self):
         return 'no no, not now'
 
 
 class _NoUpdate(Service):
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
         pass
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def CheckForUpdate(self):
         GLib.timeout_add_seconds(3, self._send_status)
 
+    @log_and_exit
     def _send_status(self):
         self.UpdateAvailableStatus(
             False, False, '', 0,
@@ -303,15 +335,18 @@ class _MoreInfo(Service):
         self._version = 'ubuntu=123,mako=456,custom=789'
         self._checked = '2099-08-01 04:45:00'
 
+    @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
         pass
 
+    @log_and_exit
     @method('com.canonical.SystemImage', out_signature='isssa{ss}')
     def Info(self):
         return (self._buildno, self._device, self._channel, self._updated,
                 version_detail(self._version))
 
+    @log_and_exit
     @method('com.canonical.SystemImage', out_signature='a{ss}')
     def Information(self):
         return dict(current_build_number=str(self._buildno),
@@ -320,6 +355,39 @@ class _MoreInfo(Service):
                     last_update_date=self._updated,
                     version_detail=self._version,
                     last_check_date=self._checked)
+
+
+class _Crasher(Service):
+    @log_and_exit
+    @method('com.canonical.SystemImage')
+    def Crash(self):
+        1/0
+
+    @log_and_exit
+    @signal('com.canonical.SystemImage')
+    def SignalCrash(self):
+        1/0
+
+    @log_and_exit
+    @signal('com.canonical.SystemImage')
+    def SignalOkay(self):
+        pass
+
+    @log_and_exit
+    @method('com.canonical.SystemImage')
+    def CrashSignal(self):
+        self.SignalCrash()
+
+    @log_and_exit
+    @method('com.canonical.SystemImage')
+    def Okay(self):
+        pass
+
+    @log_and_exit
+    @method('com.canonical.SystemImage')
+    def CrashAfterSignal(self):
+        self.SignalOkay()
+        1/0
 
 
 def get_service(testing_mode, system_bus, object_path, loop):
@@ -342,6 +410,8 @@ def get_service(testing_mode, system_bus, object_path, loop):
         ServiceClass = _NoUpdate
     elif testing_mode == 'more-info':
         ServiceClass = _MoreInfo
+    elif testing_mode == 'crasher':
+        ServiceClass = _Crasher
     else:
         raise RuntimeError('Invalid testing mode: {}'.format(testing_mode))
     return ServiceClass(system_bus, object_path, loop)

@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2013-10-23
+:Date: 2014-09-16
 :Copyright: 2013-2014 Canonical Ltd.
-:Version: 2.3
+:Version: 2.4
 :Manual section: 1
 
 
@@ -102,13 +102,6 @@ OPTIONS
 --del KEY
     Deletes the given key from the settings database.  If the key does not
     exist, this is a no-op.  May be given multiple times.
-
---dbus
-    Run in D-Bus client mode.  Normally, ``system-image-cli`` runs directly
-    against the internal API.  With this switch, it instead acts as a D-Bus
-    client, performing all operations against the ``system-image-dbus``
-    service.  This mode more closely mimics how a user interface would perform
-    updates.
 
 
 FILES

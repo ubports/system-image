@@ -64,7 +64,7 @@ class FormattingLogRecord(logging.LogRecord):
             if self.args:
                 msg = msg.format(*self.args)
             return msg
-        else:
+        else:                                       # pragma: no cover
             return super().getMessage()
 
 
@@ -79,45 +79,47 @@ def _make_handler(path):
 
 def initialize(*, verbosity=0):
     """Initialize the loggers."""
-    level = {
-        0: logging.ERROR,
-        1: logging.INFO,
-        2: logging.DEBUG,
-        3: logging.CRITICAL,
-        }.get(verbosity, logging.ERROR)
-    level = min(level, config.system.loglevel)
-    # Make sure our library's logging uses {}-style messages.
-    logging.setLogRecordFactory(FormattingLogRecord)
-    # Now configure the application level logger based on the ini file.
-    log = logging.getLogger('systemimage')
-    try:
-        handler = _make_handler(Path(config.system.logfile))
-    except PermissionError:
-        handler = _make_handler(
-            Path(xdg_cache_home) / 'system-image' / 'client.log')
-    handler.setLevel(level)
-    formatter = logging.Formatter(style='{', fmt=MSG_FMT, datefmt=DATE_FMT)
-    handler.setFormatter(formatter)
-    log.addHandler(handler)
-    log.propagate = False
-    # If we want more verbosity, add a stream handler.
-    if verbosity == 0:
-        # Set the log level.
-        log.setLevel(level)
-        return
-    handler = logging.StreamHandler(stream=sys.stderr)
-    handler.setLevel(level)
-    handler.setFormatter(formatter)
-    log.addHandler(handler)
-    # Set the overall level on the log object to the minimum level.
-    log.setLevel(level)
+    main, dbus = config.system.loglevel
+    for name, loglevel in (('systemimage', main), ('systemimage.dbus', dbus)):
+        level = {
+            0: logging.ERROR,
+            1: logging.INFO,
+            2: logging.DEBUG,
+            3: logging.CRITICAL,
+            }.get(verbosity, logging.ERROR)
+        level = min(level, loglevel)
+        # Make sure our library's logging uses {}-style messages.
+        logging.setLogRecordFactory(FormattingLogRecord)
+        # Now configure the application level logger based on the ini file.
+        log = logging.getLogger(name)
+        try:
+            handler = _make_handler(Path(config.system.logfile))
+        except PermissionError:
+            handler = _make_handler(
+                Path(xdg_cache_home) / 'system-image' / 'client.log')
+        handler.setLevel(level)
+        formatter = logging.Formatter(style='{', fmt=MSG_FMT, datefmt=DATE_FMT)
+        handler.setFormatter(formatter)
+        log.addHandler(handler)
+        log.propagate = False
+        # If we want more verbosity, add a stream handler.
+        if verbosity == 0:                          # pragma: no branch
+            # Set the log level.
+            log.setLevel(level)
+        else:                                       # pragma: no cover
+            handler = logging.StreamHandler(stream=sys.stderr)
+            handler.setLevel(level)
+            handler.setFormatter(formatter)
+            log.addHandler(handler)
+            # Set the overall level on the log object to the minimum level.
+            log.setLevel(level)
     # Please be quiet gnupg.
     gnupg_log = logging.getLogger('gnupg')
     gnupg_log.propagate = False
 
 
 @contextmanager
-def debug_logging():
+def debug_logging(): # pragma: no cover
     # getEffectiveLevel() is the best we can do, but it's good enough because
     # we always set the level of the logger.
     log = logging.getLogger('systemimage')

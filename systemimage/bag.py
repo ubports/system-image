@@ -70,7 +70,7 @@ class Bag:
             key += '_'
         return key, value
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return '<Bag: {}>'.format(COMMASPACE.join(sorted(
             key for key in self.__dict__ if not key.startswith('_'))))
 
