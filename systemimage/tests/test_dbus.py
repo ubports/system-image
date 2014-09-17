@@ -1861,6 +1861,7 @@ class TestDBusMockCrashers(_TestBase):
         process = find_dbus_process(SystemImagePlugin.controller.ini_path)
         with suppress(DBusException):
             self.iface.Crash()
+        process.wait(5)
         self.assertFalse(process.is_running())
 
     def test_signal_crasher(self):
@@ -1873,6 +1874,7 @@ class TestDBusMockCrashers(_TestBase):
         reactor.run(safe_run, timeout=5)
         # The signal never made it.
         self.assertEqual(len(reactor.signals), 0)
+        process.wait(5)
         self.assertFalse(process.is_running())
 
     def test_crash_after_signal(self):
