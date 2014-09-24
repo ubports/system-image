@@ -25,11 +25,9 @@ import os
 import sys
 import logging
 import argparse
-import warnings
 
 from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
-from systemimage.bindings import DBusClient
 from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
 from systemimage.helpers import last_update_date, makedirs, version_detail
@@ -72,9 +70,6 @@ def main():
     parser.add_argument('-d', '--device',
                         default=None, action='store',
                         help='Override the device name just this once')
-    parser.add_argument('--dbus',
-                        default=False, action='store_true',
-                        help='Run in D-Bus client mode.')
     parser.add_argument('-f', '--filter',
                         default=None, action='store',
                         help="""Filter the candidate paths to contain only
@@ -264,28 +259,6 @@ def main():
                 print('    {}'.format(key))
             else:
                 print('    {} (alias for: {})'.format(key, alias))
-        return 0
-
-    # 2014-09-15 BAW: --dbus is deprecated (LP: #1369714) and will be removed
-    # in system-image 2.5 (LP: #1369717).
-    if args.dbus:                                   # pragma: no cover
-        print('WARNING: --dbus is deprecated and will be removed soon',
-              file=sys.stderr)
-        warnings.warn('--dbus is deprecated and will be removed soon',
-                      DeprecationWarning)
-        client = DBusClient()
-        client.check_for_update()
-        if not client.is_available:
-            log.info('No update is available')
-            return 0
-        if not client.downloaded:
-            log.info('No update was downloaded')
-            return 1
-        if client.failed:
-            log.info('Update failed')
-            return 2
-        client.reboot()
-        # We probably won't get here..
         return 0
 
     # When verbosity is at 1, logging every progress signal from

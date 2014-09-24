@@ -20,7 +20,6 @@ __all__ = [
     'TestDBusCheckForUpdate',
     'TestDBusCheckForUpdateToUnwritablePartition',
     'TestDBusCheckForUpdateWithBrokenIndex',
-    'TestDBusClient',
     'TestDBusDownload',
     'TestDBusFactoryReset',
     'TestDBusGetSet',
@@ -51,11 +50,11 @@ import shutil
 import unittest
 
 from contextlib import ExitStack, suppress
+from collections import namedtuple
 from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
 from pathlib import Path
-from systemimage.bindings import DBusClient, UASRecord
 from systemimage.config import Configuration
 from systemimage.helpers import MiB, atomic, safe_remove
 from systemimage.reactor import Reactor
@@ -64,6 +63,12 @@ from systemimage.testing.helpers import (
     copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
+
+
+# Use a namedtuple for more convenient argument unpacking.
+UASRecord = namedtuple('UASRecord',
+    'is_available downloading available_version update_size '
+    'last_update_date error_reason')
 
 
 class SignalCapturingReactor(Reactor):
@@ -1095,48 +1100,6 @@ class TestDBusMockNoUpdate(_TestBase):
         reactor.run()
         self.assertEqual(len(reactor.failed), 0)
         self.assertIsNotNone(reactor.status)
-
-
-class TestDBusClient(_LiveTesting):
-    """Test the DBus client (used with --dbus)."""
-
-    def setUp(self):
-        super().setUp()
-        self._client = DBusClient()
-
-    def test_check_for_update(self):
-        # There is an update available.
-        self._client.check_for_update()
-        self.assertTrue(self._client.is_available)
-        self.assertTrue(self._client.downloaded)
-
-    def test_check_for_no_update(self):
-        # There is no update available.
-        self._touch_build(1701)
-        self._client.check_for_update()
-        self.assertFalse(self._client.is_available)
-        self.assertFalse(self._client.downloaded)
-
-    def test_update_failed(self):
-        # For some reason <wink>, the update fails.
-        #
-        # Cause the update to fail by deleting a file from the server.
-        os.remove(os.path.join(SystemImagePlugin.controller.serverdir,
-                               '4/5/6.txt.asc'))
-        self._client.check_for_update()
-        self.assertTrue(self._client.is_available)
-        self.assertFalse(self._client.downloaded)
-        self.assertTrue(self._client.failed)
-
-    def test_reboot(self):
-        # After a successful update, we can reboot.
-        self._client.check_for_update()
-        self.assertTrue(self._client.is_available)
-        self.assertTrue(self._client.downloaded)
-        self._client.reboot()
-        with open(self.reboot_log, encoding='utf-8') as fp:
-            reboot = fp.read()
-        self.assertEqual(reboot, '/sbin/reboot -f recovery')
 
 
 class TestDBusRegressions(_LiveTesting):

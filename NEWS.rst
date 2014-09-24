@@ -2,6 +2,11 @@
 NEWS for system-image updater
 =============================
 
+2.5 (2014-XX-XX)
+================
+ * Remove the previously deprecated `system-image-cli --dbus` command line
+   switch.  (LP: #1369717)
+
 2.4 (2014-09-16)
 ================
  * The channel.ini file can override the device name by setting
