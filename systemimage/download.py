@@ -25,7 +25,9 @@ __all__ = [
 
 import os
 import dbus
+import hashlib
 import logging
+import pycurl
 
 from collections import namedtuple
 from contextlib import suppress
@@ -159,6 +161,109 @@ class DownloadReactor(Reactor):
         _print('SIGNAL:', args, kws)                # pragma: no cover
 
 
+def get_download_records(downloads):
+    # Convert the downloads items to download records.
+    records = [item if isinstance(item, _RecordType) else Record(*item)
+               for item in downloads]
+    destinations = set(record.destination for record in records)
+    # Check for duplicate destinations, specifically for a local file path
+    # coming from two different sources.  It's okay if there are duplicate
+    # destination records in the download request, but each of those must
+    # be specified by the same source url and have the same checksum.
+    #
+    # An easy quick check just asks if the set of destinations is smaller
+    # than the total number of requested downloads.  It can't be larger.
+    # If it *is* smaller, then there are some duplicates, however the
+    # duplicates may be legitimate, so look at the details.
+    #
+    # Note though that we cannot pass duplicates destinations to udm,
+    # so we have to filter out legitimate duplicates.  That's fine since
+    # they really are pointing to the same file, and will end up in the
+    # destination location.
+    if len(destinations) < len(downloads):
+        by_destination = dict()
+        unique_downloads = set()
+        for record in records:
+            by_destination.setdefault(record.destination, set()).add(
+                record)
+            unique_downloads.add(record)
+        duplicates = []
+        for dst, seen in by_destination.items():
+            if len(seen) > 1:
+                # Tuples will look better in the pretty-printed output.
+                duplicates.append(
+                    (dst, sorted(tuple(dup) for dup in seen)))
+        if len(duplicates) > 0:
+            raise DuplicateDestinationError(sorted(duplicates))
+        # Uniquify the downloads.
+        records = list(unique_downloads)
+    return records
+
+
+class CurlDownloadManager:
+    def __init__(self, callback=None):
+        self.callback = callback
+        self._curl = pycurl.Curl()
+        self._curl.setopt(
+            pycurl.USERAGENT, USER_AGENT.format(config.build_number))
+        self._curl.setopt(pycurl.FOLLOWLOCATION, 1)
+        self._curl.setopt(pycurl.MAXREDIRS, 5)
+        self._curl.setopt(pycurl.FAILONERROR, 1)
+        self._curl.setopt(pycurl.CONNECTTIMEOUT, 120)
+        self._curl.setopt(pycurl.LOW_SPEED_LIMIT, 10);
+        self._curl.setopt(pycurl.LOW_SPEED_TIME, 120);
+        self._curl.setopt(pycurl.NOPROGRESS, 0)
+        self._curl.setopt(pycurl.PROGRESSFUNCTION, self._progress_callback)
+        self._queued_cancel = False
+
+    def _progress_callback(self, dltotal, dlnow, ultotal, ulnow):
+        if callable(self.callback):
+            try:
+                self.callback(dlnow, dltotal)
+            except:
+                log.exception('Exception in progress callback')
+        return self._queued_cancel
+
+    def _write_callback(self, fp, sha256, data):
+        sha256.update(data)
+        return fp.write(data)
+
+    def get_files(self, downloads, *, pausable=False):
+        if self._queued_cancel:
+            # A cancel is queued, so don't actually download anything.
+            raise Canceled
+        records = get_download_records(downloads)
+        for url, destination, checksum  in records:
+            self._curl.setopt(pycurl.URL, url)
+            sha256 = hashlib.sha256()
+            # FIXME: to get accurate download estimation we need to do
+            #        a HEAD before we do the actual download, i.e.
+            #        setopt(pycurl.HEADER, 1)
+            #        setopt(pycurl.NOBODY, 1)
+            #        setopt(pycurl.HEADERFUNCTION, self._extract_content_length)
+            with open(destination, "wb") as fp:
+                self._curl.setopt(
+                    pycurl.WRITEFUNCTION,
+                    lambda data: self._write_callback(fp, sha256, data))
+                try:
+                    self._curl.perform()
+                except pycurl.error:
+                    raise FileNotFoundError("{}".format(url))
+            # verify hash
+            if checksum and checksum != sha256.hexdigest():
+                raise Exception(
+                    "hashsum '{}' != '{}'".format(checksum, sha256.hexdigest()))
+
+    def cancel(self):
+        self._queued_cancel = True
+
+    def pause(self):
+        self._curl.pause(pycurl.PAUSE_ALL)
+        
+    def resume(self):
+        self._curl.pause(pycurl.PAUSE_CONT)
+
+
 class DBusDownloadManager:
     def __init__(self, callback=None):
         """
@@ -211,41 +316,9 @@ class DBusDownloadManager:
         if len(downloads) == 0:
             # Nothing to download.  See LP: #1245597.
             return
-        # Convert the downloads items to download records.
-        records = [item if isinstance(item, _RecordType) else Record(*item)
-                   for item in downloads]
-        destinations = set(record.destination for record in records)
-        # Check for duplicate destinations, specifically for a local file path
-        # coming from two different sources.  It's okay if there are duplicate
-        # destination records in the download request, but each of those must
-        # be specified by the same source url and have the same checksum.
-        #
-        # An easy quick check just asks if the set of destinations is smaller
-        # than the total number of requested downloads.  It can't be larger.
-        # If it *is* smaller, then there are some duplicates, however the
-        # duplicates may be legitimate, so look at the details.
-        #
-        # Note though that we cannot pass duplicates destinations to udm,
-        # so we have to filter out legitimate duplicates.  That's fine since
-        # they really are pointing to the same file, and will end up in the
-        # destination location.
-        if len(destinations) < len(downloads):
-            by_destination = dict()
-            unique_downloads = set()
-            for record in records:
-                by_destination.setdefault(record.destination, set()).add(
-                    record)
-                unique_downloads.add(record)
-            duplicates = []
-            for dst, seen in by_destination.items():
-                if len(seen) > 1:
-                    # Tuples will look better in the pretty-printed output.
-                    duplicates.append(
-                        (dst, sorted(tuple(dup) for dup in seen)))
-            if len(duplicates) > 0:
-                raise DuplicateDestinationError(sorted(duplicates))
-            # Uniquify the downloads.
-            records = list(unique_downloads)
+        # get the download records (without dupes)
+        records = get_download_records(downloads)
+
         bus = dbus.SystemBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
         iface = dbus.Interface(service, MANAGER_INTERFACE)
