@@ -334,14 +334,22 @@ class Service(Object):
     def Information(self):
         self._loop.keepalive()
         settings = Settings()
-        return dict(
-            current_build_number=str(config.build_number),
+        current_build_number = str(config.build_number)
+        response = dict(
+            current_build_number=current_build_number,
             device_name=config.device,
             channel_name=config.channel,
             last_update_date=last_update_date(),
             version_detail=getattr(config.service, 'version_detail', ''),
             last_check_date=settings.get('last_check_date'),
             )
+        if self._update is None:
+            response['target_build_number'] = '-1'
+        elif not self._update.is_available:
+            response['target_build_number'] = current_build_number
+        else:
+            response['target_build_number'] = str(self._update.version)
+        return response
 
     @log_and_exit
     @method('com.canonical.SystemImage', in_signature='ss')

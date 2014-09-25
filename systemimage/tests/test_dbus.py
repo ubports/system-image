@@ -1318,9 +1318,11 @@ class TestDBusInfo(_TestBase):
                 'device_name',
                 'last_check_date',
                 'last_update_date',
+                'target_build_number',
                 'version_detail',
                 ])
         self.assertEqual(response['current_build_number'], '45')
+        self.assertEqual(response['target_build_number'], '53')
         self.assertEqual(response['device_name'], 'nexus11')
         self.assertEqual(response['channel_name'], 'daily-proposed')
         self.assertEqual(response['last_update_date'], '2099-08-01 04:45:45')
@@ -1351,6 +1353,7 @@ class TestLiveDBusInfo(_LiveTesting):
         self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
         self.assertEqual(response['version_detail'], '')
         self.assertEqual(response['last_check_date'], '')
+        self.assertEqual(response['target_build_number'], '-1')
 
     def test_information_no_details(self):
         # .Information() where there is no channel.ini with version details,
@@ -1377,6 +1380,7 @@ class TestLiveDBusInfo(_LiveTesting):
         self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
         self.assertEqual(response['version_detail'], '')
         self.assertEqual(response['last_check_date'], '2055-08-01 21:12:00')
+        self.assertEqual(response['target_build_number'], '1600')
 
     def test_information(self):
         # .Information() where there is a channel.ini with version details,
@@ -1416,6 +1420,31 @@ version_detail: ubuntu=222,mako=333,custom=444
         # in a robust way.  E.g. what if we just happen to be at 12:59:59 on
         # December 31st?  Let's at least make sure it has a sane format.
         self.assertRegex(response['last_check_date'], '2055-08-01 21:12:01')
+        self.assertEqual(response['target_build_number'], '1600')
+
+    def test_information_no_update_available(self):
+        # .Information() where we know that no update is available, gives us a
+        # target build number equal to the current build number.
+        self._touch_build(1701)
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        signal = reactor.signals[0]
+        self.assertEqual(signal.available_version, '')
+        response = self.iface.Information()
+        self.assertEqual(response['target_build_number'], '1701')
+
+    def test_information_workflow(self):
+        # At first, .Information() won't know whether there is an update
+        # available or not.  Then we check, and it tells us there is one.
+        self._touch_build(45)
+        response = self.iface.Information()
+        self.assertEqual(response['target_build_number'], '-1')
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        signal = reactor.signals[0]
+        self.assertEqual(signal.available_version, '1600')
+        response = self.iface.Information()
+        self.assertEqual(response['target_build_number'], '1600')
 
 
 class TestLiveDBusInfoWithChannelIni(_LiveTesting):

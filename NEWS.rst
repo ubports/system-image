@@ -6,6 +6,8 @@ NEWS for system-image updater
 ================
  * Remove the previously deprecated `system-image-cli --dbus` command line
    switch.  (LP: #1369717)
+ * Add a `target_build_number` key to the mapping returned by the
+   `.Information()` D-Bus method.  (LP: #1370586)
 
 2.4 (2014-09-16)
 ================
