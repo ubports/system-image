@@ -22,7 +22,6 @@ __all__ = [
 
 import re
 import atexit
-import logging
 
 from dbus.mainloop.glib import DBusGMainLoop
 from nose2.events import Plugin
