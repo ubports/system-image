@@ -334,6 +334,7 @@ class _MoreInfo(Service):
         self._updated = '2099-08-01 04:45:45'
         self._version = 'ubuntu=123,mako=456,custom=789'
         self._checked = '2099-08-01 04:45:00'
+        self._target = 53
 
     @log_and_exit
     @method('com.canonical.SystemImage')
@@ -354,7 +355,8 @@ class _MoreInfo(Service):
                     channel_name=self._channel,
                     last_update_date=self._updated,
                     version_detail=self._version,
-                    last_check_date=self._checked)
+                    last_check_date=self._checked,
+                    target_build_number=str(self._target))
 
 
 class _Crasher(Service):

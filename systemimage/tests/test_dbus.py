@@ -20,7 +20,6 @@ __all__ = [
     'TestDBusCheckForUpdate',
     'TestDBusCheckForUpdateToUnwritablePartition',
     'TestDBusCheckForUpdateWithBrokenIndex',
-    'TestDBusClient',
     'TestDBusDownload',
     'TestDBusFactoryReset',
     'TestDBusGetSet',
@@ -51,11 +50,11 @@ import shutil
 import unittest
 
 from contextlib import ExitStack, suppress
+from collections import namedtuple
 from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
 from pathlib import Path
-from systemimage.bindings import DBusClient, UASRecord
 from systemimage.config import Configuration
 from systemimage.helpers import MiB, atomic, safe_remove
 from systemimage.reactor import Reactor
@@ -64,6 +63,12 @@ from systemimage.testing.helpers import (
     copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
+
+
+# Use a namedtuple for more convenient argument unpacking.
+UASRecord = namedtuple('UASRecord',
+    'is_available downloading available_version update_size '
+    'last_update_date error_reason')
 
 
 class SignalCapturingReactor(Reactor):
@@ -1097,48 +1102,6 @@ class TestDBusMockNoUpdate(_TestBase):
         self.assertIsNotNone(reactor.status)
 
 
-class TestDBusClient(_LiveTesting):
-    """Test the DBus client (used with --dbus)."""
-
-    def setUp(self):
-        super().setUp()
-        self._client = DBusClient()
-
-    def test_check_for_update(self):
-        # There is an update available.
-        self._client.check_for_update()
-        self.assertTrue(self._client.is_available)
-        self.assertTrue(self._client.downloaded)
-
-    def test_check_for_no_update(self):
-        # There is no update available.
-        self._touch_build(1701)
-        self._client.check_for_update()
-        self.assertFalse(self._client.is_available)
-        self.assertFalse(self._client.downloaded)
-
-    def test_update_failed(self):
-        # For some reason <wink>, the update fails.
-        #
-        # Cause the update to fail by deleting a file from the server.
-        os.remove(os.path.join(SystemImagePlugin.controller.serverdir,
-                               '4/5/6.txt.asc'))
-        self._client.check_for_update()
-        self.assertTrue(self._client.is_available)
-        self.assertFalse(self._client.downloaded)
-        self.assertTrue(self._client.failed)
-
-    def test_reboot(self):
-        # After a successful update, we can reboot.
-        self._client.check_for_update()
-        self.assertTrue(self._client.is_available)
-        self.assertTrue(self._client.downloaded)
-        self._client.reboot()
-        with open(self.reboot_log, encoding='utf-8') as fp:
-            reboot = fp.read()
-        self.assertEqual(reboot, '/sbin/reboot -f recovery')
-
-
 class TestDBusRegressions(_LiveTesting):
     """Test that various regressions have been fixed."""
 
@@ -1355,9 +1318,11 @@ class TestDBusInfo(_TestBase):
                 'device_name',
                 'last_check_date',
                 'last_update_date',
+                'target_build_number',
                 'version_detail',
                 ])
         self.assertEqual(response['current_build_number'], '45')
+        self.assertEqual(response['target_build_number'], '53')
         self.assertEqual(response['device_name'], 'nexus11')
         self.assertEqual(response['channel_name'], 'daily-proposed')
         self.assertEqual(response['last_update_date'], '2099-08-01 04:45:45')
@@ -1388,6 +1353,7 @@ class TestLiveDBusInfo(_LiveTesting):
         self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
         self.assertEqual(response['version_detail'], '')
         self.assertEqual(response['last_check_date'], '')
+        self.assertEqual(response['target_build_number'], '-1')
 
     def test_information_no_details(self):
         # .Information() where there is no channel.ini with version details,
@@ -1414,6 +1380,7 @@ class TestLiveDBusInfo(_LiveTesting):
         self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
         self.assertEqual(response['version_detail'], '')
         self.assertEqual(response['last_check_date'], '2055-08-01 21:12:00')
+        self.assertEqual(response['target_build_number'], '1600')
 
     def test_information(self):
         # .Information() where there is a channel.ini with version details,
@@ -1453,6 +1420,31 @@ version_detail: ubuntu=222,mako=333,custom=444
         # in a robust way.  E.g. what if we just happen to be at 12:59:59 on
         # December 31st?  Let's at least make sure it has a sane format.
         self.assertRegex(response['last_check_date'], '2055-08-01 21:12:01')
+        self.assertEqual(response['target_build_number'], '1600')
+
+    def test_information_no_update_available(self):
+        # .Information() where we know that no update is available, gives us a
+        # target build number equal to the current build number.
+        self._touch_build(1701)
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        signal = reactor.signals[0]
+        self.assertEqual(signal.available_version, '')
+        response = self.iface.Information()
+        self.assertEqual(response['target_build_number'], '1701')
+
+    def test_information_workflow(self):
+        # At first, .Information() won't know whether there is an update
+        # available or not.  Then we check, and it tells us there is one.
+        self._touch_build(45)
+        response = self.iface.Information()
+        self.assertEqual(response['target_build_number'], '-1')
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        signal = reactor.signals[0]
+        self.assertEqual(signal.available_version, '1600')
+        response = self.iface.Information()
+        self.assertEqual(response['target_build_number'], '1600')
 
 
 class TestLiveDBusInfoWithChannelIni(_LiveTesting):
