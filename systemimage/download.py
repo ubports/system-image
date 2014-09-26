@@ -203,15 +203,10 @@ def get_download_records(downloads):
 class CurlDownloadManager:
     def __init__(self, callback=None):
         self.callback = callback
-        self._curl_multi = pycurl.CurlMulti()
-        self._curl_multi.handles = []
         self._queued_cancel = False
 
-    def _get_single_curl_handle(self, url, expected_checksum):
+    def _get_single_curl_handle(self, url):
         c = pycurl.Curl()
-        c.url = url
-        c.sha256 = hashlib.sha256()
-        c.expected_checksum = expected_checksum
         c.setopt(pycurl.URL, url)
         c.setopt(pycurl.USERAGENT, USER_AGENT.format(config.build_number))
         c.setopt(pycurl.FOLLOWLOCATION, 1)
@@ -226,12 +221,14 @@ class CurlDownloadManager:
             lambda *args: self._single_progress_callback(c, *args))
         return c
 
-    def _report_total_progress(self):
-        now = sum([c.dltotal for c in self._curl_multi.handles])
-        total = sum([c.dlnow for c in self._curl_multi.handles])
+    def _report_total_progress(self, curl_multi, total_download_size):
+        now = sum([c.dltotal for c in curl_multi.handles])
+        # no data yet
+        if total_download_size == 0:
+            return
         if callable(self.callback):
             try:
-                self.callback(now, total)
+                self.callback(now, total_download_size)
             except:
                 log.exception('Exception in progress callback')
 
@@ -240,56 +237,80 @@ class CurlDownloadManager:
         c.dlnow = dlnow
         return self._queued_cancel
 
-    def _write_callback(self, fp, sha256, data):
+    def _single_write_callback(self, fp, sha256, data):
         sha256.update(data)
         return fp.write(data)
+
+    def _queue_downloads(self, records):
+        # queue all downloads into CurlMulti, we can use 
+        #  CURLMOPT_MAX_TOTAL_CONNECTIONS  
+        # if we want to limit the number of parallel connections
+        curl_multi = pycurl.CurlMulti()
+        curl_multi.handles = []
+        for url, destination, expected_checksum in records:
+            c = self._get_single_curl_handle(url)
+            c.url = url
+            c.destination = destination
+            c.expected_checksum = expected_checksum
+            c.sha256 = hashlib.sha256()
+            # its critical that we add this here because 
+            # CurlMulti.add_handle() does *not* increase the
+            # ref-count of "c" (oh why?)
+            curl_multi.handles.append(c)
+            curl_multi.add_handle(c)
+        return curl_multi
+
+    def _perform_queued_downloads(self, curl_multi, total_download_size=0):
+        num_handles = len(curl_multi.handles)
+        while num_handles > 0:
+            ret, num_handles = curl_multi.perform()
+            self._report_total_progress(curl_multi, total_download_size)
+            num_q, ok_list, err_list = curl_multi.info_read()
+            for c in ok_list:
+                curl_multi.remove_handle(c)
+            for c, err_code, err in err_list:
+                raise FileNotFoundError("{} ({})".format(c.url, err))
 
     def get_files(self, downloads, *, pausable=False):
         if self._queued_cancel:
             # A cancel is queued, so don't actually download anything.
             raise Canceled
+        total_download_size = 0
         records = get_download_records(downloads)
-        # queue all downloads into CurlMulti, we can use 
-        #  CURLMOPT_MAX_TOTAL_CONNECTIONS  
-        # if we want to limit the number of parallel connections
-        for url, destination, expected_checksum in records:
-            c = self._get_single_curl_handle(url, expected_checksum)
-            c.fp = open(destination, "wb")
+        # first do HEAD
+        curl_multi = self._queue_downloads(records)
+        for c in curl_multi.handles:
+            c.setopt(pycurl.NOBODY, 1)
+        self._perform_queued_downloads(curl_multi)
+        for c in curl_multi.handles:
+            total_download_size += c.getinfo(pycurl.CONTENT_LENGTH_DOWNLOAD)
+        # then do GET
+        curl_multi = self._queue_downloads(records)
+        for c in curl_multi.handles:
+            c.fp = open(c.destination, "wb")
             c.setopt(
                 pycurl.WRITEFUNCTION,
-                lambda data: self._write_callback(c.fp, c.sha256, data))
-            self._curl_multi.add_handle(c)
-            # its critical that we add this here because 
-            # CurlMulti.add_handle() does *not* increase the
-            # ref-count of "c" (oh why?)
-            self._curl_multi.handles.append(c)
-        # go get the files
-        num_handles = len(records)
-        while num_handles > 0:
-            ret, num_handles = self._curl_multi.perform()
-            self._report_total_progress()
-            num_q, ok_list, err_list = self._curl_multi.info_read()
-            for c in ok_list:
-                if (c.expected_checksum and
-                    c.expected_checksum != sha256.hexdigest()):
-                    raise Exception(
-                        "hashsum '{}' != '{}'".format(c.expected_checksum,
-                                                      c.sha256.hexdigest()))
-                self._curl_multi.remove_handle(c)
-            for c, err_code, err in err_list:
-                raise FileNotFoundError("{} ({})".format(c.url, err))
+                lambda data: self._single_write_callback(c.fp, c.sha256, data))
+        self._perform_queued_downloads(curl_multi, total_download_size)
         # cleanup
-        for c in self._curl_multi.handles:
+        for c in curl_multi.handles:
             c.fp.close()
+            if (c.expected_checksum and
+                c.expected_checksum != sha256.hexdigest()):
+                raise Exception(
+                    "hashsum '{}' != '{}'".format(c.expected_checksum,
+                                                  c.sha256.hexdigest()))
 
     def cancel(self):
         self._queued_cancel = True
 
     def pause(self):
-        self._curl.pause(pycurl.PAUSE_ALL)
+        for c in self._curl_multi.handles:
+            c.pause(pycurl.PAUSE_ALL)
         
     def resume(self):
-        self._curl.pause(pycurl.PAUSE_CONT)
+        for c in self._curl_multi.handles:
+            c.pause(pycurl.PAUSE_CONT)
 
 
 class DBusDownloadManager:
