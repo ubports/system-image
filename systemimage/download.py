@@ -32,7 +32,7 @@ import logging
 
 try:
     import pycurl
-except IMPORT_ERROR:
+except ImportError:
     pass
 
 from collections import namedtuple
@@ -475,6 +475,7 @@ class DBusDownloadManager:
 def get_download_manager():
     # FIXME: make this (much) more inteligent
     if os.environ.get("SYSTEM_IMAGE_PYCURL", ""):
-        import pycurl
+        if "pycurl" not in sys.modules:
+            raise ImportError("No module named {}".format("pycurl"))
         return CurlDownloadManager()
     return DBusDownloadManager()
