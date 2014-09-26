@@ -30,6 +30,11 @@ import dbus
 import hashlib
 import logging
 
+try:
+    import pycurl
+except IMPORT_ERROR:
+    pass
+
 from collections import namedtuple
 from contextlib import suppress
 from io import StringIO
@@ -202,6 +207,10 @@ def get_download_records(downloads):
 
 
 class CurlDownloadManager:
+
+    MAX_TOTAL_CONNECTIONS = 4
+    TIMEOUT = 0.05  # 20fps
+
     def __init__(self, callback=None):
         self.callback = callback
         self._queued_cancel = False
@@ -243,11 +252,10 @@ class CurlDownloadManager:
         return fp.write(data)
 
     def _queue_downloads(self, records):
-        # queue all downloads into CurlMulti, we can use 
-        #  CURLMOPT_MAX_TOTAL_CONNECTIONS  
-        # if we want to limit the number of parallel connections
         curl_multi = pycurl.CurlMulti()
         curl_multi.handles = []
+        curl_multi.setopt(
+            pycurl.M_MAX_TOTAL_CONNECTIONS, self.MAX_TOTAL_CONNECTIONS)
         for url, destination, expected_checksum in records:
             c = self._get_single_curl_handle(url)
             c.url = url
@@ -271,6 +279,7 @@ class CurlDownloadManager:
                 curl_multi.remove_handle(c)
             for c, err_code, err in err_list:
                 raise FileNotFoundError("{} ({})".format(c.url, err))
+            curl_multi.select(self.TIMEOUT)
 
     def get_files(self, downloads, *, pausable=False):
         if self._queued_cancel:
