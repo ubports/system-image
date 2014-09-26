@@ -30,7 +30,7 @@ import tarfile
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from systemimage.config import config
-from systemimage.download import DBusDownloadManager
+from systemimage.download import get_download_manager
 from systemimage.gpg import Context
 from systemimage.helpers import makedirs, safe_remove
 from urllib.parse import urljoin
@@ -102,7 +102,7 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
     safe_remove(ascxz_dst)
     with ExitStack() as stack:
         # Let FileNotFoundError percolate up.
-        DBusDownloadManager().get_files([
+        get_download_manager().get_files([
             (tarxz_src, tarxz_dst),
             (ascxz_src, ascxz_dst),
             ])

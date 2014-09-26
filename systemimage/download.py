@@ -17,8 +17,10 @@
 
 __all__ = [
     'Canceled',
+    'CurlDownloadManager',
     'DBusDownloadManager',
     'DuplicateDestinationError',
+    'get_download_manager',
     'Record',
     ]
 
@@ -27,7 +29,6 @@ import os
 import dbus
 import hashlib
 import logging
-import pycurl
 
 from collections import namedtuple
 from contextlib import suppress
@@ -446,3 +447,11 @@ class DBusDownloadManager:
         """Resume the download, but only if one is in progress."""
         if self._iface is not None:                 # pragma: no branch
             self._iface.resume()
+
+
+def get_download_manager():
+    # FIXME: make this (much) more inteligent
+    if os.environ.get("SYSTEM_IMAGE_PYCURL", ""):
+        import pycurl
+        return CurlDownloadManager()
+    return DBusDownloadManager()
