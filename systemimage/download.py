@@ -306,7 +306,7 @@ class CurlDownloadManager:
         for c in curl_multi.handles:
             c.fp.close()
             if (c.expected_checksum and
-                c.expected_checksum != sha256.hexdigest()):
+                c.expected_checksum != c.sha256.hexdigest()):
                 raise Exception(
                     "hashsum '{}' != '{}'".format(c.expected_checksum,
                                                   c.sha256.hexdigest()))
