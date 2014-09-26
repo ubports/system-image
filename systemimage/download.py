@@ -210,6 +210,7 @@ class CurlDownloadManager:
 
     MAX_TOTAL_CONNECTIONS = 4
     TIMEOUT = 0.05  # 20fps
+    CA_INFO = "/etc/ssl/certs/ca-certificates.crt"
 
     def __init__(self, callback=None):
         self.callback = callback
@@ -226,6 +227,10 @@ class CurlDownloadManager:
         c.setopt(pycurl.LOW_SPEED_LIMIT, 10);
         c.setopt(pycurl.LOW_SPEED_TIME, 120);
         c.setopt(pycurl.NOPROGRESS, 0)
+        c.setopt(pycurl.SSL_VERIFYPEER, 1)
+        # "2" is important
+        c.setopt(pycurl.SSL_VERIFYHOST, 2)
+        c.setopt(pycurl.CAINFO, self.CA_INFO)
         c.setopt(
             pycurl.PROGRESSFUNCTION, 
             lambda *args: self._single_progress_callback(c, *args))
