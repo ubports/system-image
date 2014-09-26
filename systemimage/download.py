@@ -203,25 +203,41 @@ def get_download_records(downloads):
 class CurlDownloadManager:
     def __init__(self, callback=None):
         self.callback = callback
-        self._curl = pycurl.Curl()
-        self._curl.setopt(
-            pycurl.USERAGENT, USER_AGENT.format(config.build_number))
-        self._curl.setopt(pycurl.FOLLOWLOCATION, 1)
-        self._curl.setopt(pycurl.MAXREDIRS, 5)
-        self._curl.setopt(pycurl.FAILONERROR, 1)
-        self._curl.setopt(pycurl.CONNECTTIMEOUT, 120)
-        self._curl.setopt(pycurl.LOW_SPEED_LIMIT, 10);
-        self._curl.setopt(pycurl.LOW_SPEED_TIME, 120);
-        self._curl.setopt(pycurl.NOPROGRESS, 0)
-        self._curl.setopt(pycurl.PROGRESSFUNCTION, self._progress_callback)
+        self._curl_multi = pycurl.CurlMulti()
+        self._curl_multi.handles = []
         self._queued_cancel = False
 
-    def _progress_callback(self, dltotal, dlnow, ultotal, ulnow):
+    def _get_single_curl_handle(self, url, expected_checksum):
+        c = pycurl.Curl()
+        c.url = url
+        c.sha256 = hashlib.sha256()
+        c.expected_checksum = expected_checksum
+        c.setopt(pycurl.URL, url)
+        c.setopt(pycurl.USERAGENT, USER_AGENT.format(config.build_number))
+        c.setopt(pycurl.FOLLOWLOCATION, 1)
+        c.setopt(pycurl.MAXREDIRS, 5)
+        c.setopt(pycurl.FAILONERROR, 1)
+        c.setopt(pycurl.CONNECTTIMEOUT, 120)
+        c.setopt(pycurl.LOW_SPEED_LIMIT, 10);
+        c.setopt(pycurl.LOW_SPEED_TIME, 120);
+        c.setopt(pycurl.NOPROGRESS, 0)
+        c.setopt(
+            pycurl.PROGRESSFUNCTION, 
+            lambda *args: self._single_progress_callback(c, *args))
+        return c
+
+    def _report_total_progress(self):
+        now = sum([c.dltotal for c in self._curl_multi.handles])
+        total = sum([c.dlnow for c in self._curl_multi.handles])
         if callable(self.callback):
             try:
-                self.callback(dlnow, dltotal)
+                self.callback(now, total)
             except:
                 log.exception('Exception in progress callback')
+
+    def _single_progress_callback(self, c, dltotal, dlnow, ultotal, ulnow):
+        c.dltotal = dltotal
+        c.dlnow = dlnow
         return self._queued_cancel
 
     def _write_callback(self, fp, sha256, data):
@@ -233,26 +249,38 @@ class CurlDownloadManager:
             # A cancel is queued, so don't actually download anything.
             raise Canceled
         records = get_download_records(downloads)
-        for url, destination, checksum  in records:
-            self._curl.setopt(pycurl.URL, url)
-            sha256 = hashlib.sha256()
-            # FIXME: to get accurate download estimation we need to do
-            #        a HEAD before we do the actual download, i.e.
-            #        setopt(pycurl.HEADER, 1)
-            #        setopt(pycurl.NOBODY, 1)
-            #        setopt(pycurl.HEADERFUNCTION, self._extract_content_length)
-            with open(destination, "wb") as fp:
-                self._curl.setopt(
-                    pycurl.WRITEFUNCTION,
-                    lambda data: self._write_callback(fp, sha256, data))
-                try:
-                    self._curl.perform()
-                except pycurl.error:
-                    raise FileNotFoundError("{}".format(url))
-            # verify hash
-            if checksum and checksum != sha256.hexdigest():
-                raise Exception(
-                    "hashsum '{}' != '{}'".format(checksum, sha256.hexdigest()))
+        # queue all downloads into CurlMulti, we can use 
+        #  CURLMOPT_MAX_TOTAL_CONNECTIONS  
+        # if we want to limit the number of parallel connections
+        for url, destination, expected_checksum in records:
+            c = self._get_single_curl_handle(url, expected_checksum)
+            c.fp = open(destination, "wb")
+            c.setopt(
+                pycurl.WRITEFUNCTION,
+                lambda data: self._write_callback(c.fp, c.sha256, data))
+            self._curl_multi.add_handle(c)
+            # its critical that we add this here because 
+            # CurlMulti.add_handle() does *not* increase the
+            # ref-count of "c" (oh why?)
+            self._curl_multi.handles.append(c)
+        # go get the files
+        num_handles = len(records)
+        while num_handles > 0:
+            ret, num_handles = self._curl_multi.perform()
+            self._report_total_progress()
+            num_q, ok_list, err_list = self._curl_multi.info_read()
+            for c in ok_list:
+                if (c.expected_checksum and
+                    c.expected_checksum != sha256.hexdigest()):
+                    raise Exception(
+                        "hashsum '{}' != '{}'".format(c.expected_checksum,
+                                                      c.sha256.hexdigest()))
+                self._curl_multi.remove_handle(c)
+            for c, err_code, err in err_list:
+                raise FileNotFoundError("{} ({})".format(c.url, err))
+        # cleanup
+        for c in self._curl_multi.handles:
+            c.fp.close()
 
     def cancel(self):
         self._queued_cancel = True
