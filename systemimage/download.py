@@ -206,6 +206,17 @@ def get_download_records(downloads):
     return records
 
 
+class WriterWithChecksum:
+    def __init__(self, name, mode):
+        self.fp = open(name, mode)
+        self.sha256 = hashlib.sha256()
+    def write(self, data):
+        self.sha256.update(data)
+        self.fp.write(data)
+    def close(self):
+        self.fp.close()
+
+
 class CurlDownloadManager:
 
     MAX_TOTAL_CONNECTIONS = 4
@@ -266,7 +277,6 @@ class CurlDownloadManager:
             c.url = url
             c.destination = destination
             c.expected_checksum = expected_checksum
-            c.sha256 = hashlib.sha256()
             # its critical that we add this here because 
             # CurlMulti.add_handle() does *not* increase the
             # ref-count of "c" (oh why?)
@@ -302,19 +312,18 @@ class CurlDownloadManager:
         # then do GET
         curl_multi = self._queue_downloads(records)
         for c in curl_multi.handles:
-            c.fp = open(c.destination, "wb")
-            c.setopt(
-                pycurl.WRITEFUNCTION,
-                lambda data: self._single_write_callback(c.fp, c.sha256, data))
+            # can't use lambda here, but a custom writer is fine
+            c.writer = WriterWithChecksum(c.destination, "wb")
+            c.setopt(pycurl.WRITEDATA, c.writer)
         self._perform_queued_downloads(curl_multi, total_download_size)
         # cleanup
         for c in curl_multi.handles:
-            c.fp.close()
+            c.writer.close()
             if (c.expected_checksum and
-                c.expected_checksum != c.sha256.hexdigest()):
+                c.expected_checksum != c.writer.sha256.hexdigest()):
                 raise Exception(
                     "hashsum '{}' != '{}'".format(c.expected_checksum,
-                                                  c.sha256.hexdigest()))
+                                                  c.writer.sha256.hexdigest()))
 
     def cancel(self):
         self._queued_cancel = True
