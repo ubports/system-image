@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2014-09-16
+:Date: 2014-09-29
 :Copyright: 2013-2014 Canonical Ltd.
-:Version: 2.4
+:Version: 2.5
 :Manual section: 1
 
 

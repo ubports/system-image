@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader DBus service
 -----------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2014-07-15
+:Date: 2014-09-29
 :Copyright: 2013-2014 Canonical Ltd.
-:Version: 2.3
+:Version: 2.5
 :Manual section: 8
 
 
