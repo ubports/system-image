@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-2.5 (2014-XX-XX)
+2.5 (2014-09-29)
 ================
  * Remove the previously deprecated `system-image-cli --dbus` command line
    switch.  (LP: #1369717)
