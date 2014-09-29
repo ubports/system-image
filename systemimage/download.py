@@ -98,6 +98,7 @@ class DownloadReactor(Reactor):
         self.canceled = False
         self.received = 0
         self.total = 0
+        self.local_paths = None
         self.react_to('canceled')
         self.react_to('error')
         self.react_to('finished')
@@ -111,6 +112,7 @@ class DownloadReactor(Reactor):
 
     def _do_finished(self, signal, path, local_paths):
         _print('FINISHED:', local_paths)
+        self.local_paths = local_paths
         self.quit()
 
     def _do_error(self, signal, path, error_message):
@@ -292,10 +294,16 @@ class DBusDownloadManager:
             raise Canceled
         if reactor.timed_out:
             raise TimeoutError
-        # For sanity.
-        for record in records:
-            assert os.path.exists(record.destination), (
-                'Missing destination: {}'.format(record))
+        # Sanity check the downloaded results.
+        # First, every requested destination file must exist, otherwise
+        # udm would not have given us a `finished` signal.
+        missing = [record.destination for record in records
+                   if not os.path.exists(record.destination)]
+        if len(missing) > 0:
+            local_paths = sorted(reactor.local_paths)
+            raise AssertionError(
+                'Missing destination files: {}\nlocal_paths: {}'.format(
+                    missing, local_paths))
 
     @staticmethod
     def _set_gsm(iface, *, allow_gsm):
