@@ -299,7 +299,7 @@ class DBusDownloadManager:
         # udm would not have given us a `finished` signal.
         missing = [record.destination for record in records
                    if not os.path.exists(record.destination)]
-        if len(missing) > 0:
+        if len(missing) > 0:                        # pragma: no cover
             local_paths = sorted(reactor.local_paths)
             raise AssertionError(
                 'Missing destination files: {}\nlocal_paths: {}'.format(
