@@ -1,6 +1,9 @@
-system-image (2.5-0ubuntu1~ppa0) UNRELEASED; urgency=medium
+system-image (2.5-0ubuntu1) utopic; urgency=medium
 
   * New upstream release.
+    - LP: #1369717 - Remove `system-image-cli --dbus` command line switch.
+    - LP: #1370586 - Add a `target_build_number` key to the mapping
+      returned by the `.Information()` D-Bus method.
 
  -- Barry Warsaw <barry@ubuntu.com>  Fri, 26 Sep 2014 10:36:13 -0400
 
