@@ -18,7 +18,6 @@ system_image.egg-info/top_level.txt
 systemimage/__init__.py
 systemimage/api.py
 systemimage/bag.py
-systemimage/bindings.py
 systemimage/candidates.py
 systemimage/channel.py
 systemimage/config.py

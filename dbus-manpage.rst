@@ -128,18 +128,27 @@ Methods
     This is a **synchronous** call which returns an extensible mapping of
     UTF-8 keys to UTF-8 values.  The following keys are currently defined:
 
-    * *current_build_number* - the current build number as an integer.
-    * *device_name* - the name of the device type.
-    * *channel_name* - the channel the device is currently on.
-    * *last_update_date* - the last time this device was updated as a
+    * *current_build_number* - The current build number as an integer.
+    * *target_build_number* - If an update is known to be available, this will
+      be the build number that an update will leave the device at.  If no
+      `CheckForUpdate()` has been previously performed, then the
+      *target_build_number* will be "-1".  If a previous check has been
+      performed, but no update is available (i.e., the device is already at
+      the latest version), then *target_build_number* will be the same as
+      *current_build_number*.
+    * *device_name* - The name of the device type.
+    * *channel_name* - The channel the device is currently on.
+    * *last_update_date* - The last time this device was updated as a
       datetime, e.g. "YYYY-MM-DDTHH:MM:SS"
-    * *version_detail* - a string containing a comma-separated list of
+    * *version_detail* - A string containing a comma-separated list of
       key-value pairs providing additional component version details,
       e.g. "ubuntu=123,mako=456,custom=789".
-    * *last_check_date* - the last time a ``CheckForUpdate()`` call was
+    * *last_check_date* - The last time a ``CheckForUpdate()`` call was
       performed.
 
     *New in system-image 2.3*
+
+    *New in system-image 2.5: target_build_number*
 
 ``FactoryReset()``
     This is a **synchronous** call which wipes the data partition and issue a
