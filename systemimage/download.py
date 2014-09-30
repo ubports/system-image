@@ -29,6 +29,7 @@ import os
 import dbus
 import hashlib
 import logging
+import sys
 
 try:
     import pycurl
