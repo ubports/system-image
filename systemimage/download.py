@@ -471,8 +471,16 @@ class DBusDownloadManager:
 
 
 def get_download_manager():
-    # FIXME: make this (much) more inteligent
-    if os.environ.get("SYSTEM_IMAGE_PYCURL", ""):
+    # detect if we have ubuntu-download-manager
+    try:
+        bus = dbus.SystemBus()
+        service = bus.get_object(DOWNLOADER_INTERFACE, '/')
+        udm_available = True
+    except dbus.exceptions.DBusException as e:
+        udm_available = False
+
+    # use pycurl based downloader if no udm is found
+    if not udm_available or os.environ.get("SYSTEM_IMAGE_PYCURL", ""):
         if "pycurl" not in sys.modules:
             raise ImportError("No module named {}".format("pycurl"))
         return CurlDownloadManager()
