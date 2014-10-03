@@ -17,15 +17,24 @@
 
 __all__ = [
     'Canceled',
+    'CurlDownloadManager',
     'DBusDownloadManager',
     'DuplicateDestinationError',
+    'get_download_manager',
     'Record',
     ]
 
 
 import os
 import dbus
+import hashlib
 import logging
+import sys
+
+try:
+    import pycurl
+except ImportError:
+    pass
 
 from collections import namedtuple
 from contextlib import suppress
@@ -161,6 +170,173 @@ class DownloadReactor(Reactor):
         _print('SIGNAL:', args, kws)                # pragma: no cover
 
 
+def get_download_records(downloads):
+    # Convert the downloads items to download records.
+    records = [item if isinstance(item, _RecordType) else Record(*item)
+               for item in downloads]
+    destinations = set(record.destination for record in records)
+    # Check for duplicate destinations, specifically for a local file path
+    # coming from two different sources.  It's okay if there are duplicate
+    # destination records in the download request, but each of those must
+    # be specified by the same source url and have the same checksum.
+    #
+    # An easy quick check just asks if the set of destinations is smaller
+    # than the total number of requested downloads.  It can't be larger.
+    # If it *is* smaller, then there are some duplicates, however the
+    # duplicates may be legitimate, so look at the details.
+    #
+    # Note though that we cannot pass duplicates destinations to udm,
+    # so we have to filter out legitimate duplicates.  That's fine since
+    # they really are pointing to the same file, and will end up in the
+    # destination location.
+    if len(destinations) < len(downloads):
+        by_destination = dict()
+        unique_downloads = set()
+        for record in records:
+            by_destination.setdefault(record.destination, set()).add(
+                record)
+            unique_downloads.add(record)
+        duplicates = []
+        for dst, seen in by_destination.items():
+            if len(seen) > 1:
+                # Tuples will look better in the pretty-printed output.
+                duplicates.append(
+                    (dst, sorted(tuple(dup) for dup in seen)))
+        if len(duplicates) > 0:
+            raise DuplicateDestinationError(sorted(duplicates))
+        # Uniquify the downloads.
+        records = list(unique_downloads)
+    return records
+
+
+class WriterWithChecksum:
+    def __init__(self, name, mode):
+        self.fp = open(name, mode)
+        self.sha256 = hashlib.sha256()
+    def write(self, data):
+        self.sha256.update(data)
+        self.fp.write(data)
+    def close(self):
+        self.fp.close()
+
+
+class CurlDownloadManager:
+
+    MAX_TOTAL_CONNECTIONS = 4
+    TIMEOUT = 0.05  # 20fps
+
+    def __init__(self, callback=None):
+        self.callback = callback
+        self._queued_cancel = False
+
+    def _get_single_curl_handle(self, url):
+        c = pycurl.Curl()
+        c.setopt(pycurl.URL, url)
+        c.setopt(pycurl.USERAGENT, USER_AGENT.format(config.build_number))
+        c.setopt(pycurl.FOLLOWLOCATION, 1)
+        c.setopt(pycurl.MAXREDIRS, 5)
+        c.setopt(pycurl.FAILONERROR, 1)
+        c.setopt(pycurl.CONNECTTIMEOUT, 120)
+        c.setopt(pycurl.LOW_SPEED_LIMIT, 10);
+        c.setopt(pycurl.LOW_SPEED_TIME, 120);
+        c.setopt(pycurl.NOPROGRESS, 0)
+        # ssl: no need to set SSL_VERIFYPEER, SSL_VERIFYHOST, CAINFO
+        #      they all use sensible defaults
+        c.setopt(
+            pycurl.PROGRESSFUNCTION, 
+            lambda *args: self._single_progress_callback(c, *args))
+        return c
+
+    def _report_total_progress(self, curl_multi, total_download_size):
+        now = sum([c.dltotal for c in curl_multi.handles])
+        # no data yet
+        if total_download_size == 0:
+            return
+        if callable(self.callback):
+            try:
+                self.callback(now, total_download_size)
+            except:
+                log.exception('Exception in progress callback')
+
+    def _single_progress_callback(self, c, dltotal, dlnow, ultotal, ulnow):
+        c.dltotal = dltotal
+        c.dlnow = dlnow
+        return self._queued_cancel
+
+    def _single_write_callback(self, fp, sha256, data):
+        sha256.update(data)
+        return fp.write(data)
+
+    def _queue_downloads(self, records):
+        curl_multi = pycurl.CurlMulti()
+        curl_multi.handles = []
+        curl_multi.setopt(
+            pycurl.M_MAX_TOTAL_CONNECTIONS, self.MAX_TOTAL_CONNECTIONS)
+        for url, destination, expected_checksum in records:
+            c = self._get_single_curl_handle(url)
+            c.url = url
+            c.destination = destination
+            c.expected_checksum = expected_checksum
+            # its critical that we add this here because 
+            # CurlMulti.add_handle() does *not* increase the
+            # ref-count of "c" (oh why?)
+            curl_multi.handles.append(c)
+            curl_multi.add_handle(c)
+        return curl_multi
+
+    def _perform_queued_downloads(self, curl_multi, total_download_size=0):
+        num_handles = len(curl_multi.handles)
+        while num_handles > 0:
+            ret, num_handles = curl_multi.perform()
+            self._report_total_progress(curl_multi, total_download_size)
+            num_q, ok_list, err_list = curl_multi.info_read()
+            for c in ok_list:
+                curl_multi.remove_handle(c)
+            for c, err_code, err in err_list:
+                raise FileNotFoundError("{} ({})".format(c.url, err))
+            curl_multi.select(self.TIMEOUT)
+
+    def get_files(self, downloads, *, pausable=False):
+        if self._queued_cancel:
+            # A cancel is queued, so don't actually download anything.
+            raise Canceled
+        total_download_size = 0
+        records = get_download_records(downloads)
+        # first do HEAD
+        curl_multi = self._queue_downloads(records)
+        for c in curl_multi.handles:
+            c.setopt(pycurl.NOBODY, 1)
+        self._perform_queued_downloads(curl_multi)
+        for c in curl_multi.handles:
+            total_download_size += c.getinfo(pycurl.CONTENT_LENGTH_DOWNLOAD)
+        # then do GET
+        curl_multi = self._queue_downloads(records)
+        for c in curl_multi.handles:
+            # can't use lambda here, but a custom writer is fine
+            c.writer = WriterWithChecksum(c.destination, "wb")
+            c.setopt(pycurl.WRITEDATA, c.writer)
+        self._perform_queued_downloads(curl_multi, total_download_size)
+        # cleanup
+        for c in curl_multi.handles:
+            c.writer.close()
+            if (c.expected_checksum and
+                c.expected_checksum != c.writer.sha256.hexdigest()):
+                raise Exception(
+                    "hashsum '{}' != '{}'".format(c.expected_checksum,
+                                                  c.writer.sha256.hexdigest()))
+
+    def cancel(self):
+        self._queued_cancel = True
+
+    def pause(self):
+        for c in self._curl_multi.handles:
+            c.pause(pycurl.PAUSE_ALL)
+        
+    def resume(self):
+        for c in self._curl_multi.handles:
+            c.pause(pycurl.PAUSE_CONT)
+
+
 class DBusDownloadManager:
     def __init__(self, callback=None):
         """
@@ -213,41 +389,9 @@ class DBusDownloadManager:
         if len(downloads) == 0:
             # Nothing to download.  See LP: #1245597.
             return
-        # Convert the downloads items to download records.
-        records = [item if isinstance(item, _RecordType) else Record(*item)
-                   for item in downloads]
-        destinations = set(record.destination for record in records)
-        # Check for duplicate destinations, specifically for a local file path
-        # coming from two different sources.  It's okay if there are duplicate
-        # destination records in the download request, but each of those must
-        # be specified by the same source url and have the same checksum.
-        #
-        # An easy quick check just asks if the set of destinations is smaller
-        # than the total number of requested downloads.  It can't be larger.
-        # If it *is* smaller, then there are some duplicates, however the
-        # duplicates may be legitimate, so look at the details.
-        #
-        # Note though that we cannot pass duplicates destinations to udm,
-        # so we have to filter out legitimate duplicates.  That's fine since
-        # they really are pointing to the same file, and will end up in the
-        # destination location.
-        if len(destinations) < len(downloads):
-            by_destination = dict()
-            unique_downloads = set()
-            for record in records:
-                by_destination.setdefault(record.destination, set()).add(
-                    record)
-                unique_downloads.add(record)
-            duplicates = []
-            for dst, seen in by_destination.items():
-                if len(seen) > 1:
-                    # Tuples will look better in the pretty-printed output.
-                    duplicates.append(
-                        (dst, sorted(tuple(dup) for dup in seen)))
-            if len(duplicates) > 0:
-                raise DuplicateDestinationError(sorted(duplicates))
-            # Uniquify the downloads.
-            records = list(unique_downloads)
+        # get the download records (without dupes)
+        records = get_download_records(downloads)
+
         bus = dbus.SystemBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
         iface = dbus.Interface(service, MANAGER_INTERFACE)
@@ -332,3 +476,20 @@ class DBusDownloadManager:
         """Resume the download, but only if one is in progress."""
         if self._iface is not None:                 # pragma: no branch
             self._iface.resume()
+
+
+def get_download_manager():
+    # detect if we have ubuntu-download-manager
+    try:
+        bus = dbus.SystemBus()
+        service = bus.get_object(DOWNLOADER_INTERFACE, '/')
+        udm_available = True
+    except dbus.exceptions.DBusException as e:
+        udm_available = False
+
+    # use pycurl based downloader if no udm is found
+    if not udm_available or os.environ.get("SYSTEM_IMAGE_PYCURL", ""):
+        if "pycurl" not in sys.modules:
+            raise ImportError("No module named {}".format("pycurl"))
+        return CurlDownloadManager()
+    return DBusDownloadManager()

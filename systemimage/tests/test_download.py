@@ -39,7 +39,8 @@ from gi.repository import GLib
 from hashlib import sha256
 from systemimage.config import Configuration, config
 from systemimage.download import (
-    Canceled, DBusDownloadManager, DuplicateDestinationError, Record)
+    Canceled, CurlDownloadManager, DBusDownloadManager,
+    DuplicateDestinationError, Record)
 from systemimage.helpers import temporary_directory
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
@@ -64,6 +65,9 @@ def _https_pathify(downloads):
 
 
 class TestDownloads(unittest.TestCase):
+
+    DOWNLOAD_MANAGER_CLS = DBusDownloadManager
+
     def setUp(self):
         super().setUp()
         self._resources = ExitStack()
@@ -83,7 +87,7 @@ class TestDownloads(unittest.TestCase):
     @configuration
     def test_good_path(self):
         # Download a bunch of files that exist.  No callback.
-        DBusDownloadManager().get_files(_http_pathify([
+        self.DOWNLOAD_MANAGER_CLS().get_files(_http_pathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ]))
@@ -94,7 +98,7 @@ class TestDownloads(unittest.TestCase):
     @configuration
     def test_empty_download(self):
         # Empty download set completes successfully.  LP: #1245597.
-        DBusDownloadManager().get_files([])
+        self.DOWNLOAD_MANAGER_CLS().get_files([])
         # No TimeoutError is raised.
 
     @configuration
@@ -105,7 +109,7 @@ class TestDownloads(unittest.TestCase):
             print(version, file=fp)
         # Download a magic path which the server will interpret to return us
         # the User-Agent header value.
-        DBusDownloadManager().get_files(_http_pathify([
+        self.DOWNLOAD_MANAGER_CLS().get_files(_http_pathify([
             ('user-agent.txt', 'user-agent.txt'),
             ]))
         path = os.path.join(config.tempdir, 'user-agent.txt')
@@ -124,7 +128,7 @@ class TestDownloads(unittest.TestCase):
             nonlocal received_bytes, total_bytes
             received_bytes = received
             total_bytes = total
-        downloader = DBusDownloadManager(callback)
+        downloader = self.DOWNLOAD_MANAGER_CLS(callback)
         downloader.get_files(_http_pathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
@@ -144,7 +148,7 @@ class TestDownloads(unittest.TestCase):
         def capture(message):
             nonlocal exception
             exception = message
-        downloader = DBusDownloadManager(callback)
+        downloader = self.DOWNLOAD_MANAGER_CLS(callback)
         with patch('systemimage.download.log.exception', capture):
             downloader.get_files(_http_pathify([
                 ('channels_01.json', 'channels.json'),
@@ -163,7 +167,7 @@ class TestDownloads(unittest.TestCase):
         # To test this, we patch systemimage.testing in sys.modules so that an
         # ImportError is raised when it tries to import it.
         with patch.dict(sys.modules, {'systemimage.testing.helpers': None}):
-            DBusDownloadManager().get_files(_http_pathify([
+            self.DOWNLOAD_MANAGER_CLS().get_files(_http_pathify([
                 ('channels_01.json', 'channels.json'),
                 ]))
         self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
@@ -180,10 +184,16 @@ class TestDownloads(unittest.TestCase):
                    finish_with_timeout):
             self.assertRaises(
                 TimeoutError,
-                DBusDownloadManager().get_files,
+                self.DOWNLOAD_MANAGER_CLS().get_files,
                 _http_pathify([('channels_01.json', 'channels.json')])
                 )
 
+
+class TestCurlDownloader(TestDownloads):
+    DOWNLOAD_MANAGER_CLS = CurlDownloadManager
+    def test_timeout(self):
+        # FIXME: test timeout differently
+        pass
 
 class TestHTTPSDownloads(unittest.TestCase):
     @classmethod
