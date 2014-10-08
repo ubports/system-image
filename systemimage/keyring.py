@@ -86,8 +86,8 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
     else:
         srcurl = urls
         ascurl = urls + '.asc'
-    tarxz_src = urljoin(config.service.https_base, srcurl)
-    ascxz_src = urljoin(config.service.https_base, ascurl)
+    tarxz_src = urljoin(config.https_base, srcurl)
+    ascxz_src = urljoin(config.https_base, ascurl)
     # Calculate the local paths to the temporary download files.  The
     # blacklist goes to the data partition and all the other files go to the
     # cache partition.

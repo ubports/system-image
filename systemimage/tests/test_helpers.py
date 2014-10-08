@@ -37,8 +37,9 @@ from datetime import datetime, timedelta
 from systemimage.bag import Bag
 from systemimage.config import Configuration, config
 from systemimage.helpers import (
-    MiB, as_loglevel, as_object, as_timedelta, calculate_signature,
-    last_update_date, phased_percentage, temporary_directory, version_detail)
+    MiB, NO_PORT, as_loglevel, as_object, as_port, as_stripped, as_timedelta,
+    calculate_signature, last_update_date, phased_percentage,
+    temporary_directory, version_detail)
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
 
@@ -109,6 +110,21 @@ class TestConverters(unittest.TestCase):
     def test_as_bad_dbus_loglevel(self):
         self.assertRaises(ValueError, as_loglevel, 'error:basicConfig')
 
+    def test_as_port(self):
+        self.assertEqual(as_port('801'), 801)
+
+    def test_as_non_int_port(self):
+        self.assertRaises(ValueError, as_port, 'not-a-port')
+
+    def test_as_port_disabled(self):
+        self.assertIs(as_port('disabled'), NO_PORT)
+        self.assertIs(as_port('disable'), NO_PORT)
+        self.assertIs(as_port('DISABLED'), NO_PORT)
+        self.assertIs(as_port('DISABLE'), NO_PORT)
+
+    def test_stripped(self):
+        self.assertEqual(as_stripped('   field   '), 'field')
+
 
 class TestLastUpdateDate(unittest.TestCase):
     @configuration
@@ -127,11 +143,11 @@ class TestLastUpdateDate(unittest.TestCase):
             self.assertEqual(last_update_date(), '2012-11-10 09:08:07')
 
     @configuration
-    def test_date_from_channel_ini(self, ini_file):
+    def test_date_from_channel_ini(self, config_d):
         # The last update date can come from the mtime of the channel.ini
         # file, which lives next to the configuration file.
         channel_ini = os.path.join(
-            os.path.dirname(ini_file), 'channel.ini')
+            os.path.dirname(config_d), 'channel.ini')
         with open(channel_ini, 'w'):
             pass
         timestamp = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
@@ -139,12 +155,12 @@ class TestLastUpdateDate(unittest.TestCase):
         self.assertEqual(last_update_date(), '2022-01-02 03:04:05')
 
     @configuration
-    def test_date_from_channel_ini_instead_of_ubuntu_build(self, ini_file):
+    def test_date_from_channel_ini_instead_of_ubuntu_build(self, config_d):
         # The last update date can come from the mtime of the channel.ini
         # file, which lives next to the configuration file, even when there is
         # an /etc/ubuntu-build file.
         channel_ini = os.path.join(
-            os.path.dirname(ini_file), 'channel.ini')
+            os.path.dirname(config_d), 'channel.ini')
         with open(channel_ini, 'w', encoding='utf-8'):
             pass
         # This creates the ubuntu-build file, but not the channel.ini file.
@@ -155,10 +171,10 @@ class TestLastUpdateDate(unittest.TestCase):
         self.assertEqual(last_update_date(), '2022-03-04 05:06:07')
 
     @configuration
-    def test_date_fallback(self, ini_file):
+    def test_date_fallback(self, config_d):
         # If the channel.ini file doesn't exist, use the ubuntu-build file.
         channel_ini = os.path.join(
-            os.path.dirname(ini_file), 'channel.ini')
+            os.path.dirname(config_d), 'channel.ini')
         with open(channel_ini, 'w', encoding='utf-8'):
             pass
         # This creates the ubuntu-build file, but not the channel.ini file.
@@ -171,19 +187,18 @@ class TestLastUpdateDate(unittest.TestCase):
         self.assertEqual(last_update_date(), '2022-01-02 03:04:05')
 
     @configuration
-    def test_date_unknown(self, ini_file):
+    def test_date_unknown(self, config_d):
         # No fallbacks.
-        config = Configuration(ini_file)
-        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
+        config = Configuration(config_d)
+        channel_ini = os.path.join(config_d, 'channel.ini')
         self.assertFalse(os.path.exists(channel_ini))
         self.assertFalse(os.path.exists(config.system.build_file))
         self.assertEqual(last_update_date(), 'Unknown')
 
     @configuration
-    def test_date_no_microseconds(self, ini_file):
+    def test_date_no_microseconds(self, config_d):
         # Resolution is seconds.
-        channel_ini = os.path.join(
-            os.path.dirname(ini_file), 'channel.ini')
+        channel_ini = os.path.join(config_d, 'channel.ini')
         with open(channel_ini, 'w', encoding='utf-8'):
             pass
         timestamp = datetime(2013, 12, 11, 10, 9, 8, 7).timestamp()
@@ -193,14 +208,14 @@ class TestLastUpdateDate(unittest.TestCase):
         self.assertEqual(last_update_date(), '2013-12-11 10:09:08')
 
     @configuration
-    def test_version_detail(self, ini_file):
+    def test_version_detail(self):
         channel_ini = data_path('channel_03.ini')
         config.load(channel_ini, override=True)
         self.assertEqual(version_detail(),
                          dict(ubuntu='123', mako='456', custom='789'))
 
     @configuration
-    def test_no_version_detail(self, ini_file):
+    def test_no_version_detail(self):
         channel_ini = data_path('channel_01.ini')
         config.load(channel_ini, override=True)
         self.assertEqual(version_detail(), {})
@@ -213,7 +228,7 @@ class TestLastUpdateDate(unittest.TestCase):
         self.assertEqual(version_detail('ubuntu,mako,custom'), {})
 
     @configuration
-    def test_date_from_userdata_ignoring_fallbacks(self, ini_file):
+    def test_date_from_userdata_ignoring_fallbacks(self, config_d):
         # Even when /etc/system-image/channel.ini and /etc/ubuntu-build exist,
         # if there's a /userdata/.last_update file, that takes precedence.
         with ExitStack() as stack:
@@ -228,8 +243,7 @@ class TestLastUpdateDate(unittest.TestCase):
             timestamp = int(datetime(2010, 9, 8, 7, 6, 5).timestamp())
             os.utime(userdata_path, (timestamp, timestamp))
             # /etc/channel.ini
-            channel_ini = os.path.join(
-                os.path.dirname(ini_file), 'channel.ini')
+            channel_ini = os.path.join(config_d, 'channel.ini')
             with open(channel_ini, 'w'):
                 pass
             timestamp = int(datetime(2011, 10, 9, 8, 7, 6).timestamp())
@@ -241,12 +255,11 @@ class TestLastUpdateDate(unittest.TestCase):
             self.assertEqual(last_update_date(), '2010-09-08 07:06:05')
 
     @configuration
-    def test_last_date_no_permission(self, ini_file):
+    def test_last_date_no_permission(self, config_d):
         # LP: #1365761 reports a problem where stat'ing /userdata/.last_update
         # results in a PermissionError.  In that case it should just use a
         # fall back, in this case the channel.ini file.
-        channel_ini = os.path.join(
-            os.path.dirname(ini_file), 'channel.ini')
+        channel_ini = os.path.join(config_d, 'channel.ini')
         with open(channel_ini, 'w', encoding='utf-8'):
             pass
         # This creates the ubuntu-build file, but not the channel.ini file.

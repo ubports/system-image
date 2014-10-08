@@ -300,11 +300,11 @@ unmount system
         self.assertGreaterEqual(resumes[0] - pauses[0], timedelta(seconds=2.5))
 
     @configuration
-    def test_state_machine_exceptions(self, ini_file):
+    def test_state_machine_exceptions(self, config_d):
         # An exception in the state machine captures the exception and returns
         # an error string in the Update instance.
         self._setup_server_keyrings()
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         with chmod(config.updater.cache_partition, 0):
             update = Mediator().check_for_update()
         # There's no winning path, but there is an error.

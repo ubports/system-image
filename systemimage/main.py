@@ -41,7 +41,7 @@ from textwrap import dedent
 __version__ = resource_bytes(
     'systemimage', 'version.txt').decode('utf-8').strip()
 
-DEFAULT_CONFIG_FILE = '/etc/system-image/client.ini'
+DEFAULT_CONFIG_D = '/etc/system-image/config.d'
 COLON = ':'
 
 
@@ -54,7 +54,7 @@ def main():
                         action='version',
                         version='system-image-cli {}'.format(__version__))
     parser.add_argument('-C', '--config',
-                        default=DEFAULT_CONFIG_FILE, action='store',
+                        default=DEFAULT_CONFIG_D, action='store',
                         metavar='FILE',
                         help="""Use the given configuration file instead of
                                 the default""")

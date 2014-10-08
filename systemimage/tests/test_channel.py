@@ -124,7 +124,7 @@ class TestLoadChannel(unittest.TestCase):
                          '/daily/nexus7/device-keyring.tar.xz.asc')
 
     @configuration
-    def test_load_channel_bad_signature(self, ini_file):
+    def test_load_channel_bad_signature(self):
         # We get an error if the signature on the channels.json file is bad.
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
@@ -148,7 +148,7 @@ class TestLoadChannel(unittest.TestCase):
         self.assertRaises(SignatureError, next, self._state)
 
     @configuration
-    def test_load_channel_bad_signature_gets_fixed(self, ini_file):
+    def test_load_channel_bad_signature_gets_fixed(self, config_d):
         # Like above, but the second download of the image signing key results
         # in a properly signed channels.json file.
         sign(self._channels_path, 'spare.gpg')
@@ -165,7 +165,7 @@ class TestLoadChannel(unittest.TestCase):
                           os.path.join(self._serverdir, 'gpg',
                                        'image-signing.tar.xz'))
         # This will succeed by grabbing a new image-signing key.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         with open(config.gpg.image_signing, 'rb') as fp:
             checksum = hashlib.md5(fp.read()).digest()
         next(self._state)
@@ -180,7 +180,7 @@ class TestLoadChannel(unittest.TestCase):
             '/daily/nexus7/device-keyring.tar.xz.asc')
 
     @configuration
-    def test_load_channel_blacklisted_signature(self, ini_file):
+    def test_load_channel_blacklisted_signature(self, config_d):
         # We get an error if the signature on the channels.json file is good
         # but the key is blacklisted.
         sign(self._channels_path, 'image-signing.gpg')
@@ -193,7 +193,7 @@ class TestLoadChannel(unittest.TestCase):
         # cause the state machine to try to download a new image signing key,
         # so let's put the cached one up on the server.  This will still be
         # backlisted though.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         key_path = os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz')
         shutil.copy(config.gpg.image_signing, key_path)
         shutil.copy(config.gpg.image_signing + '.asc', key_path + '.asc')

@@ -51,14 +51,14 @@ from urllib.parse import urljoin
 
 def _http_pathify(downloads):
     return [
-        (urljoin(config.service.http_base, url),
+        (urljoin(config.http_base, url),
          os.path.join(config.tempdir, filename)
         ) for url, filename in downloads]
 
 
 def _https_pathify(downloads):
     return [
-        (urljoin(config.service.https_base, url),
+        (urljoin(config.https_base, url),
          os.path.join(config.tempdir, filename)
         ) for url, filename in downloads]
 
@@ -324,10 +324,10 @@ class TestGSMDownloads(unittest.TestCase):
         super().tearDown()
 
     @configuration
-    def test_manual_downloads_gsm_allowed(self, ini_file):
+    def test_manual_downloads_gsm_allowed(self, config_d):
         # When auto_download is 0, manual downloads are enabled so assuming
         # the user knows what they're doing, GSM downloads are allowed.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         Settings(config).set('auto_download', '0')
         DBusDownloadManager().get_files(_http_pathify([
             ('channels_01.json', 'channels.json')
@@ -336,10 +336,10 @@ class TestGSMDownloads(unittest.TestCase):
         self.assertTrue(self._gsm_get_flag)
 
     @configuration
-    def test_wifi_downloads_gsm_disallowed(self, ini_file):
+    def test_wifi_downloads_gsm_disallowed(self, config_d):
         # Obviously GSM downloads are not allowed when downloading
         # automatically on wifi-only.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         Settings(config).set('auto_download', '1')
         DBusDownloadManager().get_files(_http_pathify([
             ('channels_01.json', 'channels.json')
@@ -348,9 +348,9 @@ class TestGSMDownloads(unittest.TestCase):
         self.assertFalse(self._gsm_get_flag)
 
     @configuration
-    def test_always_downloads_gsm_allowed(self, ini_file):
+    def test_always_downloads_gsm_allowed(self, config_d):
         # GSM downloads are allowed when always downloading.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         Settings(config).set('auto_download', '2')
         DBusDownloadManager().get_files(_http_pathify([
             ('channels_01.json', 'channels.json')
@@ -550,7 +550,7 @@ class TestDuplicateDownloads(unittest.TestCase):
         with open(os.path.join(self._serverdir, 'source.dat'), 'wb') as fp:
             fp.write(content)
         downloader = DBusDownloadManager()
-        url = urljoin(config.service.http_base, 'source.dat')
+        url = urljoin(config.http_base, 'source.dat')
         downloads = [
             Record(url, 'local.dat', checksum),
             # Mutate the checksum so they won't match.
@@ -582,7 +582,7 @@ class TestDuplicateDownloads(unittest.TestCase):
         with open(os.path.join(self._serverdir, 'source.dat'), 'wb') as fp:
             fp.write(content)
         downloader = DBusDownloadManager()
-        url = urljoin(config.service.http_base, 'source.dat')
+        url = urljoin(config.http_base, 'source.dat')
         downloads = [
             Record(url, 'local.dat', checksum),
             # Mutate the checksum so they won't match.

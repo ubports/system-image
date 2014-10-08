@@ -33,7 +33,8 @@ from systemimage.config import config
 from systemimage.dbus import Loop
 from systemimage.helpers import makedirs
 from systemimage.logging import initialize
-from systemimage.main import DEFAULT_CONFIG_FILE
+from systemimage.main import DEFAULT_CONFIG_D
+
 
 # --testing is only enabled when the systemimage.testing package is
 # available.  This will be the case for the upstream source package, and when
@@ -60,7 +61,7 @@ def main():
                         action='version',
                         version='system-image-dbus {}'.format(__version__))
     parser.add_argument('-C', '--config',
-                        default=DEFAULT_CONFIG_FILE, action='store',
+                        default=DEFAULT_CONFIG_D, action='store',
                         metavar='FILE',
                         help="""Use the given configuration file instead of
                                 the default""")
@@ -75,17 +76,10 @@ def main():
 
     args = parser.parse_args(sys.argv[1:])
     try:
-        config.load(args.config)
+        config.load_directory(args.config)
     except FileNotFoundError as error:
-        parser.error('\nConfiguration file not found: {}'.format(error))
+        parser.error('\nConfiguration directory not found: {}'.format(error))
         assert 'parser.error() does not return' # pragma: no cover
-    # Load the optional channel.ini file, which must live next to the
-    # configuration file.  It's okay if this file does not exist.
-    channel_ini = os.path.join(os.path.dirname(args.config), 'channel.ini')
-    try:
-        config.load(channel_ini, override=True)
-    except FileNotFoundError:
-        pass
 
     # Create the temporary directory if it doesn't exist.
     makedirs(config.system.tempdir)
@@ -118,6 +112,7 @@ def main():
         else:
             from systemimage.dbus import Service
             config.dbus_service = Service(system_bus, '/Service', loop)
+
         try:
             loop.run()
         except KeyboardInterrupt:                   # pragma: no cover

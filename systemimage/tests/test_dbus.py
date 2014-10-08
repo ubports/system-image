@@ -333,7 +333,6 @@ class _LiveTesting(_TestBase):
         # Consume the UpdateFailed that results from the cancellation.
         reactor = SignalCapturingReactor('TornDown')
         reactor.run(self.iface.TearDown, timeout=15)
-        safe_remove(self.config.system.build_file)
         for updater_dir in (self.config.updater.cache_partition,
                             self.config.updater.data_partition):
             try:
@@ -361,6 +360,7 @@ class _LiveTesting(_TestBase):
         # touch_build() to generalize it.
         assert 0 <= version < (1 << 16), (
             'old style version number: {}'.format(version))
+        raise FIXME
         with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
             print(version, file=fp)
         if timestamp is not None:

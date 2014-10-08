@@ -34,8 +34,8 @@ from unittest.mock import patch
 
 class TestSettings(unittest.TestCase):
     @configuration
-    def test_creation(self, ini_file):
-        config = Configuration(ini_file)
+    def test_creation(self, config_d):
+        config = Configuration(config_d)
         self.assertFalse(os.path.exists(config.system.settings_db))
         settings = Settings()
         self.assertTrue(os.path.exists(config.system.settings_db))
@@ -105,12 +105,12 @@ class TestSettings(unittest.TestCase):
         self.assertEqual(keyval, [('a', 'ant'), ('b', 'bee'), ('c', 'cat')])
 
     @configuration
-    def test_settings_db_permission_denied(self, ini_file):
+    def test_settings_db_permission_denied(self, config_d):
         # LP: #1349478 - some tests are run as non-root, meaning they don't
         # have write permission to /var/lib/system-image.  This is where
         # settings.db gets created, but if the process can't create files
         # there, we get a sqlite3 exception.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         db_file = Path(config.system.settings_db)
         self.assertFalse(db_file.exists())
         with ExitStack() as resources:
