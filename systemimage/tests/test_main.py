@@ -146,7 +146,7 @@ class TestCLIMain(unittest.TestCase):
         # Create a configuration file with directories that point to
         # non-existent locations.
         config_ini = os.path.join(dir_1, 'client.ini')
-        with open(data_path('config_00.ini'), encoding='utf-8') as fp:
+        with open(data_path('00.ini'), encoding='utf-8') as fp:
             template = fp.read()
         # These paths look something like they would on the real system.
         tmpdir = os.path.join(dir_2, 'tmp', 'system-image')

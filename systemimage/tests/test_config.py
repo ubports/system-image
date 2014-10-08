@@ -256,11 +256,11 @@ class TestConfiguration(unittest.TestCase):
         config.build_number = 21000000
         self.assertEqual(config.build_number, 21000000)
 
-    @configuration('config_00.ini', 'channel_02.ini')
+    @configuration('00.ini', 'config_11.ini')
     def test_later_files_override(self, config):
-        # This value comes from the config_00.ini file.
+        # This value comes from the 00.ini file.
         self.assertEqual(config.system.timeout, timedelta(seconds=1))
-        # These get overridden in channel_02.ini.
+        # These get overridden in config_11.ini.
         self.assertEqual(config.service.base, 'systum-imaje.ubuntu.com')
         self.assertEqual(config.dbus.lifetime, timedelta(hours=1))
 

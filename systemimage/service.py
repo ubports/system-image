@@ -76,7 +76,7 @@ def main():
 
     args = parser.parse_args(sys.argv[1:])
     try:
-        config.load_directory(args.config)
+        config.load(args.config)
     except FileNotFoundError as error:
         parser.error('\nConfiguration directory not found: {}'.format(error))
         assert 'parser.error() does not return' # pragma: no cover

@@ -216,8 +216,7 @@ def make_http_server(directory, port, certpem=None, keypem=None):
 # @configuration
 # def test_something(self):
 #
-# The default 00_default.ini.in file is interpolated and copied into
-# config.d.  Simple.
+# The default 00.ini file is interpolated and copied into config.d.  Simple.
 #
 # In the latter case, e.g.
 #
@@ -277,12 +276,12 @@ def configuration(*args):
 
     If called, the arguments are positional only, and name the test data .ini
     files which are to be copied to config.d directory.  If none are given,
-    then 00_defaults.ini is used.
+    then 00.ini is used.
     """
     if len(args) == 1 and callable(args[0]):
         # We assume this was the bare @configuration decorator flavor.
         function = args[0]
-        inner = partialmethod(_wrapper, function, ('config_00.ini',))
+        inner = partialmethod(_wrapper, function, ('00.ini',))
         return wraps(function)(inner)
     else:
         # We assume this was the called @configuration(...) decorator flavor,
