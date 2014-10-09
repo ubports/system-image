@@ -94,7 +94,7 @@ class TestConfiguration(unittest.TestCase):
         # [dbus]
         self.assertEqual(config.dbus.lifetime.total_seconds(), 600)
 
-    @configuration('config_01.ini')
+    @configuration('config.config_01.ini')
     def test_basic_config_d(self, config):
         # Read a basic config.d directory and check that the various attributes
         # and values are correct.
@@ -135,40 +135,40 @@ class TestConfiguration(unittest.TestCase):
         # [dbus]
         self.assertEqual(config.dbus.lifetime.total_seconds(), 120)
 
-    @configuration('config_10.ini')
+    @configuration('config.config_02.ini')
     def test_special_dbus_logging_level(self, config):
         # Read a config.ini that has a loglevel value with an explicit dbus
         # logging level.
         self.assertEqual(config.system.loglevel,
                          (logging.CRITICAL, logging.DEBUG))
 
-    @configuration('config_02.ini')
+    @configuration('config.config_03.ini')
     def test_nonstandard_ports(self, config):
-        # config_02.ini has non-standard http and https ports.
+        # This ini file has non-standard http and https ports.
         self.assertEqual(config.service.base, 'phablet.example.com')
         self.assertEqual(config.http_base, 'http://phablet.example.com:8080')
         self.assertEqual(config.https_base,
                          'https://phablet.example.com:80443')
 
-    @configuration('config_05.ini')
+    @configuration('config.config_05.ini')
     def test_disabled_http_port(self, config):
-        # config_05.ini has http port disabled and non-standard https port.
+        # This ini file has http port disabled and non-standard https port.
         self.assertEqual(config.service.base, 'phablet.example.com')
         self.assertEqual(config.http_base, 'https://phablet.example.com:80443')
         self.assertEqual(config.https_base,
                          'https://phablet.example.com:80443')
 
-    @configuration('config_06.ini')
+    @configuration('config.config_06.ini')
     def test_disabled_https_port(self, config):
-        # config_06.ini has https port disabled and standard http port.
+        # This in i file has https port disabled and standard http port.
         self.assertEqual(config.service.base, 'phablet.example.com')
         self.assertEqual(config.http_base, 'http://phablet.example.com')
         self.assertEqual(config.https_base, 'http://phablet.example.com')
 
     @configuration
     def test_both_ports_disabled(self, config_d):
-        # config_07.ini has both http and https ports disabled.
-        shutil.copy(data_path('config_07.ini'),
+        # This ini file has both http and https ports disabled.
+        shutil.copy(data_path('config.config_07.ini'),
                     os.path.join(config_d, '01_override.ini'))
         config = Configuration()
         with self.assertRaises(ValueError) as cm:
@@ -178,8 +178,8 @@ class TestConfiguration(unittest.TestCase):
 
     @configuration
     def test_negative_port_number(self, config_d):
-        # config_08.ini has a negative port number.
-        shutil.copy(data_path('config_08.ini'),
+        # This ini file has a negative port number.
+        shutil.copy(data_path('config.config_08.ini'),
                     os.path.join(config_d, '01_override.ini'))
         with self.assertRaises(ValueError) as cm:
             Configuration(config_d)
@@ -264,11 +264,11 @@ class TestConfiguration(unittest.TestCase):
         config.build_number = 21000000
         self.assertEqual(config.build_number, 21000000)
 
-    @configuration('00.ini', 'config_11.ini')
+    @configuration('00.ini', 'config.config_09.ini')
     def test_later_files_override(self, config):
         # This value comes from the 00.ini file.
         self.assertEqual(config.system.timeout, timedelta(seconds=1))
-        # These get overridden in config_11.ini.
+        # These get overridden in second ini file.
         self.assertEqual(config.service.base, 'systum-imaje.ubuntu.com')
         self.assertEqual(config.dbus.lifetime, timedelta(hours=1))
 
@@ -299,7 +299,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(stdout[:29], 'drwx--S--- /tmp/system-image-')
         self.assertFalse(os.path.exists(stdout.split()[1]))
 
-    @configuration('config_09.ini')
+    @configuration('config.config_10.ini')
     def test_missing_stanza_okay(self, config):
         # config_09.ini does not contain a [system] section, so that gets set
         # to the built-in default values.
