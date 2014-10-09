@@ -28,8 +28,9 @@ from contextlib import ExitStack
 from datetime import datetime, timedelta
 from gi.repository import GLib
 from hashlib import sha256
+from pathlib import Path
 from systemimage.api import Mediator
-from systemimage.config import Configuration, config
+from systemimage.config import config
 from systemimage.download import Canceled
 from systemimage.gpg import SignatureError
 from systemimage.helpers import MiB
@@ -41,8 +42,8 @@ from unittest.mock import patch
 
 
 class TestAPI(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'api.index_01.json'
+    CHANNEL_FILE = 'api.channels_01.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -106,11 +107,11 @@ class TestAPI(ServerTestBase):
         self._setup_server_keyrings()
         # Index 14 has a more interesting upgrade path, and will yield a
         # richer description set.
-        index_dir = os.path.join(self._serverdir, self.CHANNEL, self.DEVICE)
-        index_path = os.path.join(index_dir, 'index.json')
-        copy('index_14.json', index_dir, 'index.json')
+        index_dir = Path(self._serverdir) / self.CHANNEL / self.DEVICE
+        index_path = index_dir / 'index.json'
+        copy('api.index_02.json', index_dir, 'index.json')
         sign(index_path, 'device-signing.gpg')
-        setup_index('index_14.json', self._serverdir, 'device-signing.gpg')
+        setup_index('api.index_02.json', self._serverdir, 'device-signing.gpg')
         # Get the descriptions.
         update = Mediator().check_for_update()
         self.assertTrue(update.is_available)
@@ -149,8 +150,8 @@ class TestAPI(ServerTestBase):
         # No reboot got issued.
         self.assertFalse(reboot.called)
         # But the command file did get written, and all the files are present.
-        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
-        with open(path, 'r', encoding='utf-8') as fp:
+        path = Path(config.updater.cache_partition) / 'ubuntu_command'
+        with path.open('r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, """\
 load_keyring image-master.tar.xz image-master.tar.xz.asc
@@ -203,8 +204,8 @@ unmount system
         with patch('systemimage.reboot.Reboot.reboot') as reboot:
             mediator.factory_reset()
         self.assertTrue(reboot.called)
-        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
-        with open(path, 'r', encoding='utf-8') as fp:
+        path = Path(config.updater.cache_partition) / 'ubuntu_command'
+        with path.open('r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, dedent("""\
             format data
@@ -244,20 +245,20 @@ unmount system
     def test_pause_resume(self):
         # Pause and resume the download.
         self._setup_server_keyrings()
+        server_dir = Path(self._serverdir)
         for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
-            full_path = os.path.join(self._serverdir, path)
-            with open(full_path, 'wb') as fp:
+            full_path = server_dir / path
+            with full_path.open('wb') as fp:
                 fp.write(b'x' * 100 * MiB)
         # We must update the file checksums in the index.json file, then we
         # have to resign it.
-        index_path = os.path.join(
-            self._serverdir, 'stable', 'nexus7', 'index.json')
-        with open(index_path, 'r', encoding='utf-8') as fp:
+        index_path = server_dir / 'stable' / 'nexus7' / 'index.json'
+        with index_path.open('r', encoding='utf-8') as fp:
             index = json.load(fp)
         checksum = sha256(b'x' * 100 * MiB).hexdigest()
         for i in range(3):
             index['images'][0]['files'][i]['checksum'] = checksum
-        with open(index_path, 'w', encoding='utf-8') as fp:
+        with index_path.open('w', encoding='utf-8') as fp:
             json.dump(index, fp)
         sign(index_path, 'device-signing.gpg')
         # Now the test is all set up.
@@ -300,11 +301,10 @@ unmount system
         self.assertGreaterEqual(resumes[0] - pauses[0], timedelta(seconds=2.5))
 
     @configuration
-    def test_state_machine_exceptions(self, config_d):
+    def test_state_machine_exceptions(self, config):
         # An exception in the state machine captures the exception and returns
         # an error string in the Update instance.
         self._setup_server_keyrings()
-        config = Configuration(config_d)
         with chmod(config.updater.cache_partition, 0):
             update = Mediator().check_for_update()
         # There's no winning path, but there is an error.

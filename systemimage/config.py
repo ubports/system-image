@@ -70,6 +70,8 @@ class Configuration:
         self._build_number = None
         self._channel = None
         self._tempdir = None
+        self.config_d = None
+        self.ini_files = []
         self.http_base = None
         self.https_base = None
         if directory is not None:
@@ -79,9 +81,6 @@ class Configuration:
         atexit.register(self._resources.close)
 
     def _set_defaults(self):
-        # Record all the configuration files that get loaded.
-        self.config_paths = []
-        self.config_d = None
         self.service = Bag(
             base='system-image.ubuntu.com',
             http_port=80,
@@ -123,7 +122,7 @@ class Configuration:
         files_read = parser.read(str_path)
         if files_read != [str_path]:
             raise FileNotFoundError(path)
-        self.config_paths.append(path)
+        self.ini_files.append(path)
         self.service.update(converters=dict(http_port=as_port,
                                             https_port=as_port,
                                             build_number=int,
@@ -170,7 +169,12 @@ class Configuration:
 
     def reload(self):
         """Reload the configuration directory."""
+        # Reset some cached attributes.
         directory = self.config_d
+        self.ini_files = []
+        self.config_d = None
+        self._build_number = None
+        # Now load the defaults, then reload the previous config.d directory.
         self._set_defaults()
         self.load(directory)
 

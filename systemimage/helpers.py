@@ -256,7 +256,7 @@ def last_update_date():
         # We fall back to the latest mtime of the config.d/*.ini files.
         timestamps = sorted(
             datetime.fromtimestamp(path.stat().st_mtime)
-            for path in config.config_paths)
+            for path in config.ini_files)
         if len(timestamps) == 0:
             return 'Unknown'
         timestamp = timestamps[-1]

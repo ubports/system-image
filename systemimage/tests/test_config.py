@@ -194,6 +194,14 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.build_number, 1500)
 
     @configuration
+    def test_get_build_number_after_reload(self, config):
+        # After a reload, the build number gets updated.
+        self.assertEqual(config.build_number, 0)
+        touch_build(801)
+        config.reload()
+        self.assertEqual(config.build_number, 801)
+
+    @configuration
     def test_get_build_number_missing(self, config):
         # The build file is missing, so the build number defaults to 0.
         self.assertEqual(config.build_number, 0)

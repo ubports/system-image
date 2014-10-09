@@ -300,6 +300,8 @@ def sign(filename, pubkey_ring):
         with.  This keyring must contain only one key, and its key id must
         exist in the master secret keyring.
     """
+    # filename could be a Path object.  For now, just str-ify it.
+    filename = str(filename)
     with ExitStack() as resources:
         home = resources.enter_context(temporary_directory())
         secring = data_path('master-secring.gpg')
@@ -319,7 +321,7 @@ def sign(filename, pubkey_ring):
 
 def copy(filename, todir, dst=None):
     src = data_path(filename)
-    dst = os.path.join(todir, filename if dst is None else dst)
+    dst = os.path.join(str(todir), filename if dst is None else dst)
     makedirs(os.path.dirname(dst))
     shutil.copy(src, dst)
 
@@ -459,6 +461,7 @@ build_number: {}
     if timestamp is not None:
         timestamp = int(timestamp)
         os.utime(str(override), (timestamp, timestamp))
+    config.reload()
 
 
 def write_bytes(path, size_in_mib):
