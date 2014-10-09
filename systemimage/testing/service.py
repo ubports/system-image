@@ -22,8 +22,8 @@ collection as early as possible in the private bus D-Bus activated processes.
 # Uncomment this if the controller won't start.  There's other no good way to
 # get debugging information about D-Bus activated processes, since their stderr
 # just seems to get lost.
-import sys
-sys.stderr = open('/tmp/debug.log', 'a', encoding='utf-8')
+## import sys
+## sys.stderr = open('/tmp/debug.log', 'a', encoding='utf-8')
 
 import os
 
