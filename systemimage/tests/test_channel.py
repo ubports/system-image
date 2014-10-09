@@ -45,7 +45,7 @@ class TestChannels(unittest.TestCase):
         # Test that parsing a simple top level channels.json file produces the
         # expected set of channels.  The Nexus 7 daily images have a device
         # specific keyring.
-        channels = get_channels('channels_01.json')
+        channels = get_channels('channel.channels_01.json')
         self.assertEqual(channels.daily.devices.nexus7.index,
                          '/daily/nexus7/index.json')
         self.assertEqual(channels.daily.devices.nexus7.keyring.path,
@@ -61,30 +61,30 @@ class TestChannels(unittest.TestCase):
 
     def test_getattr_failure(self):
         # Test the getattr syntax on an unknown channel or device combination.
-        channels = get_channels('channels_01.json')
+        channels = get_channels('channel.channels_01.json')
         self.assertRaises(AttributeError, getattr, channels, 'bleeding')
         self.assertRaises(AttributeError, getattr, channels.stable, 'nexus3')
 
     def test_daily_proposed(self):
         # The channel name has a dash in it.
-        channels = get_channels('channels_07.json')
+        channels = get_channels('channel.channels_02.json')
         self.assertEqual(channels['daily-proposed'].devices.grouper.index,
                          '/daily-proposed/grouper/index.json')
 
     def test_bad_getitem(self):
         # Trying to get a channel via getitem which doesn't exist.
-        channels = get_channels('channels_07.json')
+        channels = get_channels('channel.channels_02.json')
         self.assertRaises(KeyError, getitem, channels, 'daily-testing')
 
     def test_channel_version(self):
         # The channel name has a dot in it.
-        channels = get_channels('channels_08.json')
+        channels = get_channels('channel.channels_03.json')
         self.assertEqual(channels['13.10'].devices.grouper.index,
                          '/13.10/grouper/index.json')
 
     def test_channel_version_proposed(self):
         # The channel name has both a dot and a dash in it.
-        channels = get_channels('channels_08.json')
+        channels = get_channels('channel.channels_03.json')
         self.assertEqual(channels['14.04-proposed'].devices.grouper.index,
                          '/14.04-proposed/grouper/index.json')
 
@@ -103,7 +103,7 @@ class TestLoadChannel(unittest.TestCase):
             self._serverdir = self._stack.enter_context(temporary_directory())
             self._stack.push(make_http_server(
                 self._serverdir, 8943, 'cert.pem', 'key.pem'))
-            copy('channels_01.json', self._serverdir, 'channels.json')
+            copy('channel.channels_01.json', self._serverdir, 'channels.json')
             self._channels_path = os.path.join(
                 self._serverdir, 'channels.json')
         except:
@@ -215,7 +215,7 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
         self._stack = ExitStack()
         try:
             self._serverdir = self._stack.enter_context(temporary_directory())
-            copy('channels_01.json', self._serverdir, 'channels.json')
+            copy('channel.channels_01.json', self._serverdir, 'channels.json')
             sign(os.path.join(self._serverdir, 'channels.json'),
                  'image-signing.gpg')
         except:
@@ -242,7 +242,7 @@ class TestChannelsNewFormat(unittest.TestCase):
     """LP: #1221841 introduces a new format to channels.json."""
     def test_channels(self):
         # We can parse new-style channels.json files.
-        channels = get_channels('channels_09.json')
+        channels = get_channels('channel.channels_04.json')
         self.assertEqual(channels.daily.alias, 'saucy')
         self.assertEqual(channels.daily.devices.grouper.index,
                          '/daily/grouper/index.json')
@@ -262,23 +262,23 @@ class TestChannelsNewFormat(unittest.TestCase):
 
     def test_hidden_defaults_to_false(self):
         # If a channel does not have a hidden field, it defaults to false.
-        channels = get_channels('channels_09.json')
+        channels = get_channels('channel.channels_04.json')
         self.assertFalse(channels.daily.hidden)
 
     def test_getattr_failure(self):
         # Test the getattr syntax on an unknown channel or device combination.
-        channels = get_channels('channels_09.json')
+        channels = get_channels('channel.channels_04.json')
         self.assertRaises(AttributeError, getattr, channels, 'bleeding')
         self.assertRaises(
             AttributeError, getattr, channels.daily.devices, 'nexus3')
 
     def test_daily_proposed(self):
         # The channel name has a dash in it.
-        channels = get_channels('channels_09.json')
+        channels = get_channels('channel.channels_04.json')
         self.assertEqual(channels['saucy-proposed'].devices.grouper.index,
                          '/saucy-proposed/grouper/index.json')
 
     def test_bad_getitem(self):
         # Trying to get a channel via getitem which doesn't exist.
-        channels = get_channels('channels_09.json')
+        channels = get_channels('channel.channels_04.json')
         self.assertRaises(KeyError, getitem, channels, 'daily-testing')
