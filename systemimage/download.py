@@ -246,7 +246,8 @@ class CurlDownloadManager:
         return c
 
     def _report_total_progress(self, curl_multi, total_download_size):
-        now = sum([c.dltotal for c in curl_multi.handles])
+        # use getattr() here as dltotal is not always available
+        now = sum([getattr(c, "dltotal", 0) for c in curl_multi.handles])
         # no data yet
         if total_download_size == 0:
             return
