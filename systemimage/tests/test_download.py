@@ -16,8 +16,8 @@
 """Test asynchronous downloads."""
 
 __all__ = [
+    'TestDownload',
     'TestDownloadBigFiles',
-    'TestDownloads',
     'TestDuplicateDownloads',
     'TestGSMDownloads',
     'TestHTTPSDownloads',
@@ -39,7 +39,8 @@ from gi.repository import GLib
 from hashlib import sha256
 from systemimage.config import Configuration, config
 from systemimage.download import (
-    Canceled, DBusDownloadManager, DuplicateDestinationError, Record)
+    Canceled, DBusDownloadManager, DuplicateDestinationError, Record,
+    get_download_manager)
 from systemimage.helpers import temporary_directory
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
@@ -63,7 +64,9 @@ def _https_pathify(downloads):
         ) for url, filename in downloads]
 
 
-class TestDownloads(unittest.TestCase):
+class TestDownload(unittest.TestCase):
+    """Base class for testing the PyCURL and udm downloaders."""
+
     def setUp(self):
         super().setUp()
         self._resources = ExitStack()
@@ -80,10 +83,13 @@ class TestDownloads(unittest.TestCase):
         self._resources.close()
         super().tearDown()
 
+    def _downloader(self, *args):
+        return get_download_manager(*args)
+
     @configuration
     def test_good_path(self):
         # Download a bunch of files that exist.  No callback.
-        DBusDownloadManager().get_files(_http_pathify([
+        self._downloader().get_files(_http_pathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ]))
@@ -94,7 +100,7 @@ class TestDownloads(unittest.TestCase):
     @configuration
     def test_empty_download(self):
         # Empty download set completes successfully.  LP: #1245597.
-        DBusDownloadManager().get_files([])
+        self._downloader().get_files([])
         # No TimeoutError is raised.
 
     @configuration
@@ -105,7 +111,7 @@ class TestDownloads(unittest.TestCase):
             print(version, file=fp)
         # Download a magic path which the server will interpret to return us
         # the User-Agent header value.
-        DBusDownloadManager().get_files(_http_pathify([
+        self._downloader().get_files(_http_pathify([
             ('user-agent.txt', 'user-agent.txt'),
             ]))
         path = os.path.join(config.tempdir, 'user-agent.txt')
@@ -124,7 +130,7 @@ class TestDownloads(unittest.TestCase):
             nonlocal received_bytes, total_bytes
             received_bytes = received
             total_bytes = total
-        downloader = DBusDownloadManager(callback)
+        downloader = self._downloader(callback)
         downloader.get_files(_http_pathify([
             ('channels_01.json', 'channels.json'),
             ('index_01.json', 'index.json'),
@@ -144,7 +150,7 @@ class TestDownloads(unittest.TestCase):
         def capture(message):
             nonlocal exception
             exception = message
-        downloader = DBusDownloadManager(callback)
+        downloader = self._downloader(callback)
         with patch('systemimage.download.log.exception', capture):
             downloader.get_files(_http_pathify([
                 ('channels_01.json', 'channels.json'),
@@ -163,7 +169,7 @@ class TestDownloads(unittest.TestCase):
         # To test this, we patch systemimage.testing in sys.modules so that an
         # ImportError is raised when it tries to import it.
         with patch.dict(sys.modules, {'systemimage.testing.helpers': None}):
-            DBusDownloadManager().get_files(_http_pathify([
+            self._downloader().get_files(_http_pathify([
                 ('channels_01.json', 'channels.json'),
                 ]))
         self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
@@ -180,7 +186,7 @@ class TestDownloads(unittest.TestCase):
                    finish_with_timeout):
             self.assertRaises(
                 TimeoutError,
-                DBusDownloadManager().get_files,
+                self._downloader().get_files,
                 _http_pathify([('channels_01.json', 'channels.json')])
                 )
 
@@ -200,7 +206,7 @@ class TestHTTPSDownloads(unittest.TestCase):
         with ExitStack() as stack:
             stack.push(make_http_server(
                 self._directory, 8943, 'cert.pem', 'key.pem'))
-            DBusDownloadManager().get_files(_https_pathify([
+            get_download_manager().get_files(_https_pathify([
                 ('channels_01.json', 'channels.json'),
                 ]))
             self.assertEqual(
@@ -223,7 +229,7 @@ class TestHTTPSDownloadsNoSelfSigned(unittest.TestCase):
         with make_http_server(self._directory, 8943, 'cert.pem', 'key.pem'):
             self.assertRaises(
                 FileNotFoundError,
-                DBusDownloadManager().get_files,
+                get_download_manager().get_files,
                 _https_pathify([
                     ('channels_01.json', 'channels.json'),
                     ]))
@@ -238,7 +244,7 @@ class TestHTTPSDownloadsNoSelfSigned(unittest.TestCase):
             stack.push(make_http_server(self._directory, 8943))
             self.assertRaises(
                 FileNotFoundError,
-                DBusDownloadManager().get_files,
+                get_download_manager().get_files,
                 _https_pathify([
                     ('channels_01.json', 'channels.json'),
                     ]))
@@ -261,7 +267,7 @@ class TestHTTPSDownloadsExpired(unittest.TestCase):
                 self._directory, 8943, 'expired_cert.pem', 'expired_key.pem'))
             self.assertRaises(
                 FileNotFoundError,
-                DBusDownloadManager().get_files,
+                get_download_manager().get_files,
                 _https_pathify([
                     ('channels_01.json', 'channels.json'),
                     ]))
@@ -284,12 +290,13 @@ class TestHTTPSDownloadsNasty(unittest.TestCase):
                 self._directory, 8943, 'nasty_cert.pem', 'nasty_key.pem'))
             self.assertRaises(
                 FileNotFoundError,
-                DBusDownloadManager().get_files,
+                get_download_manager().get_files,
                 _https_pathify([
                     ('channels_01.json', 'channels.json'),
                     ]))
 
 
+# FIXME XXX: THIS ONLY WORKS WITH UDM
 class TestGSMDownloads(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -329,7 +336,7 @@ class TestGSMDownloads(unittest.TestCase):
         # the user knows what they're doing, GSM downloads are allowed.
         config = Configuration(ini_file)
         Settings(config).set('auto_download', '0')
-        DBusDownloadManager().get_files(_http_pathify([
+        get_download_manager().get_files(_http_pathify([
             ('channels_01.json', 'channels.json')
             ]))
         self.assertTrue(self._gsm_set_flag)
@@ -341,7 +348,7 @@ class TestGSMDownloads(unittest.TestCase):
         # automatically on wifi-only.
         config = Configuration(ini_file)
         Settings(config).set('auto_download', '1')
-        DBusDownloadManager().get_files(_http_pathify([
+        get_download_manager().get_files(_http_pathify([
             ('channels_01.json', 'channels.json')
             ]))
         self.assertFalse(self._gsm_set_flag)
@@ -352,7 +359,7 @@ class TestGSMDownloads(unittest.TestCase):
         # GSM downloads are allowed when always downloading.
         config = Configuration(ini_file)
         Settings(config).set('auto_download', '2')
-        DBusDownloadManager().get_files(_http_pathify([
+        get_download_manager().get_files(_http_pathify([
             ('channels_01.json', 'channels.json')
             ]))
         self.assertTrue(self._gsm_set_flag)
@@ -373,7 +380,7 @@ class TestDownloadBigFiles(unittest.TestCase):
             # The download service doesn't provide reliable cancel
             # granularity, so instead, we mock the 'started' signal to
             # immediately cancel the download.
-            downloader = DBusDownloadManager()
+            downloader = get_download_manager()
             def cancel_on_start(self, signal, path, started):
                 if started:
                     downloader.cancel()
@@ -407,7 +414,7 @@ class TestDownloadBigFiles(unittest.TestCase):
                 ('missing.txt', 'missing.txt'),
                 ])
             self.assertRaises(FileNotFoundError,
-                              DBusDownloadManager().get_files,
+                              get_download_manager().get_files,
                               downloads)
             # The temporary directory is empty.
             self.assertEqual(os.listdir(config.tempdir), [])
@@ -426,7 +433,7 @@ class TestDownloadBigFiles(unittest.TestCase):
                 ('bigfile_2.dat', 'bigfile_2.dat'),
                 ('bigfile_3.dat', 'bigfile_3.dat'),
                 ])
-            downloader = DBusDownloadManager()
+            downloader = get_download_manager()
             pauses = []
             def do_paused(self, signal, path, paused):
                 if paused:
@@ -506,7 +513,7 @@ class TestDuplicateDownloads(unittest.TestCase):
         checksum = sha256(content).hexdigest()
         with open(os.path.join(self._serverdir, 'source.dat'), 'wb') as fp:
             fp.write(content)
-        downloader = DBusDownloadManager()
+        downloader = get_download_manager()
         downloads = []
         for url, dst in _http_pathify([('source.dat', 'local.dat'),
                                        ('source.dat', 'local.dat'),
@@ -525,7 +532,7 @@ class TestDuplicateDownloads(unittest.TestCase):
             fp.write(content)
         with open(os.path.join(self._serverdir, 'source2.dat'), 'wb') as fp:
             fp.write(content)
-        downloader = DBusDownloadManager()
+        downloader = get_download_manager()
         downloads = []
         for url, dst in _http_pathify([('source1.dat', 'local.dat'),
                                        ('source2.dat', 'local.dat'),
@@ -549,7 +556,7 @@ class TestDuplicateDownloads(unittest.TestCase):
         checksum = sha256(content).hexdigest()
         with open(os.path.join(self._serverdir, 'source.dat'), 'wb') as fp:
             fp.write(content)
-        downloader = DBusDownloadManager()
+        downloader = get_download_manager()
         url = urljoin(config.service.http_base, 'source.dat')
         downloads = [
             Record(url, 'local.dat', checksum),
@@ -581,7 +588,7 @@ class TestDuplicateDownloads(unittest.TestCase):
         checksum = sha256(content).hexdigest()
         with open(os.path.join(self._serverdir, 'source.dat'), 'wb') as fp:
             fp.write(content)
-        downloader = DBusDownloadManager()
+        downloader = get_download_manager()
         url = urljoin(config.service.http_base, 'source.dat')
         downloads = [
             Record(url, 'local.dat', checksum),

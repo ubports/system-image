@@ -35,7 +35,7 @@ from itertools import islice
 from systemimage.candidates import get_candidates, iter_path
 from systemimage.channel import Channels
 from systemimage.config import config
-from systemimage.download import DBusDownloadManager, Record
+from systemimage.download import Record, get_download_manager
 from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import (
     atomic, calculate_signature, makedirs, safe_remove, temporary_directory)
@@ -110,7 +110,7 @@ class State:
         self.files = []
         self.channel_switch = None
         # Other public attributes.
-        self.downloader = DBusDownloadManager()
+        self.downloader = get_download_manager()
         self._next.append(self._cleanup)
 
     def __iter__(self):

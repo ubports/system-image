@@ -117,6 +117,14 @@ def make_http_server(directory, port, certpem=None, keypem=None):
             except ConnectionResetError:
                 super().handle_one_request()
 
+        def do_HEAD(self):
+            # Just tell the client we have the magic file.
+            if self.path == '/user-agent.txt':
+                self.send_response(200)
+                self.end_headers()
+            else:
+                super().do_HEAD()
+
         def do_GET(self):
             # If we requested the magic 'user-agent.txt' file, send back the
             # value of the User-Agent header.  Otherwise, vend as normal.
