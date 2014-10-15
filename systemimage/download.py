@@ -238,6 +238,37 @@ class WriterWithChecksum:
         self._fp.close()
 
 
+def _curl_debug(debug_type, debug_msg):
+    from systemimage.testing.helpers import debug
+    with debug(end='') as ddlog:
+        ddlog('PYCURL:', debug_type, debug_msg)
+
+
+def _make_curl(url):
+    c = pycurl.Curl()
+    c.setopt(pycurl.URL, url)
+    c.setopt(pycurl.USERAGENT, USER_AGENT.format(config.build_number))
+    # Follow redirects, but only to a maximum of 5.
+    c.setopt(pycurl.FOLLOWLOCATION, 1)
+    c.setopt(pycurl.MAXREDIRS, 5)
+    # Fail on error codes >= 400
+    c.setopt(pycurl.FAILONERROR, 1)
+    # Timeout the connection attempts after 2 minutes.
+    c.setopt(pycurl.CONNECTTIMEOUT, 120)
+    # If the average transfer speed is below 10 bytes per second for 2
+    # minutes, libcurl will consider the connection too slow and abort.
+    c.setopt(pycurl.LOW_SPEED_LIMIT, 10)
+    c.setopt(pycurl.LOW_SPEED_TIME, 120)
+    # Switch off the libcurl progress meters.
+    c.setopt(pycurl.NOPROGRESS, 0)
+    # ssl: no need to set SSL_VERIFYPEER, SSL_VERIFYHOST, CAINFO
+    #      they all use sensible defaults
+    # XXX DEBUGGING
+    c.setopt(pycurl.VERBOSE, 1)
+    c.setopt(pycurl.DEBUGFUNCTION, _curl_debug)
+    return c
+
+
 class CurlDownloadManager:
     """Download manager that uses the PyCURL library."""
 
@@ -246,24 +277,7 @@ class CurlDownloadManager:
         self._queued_cancel = False
 
     def _get_single_curl_handle(self, url):
-        c = pycurl.Curl()
-        c.setopt(pycurl.URL, url)
-        c.setopt(pycurl.USERAGENT, USER_AGENT.format(config.build_number))
-        # Follow redirects, but only to a maximum of 5.
-        c.setopt(pycurl.FOLLOWLOCATION, 1)
-        c.setopt(pycurl.MAXREDIRS, 5)
-        # Fail on error codes >= 400
-        c.setopt(pycurl.FAILONERROR, 1)
-        # Timeout the connection attempts after 2 minutes.
-        c.setopt(pycurl.CONNECTTIMEOUT, 120)
-        # If the average transfer speed is below 10 bytes per second for 2
-        # minutes, libcurl will consider the connection too slow and abort.
-        c.setopt(pycurl.LOW_SPEED_LIMIT, 10)
-        c.setopt(pycurl.LOW_SPEED_TIME, 120)
-        # Switch off the libcurl progress meters.
-        c.setopt(pycurl.NOPROGRESS, 0)
-        # ssl: no need to set SSL_VERIFYPEER, SSL_VERIFYHOST, CAINFO
-        #      they all use sensible defaults
+        c = _make_curl(url)
         c.setopt(
             # XXX pycurl.XFERINFOFUNCTION ?
             pycurl.PROGRESSFUNCTION,
@@ -321,6 +335,7 @@ class CurlDownloadManager:
             num_q, ok_list, err_list = curl_multi.info_read()
             for c in ok_list:
                 curl_multi.remove_handle(c)
+            # XXX This only raises one exception.
             for c, err_code, err in err_list:
                 raise FileNotFoundError("{} ({})".format(c.url, err))
             curl_multi.select(TIMEOUT)

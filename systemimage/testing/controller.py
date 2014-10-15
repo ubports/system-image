@@ -27,6 +27,7 @@ import sys
 import dbus
 import time
 import psutil
+import pycurl
 import subprocess
 
 from contextlib import ExitStack
@@ -35,6 +36,7 @@ from pkg_resources import resource_string as resource_bytes
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
     data_path, find_dbus_process, reset_envar)
+from unittest.mock import patch
 
 
 SPACE = ' '
@@ -142,6 +144,7 @@ class Controller:
         self.daemon_pid = None
         self.mode = 'live'
         self.certs = ''
+        self.patcher = None
         # Set up the dbus-daemon system configuration file.
         path = data_path('dbus-system.conf.in')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -191,9 +194,21 @@ class Controller:
 
     def set_mode(self, *, cert_pem=None, service_mode=''):
         self.mode = service_mode
+        certificate_path = data_path(cert_pem)
         self.certs = (
             '' if cert_pem is None
-            else '-self-signed-certs ' + data_path(cert_pem))
+            else '-self-signed-certs ' + certificate_path)
+        if self.patcher is not None:
+            self.patcher.stop()
+        if cert_pem is not None:
+            from systemimage.download import _make_curl
+            def self_signed_make_curl(url):
+                c = _make_curl(url)
+                c.setopt(pycurl.CAINFO, certificate_path)
+                return c
+            self.patcher = patch('systemimage.download._make_curl',
+                                 self_signed_make_curl)
+            self.patcher.start()
         self._configure_services()
 
     def _start(self):

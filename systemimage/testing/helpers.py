@@ -439,13 +439,13 @@ def debuggable(fn):
 
 
 @contextmanager
-def debug(*, check_flag=False):
+def debug(*, check_flag=False, end='\n'):
     if not check_flag or os.path.exists('/tmp/debug.enabled'):
         path = Path('/tmp/debug.log')
     else:
         path = Path(os.devnull)
     with path.open('a', encoding='utf-8') as fp:
-        function = partial(print, file=fp)
+        function = partial(print, file=fp, end=end)
         function.fp = fp
         yield function
         fp.flush()
