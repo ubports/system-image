@@ -94,7 +94,7 @@ class Service(Object):
 
     def __init__(self, bus, object_path, loop):
         super().__init__(bus, object_path)
-        self._loop = loop
+        self.loop = loop
         self._api = Mediator(self._progress_callback)
         log.info('Mediator created {}', self._api)
         self._checking = Lock()
@@ -148,7 +148,7 @@ class Service(Object):
         completes.  The argument to that signal is a boolean indicating
         whether the update is available or not.
         """
-        self._loop.keepalive()
+        self.loop.keepalive()
         # Check-and-acquire the lock.
         log.info('test and acquire checking lock')
         if not self._checking.acquire(blocking=False):
@@ -257,14 +257,14 @@ class Service(Object):
         """
         # Arrange for the update to happen in a little while, so that this
         # method can return immediately.
-        self._loop.keepalive()
+        self.loop.keepalive()
         GLib.timeout_add(50, self._download)
 
     @log_and_exit
     @method('com.canonical.SystemImage', out_signature='s')
     def PauseDownload(self):
         """Pause a downloading update."""
-        self._loop.keepalive()
+        self.loop.keepalive()
         if self._downloading:
             self._api.pause()
             self._paused = True
@@ -277,7 +277,7 @@ class Service(Object):
     @method('com.canonical.SystemImage', out_signature='s')
     def CancelUpdate(self):
         """Cancel a download."""
-        self._loop.keepalive()
+        self.loop.keepalive()
         # During the download, this will cause an UpdateFailed signal to be
         # issued, as part of the exception handling in _download().  If we're
         # not downloading, then no signal need be sent.  There's no need to
@@ -298,7 +298,7 @@ class Service(Object):
 
     @log_and_exit
     def _apply_update(self):
-        self._loop.keepalive()
+        self.loop.keepalive()
         if not self._rebootable:
             command_file = os.path.join(
                 config.updater.cache_partition, 'ubuntu_command')
@@ -322,7 +322,7 @@ class Service(Object):
     @log_and_exit
     @method('com.canonical.SystemImage', out_signature='isssa{ss}')
     def Info(self):
-        self._loop.keepalive()
+        self.loop.keepalive()
         return (config.build_number,
                 config.device,
                 config.channel,
@@ -332,7 +332,7 @@ class Service(Object):
     @log_and_exit
     @method('com.canonical.SystemImage', out_signature='a{ss}')
     def Information(self):
-        self._loop.keepalive()
+        self.loop.keepalive()
         settings = Settings()
         current_build_number = str(config.build_number)
         response = dict(
@@ -359,7 +359,7 @@ class Service(Object):
         Some values are special, e.g. min_battery and auto_downloads.
         Implement these special semantics here.
         """
-        self._loop.keepalive()
+        self.loop.keepalive()
         if key == 'min_battery':
             try:
                 as_int = int(value)
@@ -385,7 +385,7 @@ class Service(Object):
     @method('com.canonical.SystemImage', in_signature='s', out_signature='s')
     def GetSetting(self, key):
         """Get a setting."""
-        self._loop.keepalive()
+        self.loop.keepalive()
         return Settings().get(key)
 
     @log_and_exit
@@ -400,7 +400,7 @@ class Service(Object):
     @method('com.canonical.SystemImage')
     def Exit(self):
         """Quit the daemon immediately."""
-        self._loop.quit()
+        self.loop.quit()
 
     @log_and_exit
     @signal('com.canonical.SystemImage', signature='bbsiss')
@@ -416,21 +416,21 @@ class Service(Object):
         log.debug('EMIT UpdateAvailableStatus({}, {}, {}, {}, {}, {})',
                   is_available, downloading, available_version, update_size,
                   last_update_date, repr(error_reason))
-        self._loop.keepalive()
+        self.loop.keepalive()
 
     @log_and_exit
     @signal('com.canonical.SystemImage', signature='id')
     def UpdateProgress(self, percentage, eta):
         """Download progress."""
         log.debug('EMIT UpdateProgress({}, {})', percentage, eta)
-        self._loop.keepalive()
+        self.loop.keepalive()
 
     @log_and_exit
     @signal('com.canonical.SystemImage')
     def UpdateDownloaded(self):
         """The update has been successfully downloaded."""
         log.debug('EMIT UpdateDownloaded()')
-        self._loop.keepalive()
+        self.loop.keepalive()
 
     @log_and_exit
     @signal('com.canonical.SystemImage', signature='is')
@@ -438,21 +438,21 @@ class Service(Object):
         """The update failed for some reason."""
         log.debug('EMIT UpdateFailed({}, {})',
                   consecutive_failure_count, repr(last_reason))
-        self._loop.keepalive()
+        self.loop.keepalive()
 
     @log_and_exit
     @signal('com.canonical.SystemImage', signature='i')
     def UpdatePaused(self, percentage):
         """The download got paused."""
         log.debug('EMIT UpdatePaused({})', percentage)
-        self._loop.keepalive()
+        self.loop.keepalive()
 
     @log_and_exit
     @signal('com.canonical.SystemImage', signature='ss')
     def SettingChanged(self, key, new_value):
         """A setting value has change."""
         log.debug('EMIT SettingChanged({}, {})', repr(key), repr(new_value))
-        self._loop.keepalive()
+        self.loop.keepalive()
 
     @log_and_exit
     @signal('com.canonical.SystemImage', signature='b')

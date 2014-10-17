@@ -25,6 +25,7 @@ import hashlib
 import logging
 
 from contextlib import ExitStack
+from gi.repository import GLib
 from systemimage.config import config
 from systemimage.download import DownloadManagerBase, USER_AGENT
 
@@ -109,6 +110,9 @@ class SingleDownload:
         """Update the checksum and write the data out to the file."""
         self._checksum.update(data)
         self._fp.write(data)
+        # Returning None implies that all bytes were written
+        # successfully, so it's better to be explicit.
+        return None
 
     def close(self):
         self._resources.close()
@@ -185,6 +189,39 @@ class CurlDownloadManager(DownloadManagerBase):
                     first_mismatch.destination))
 
     def _perform(self, multi, handles):
+        # Before we can perform the download, we need to figure out how
+        # to service the main loop.  There are two options.  If we're
+        # inside the D-Bus service, we need its glib main loop to handle
+        # the file descriptors, otherwise we'll just block out all D-Bus
+        # activity while we're downloading the files, and that means we
+        # won't be able to cancel or pause the download.
+        #
+        # If however we're not in the D-Bus service (e.g. we're running
+        # the cli version) then we can just use multi.select() to handle
+        # all the downloads, since there aren't any other events we care
+        # about.
+        ## if config.dbus_service is None:
+        ##     self._perform_cli(multi, handles)
+        ## else:
+        ##     self._perform_dbus(multi, handles)
+        self._perform_cli(multi, handles)
+
+    def _perform_dbus(self, multi, handles):
+        # Get the set of file descriptors that the multi will be handling.
+        readable, writable, exceptions = multi.fdset()
+        # For each set of descriptors, register them with the glib main
+        # loop, using as a callback a function we'll use to handle any
+        # events on these descriptors.
+        for fd in readable:
+            GLib.io_add_watch(
+                fd, GLib.IO_IN, self._perform_once, multi, handles)
+        # We should not have any writable file descriptors.
+        assert len(writable) == 0, writable
+        # I'm not sure what if anything we can do with exception fds.
+        assert len(exceptions) == 0, exceptions
+        # Now what?
+
+    def _perform_cli(self, multi, handles):
         while True:
             received = sum(c.getinfo(pycurl.SIZE_DOWNLOAD) for c in handles)
             self._do_callback(int(received))
