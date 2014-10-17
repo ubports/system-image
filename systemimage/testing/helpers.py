@@ -47,7 +47,7 @@ import inspect
 import tarfile
 import unittest
 
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 from functools import partial, wraps
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -123,7 +123,10 @@ def make_http_server(directory, port, certpem=None, keypem=None):
                 self.send_response(200)
                 self.end_headers()
             else:
-                super().do_HEAD()
+                # Canceling a download can cause our internal server to
+                # see various ignorable errors.  No worries.
+                with suppress(BrokenPipeError, ConnectionResetError):
+                    super().do_HEAD()
 
         def do_GET(self):
             # If we requested the magic 'user-agent.txt' file, send back the
@@ -135,12 +138,10 @@ def make_http_server(directory, port, certpem=None, keypem=None):
                 self.end_headers()
                 self.wfile.write(user_agent.encode('utf-8'))
             else:
-                try:
+                # Canceling a download can cause our internal server to
+                # see various ignorable errors.  No worries.
+                with suppress(BrokenPipeError, ConnectionResetError):
                     super().do_GET()
-                except (BrokenPipeError, ConnectionResetError):
-                    # Canceling a download can cause our internal server to
-                    # see various ignorable errors.  No worries.
-                    pass
     # Create the server in the main thread, but start it in the sub-thread.
     # This lets the main thread call .shutdown() to stop everything.  Return
     # just the shutdown method to the caller.

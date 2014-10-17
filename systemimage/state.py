@@ -58,6 +58,9 @@ class ChecksumError(Exception):
         self.got = got
         self.expected = checksum
 
+    def __str__(self):
+        return 'got:{0.got} != exp:{0.expected}: {0.destination}'.format(self)
+
 
 def _copy_if_missing(src, dstdir):
     dst_path = os.path.join(dstdir, os.path.basename(src))

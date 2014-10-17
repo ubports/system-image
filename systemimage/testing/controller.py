@@ -200,14 +200,11 @@ class Controller:
             else '-self-signed-certs ' + certificate_path)
         if self.patcher is not None:
             self.patcher.stop()
+            self.patcher = None
         if cert_pem is not None:
-            from systemimage.download import _make_curl
-            def self_signed_make_curl(url):
-                c = _make_curl(url)
+            def self_sign(c):
                 c.setopt(pycurl.CAINFO, certificate_path)
-                return c
-            self.patcher = patch('systemimage.download._make_curl',
-                                 self_signed_make_curl)
+            self.patcher = patch('systemimage.curl.make_testable', self_sign)
             self.patcher.start()
         self._configure_services()
 

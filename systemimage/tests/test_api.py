@@ -23,6 +23,7 @@ __all__ = [
 
 import os
 import json
+import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timedelta
@@ -240,6 +241,7 @@ unmount system
         self.assertNotEqual(received_bytes, 0)
         self.assertNotEqual(total_bytes, 0)
 
+    @unittest.skip('XXX FIXME UDM ONLY')
     @configuration
     def test_pause_resume(self):
         # Pause and resume the download.
@@ -276,13 +278,13 @@ unmount system
                 GLib.timeout_add_seconds(3, mediator.resume)
         with ExitStack() as resources:
             resources.enter_context(
-                patch('systemimage.download.DownloadReactor._do_paused',
+                patch('systemimage.udm.DownloadReactor._do_paused',
                       do_paused))
             resources.enter_context(
-                patch('systemimage.download.DownloadReactor._do_resumed',
+                patch('systemimage.udm.DownloadReactor._do_resumed',
                       do_resumed))
             resources.enter_context(
-                patch('systemimage.download.DownloadReactor._do_started',
+                patch('systemimage.udm.DownloadReactor._do_started',
                       pause_on_start))
             mediator.check_for_update()
             # We'll get a signature error because we messed with the file

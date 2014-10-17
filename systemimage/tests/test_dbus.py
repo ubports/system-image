@@ -1711,6 +1711,7 @@ unmount system
 """)
 
 
+@unittest.skip('XXX FIXME UDM ONLY')
 class TestDBusMultipleChecksInFlight(_LiveTesting):
     def test_multiple_check_for_updates(self):
         # Log analysis of LP: #1277589 appears to show the following scenario,
