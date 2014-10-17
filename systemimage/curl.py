@@ -210,7 +210,7 @@ class CurlDownloadManager(DownloadManagerBase):
                     if first_url is None:
                         first_url = url
                     log.error('    {} ({}): {}', message, code, url)
-                raise FileNotFoundError(first_url)
+                raise FileNotFoundError('{}: {}'.format(message, first_url))
             if active_count == 0:
                 break
             multi.select(SELECT_TIMEOUT)

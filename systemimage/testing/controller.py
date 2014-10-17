@@ -114,13 +114,14 @@ DLSERVICE = '/usr/bin/ubuntu-download-manager'
 
 SERVICES = [
    ('com.canonical.SystemImage',
-    '{python} -m {self.MODULE} -C {self.ini_path} --testing {self.mode}',
+    '{python} -m {self.MODULE} -C {self.ini_path} '
+    '{self.curl_cert} --testing {self.mode}',
     start_system_image,
     stop_system_image,
    ),
    ('com.canonical.applications.Downloader',
     DLSERVICE +
-        ' {self.certs} -disable-timeout -stoppable -log-dir {self.tmpdir}',
+        ' {self.udm_certs} -disable-timeout -stoppable -log-dir {self.tmpdir}',
     start_downloader,
     stop_downloader,
    ),
@@ -143,7 +144,8 @@ class Controller:
         self.serverdir = self._stack.enter_context(temporary_directory())
         self.daemon_pid = None
         self.mode = 'live'
-        self.certs = ''
+        self.udm_certs = ''
+        self.curl_cert = ''
         self.patcher = None
         # Set up the dbus-daemon system configuration file.
         path = data_path('dbus-system.conf.in')
@@ -195,9 +197,19 @@ class Controller:
     def set_mode(self, *, cert_pem=None, service_mode=''):
         self.mode = service_mode
         certificate_path = data_path(cert_pem)
-        self.certs = (
+        self.udm_certs = (
             '' if cert_pem is None
             else '-self-signed-certs ' + certificate_path)
+        # We have to set up the PyCURL downloader's self-signed certificate for
+        # the test in two ways.  First, because we might be spawning the D-Bus
+        # service, we have to pass the path to the cert to that service...
+        self.curl_cert = (
+            '' if cert_pem is None
+            else '--self-signed-cert ' + certificate_path)
+        # ...but the controller is also used to set the mode for foreground
+        # tests, such as test_download.py.  Here we don't spawn any D-Bus
+        # processes, but we still have to mock make_testable() in curl.py so
+        # that the PyCURL object accepts the self-signed cert.
         if self.patcher is not None:
             self.patcher.stop()
             self.patcher = None
