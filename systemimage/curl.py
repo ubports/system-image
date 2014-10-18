@@ -188,6 +188,39 @@ class CurlDownloadManager(DownloadManagerBase):
                 raise FileNotFoundError('HASH ERROR: {}'.format(
                     first_mismatch.destination))
 
+    def _do_once(self, multi, handles):
+        from systemimage.testing.helpers import debug
+        received = sum(c.getinfo(pycurl.SIZE_DOWNLOAD) for c in handles)
+        with debug() as ddlog:
+            ddlog('RECEIVED:', received)
+        self._do_callback(int(received))
+        status, active_count = multi.perform()
+        if status == pycurl.E_CALL_MULTI_PERFORM:
+            # Call .perform() again before calling select.
+            return
+        elif status != pycurl.E_OK:
+            # An error occurred in the multi, so be done with the
+            # whole thing.  We can't get a description string out of
+            # PyCURL though.  Just raise one of the urls.
+            log.error('CurlMulti() error: {}', status)
+            raise FileNotFoundError(handles[0].url)
+        # The multi is okay, but it's possible there are errors pending on
+        # the individual downloads; check those now.
+        queued_count, ok_list, error_list = multi.info_read()
+        if len(error_list) > 0:
+            # It helps to have at least one URL in the FileNotFoundError.
+            first_url = None
+            log.error('Curl() errors encountered:')
+            for c, code, message in error_list:
+                url = c.getinfo(pycurl.EFFECTIVE_URL)
+                if first_url is None:
+                    first_url = url
+                log.error('    {} ({}): {}', message, code, url)
+            raise FileNotFoundError('{}: {}'.format(message, first_url))
+        # For compatibility with .io_add_watch(), we return False if we want
+        # to stop the callbacks, and True if we want to call back here again.
+        return active_count > 0
+
     def _perform(self, multi, handles):
         # Before we can perform the download, we need to figure out how
         # to service the main loop.  There are two options.  If we're
@@ -200,57 +233,35 @@ class CurlDownloadManager(DownloadManagerBase):
         # the cli version) then we can just use multi.select() to handle
         # all the downloads, since there aren't any other events we care
         # about.
-        ## if config.dbus_service is None:
-        ##     self._perform_cli(multi, handles)
-        ## else:
-        ##     self._perform_dbus(multi, handles)
-        self._perform_cli(multi, handles)
-
-    def _perform_dbus(self, multi, handles):
-        # Get the set of file descriptors that the multi will be handling.
-        readable, writable, exceptions = multi.fdset()
-        # For each set of descriptors, register them with the glib main
-        # loop, using as a callback a function we'll use to handle any
-        # events on these descriptors.
-        for fd in readable:
-            GLib.io_add_watch(
-                fd, GLib.IO_IN, self._perform_once, multi, handles)
-        # We should not have any writable file descriptors.
-        assert len(writable) == 0, writable
-        # I'm not sure what if anything we can do with exception fds.
-        assert len(exceptions) == 0, exceptions
-        # Now what?
-
-    def _perform_cli(self, multi, handles):
-        while True:
-            received = sum(c.getinfo(pycurl.SIZE_DOWNLOAD) for c in handles)
-            self._do_callback(int(received))
+        if config.dbus_service is None:
+            # We're running in the cli, so handle the loop ourselves.
+            while True:
+                if not self._do_once(multi, handles):
+                    break
+                multi.select(SELECT_TIMEOUT)
+        else:
+            from systemimage.testing.helpers import debug
+            loop = GLib.MainLoop()
             status, active_count = multi.perform()
-            if status == pycurl.E_CALL_MULTI_PERFORM:
-                # Call .perform() again before calling select.
-                continue
-            elif status != pycurl.E_OK:
-                # An error occurred in the multi, so be done with the
-                # whole thing.  We can't get a description string out of
-                # PyCURL though.  Just raise one of the urls.
-                log.error('CurlMulti() error: {}', status)
-                raise FileNotFoundError(handles[0].url)
-            # The multi is okay, but it's possible there are errors pending on
-            # the individual downloads; check those now.
-            queued_count, ok_list, error_list = multi.info_read()
-            if len(error_list) > 0:
-                # It helps to have at least one URL in the FileNotFoundError.
-                first_url = None
-                log.error('Curl() errors encountered:')
-                for c, code, message in error_list:
-                    url = c.getinfo(pycurl.EFFECTIVE_URL)
-                    if first_url is None:
-                        first_url = url
-                    log.error('    {} ({}): {}', message, code, url)
-                raise FileNotFoundError('{}: {}'.format(message, first_url))
-            if active_count == 0:
-                break
-            multi.select(SELECT_TIMEOUT)
+            readable, writable, exceptions = multi.fdset()
+            with debug() as ddlog:
+                ddlog('-->', readable, writable, exceptions)
+            def callback(source, condition, *args):
+                return self._do_once(multi, handles)
+            for fd in readable:
+                GLib.io_add_watch(fd, GLib.IO_IN, callback)
+            def truedat(*args):
+                with debug() as ddlog:
+                    ddlog('TRUEDAT')
+                return True
+            GLib.timeout_add(100, truedat)
+            # We should not have any writable file descriptors.
+            assert len(writable) == 0, writable
+            # I'm not sure what if anything we can do with exception fds.
+            assert len(exceptions) == 0, exceptions
+            with debug() as ddlog:
+                ddlog('LOOP RUN')
+            loop.run()
         # One last callback.
         received = sum(c.getinfo(pycurl.SIZE_DOWNLOAD) for c in handles)
         self._do_callback(int(received))
