@@ -226,7 +226,7 @@ class CurlDownloadManager(DownloadManagerBase):
         # once in a while.  It turns out that even if we're not running a D-Bus
         # main loop (i.e. during the in-process tests) periodically dispatching
         # into GLib doesn't hurt, so just do it unconditionally.
-        context = GLib.MainContext()
+        context = GLib.main_context_default()
         while True:
             if not self._do_once(multi, handles):
                 break
