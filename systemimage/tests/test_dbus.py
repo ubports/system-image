@@ -103,17 +103,9 @@ class AutoDownloadCancelingReactor(Reactor):
 
     def _do_UpdateAvailableStatus(self, signal, path, *args, **kws):
         self.got_update_available_status = True
-        from systemimage.testing.helpers import debug
-        with debug() as ddlog:
-            ddlog('GOT UAS... CANCELING')
         self._iface.CancelUpdate()
-        with debug() as ddlog:
-            ddlog('SENT CU')
 
     def _do_UpdateFailed(self, signal, path, *args, **kws):
-        from systemimage.testing.helpers import debug
-        with debug() as ddlog:
-            ddlog('GOT UF')
         self.got_update_failed = True
         self.quit()
 
@@ -127,7 +119,12 @@ class MiscellaneousCancelingReactor(Reactor):
         self.react_to('UpdateFailed')
 
     def _do_UpdateProgress(self, signal, path, *args, **kws):
+        from systemimage.testing.helpers import debug
+        with debug() as ddlog:
+            ddlog('=====> CU')
         self._iface.CancelUpdate()
+        with debug() as ddlog:
+            ddlog('<===== CU')
 
     def _do_UpdateFailed(self, signal, path, *args, **kws):
         self.update_failures.append(args)

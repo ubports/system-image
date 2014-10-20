@@ -277,14 +277,21 @@ class Service(Object):
     @method('com.canonical.SystemImage', out_signature='s')
     def CancelUpdate(self):
         """Cancel a download."""
+        from systemimage.testing.helpers import debug
+        with debug() as ddlog:
+            ddlog('------------------------------KEEPALIVE')
         self.loop.keepalive()
         # During the download, this will cause an UpdateFailed signal to be
         # issued, as part of the exception handling in _download().  If we're
         # not downloading, then no signal need be sent.  There's no need to
         # send *another* signal when downloading, because we never will be
         # downloading by the time we get past this next call.
+        with debug() as ddlog:
+            ddlog('------------------------------API CANCEL')
         self._api.cancel()
         # If we're holding the checking lock, release it.
+        with debug() as ddlog:
+            ddlog('------------------------------LOCK FUNTIME')
         try:
             log.info('releasing checking lock from CancelUpdate()')
             self._checking.release()
@@ -294,6 +301,8 @@ class Service(Object):
             pass
         # XXX 2013-08-22: If we can't cancel the current download, return the
         # reason in this string.
+        with debug() as ddlog:
+            ddlog('------------------------------ALL DONE')
         return ''
 
     @log_and_exit

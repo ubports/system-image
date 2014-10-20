@@ -27,7 +27,7 @@ import logging
 from contextlib import ExitStack
 from gi.repository import GLib
 from systemimage.config import config
-from systemimage.download import DownloadManagerBase, USER_AGENT
+from systemimage.download import Canceled, DownloadManagerBase, USER_AGENT
 
 log = logging.getLogger('systemimage')
 
@@ -189,10 +189,7 @@ class CurlDownloadManager(DownloadManagerBase):
                     first_mismatch.destination))
 
     def _do_once(self, multi, handles):
-        from systemimage.testing.helpers import debug
         received = sum(c.getinfo(pycurl.SIZE_DOWNLOAD) for c in handles)
-        with debug() as ddlog:
-            ddlog('RECEIVED:', received)
         self._do_callback(int(received))
         status, active_count = multi.perform()
         if status == pycurl.E_CALL_MULTI_PERFORM:
@@ -222,46 +219,23 @@ class CurlDownloadManager(DownloadManagerBase):
         return active_count > 0
 
     def _perform(self, multi, handles):
-        # Before we can perform the download, we need to figure out how
-        # to service the main loop.  There are two options.  If we're
-        # inside the D-Bus service, we need its glib main loop to handle
-        # the file descriptors, otherwise we'll just block out all D-Bus
-        # activity while we're downloading the files, and that means we
-        # won't be able to cancel or pause the download.
-        #
-        # If however we're not in the D-Bus service (e.g. we're running
-        # the cli version) then we can just use multi.select() to handle
-        # all the downloads, since there aren't any other events we care
-        # about.
-        if config.dbus_service is None:
-            # We're running in the cli, so handle the loop ourselves.
-            while True:
-                if not self._do_once(multi, handles):
-                    break
-                multi.select(SELECT_TIMEOUT)
-        else:
-            from systemimage.testing.helpers import debug
-            loop = GLib.MainLoop()
-            status, active_count = multi.perform()
-            readable, writable, exceptions = multi.fdset()
-            with debug() as ddlog:
-                ddlog('-->', readable, writable, exceptions)
-            def callback(source, condition, *args):
-                return self._do_once(multi, handles)
-            for fd in readable:
-                GLib.io_add_watch(fd, GLib.IO_IN, callback)
-            def truedat(*args):
-                with debug() as ddlog:
-                    ddlog('TRUEDAT')
-                return True
-            GLib.timeout_add(100, truedat)
-            # We should not have any writable file descriptors.
-            assert len(writable) == 0, writable
-            # I'm not sure what if anything we can do with exception fds.
-            assert len(exceptions) == 0, exceptions
-            with debug() as ddlog:
-                ddlog('LOOP RUN')
-            loop.run()
+        # While we're performing the cURL downloads, we need to periodically
+        # process D-Bus events, otherwise we won't be able to cancel downloads
+        # or handle other interruptive events.  To do this, we grab the GLib
+        # main loop context and then ask it to do an iteration over its events
+        # once in a while.  It turns out that even if we're not running a D-Bus
+        # main loop (i.e. during the in-process tests) periodically dispatching
+        # into GLib doesn't hurt, so just do it unconditionally.
+        context = GLib.MainContext()
+        while True:
+            if not self._do_once(multi, handles):
+                break
+            multi.select(SELECT_TIMEOUT)
+            # Let D-Bus events get dispatched, but do not block.
+            while context.iteration(False):
+                pass
+            if self._queued_cancel:
+                raise Canceled
         # One last callback.
         received = sum(c.getinfo(pycurl.SIZE_DOWNLOAD) for c in handles)
         self._do_callback(int(received))
