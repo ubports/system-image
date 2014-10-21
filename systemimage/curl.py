@@ -129,6 +129,11 @@ class SingleDownload:
 class CurlDownloadManager(DownloadManagerBase):
     """The PyCURL based download manager."""
 
+    def __init__(self, callback=None):
+        super().__init__(callback)
+        self._pausables = None
+        self._paused = False
+
     def _get_files(self, records, pausable):
         # Start by doing a HEAD on all the URLs so that we can get the total
         # target download size in bytes, at least as best as is possible.
@@ -148,13 +153,14 @@ class CurlDownloadManager(DownloadManagerBase):
                 # of this download.
                 resources.callback(multi.remove_handle, handle)
             self._perform(multi, handles)
-            self.total_size = sum(
+            self.total = sum(
                 handle.getinfo(pycurl.CONTENT_LENGTH_DOWNLOAD)
                 for handle in handles)
         # Now do a GET on all the URLs.  This will write the data to the
         # destination file and collect the checksums.
         with ExitStack() as resources:
-            handles = []
+            self._pausables = []
+            resources.callback(setattr, self, '_handles', None)
             downloads = []
             multi = pycurl.CurlMulti()
             multi.setopt(
@@ -164,13 +170,13 @@ class CurlDownloadManager(DownloadManagerBase):
                 downloads.append(download)
                 resources.callback(download.close)
                 handle = download.make_handle(HEAD=False)
-                handles.append(handle)
+                self._pausables.append(handle)
                 multi.add_handle(handle)
                 # .add_handle() does not bump the reference count, so we
                 # need to keep the PyCURL object alive for the duration
                 # of this download.
                 resources.callback(multi.remove_handle, handle)
-            self._perform(multi, handles)
+            self._perform(multi, self._pausables)
             # Verify internally calculated checksums.  The API requires
             # a FileNotFoundError to be raised when they don't match.
             # Since it doesn't matter which one fails, log them all and
@@ -189,8 +195,6 @@ class CurlDownloadManager(DownloadManagerBase):
                     first_mismatch.destination))
 
     def _do_once(self, multi, handles):
-        received = sum(c.getinfo(pycurl.SIZE_DOWNLOAD) for c in handles)
-        self._do_callback(int(received))
         status, active_count = multi.perform()
         if status == pycurl.E_CALL_MULTI_PERFORM:
             # Call .perform() again before calling select.
@@ -226,22 +230,54 @@ class CurlDownloadManager(DownloadManagerBase):
         # once in a while.  It turns out that even if we're not running a D-Bus
         # main loop (i.e. during the in-process tests) periodically dispatching
         # into GLib doesn't hurt, so just do it unconditionally.
+        self.received = 0
         context = GLib.main_context_default()
         while True:
+            # Do the progress callback, but only if the current received size
+            # is different than the last one.  Don't worry about in which
+            # direction it's different.
+            received = int(
+                sum(c.getinfo(pycurl.SIZE_DOWNLOAD) for c in handles))
+            if received != self.received:
+                self._do_callback()
+                self.received = received
             if not self._do_once(multi, handles):
                 break
             multi.select(SELECT_TIMEOUT)
-            # Let D-Bus events get dispatched, but do not block.
-            while context.iteration(False):
+            # Let D-Bus events get dispatched, but only block if downloads are
+            # paused.
+            while context.iteration(may_block=self._paused):
                 pass
             if self._queued_cancel:
                 raise Canceled
-        # One last callback.
-        received = sum(c.getinfo(pycurl.SIZE_DOWNLOAD) for c in handles)
-        self._do_callback(int(received))
+        # One last callback, unconditionally.
+        self.received = int(
+            sum(c.getinfo(pycurl.SIZE_DOWNLOAD) for c in handles))
+        self._do_callback()
 
     def pause(self):
-        pass
+        if self._pausables is None:
+            return
+        from systemimage.testing.helpers import debug
+        with debug() as print:
+            print('PAUSE')
+        for c in self._pausables:
+            c.pause(pycurl.PAUSE_ALL)
+        self._paused = True
+        # 2014-10-20 BAW: We could plumb through the `service` object from
+        # service.py (the main entry point for system-image-dbus, but that's
+        # actually a bit of a pain, so do the expedient thing and grab the
+        # interface here.
+        percentage = (int(self.received / self.total * 100.0)
+                      if self.total > 0 else 0)
+        config.dbus_service.UpdatePaused(percentage)
 
     def resume(self):
-        pass
+        if self._pausables is None:
+            return
+        from systemimage.testing.helpers import debug
+        with debug() as print:
+            print('RESUME')
+        for c in self._pausables:
+            c.pause(pycurl.PAUSE_CONT)
+        self._paused = False

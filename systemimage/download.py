@@ -82,7 +82,8 @@ class DownloadManagerBase:
         """
         self._queued_cancel = False
         self.callback = callback
-        self.total_size = None
+        self.total_size = 0
+        self.received = 0
 
     def __repr__(self): # pragma: no cover
         return '<{} at 0x{:x}>'.format(self.__class__.__name__, id(self))
@@ -125,12 +126,12 @@ class DownloadManagerBase:
             records = list(unique_downloads)
         return records
 
-    def _do_callback(self, received_size):
+    def _do_callback(self):
         # Be defensive, so yes, use a bare except.  If an exception occurs in
         # the callback, log it, but continue onward.
-        if self.callback is not None and self.total_size is not None:
+        if self.callback is not None:
             try:
-                self.callback(received_size, self.total_size)
+                self.callback(self.received, self.total)
             except:
                 log.exception('Exception in progress callback')
 
