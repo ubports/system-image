@@ -2,6 +2,9 @@
 NEWS for system-image updater
 =============================
 
+2.5.1 (2014-10-21)
+==================
+
 2.5 (2014-09-29)
 ================
  * Remove the previously deprecated `system-image-cli --dbus` command line

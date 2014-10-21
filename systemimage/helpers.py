@@ -270,19 +270,9 @@ def version_detail(details_string=None):
     return details
 
 
-_pp_cache = None
-
-def phased_percentage(*, reset=False):
-    global _pp_cache
-    if _pp_cache is None:
-        with open(UNIQUE_MACHINE_ID_FILE, 'rb') as fp:
-            data = fp.read()
-        now = str(time.time()).encode('us-ascii')
-        r = random.Random()
-        r.seed(data + now)
-        _pp_cache = r.randint(0, 100)
-    try:
-        return _pp_cache
-    finally:
-        if reset:
-            _pp_cache = None
+def phased_percentage(channel, target):
+    with open(UNIQUE_MACHINE_ID_FILE, 'rb') as fp:
+        data = fp.read()
+    r = random.Random()
+    r.seed('{}.{}.{}'.format(channel, target, data))
+    return r.randint(0, 100)
