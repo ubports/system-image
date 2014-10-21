@@ -181,7 +181,7 @@ class TestCandidateDownloads(unittest.TestCase):
         # a bootme flag.  Download all their files.
         index = get_index('index_10.json')
         candidates = get_candidates(index, 600)
-        winner = WeightedScorer().choose(candidates)
+        winner = WeightedScorer().choose(candidates, 'devel')
         descriptions = []
         for image in winner:
             # There's only one description per image so order doesn't matter.
@@ -219,7 +219,7 @@ class TestCandidateDownloads(unittest.TestCase):
         # has a bootme flag so the second delta's files are not downloaded.
         index = get_index('index_11.json')
         candidates = get_candidates(index, 600)
-        winner = WeightedScorer().choose(candidates)
+        winner = WeightedScorer().choose(candidates, 'devel')
         descriptions = []
         for image in winner:
             # There's only one description per image so order doesn't matter.
@@ -330,7 +330,7 @@ class TestNewVersionRegime(unittest.TestCase):
         self.assertEqual(path0[1].version, 301)
         self.assertEqual(path0[2].base, 301)
         self.assertEqual(path0[2].version, 304)
-        winner = WeightedScorer().choose(candidates)
+        winner = WeightedScorer().choose(candidates, 'devel')
         self.assertEqual(_descriptions(winner),
                          ['Full B', 'Delta B.1', 'Delta B.2'])
         self.assertEqual(winner[0].version, 200)

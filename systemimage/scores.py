@@ -28,7 +28,7 @@ import logging
 
 from io import StringIO
 from itertools import count
-from systemimage.helpers import MiB
+from systemimage.helpers import MiB, phased_percentage
 
 log = logging.getLogger('systemimage')
 
@@ -38,7 +38,7 @@ COLON = ':'
 class Scorer:
     """Abstract base class providing an API for candidate selection."""
 
-    def choose(self, candidates):
+    def choose(self, candidates, channel):
         """Choose the candidate upgrade paths.
 
         Lowest score wins.
@@ -47,6 +47,9 @@ class Scorer:
             the device from the current version to the latest version, sorted
             in order from oldest verson to newest.
         :type candidates: list of lists
+        :param channel: The channel being upgraded to.  This is used in the
+            phased update calculate.
+        :type channel: str
         :return: The chosen path.
         :rtype: list
         """
@@ -78,7 +81,16 @@ class Scorer:
                 COLON.join(str(image.version) for image in candidate)),
                 file=fp)
         log.debug('{}'.format(fp.getvalue()))
-        return scores[0][2]
+        winner = scores[0][2]
+        # Check the phased percentage for this device.
+        if len(winner) == 0:
+            return winner
+        image_percentage = winner[-1].phased_percentage
+        if image_percentage == 0:
+            # This image has been pulled.
+            return []
+        device_percentage = phased_percentage(channel, winner[-1].version)
+        return (winner if device_percentage <= image_percentage else [])
 
     def score(self, candidates): # pragma: no cover
         """Like `choose()` except returns the candidate path scores.
