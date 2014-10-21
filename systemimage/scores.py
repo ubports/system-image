@@ -83,8 +83,7 @@ class Scorer:
         log.debug('{}'.format(fp.getvalue()))
         winner = scores[0][2]
         # Check the phased percentage for this device.
-        if len(winner) == 0:
-            return winner
+        assert len(winner) > 0, 'Candidates but no winner?'
         image_percentage = winner[-1].phased_percentage
         if image_percentage == 0:
             # This image has been pulled.
