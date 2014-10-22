@@ -30,7 +30,8 @@ from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
 from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
-from systemimage.helpers import last_update_date, makedirs, version_detail
+from systemimage.helpers import (
+    last_update_date, makedirs, phased_percentage, version_detail)
 from systemimage.logging import initialize
 from systemimage.reboot import factory_reset
 from systemimage.settings import Settings
@@ -87,6 +88,9 @@ def main():
                         help="""Show some information about the current
                                 device, including the current build number,
                                 device name and channel, then exit""")
+    parser.add_argument('-m', '--machine-id',
+                        default=None, action='store',
+                        help='Override the machine id just this once')
     parser.add_argument('-n', '--dry-run',
                         default=False, action='store_true',
                         help="""Calculate and print the upgrade path, but do
@@ -213,6 +217,8 @@ def main():
         config.channel = args.channel
     if args.device is not None:
         config.device = args.device
+    if args.machine_id is not None:
+        config.machine_id = args.machine_id
 
     if args.info:
         alias = getattr(config.service, 'channel_target', None)
@@ -220,6 +226,7 @@ def main():
             build_number=config.build_number,
             device=config.device,
             channel=config.channel,
+            machine_id=config.machine_id,
             last_update=last_update_date(),
             )
         if alias is None:
@@ -227,12 +234,14 @@ def main():
                 current build number: {build_number}
                 device name: {device}
                 channel: {channel}
+                machine-id: {machine_id}
                 last update: {last_update}"""
         else:
             template = """\
                 current build number: {build_number}
                 device name: {device}
                 channel: {channel}
+                machine-id: {machine_id}
                 alias: {alias}
                 last update: {last_update}"""
             kws['alias'] = alias
@@ -296,15 +305,19 @@ def main():
         else:
             winning_path = [str(image.version) for image in state.winner]
             kws = dict(path=COLON.join(winning_path))
+            target_build = state.winner[-1].version
             if state.channel_switch is None:
                 # We're not switching channels due to an alias change.
                 template = 'Upgrade path is {path}'
+                percentage = phased_percentage(config.channel, target_build)
             else:
                 # This upgrade changes the channel that our alias is mapped
                 # to, so include that information in the output.
                 template = 'Upgrade path is {path} ({from} -> {to})'
                 kws['from'], kws['to'] = state.channel_switch
+                percentage = phased_percentage(kws['to'], target_build)
             print(template.format(**kws))
+            print('Target phase: {}%'.format(percentage))
         return
     else:
         # Run the state machine to conclusion.  Suppress all exceptions, but

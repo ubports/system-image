@@ -378,3 +378,26 @@ class TestConfiguration(unittest.TestCase):
         config.load(data_path('channel_07.ini'), override=True)
         with _patch_device_hook():
             self.assertEqual(config.device, '?')
+
+    @configuration
+    def test_machine_id(self, ini_file):
+        config = Configuration(ini_file)
+        path = os.path.join(config.tempdir, 'machine-id')
+        with open(path, 'w', encoding='utf-8') as fp:
+            print('0123456789abcdef9876543210fedcba', file=fp)
+        with patch('systemimage.config.UNIQUE_MACHINE_ID_FILE', path):
+            self.assertEqual(
+                config.machine_id, '0123456789abcdef9876543210fedcba')
+
+    @configuration
+    def test_machine_id_override(self, ini_file):
+        config = Configuration(ini_file)
+        path = os.path.join(config.tempdir, 'machine-id')
+        with open(path, 'w', encoding='utf-8') as fp:
+            print('0123456789abcdef9876543210fedcba', file=fp)
+        with patch('systemimage.config.UNIQUE_MACHINE_ID_FILE', path):
+            self.assertEqual(
+                config.machine_id, '0123456789abcdef9876543210fedcba')
+            config.machine_id = 'abcdef9876543210fedcba0123456789'
+            self.assertEqual(
+                config.machine_id, 'abcdef9876543210fedcba0123456789')

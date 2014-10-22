@@ -58,6 +58,9 @@ OPTIONS
 -d DEVICE, --device DEVICE
     Override the device name just this once.
 
+-m ID, --machine-id ID
+    Override the machine id.
+
 --f FILTER, --filter FILTER
     Filter the candidate upgrade paths to only contain full or delta updates.
     ``FILTER`` must be either ``full`` or ``delta``.

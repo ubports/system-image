@@ -86,6 +86,13 @@ class TestCLIMain(unittest.TestCase):
             # Patch argparse's stderr to capture its error messages.
             self._resources.enter_context(
                 patch('argparse._sys.stderr', self._stderr))
+            # Patch the machine id.
+            tempdir = self._resources.enter_context(temporary_directory())
+            path = os.path.join(tempdir, 'machine-id')
+            with open(path, 'w', encoding='utf-8') as fp:
+                print('feedfacebeefbacafeedfacebeefbaca', file=fp)
+            self._resources.enter_context(
+                patch('systemimage.config.UNIQUE_MACHINE_ID_FILE', path))
         except:
             self._resources.close()
             raise
@@ -207,6 +214,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1701
             device name: nexus7
             channel: stable
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -232,6 +240,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1833
             device name: nexus7
             channel: proposed
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2011-08-01 05:06:07
             """))
 
@@ -254,6 +263,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1701
             device name: nexus7
             channel: stable
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2011-01-08 02:03:04
             """))
 
@@ -272,6 +282,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 20250801
             device name: nexus7
             channel: stable
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -289,6 +300,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1701
             device name: phablet
             channel: stable
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -306,6 +318,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1701
             device name: nexus7
             channel: daily-proposed
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -325,6 +338,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 300
             device name: nexus7
             channel: daily
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             alias: saucy
             last update: 2013-08-01 12:11:10
             """))
@@ -346,6 +360,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 20250801
             device name: phablet
             channel: daily-proposed
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -363,6 +378,44 @@ class TestCLIMain(unittest.TestCase):
           'system-image-cli: error: -b/--build requires an integer: bogus')
 
     @configuration
+    def test_machine_id(self, ini_file):
+        # --machine-id allows you to override the machine id.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--machine-id', 'aaaaaaaaaaaaaaaaffffffffffffffff',
+                  '--info']))
+        # Set up the build number.
+        touch_build(1701, TIMESTAMP)
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 1701
+            device name: nexus7
+            channel: stable
+            machine-id: aaaaaaaaaaaaaaaaffffffffffffffff
+            last update: 2013-08-01 12:11:10
+            """))
+
+    @configuration
+    def test_m(self, ini_file):
+        # -m allows you to override the machine id.
+        self._resources.enter_context(
+            patch('systemimage.main.sys.argv',
+                  ['argv0', '-C', ini_file,
+                   '--machine-id', 'aaaaaaaaaaaaaaaaffffffffffffffff',
+                  '--info']))
+        # Set up the build number.
+        touch_build(1701, TIMESTAMP)
+        cli_main()
+        self.assertEqual(self._stdout.getvalue(), dedent("""\
+            current build number: 1701
+            device name: nexus7
+            channel: stable
+            machine-id: aaaaaaaaaaaaaaaaffffffffffffffff
+            last update: 2013-08-01 12:11:10
+            """))
+
+    @configuration
     def test_channel_ini_override_build_number(self, ini_file):
         # The channel.ini file can override the build number.
         copy('channel_01.ini', os.path.dirname(ini_file), 'channel.ini')
@@ -376,6 +429,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1833
             device name: nexus7
             channel: proposed
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -394,6 +448,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1833
             device name: nexus7
             channel: proposed
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -411,6 +466,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 0
             device name: nexus7
             channel: utopic-proposed
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -428,6 +484,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1
             device name: nexus7
             channel: utopic
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -514,6 +571,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1833
             device name: nexus7
             channel: proposed
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             version ubuntu: 123
             version mako: 456
@@ -535,6 +593,7 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1833
             device name: nexus7
             channel: proposed
+            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -582,12 +641,44 @@ class TestCLIMainDryRun(ServerTestBase):
         with ExitStack() as resources:
             resources.enter_context(
                 patch('builtins.print', partial(print, file=capture)))
+            # Patch the machine id.
+            tempdir = resources.enter_context(temporary_directory())
+            path = os.path.join(tempdir, 'machine-id')
+            with open(path, 'w', encoding='utf-8') as fp:
+                print('0000000000000000aaaaaaaaaaaaaaaa', file=fp)
+            resources.enter_context(
+                patch('systemimage.config.UNIQUE_MACHINE_ID_FILE', path))
             resources.enter_context(
                 patch('systemimage.main.sys.argv',
                       ['argv0', '-C', ini_file, '--dry-run']))
             cli_main()
-        self.assertEqual(capture.getvalue(),
-                         'Upgrade path is 1200:1201:1304\n')
+        self.assertEqual(
+            capture.getvalue(), """\
+Upgrade path is 1200:1201:1304
+Target phase: 12%
+""")
+
+    @configuration
+    def test_dry_run_with_machine_id(self, ini_file):
+        # `system-image-cli --dry-run` prints the winning upgrade path.
+        self._setup_server_keyrings()
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            resources.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--dry-run',
+                       '--machine-id', 'feedfacebeefbacafeedfacebeefbaca']))
+            cli_main()
+        self.assertEqual(
+            capture.getvalue(), """\
+Upgrade path is 1200:1201:1304
+Target phase: 64%
+""")
 
     @configuration
     def test_dry_run_no_update(self, ini_file):
@@ -645,20 +736,31 @@ class TestCLIMainDryRunAliases(ServerTestBase):
         head, tail = os.path.split(channel_ini)
         copy('channel_05.ini', head, tail)
         capture = StringIO()
-        self._resources.enter_context(
-            patch('builtins.print', partial(print, file=capture)))
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--dry-run']))
-        # Do not use self._resources to manage the check_output mock.  Because
-        # of the nesting order of the @configuration decorator and the base
-        # class's tearDown(), using self._resources causes the mocks to be
-        # unwound in the wrong order, affecting future tests.
-        with patch('systemimage.device.check_output', return_value='manta'):
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('builtins.print', partial(print, file=capture)))
+            resources.enter_context(
+                patch('systemimage.main.sys.argv',
+                      ['argv0', '-C', ini_file, '--dry-run']))
+            # Patch the machine id.
+            tempdir = resources.enter_context(temporary_directory())
+            path = os.path.join(tempdir, 'machine-id')
+            with open(path, 'w', encoding='utf-8') as fp:
+                print('0000000000000000aaaaaaaaaaaaaaaa', file=fp)
+            resources.enter_context(
+                patch('systemimage.config.UNIQUE_MACHINE_ID_FILE', path))
+            # Do not use self._resources to manage the check_output mock.
+            # Because of the nesting order of the @configuration decorator and
+            # the base class's tearDown(), using self._resources causes the
+            # mocks to be unwound in the wrong order, affecting future tests.
+            resources.enter_context(
+                patch('systemimage.device.check_output', return_value='manta'))
             cli_main()
         self.assertEqual(
-            capture.getvalue(),
-            'Upgrade path is 200:201:304 (saucy -> tubular)\n')
+            capture.getvalue(), """\
+Upgrade path is 200:201:304 (saucy -> tubular)
+Target phase: 25%
+""")
 
 
 class TestCLIListChannels(ServerTestBase):
@@ -767,8 +869,18 @@ class TestCLIFilters(ServerTestBase):
                 patch('systemimage.main.sys.argv', [
                             'argv0', '-C', ini_file, '--dry-run',
                             '--filter', 'delta']))
+            # Patch the machine id.
+            tempdir = resources.enter_context(temporary_directory())
+            path = os.path.join(tempdir, 'machine-id')
+            with open(path, 'w', encoding='utf-8') as fp:
+                print('0000000000000000aaaaaaaaaaaaaaaa', file=fp)
+            resources.enter_context(
+                patch('systemimage.config.UNIQUE_MACHINE_ID_FILE', path))
             cli_main()
-        self.assertMultiLineEqual(capture.getvalue(), 'Upgrade path is 1600\n')
+        self.assertMultiLineEqual(capture.getvalue(), """\
+Upgrade path is 1600
+Target phase: 80%
+""")
 
 
 class TestCLIDuplicateDestinations(ServerTestBase):

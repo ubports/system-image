@@ -34,7 +34,6 @@ __all__ = [
 
 import os
 import re
-import time
 import random
 import shutil
 import logging
@@ -47,7 +46,6 @@ from importlib import import_module
 
 
 LAST_UPDATE_FILE = '/userdata/.last_update'
-UNIQUE_MACHINE_ID_FILE = '/var/lib/dbus/machine-id'
 DEFAULT_DIRMODE = 0o02700
 MiB = 1 << 20
 EMPTYSTRING = ''
@@ -271,8 +269,9 @@ def version_detail(details_string=None):
 
 
 def phased_percentage(channel, target):
-    with open(UNIQUE_MACHINE_ID_FILE, 'rb') as fp:
-        data = fp.read()
+    # Avoid circular imports.
+    from systemimage.config import config
+    data = config.machine_id
     r = random.Random()
     r.seed('{}.{}.{}'.format(channel, target, data))
     return r.randint(0, 100)

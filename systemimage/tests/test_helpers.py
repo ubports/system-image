@@ -276,16 +276,16 @@ class TestLastUpdateDate(unittest.TestCase):
 class TestPhasedPercentage(unittest.TestCase):
     def setUp(self):
         self._resources = ExitStack()
-        self._tmpdir = self._resources.enter_context(temporary_directory())
-        self._mid_path = os.path.join(self._tmpdir, 'machine-id')
+        tmpdir = self._resources.enter_context(temporary_directory())
+        self._mid_path = os.path.join(tmpdir, 'machine-id')
         self._resources.enter_context(patch(
-            'systemimage.helpers.UNIQUE_MACHINE_ID_FILE', self._mid_path))
+            'systemimage.config.UNIQUE_MACHINE_ID_FILE', self._mid_path))
 
     def tearDown(self):
         self._resources.close()
 
     def _set_machine_id(self, machine_id):
-        with open(self._mid_path, 'wb') as fp:
+        with open(self._mid_path, 'w', encoding='utf-8') as fp:
             fp.write(machine_id)
 
     def test_phased_percentage(self):
@@ -293,32 +293,32 @@ class TestPhasedPercentage(unittest.TestCase):
         # winning path is to be applied or not.  It returns a number between 0
         # and 100 based on the machine's unique machine id (as kept in a
         # file), the update channel, and the target build number.
-        self._set_machine_id(b'0123456789abcdef')
-        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 45)
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
         # The phased percentage is always the same, given the same
         # machine-id, channel, and target.
-        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 45)
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
 
     def test_phased_percentage_different_machine_id(self):
         # All else being equal, a different machine_id gives different %.
-        self._set_machine_id(b'0123456789abcdef')
-        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 45)
-        self._set_machine_id(b'fedcba9876543210')
-        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 79)
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+        self._set_machine_id('fedcba9876543210')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 25)
 
     def test_phased_percentage_different_channel(self):
         # All else being equal, a different channel gives different %.
-        self._set_machine_id(b'0123456789abcdef')
-        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 45)
-        self._set_machine_id(b'0123456789abcdef')
-        self.assertEqual(phased_percentage(channel='devel', target=11), 1)
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='devel', target=11), 96)
 
     def test_phased_percentage_different_target(self):
         # All else being equal, a different target gies different %.
-        self._set_machine_id(b'0123456789abcdef')
-        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 45)
-        self._set_machine_id(b'0123456789abcdef')
-        self.assertEqual(phased_percentage(channel='ubuntu', target=12), 30)
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=12), 1)
 
 
 class TestSignature(unittest.TestCase):
