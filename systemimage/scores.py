@@ -85,7 +85,7 @@ class Scorer:
         # Check the phased percentage for this device.
         assert len(winner) > 0, 'Candidates but no winner?'
         image_percentage = winner[-1].phased_percentage
-        if image_percentage == 0:
+        if image_percentage <= 0:
             # This image has been pulled.
             return []
         device_percentage = phased_percentage(channel, winner[-1].version)

@@ -271,7 +271,6 @@ def version_detail(details_string=None):
 def phased_percentage(channel, target):
     # Avoid circular imports.
     from systemimage.config import config
-    data = config.machine_id
     r = random.Random()
-    r.seed('{}.{}.{}'.format(channel, target, data))
+    r.seed('{}.{}.{}'.format(channel, target, config.machine_id))
     return r.randint(0, 100)
