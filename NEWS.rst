@@ -4,6 +4,8 @@ NEWS for system-image updater
 
 2.5.1 (2014-10-21)
 ==================
+ * Make phased upgrade percentage calculation idempotent for each tuple of
+   (channel, target-build-number, machine-id).  (LP: #1383539)
 
 2.5 (2014-09-29)
 ================
