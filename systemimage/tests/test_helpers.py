@@ -314,7 +314,7 @@ class TestPhasedPercentage(unittest.TestCase):
         self.assertEqual(phased_percentage(channel='devel', target=11), 96)
 
     def test_phased_percentage_different_target(self):
-        # All else being equal, a different target gies different %.
+        # All else being equal, a different target gives different %.
         self._set_machine_id('0123456789abcdef')
         self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
         self._set_machine_id('0123456789abcdef')
