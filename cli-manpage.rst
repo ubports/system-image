@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2014-09-29
+:Date: 2014-10-23
 :Copyright: 2013-2014 Canonical Ltd.
-:Version: 2.5
+:Version: 2.5.1
 :Manual section: 1
 
 
@@ -59,7 +59,7 @@ OPTIONS
     Override the device name just this once.
 
 -m ID, --machine-id ID
-    Override the machine id.
+    Override the machine id.  *New in system-image 2.5.1*
 
 --f FILTER, --filter FILTER
     Filter the candidate upgrade paths to only contain full or delta updates.
@@ -67,10 +67,12 @@ OPTIONS
 
 -i, --info
     Show some information about the current device, including the current
-    build number, device name, and channel, then exit.
+    build number, device name, and channel, then exit.  *New in system-image
+    2.5.1: display the machine id*
 
 -n, --dry-run
     Calculate and print the upgrade path, but do not download or apply it.
+    *New in system-image 2.5.1: display the target phase percentage*
 
 --no-reboot
     Downloads all files and prepares for a reboot into recovery, but doesn't
