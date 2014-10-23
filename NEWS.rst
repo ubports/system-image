@@ -6,6 +6,10 @@ NEWS for system-image updater
 ==================
  * Make phased upgrade percentage calculation idempotent for each tuple of
    (channel, target-build-number, machine-id).  (LP: #1383539)
+ * `system-image-cli -m/--machine-id` was added to allow command line override
+   of the machine id.
+ * `system-image-cli --info` now also displays the machine id.
+ * `system-image-cli --dry-run` now also displays the target phase percentage.
 
 2.5 (2014-09-29)
 ================
