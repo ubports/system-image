@@ -107,7 +107,7 @@ def stop_downloader(controller):
 
 DLSERVICE = '/usr/bin/ubuntu-download-manager'
 # For debugging the in-tree version of u-d-m.
-#DLSERVICE = '/bin/sh /home/barry/projects/phone/runme'
+#DLSERVICE = '/bin/sh /home/barry/projects/phone/runme.sh'
 
 
 SERVICES = [
