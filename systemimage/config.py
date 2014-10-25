@@ -33,7 +33,6 @@ from systemimage.helpers import (
     as_loglevel, as_object, as_timedelta, makedirs, temporary_directory)
 
 
-UNIQUE_MACHINE_ID_FILE = '/var/lib/dbus/machine-id'
 DISABLED = object()
 
 
@@ -76,9 +75,9 @@ class Configuration:
         self._device = None
         self._build_number = None
         self._channel = None
-        # This is used only to override the machine id via command line via
-        # the property setter.
-        self._machine_id_override = None
+        # This is used only to override the phased percentage via command line
+        # and the property setter.
+        self._phase_override = None
         self._tempdir = None
         self._resources = ExitStack()
         atexit.register(self._resources.close)
@@ -207,20 +206,16 @@ class Configuration:
         self._channel = value
 
     @property
-    def machine_id(self):
-        if self._machine_id_override is None:
-            # The machine id was not overridden with --machine-id/-m, so use
-            # the one stored in the file system.  But do *not* cache it;
-            # several tests require a new read of the file each time, and in
-            # practice the performance difference doesn't matter since this
-            # will normally only be called once.
-            with open(UNIQUE_MACHINE_ID_FILE, 'r', encoding='utf-8') as fp:
-                return fp.read().strip()
-        return self._machine_id_override
+    def phase_override(self):
+        return self._phase_override
 
-    @machine_id.setter
-    def machine_id(self, value):
-        self._machine_id_override = value
+    @phase_override.setter
+    def phase_override(self, value):
+        self._phase_override = int(value)
+
+    @phase_override.deleter
+    def phase_override(self):
+        self._phase_override = None
 
     @property
     def tempdir(self):

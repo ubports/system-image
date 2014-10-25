@@ -48,12 +48,10 @@ from systemimage.helpers import calculate_signature
 from systemimage.state import ChecksumError, State
 from systemimage.testing.demo import DemoDevice
 from systemimage.testing.helpers import (
-    ServerTestBase, configuration, copy, data_path, get_index,
+    ServerTestBase, configuration, copy, data_path, descriptions, get_index,
     make_http_server, setup_keyring_txz, setup_keyrings, sign,
     temporary_directory, touch_build)
 from systemimage.testing.nose import SystemImagePlugin
-# FIXME
-from systemimage.tests.test_candidates import _descriptions
 from unittest.mock import call, patch
 
 BAD_SIGNATURE = 'f' * 64
@@ -952,13 +950,13 @@ class TestPhasedUpdates(ServerTestBase):
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(_descriptions(state.winner),
+        self.assertEqual(descriptions(state.winner),
                          ['Full B', 'Delta B.1', 'Delta B.2'])
 
     @configuration
     def test_outside_phased_updates(self):
         # With our threshold at 66, the normal upgrade to "Full B" image is
-        # suppressed.
+        # discarded, and the previous Full A update is chosen instead.
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
@@ -970,7 +968,8 @@ class TestPhasedUpdates(ServerTestBase):
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(len(state.winner), 0)
+        self.assertEqual(descriptions(state.winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
 
     @configuration
     def test_equal_phased_updates_0(self):
@@ -987,7 +986,7 @@ class TestPhasedUpdates(ServerTestBase):
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(_descriptions(state.winner),
+        self.assertEqual(descriptions(state.winner),
                          ['Full B', 'Delta B.1', 'Delta B.2'])
 
     @configuration
@@ -1005,12 +1004,13 @@ class TestPhasedUpdates(ServerTestBase):
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(_descriptions(state.winner),
+        self.assertEqual(descriptions(state.winner),
                          ['Full B', 'Delta B.1', 'Delta B.2'])
 
     @configuration
     def test_phased_updates_100(self):
-        # With our threshold at 100, the "Full B" image is suppressed.
+        # With our threshold at 100, the "Full B" image is discarded and the
+        # backup "Full A" image is chosen.
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
@@ -1022,7 +1022,8 @@ class TestPhasedUpdates(ServerTestBase):
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(len(state.winner), 0)
+        self.assertEqual(descriptions(state.winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
 
 
 class TestPhasedUpdatesPulled(ServerTestBase):
@@ -1034,7 +1035,8 @@ class TestPhasedUpdatesPulled(ServerTestBase):
     @configuration
     def test_pulled_update(self):
         # Regardless of the device's phase percentage, when the image has a
-        # percentage of 0, it will never be considered.
+        # percentage of 0, it will never be considered.  In this case Full B
+        # has a phased percentage of 0, so the fallback Full A is chosen.
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
@@ -1046,12 +1048,14 @@ class TestPhasedUpdatesPulled(ServerTestBase):
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(len(state.winner), 0)
+        self.assertEqual(descriptions(state.winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
 
     @configuration
     def test_pulled_update_insanely_negative_randint(self):
         # Regardless of the device's phase percentage, when the image has a
-        # percentage of 0, it will never be considered.
+        # percentage of 0, it will never be considered.  In this case Full B
+        # has a phased percentage of 0, so the fallback Full A is chosen.
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
@@ -1063,7 +1067,8 @@ class TestPhasedUpdatesPulled(ServerTestBase):
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(len(state.winner), 0)
+        self.assertEqual(descriptions(state.winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
 
     @configuration
     def test_pulled_update_insanely_positive_randint(self):

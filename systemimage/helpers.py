@@ -45,6 +45,7 @@ from hashlib import sha256
 from importlib import import_module
 
 
+UNIQUE_MACHINE_ID_FILE = '/var/lib/dbus/machine-id'
 LAST_UPDATE_FILE = '/userdata/.last_update'
 DEFAULT_DIRMODE = 0o02700
 MiB = 1 << 20
@@ -271,6 +272,10 @@ def version_detail(details_string=None):
 def phased_percentage(channel, target):
     # Avoid circular imports.
     from systemimage.config import config
+    if config.phase_override is not None:
+        return config.phase_override
+    with open(UNIQUE_MACHINE_ID_FILE, 'r', encoding='utf-8') as fp:
+        machine_id = fp.read().strip()
     r = random.Random()
-    r.seed('{}.{}.{}'.format(channel, target, config.machine_id))
+    r.seed('{}.{}.{}'.format(channel, target, machine_id))
     return r.randint(0, 100)

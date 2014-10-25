@@ -58,21 +58,21 @@ OPTIONS
 -d DEVICE, --device DEVICE
     Override the device name just this once.
 
--m ID, --machine-id ID
-    Override the machine id.  *New in system-image 2.5.1*
-
 --f FILTER, --filter FILTER
     Filter the candidate upgrade paths to only contain full or delta updates.
     ``FILTER`` must be either ``full`` or ``delta``.
 
 -i, --info
     Show some information about the current device, including the current
-    build number, device name, and channel, then exit.  *New in system-image
-    2.5.1: display the machine id*
+    build number, device name, and channel, then exit.
 
 -n, --dry-run
     Calculate and print the upgrade path, but do not download or apply it.
-    *New in system-image 2.5.1: display the target phase percentage*
+    *New in system-image 2.5.1: output displays the target phase percentage*
+
+-p VALUE, --percentage VALUE
+    For testing purposes, force a device specific phase percentage.  The value
+    must be an integer between 0 and 100.  *New in system-image 2.5.1*
 
 --no-reboot
     Downloads all files and prepares for a reboot into recovery, but doesn't

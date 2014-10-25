@@ -279,7 +279,7 @@ class TestPhasedPercentage(unittest.TestCase):
         tmpdir = self._resources.enter_context(temporary_directory())
         self._mid_path = os.path.join(tmpdir, 'machine-id')
         self._resources.enter_context(patch(
-            'systemimage.config.UNIQUE_MACHINE_ID_FILE', self._mid_path))
+            'systemimage.helpers.UNIQUE_MACHINE_ID_FILE', self._mid_path))
 
     def tearDown(self):
         self._resources.close()
@@ -320,6 +320,16 @@ class TestPhasedPercentage(unittest.TestCase):
         self._set_machine_id('0123456789abcdef')
         self.assertEqual(phased_percentage(channel='ubuntu', target=12), 1)
 
+    @configuration
+    def test_phased_percentage_override(self):
+        # The phased percentage can be overridden.
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+        config.phase_override = 33
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 33)
+        # And reset.
+        del config.phase_override
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
 
 class TestSignature(unittest.TestCase):
     def test_calculate_signature(self):

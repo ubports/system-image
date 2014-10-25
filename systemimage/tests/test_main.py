@@ -71,6 +71,27 @@ def umask(new_mask):
             os.umask(old_mask)
 
 
+def machine_id(mid):
+    with ExitStack() as resources:
+        tempdir = resources.enter_context(temporary_directory())
+        path = os.path.join(tempdir, 'machine-id')
+        with open(path, 'w', encoding='utf-8') as fp:
+            print(mid, file=fp)
+        resources.enter_context(
+            patch('systemimage.helpers.UNIQUE_MACHINE_ID_FILE', path))
+        return resources.pop_all()
+
+
+def capture_print(fp):
+    return patch('builtins.print', partial(print, file=fp))
+
+
+def argv(*args):
+    args = list(args)
+    args.insert(0, 'argv0')
+    return patch('systemimage.main.sys.argv', args)
+
+
 class TestCLIMain(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -81,18 +102,12 @@ class TestCLIMain(unittest.TestCase):
             # We patch builtin print() rather than sys.stdout because the
             # latter can mess with pdb output should we need to trace through
             # the code.
-            self._resources.enter_context(
-                patch('builtins.print', partial(print, file=self._stdout)))
+            self._resources.enter_context(capture_print(self._stdout))
             # Patch argparse's stderr to capture its error messages.
             self._resources.enter_context(
                 patch('argparse._sys.stderr', self._stderr))
-            # Patch the machine id.
-            tempdir = self._resources.enter_context(temporary_directory())
-            path = os.path.join(tempdir, 'machine-id')
-            with open(path, 'w', encoding='utf-8') as fp:
-                print('feedfacebeefbacafeedfacebeefbaca', file=fp)
-            self._resources.enter_context(
-                patch('systemimage.config.UNIQUE_MACHINE_ID_FILE', path))
+            self._resources.push(
+                machine_id('feedfacebeefbacafeedfacebeefbaca'))
         except:
             self._resources.close()
             raise
@@ -103,8 +118,7 @@ class TestCLIMain(unittest.TestCase):
 
     def test_config_file_good_path(self):
         # The default configuration file exists.
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv', ['argv0', '--info']))
+        self._resources.enter_context(argv('--info'))
         # Patch default configuration file.
         tempdir = self._resources.enter_context(temporary_directory())
         ini_path = os.path.join(tempdir, 'client.ini')
@@ -121,8 +135,7 @@ class TestCLIMain(unittest.TestCase):
 
     def test_missing_default_config_file(self):
         # The default configuration file is missing.
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv', ['argv0']))
+        self._resources.enter_context(argv())
         # Patch default configuration file.
         self._resources.enter_context(
             patch('systemimage.main.DEFAULT_CONFIG_FILE',
@@ -136,9 +149,7 @@ class TestCLIMain(unittest.TestCase):
 
     def test_missing_explicit_config_file(self):
         # An explicit configuration file given with -C is missing.
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', '/does/not/exist.ini']))
+        self._resources.enter_context(argv('-C', '/does/not/exist.ini'))
         with self.assertRaises(SystemExit) as cm:
             cli_main()
         self.assertEqual(cm.exception.code, 2)
@@ -162,9 +173,7 @@ class TestCLIMain(unittest.TestCase):
         with open(config_ini, 'wt', encoding='utf-8') as fp:
             fp.write(configuration)
         # Invoking main() creates the directories.
-        self._resources.enter_context(patch(
-            'systemimage.main.sys.argv',
-            ['argv0', '-C', config_ini, '--info']))
+        self._resources.enter_context(argv('-C', config_ini, '--info'))
         self.assertFalse(os.path.exists(tmpdir))
         cli_main()
         self.assertTrue(os.path.exists(tmpdir))
@@ -189,9 +198,7 @@ class TestCLIMain(unittest.TestCase):
         config = Configuration(config_ini)
         self.assertFalse(os.path.exists(config.system.tempdir))
         self.assertFalse(os.path.exists(config.system.logfile))
-        self._resources.enter_context(patch(
-            'systemimage.main.sys.argv',
-            ['argv0', '-C', config_ini, '--info']))
+        self._resources.enter_context(argv('-C', config_ini, '--info'))
         cli_main()
         mode = os.stat(config.system.tempdir).st_mode
         self.assertEqual(stat.filemode(mode), 'drwx--S---')
@@ -204,9 +211,7 @@ class TestCLIMain(unittest.TestCase):
     def test_info(self, ini_file):
         # -i/--info gives information about the device, including the current
         # build number, channel, and device name.
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--info']))
+        self._resources.enter_context(argv('-C', ini_file, '--info'))
         # Set up the build number.
         touch_build(1701, TIMESTAMP)
         cli_main()
@@ -214,7 +219,6 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1701
             device name: nexus7
             channel: stable
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -225,9 +229,7 @@ class TestCLIMain(unittest.TestCase):
         channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
         head, tail = os.path.split(channel_ini)
         copy('channel_01.ini', head, tail)
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--info']))
+        self._resources.enter_context(argv('-C', ini_file, '--info'))
         # Set up the build number.
         config = Configuration(ini_file)
         touch_build(1701)
@@ -240,7 +242,6 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1833
             device name: nexus7
             channel: proposed
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2011-08-01 05:06:07
             """))
 
@@ -249,9 +250,7 @@ class TestCLIMain(unittest.TestCase):
         # --info's last update date falls back to the mtime of
         # /etc/ubuntu-build when no channel.ini file exists.
         channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--info']))
+        self._resources.enter_context(argv('-C', ini_file, '--info'))
         # Set up the build number.
         config = Configuration(ini_file)
         touch_build(1701)
@@ -263,7 +262,6 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1701
             device name: nexus7
             channel: stable
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2011-01-08 02:03:04
             """))
 
@@ -273,16 +271,12 @@ class TestCLIMain(unittest.TestCase):
         touch_build(1701, TIMESTAMP)
         # Use --build to override the default build number.
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file,
-                   '--build', '20250801',
-                   '--info']))
+            argv('-C', ini_file, '--build', '20250801', '--info'))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
             current build number: 20250801
             device name: nexus7
             channel: stable
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -291,16 +285,12 @@ class TestCLIMain(unittest.TestCase):
         # -d/--device overrides the device type.
         touch_build(1701, TIMESTAMP)
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file,
-                   '--device', 'phablet',
-                   '--info']))
+            argv('-C', ini_file, '--device', 'phablet', '--info'))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
             current build number: 1701
             device name: phablet
             channel: stable
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -309,16 +299,12 @@ class TestCLIMain(unittest.TestCase):
         # -c/--channel overrides the channel.
         touch_build(1701, TIMESTAMP)
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file,
-                   '--channel', 'daily-proposed',
-                   '--info']))
+            argv('-C', ini_file, '--channel', 'daily-proposed', '--info'))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
             current build number: 1701
             device name: nexus7
             channel: daily-proposed
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -330,15 +316,12 @@ class TestCLIMain(unittest.TestCase):
         head, tail = os.path.split(channel_ini)
         copy('channel_05.ini', head, tail)
         touch_build(300, TIMESTAMP)
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--info']))
+        self._resources.enter_context(argv('-C', ini_file, '--info'))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
             current build number: 300
             device name: nexus7
             channel: daily
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             alias: saucy
             last update: 2013-08-01 12:11:10
             """))
@@ -349,27 +332,20 @@ class TestCLIMain(unittest.TestCase):
         touch_build(1701, TIMESTAMP)
         # Use --build to override the default build number.
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file,
-                   '-b', '20250801',
-                   '-c', 'daily-proposed',
-                   '-d', 'phablet',
-                   '--info']))
+            argv('-C', ini_file, '-b', '20250801',
+                 '-c', 'daily-proposed', '-d', 'phablet', '--info'))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
             current build number: 20250801
             device name: phablet
             channel: daily-proposed
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
     @configuration
     def test_bad_build_number_override(self, ini_file):
         # -b/--build requires an integer.
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--build', 'bogus']))
+        self._resources.enter_context(argv('-C', ini_file, '--build', 'bogus'))
         with self.assertRaises(SystemExit) as cm:
             cli_main()
         self.assertEqual(cm.exception.code, 2)
@@ -378,50 +354,10 @@ class TestCLIMain(unittest.TestCase):
           'system-image-cli: error: -b/--build requires an integer: bogus')
 
     @configuration
-    def test_machine_id(self, ini_file):
-        # --machine-id allows you to override the machine id.
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file,
-                   '--machine-id', 'aaaaaaaaaaaaaaaaffffffffffffffff',
-                  '--info']))
-        # Set up the build number.
-        touch_build(1701, TIMESTAMP)
-        cli_main()
-        self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 1701
-            device name: nexus7
-            channel: stable
-            machine-id: aaaaaaaaaaaaaaaaffffffffffffffff
-            last update: 2013-08-01 12:11:10
-            """))
-
-    @configuration
-    def test_m(self, ini_file):
-        # -m allows you to override the machine id.
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file,
-                   '--machine-id', 'aaaaaaaaaaaaaaaaffffffffffffffff',
-                  '--info']))
-        # Set up the build number.
-        touch_build(1701, TIMESTAMP)
-        cli_main()
-        self.assertEqual(self._stdout.getvalue(), dedent("""\
-            current build number: 1701
-            device name: nexus7
-            channel: stable
-            machine-id: aaaaaaaaaaaaaaaaffffffffffffffff
-            last update: 2013-08-01 12:11:10
-            """))
-
-    @configuration
     def test_channel_ini_override_build_number(self, ini_file):
         # The channel.ini file can override the build number.
         copy('channel_01.ini', os.path.dirname(ini_file), 'channel.ini')
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '-i']))
+        self._resources.enter_context(argv('-C', ini_file, '-i'))
         # Set up the build number.
         touch_build(1701, TIMESTAMP)
         cli_main()
@@ -429,7 +365,6 @@ class TestCLIMain(unittest.TestCase):
             current build number: 1833
             device name: nexus7
             channel: proposed
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -440,15 +375,12 @@ class TestCLIMain(unittest.TestCase):
         head, tail = os.path.split(channel_ini)
         copy('channel_01.ini', head, tail)
         os.utime(channel_ini, (TIMESTAMP, TIMESTAMP))
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '-i']))
+        self._resources.enter_context(argv('-C', ini_file, '-i'))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
             current build number: 1833
             device name: nexus7
             channel: proposed
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -458,15 +390,12 @@ class TestCLIMain(unittest.TestCase):
         # `system-image-cli -b 0 --channel <channel>`.
         touch_build(801, TIMESTAMP)
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--switch', 'utopic-proposed',
-                   '--info']))
+            argv('-C', ini_file, '--switch', 'utopic-proposed', '--info'))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
             current build number: 0
             device name: nexus7
             channel: utopic-proposed
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -476,15 +405,13 @@ class TestCLIMain(unittest.TestCase):
         # given explicitly, they override the convenience.
         touch_build(801, TIMESTAMP)
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--switch', 'utopic-proposed',
-                   '-b', '1', '-c', 'utopic', '--info']))
+            argv('-C', ini_file, '--switch', 'utopic-proposed',
+                 '-b', '1', '-c', 'utopic', '--info'))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
             current build number: 1
             device name: nexus7
             channel: utopic
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -500,9 +427,7 @@ class TestCLIMain(unittest.TestCase):
                 return self
             def __next__(self):
                 raise StopIteration
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-            ['argv0', '-C', ini_file]))
+        self._resources.enter_context(argv('-C', ini_file))
         self._resources.enter_context(
             patch('systemimage.main.State', FakeState))
         cli_main()
@@ -531,9 +456,7 @@ class TestCLIMain(unittest.TestCase):
         tmpdir = self._resources.enter_context(temporary_directory())
         self._resources.enter_context(
             patch('systemimage.logging.xdg_cache_home', tmpdir))
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--dry-run']))
+        self._resources.enter_context(argv('-C', ini_file, '--dry-run'))
         cli_main()
         # There should now be nothing in the system log file, and something in
         # the fallback log file.
@@ -547,8 +470,7 @@ class TestCLIMain(unittest.TestCase):
     def test_bad_filter_type(self, ini_file):
         # --filter option where value is not `full` or `delta` is an error.
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--filter', 'bogus']))
+            argv('-C', ini_file, '--filter', 'bogus'))
         with self.assertRaises(SystemExit) as cm:
             cli_main()
         self.assertEqual(cm.exception.code, 2)
@@ -563,15 +485,12 @@ class TestCLIMain(unittest.TestCase):
         head, tail = os.path.split(channel_ini)
         copy('channel_03.ini', head, tail)
         os.utime(channel_ini, (TIMESTAMP, TIMESTAMP))
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '-i']))
+        self._resources.enter_context(argv('-C', ini_file, '-i'))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
             current build number: 1833
             device name: nexus7
             channel: proposed
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             version ubuntu: 123
             version mako: 456
@@ -585,15 +504,12 @@ class TestCLIMain(unittest.TestCase):
         head, tail = os.path.split(channel_ini)
         copy('channel_01.ini', head, tail)
         os.utime(channel_ini, (TIMESTAMP, TIMESTAMP))
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '-i']))
+        self._resources.enter_context(argv('-C', ini_file, '-i'))
         cli_main()
         self.assertEqual(self._stdout.getvalue(), dedent("""\
             current build number: 1833
             device name: nexus7
             channel: proposed
-            machine-id: feedfacebeefbacafeedfacebeefbaca
             last update: 2013-08-01 12:11:10
             """))
 
@@ -602,8 +518,7 @@ class TestCLIMain(unittest.TestCase):
         # If an exception happens during the state machine run, the error is
         # logged and main exits with code 1.
         config = Configuration(ini_file)
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv', ['argv0', '-C', ini_file]))
+        self._resources.enter_context(argv('-C', ini_file))
         # Making the cache directory unwritable is a good way to trigger a
         # crash.  Be sure to set it back though!
         with chmod(config.updater.cache_partition, 0):
@@ -616,9 +531,7 @@ class TestCLIMain(unittest.TestCase):
         config = Configuration(ini_file)
         # Making the cache directory unwritable is a good way to trigger a
         # crash.  Be sure to set it back though!
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--dry-run']))
+        self._resources.enter_context(argv('-C', ini_file, '--dry-run'))
         with chmod(config.updater.cache_partition, 0):
             exit_code = cli_main()
         self.assertEqual(exit_code, 1)
@@ -639,45 +552,14 @@ class TestCLIMainDryRun(ServerTestBase):
         # the code.
         capture = StringIO()
         with ExitStack() as resources:
-            resources.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            # Patch the machine id.
-            tempdir = resources.enter_context(temporary_directory())
-            path = os.path.join(tempdir, 'machine-id')
-            with open(path, 'w', encoding='utf-8') as fp:
-                print('0000000000000000aaaaaaaaaaaaaaaa', file=fp)
-            resources.enter_context(
-                patch('systemimage.config.UNIQUE_MACHINE_ID_FILE', path))
-            resources.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run']))
+            resources.enter_context(capture_print(capture))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            resources.enter_context(argv('-C', ini_file, '--dry-run'))
             cli_main()
         self.assertEqual(
             capture.getvalue(), """\
 Upgrade path is 1200:1201:1304
 Target phase: 12%
-""")
-
-    @configuration
-    def test_dry_run_with_machine_id(self, ini_file):
-        # `system-image-cli --dry-run` prints the winning upgrade path.
-        self._setup_server_keyrings()
-        # We patch builtin print() rather than sys.stdout because the
-        # latter can mess with pdb output should we need to trace through
-        # the code.
-        capture = StringIO()
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            resources.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run',
-                       '--machine-id', 'feedfacebeefbacafeedfacebeefbaca']))
-            cli_main()
-        self.assertEqual(
-            capture.getvalue(), """\
-Upgrade path is 1200:1201:1304
-Target phase: 64%
 """)
 
     @configuration
@@ -691,11 +573,8 @@ Target phase: 64%
         # Set up the build number.
         touch_build(1701)
         with ExitStack() as resources:
-            resources.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            resources.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run']))
+            resources.enter_context(capture_print(capture))
+            resources.enter_context(argv('-C', ini_file, '--dry-run'))
             cli_main()
         self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
@@ -709,16 +588,69 @@ Target phase: 64%
         # the code.
         capture = StringIO()
         with ExitStack() as resources:
-            resources.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
+            resources.enter_context(capture_print(capture))
             # Use --build to override the default build number.
             resources.enter_context(
-                patch('systemimage.main.sys.argv', [
-                            'argv0', '-C', ini_file,
-                            '--channel', 'daily-proposed',
-                            '--dry-run']))
+                argv('-C', ini_file, '--channel', 'daily-proposed',
+                     '--dry-run'))
             cli_main()
         self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
+
+    @configuration
+    def test_percentage(self, ini_file):
+        # --percentage overrides the device's target percentage.
+        self._setup_server_keyrings()
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            resources.enter_context(argv('-C', ini_file, '--dry-run'))
+            cli_main()
+        self.assertEqual(
+            capture.getvalue(), """\
+Upgrade path is 1200:1201:1304
+Target phase: 12%
+""")
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            resources.enter_context(
+                argv('-C', ini_file, '--dry-run', '--percentage', '81'))
+            cli_main()
+        self.assertEqual(
+            capture.getvalue(), """\
+Upgrade path is 1200:1201:1304
+Target phase: 81%
+""")
+
+    @configuration
+    def test_p(self, ini_file):
+        # -p overrides the device's target percentage.
+        self._setup_server_keyrings()
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            resources.enter_context(argv('-C', ini_file, '--dry-run'))
+            cli_main()
+        self.assertEqual(
+            capture.getvalue(), """\
+Upgrade path is 1200:1201:1304
+Target phase: 12%
+""")
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            resources.enter_context(
+                argv('-C', ini_file, '--dry-run', '--p', '81'))
+            cli_main()
+        self.assertEqual(
+            capture.getvalue(), """\
+Upgrade path is 1200:1201:1304
+Target phase: 81%
+""")
 
 
 class TestCLIMainDryRunAliases(ServerTestBase):
@@ -737,18 +669,10 @@ class TestCLIMainDryRunAliases(ServerTestBase):
         copy('channel_05.ini', head, tail)
         capture = StringIO()
         with ExitStack() as resources:
-            resources.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            resources.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--dry-run']))
+            resources.enter_context(capture_print(capture))
+            resources.enter_context(argv('-C', ini_file, '--dry-run'))
             # Patch the machine id.
-            tempdir = resources.enter_context(temporary_directory())
-            path = os.path.join(tempdir, 'machine-id')
-            with open(path, 'w', encoding='utf-8') as fp:
-                print('0000000000000000aaaaaaaaaaaaaaaa', file=fp)
-            resources.enter_context(
-                patch('systemimage.config.UNIQUE_MACHINE_ID_FILE', path))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
             # Do not use self._resources to manage the check_output mock.
             # Because of the nesting order of the @configuration decorator and
             # the base class's tearDown(), using self._resources causes the
@@ -778,11 +702,8 @@ class TestCLIListChannels(ServerTestBase):
         head, tail = os.path.split(channel_ini)
         copy('channel_05.ini', head, tail)
         capture = StringIO()
-        self._resources.enter_context(
-            patch('builtins.print', partial(print, file=capture)))
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--list-channels']))
+        self._resources.enter_context(capture_print(capture))
+        self._resources.enter_context(argv('-C', ini_file, '--list-channels'))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
@@ -805,11 +726,8 @@ class TestCLIListChannels(ServerTestBase):
         head, tail = os.path.split(channel_ini)
         copy('channel_05.ini', head, tail)
         capture = StringIO()
-        self._resources.enter_context(
-            patch('builtins.print', partial(print, file=capture)))
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--list-channels']))
+        self._resources.enter_context(capture_print(capture))
+        self._resources.enter_context(argv('-C', ini_file, '--list-channels'))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
@@ -843,12 +761,9 @@ class TestCLIFilters(ServerTestBase):
         # Set up the build number.
         touch_build(100)
         with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
             resources.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            resources.enter_context(
-                patch('systemimage.main.sys.argv', [
-                            'argv0', '-C', ini_file, '--dry-run',
-                            '--filter', 'full']))
+                argv('-C', ini_file, '--dry-run', '--filter', 'full'))
             cli_main()
         self.assertMultiLineEqual(capture.getvalue(), 'Already up-to-date\n')
 
@@ -863,19 +778,10 @@ class TestCLIFilters(ServerTestBase):
         # Set up the build number.
         touch_build(100)
         with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
             resources.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
-            resources.enter_context(
-                patch('systemimage.main.sys.argv', [
-                            'argv0', '-C', ini_file, '--dry-run',
-                            '--filter', 'delta']))
-            # Patch the machine id.
-            tempdir = resources.enter_context(temporary_directory())
-            path = os.path.join(tempdir, 'machine-id')
-            with open(path, 'w', encoding='utf-8') as fp:
-                print('0000000000000000aaaaaaaaaaaaaaaa', file=fp)
-            resources.enter_context(
-                patch('systemimage.config.UNIQUE_MACHINE_ID_FILE', path))
+                argv('-C', ini_file, '--dry-run', '--filter', 'delta'))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
             cli_main()
         self.assertMultiLineEqual(capture.getvalue(), """\
 Upgrade path is 1600
@@ -898,8 +804,7 @@ class TestCLIDuplicateDestinations(ServerTestBase):
         # an exception.
         self._setup_server_keyrings()
         with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.main.sys.argv', ['argv0', '-C', ini_file]))
+            resources.enter_context(argv('-C', ini_file))
             exit_code = cli_main()
         self.assertEqual(exit_code, 1)
         # 2013-11-12 BAW: IWBNI we could assert something about the log
@@ -924,12 +829,9 @@ class TestCLINoReboot(ServerTestBase):
         # reboot into recovery.
         self._setup_server_keyrings()
         capture = StringIO()
+        self._resources.enter_context(capture_print(capture))
         self._resources.enter_context(
-            patch('builtins.print', partial(print, file=capture)))
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--no-reboot',
-                   '-b', 0, '-c', 'daily']))
+            argv('-C', ini_file, '--no-reboot', '-b', 0, '-c', 'daily'))
         mock = self._resources.enter_context(
             patch('systemimage.reboot.Reboot.reboot'))
         # Do not use self._resources to manage the check_output mock.  Because
@@ -981,11 +883,9 @@ unmount system
         # recovery.
         self._setup_server_keyrings()
         capture = StringIO()
+        self._resources.enter_context(capture_print(capture))
         self._resources.enter_context(
-            patch('builtins.print', partial(print, file=capture)))
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '-g', '-b', 0, '-c', 'daily']))
+            argv('-C', ini_file, '-g', '-b', 0, '-c', 'daily'))
         mock = self._resources.enter_context(
             patch('systemimage.reboot.Reboot.reboot'))
         # Do not use self._resources to manage the check_output mock.  Because
@@ -1037,13 +937,11 @@ unmount system
         # not download anything the second time, but does issue a reboot.
         self._setup_server_keyrings()
         capture = StringIO()
-        self._resources.enter_context(
-            patch('builtins.print', partial(print, file=capture)))
+        self._resources.enter_context(capture_print(capture))
         mock = self._resources.enter_context(
             patch('systemimage.reboot.Reboot.reboot'))
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '-g', '-b', 0, '-c', 'daily']))
+            argv('-C', ini_file, '-g', '-b', 0, '-c', 'daily'))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
@@ -1057,8 +955,7 @@ unmount system
         shutil.rmtree(os.path.join(self._serverdir, '3'))
         shutil.rmtree(os.path.join(self._serverdir, '4'))
         shutil.rmtree(os.path.join(self._serverdir, '5'))
-        with patch('systemimage.main.sys.argv',
-                   ['argv0', '-C', ini_file, '-b', 0, '-c', 'daily']):
+        with argv('-C', ini_file, '-b', 0, '-c', 'daily'):
             cli_main()
         # The reboot method was never called.
         self.assertTrue(mock.called)
@@ -1072,13 +969,10 @@ class TestCLIFactoryReset(unittest.TestCase):
         # system-image-cli --factory-reset
         capture = StringIO()
         with ExitStack() as resources:
-            resources.enter_context(
-                patch('builtins.print', partial(print, file=capture)))
+            resources.enter_context(capture_print(capture))
             mock = resources.enter_context(
                 patch('systemimage.reboot.Reboot.reboot'))
-            resources.enter_context(
-                patch('systemimage.main.sys.argv',
-                      ['argv0', '-C', ini_file, '--factory-reset']))
+            resources.enter_context(argv('-C', ini_file, '--factory-reset'))
             cli_main()
         # A reboot was issued.
         self.assertTrue(mock.called)
@@ -1102,8 +996,7 @@ class TestCLISettings(unittest.TestCase):
             # We patch builtin print() rather than sys.stdout because the
             # latter can mess with pdb output should we need to trace through
             # the code.
-            self._resources.enter_context(
-                patch('builtins.print', partial(print, file=self._stdout)))
+            self._resources.enter_context(capture_print(self._stdout))
             # Patch argparse's stderr to capture its error messages.
             self._resources.enter_context(
                 patch('argparse._sys.stderr', self._stderr))
@@ -1123,9 +1016,7 @@ class TestCLISettings(unittest.TestCase):
         settings.set('peart', 'neil')
         settings.set('lee', 'geddy')
         settings.set('lifeson', 'alex')
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--show-settings']))
+        self._resources.enter_context(argv('-C', ini_file, '--show-settings'))
         cli_main()
         self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
             lee=geddy
@@ -1138,9 +1029,7 @@ class TestCLISettings(unittest.TestCase):
         # `system-image-cli --get key` prints the key's value.
         settings = Settings()
         settings.set('ant', 'aunt')
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--get', 'ant']))
+        self._resources.enter_context(argv('-C', ini_file, '--get', 'ant'))
         cli_main()
         self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
             aunt
@@ -1154,9 +1043,7 @@ class TestCLISettings(unittest.TestCase):
         settings.set('t', 'trusty')
         settings.set('u', 'utopic')
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file,
-                   '--get', 's', '--get', 'u', '--get', 't']))
+            argv('-C', ini_file, '--get', 's', '--get', 'u', '--get', 't'))
         cli_main()
         self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
             saucy
@@ -1169,9 +1056,7 @@ class TestCLISettings(unittest.TestCase):
         # Since by definition a missing key has a default value, you can get
         # missing keys.  Note that `auto_download` is the one weirdo.
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file,
-                   '--get', 'missing', '--get', 'auto_download']))
+            argv('-C', ini_file, '--get', 'missing', '--get', 'auto_download'))
         cli_main()
         # This produces a blank line, since `missing` returns the empty
         # string.  For better readability, don't indent the results.
@@ -1183,9 +1068,7 @@ class TestCLISettings(unittest.TestCase):
     @configuration
     def test_set_key(self, ini_file):
         # `system-image-cli --set key=value` sets a key/value pair.
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--set', 'bass=4']))
+        self._resources.enter_context(argv('-C', ini_file, '--set', 'bass=4'))
         cli_main()
         self.assertEqual(Settings().get('bass'), '4')
 
@@ -1196,9 +1079,7 @@ class TestCLISettings(unittest.TestCase):
         settings.set('a', 'ant')
         settings.set('b', 'bee')
         settings.set('c', 'cat')
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--set', 'b=bat']))
+        self._resources.enter_context(argv('-C', ini_file, '--set', 'b=bat'))
         cli_main()
         self.assertEqual(settings.get('a'), 'ant')
         self.assertEqual(settings.get('b'), 'bat')
@@ -1208,11 +1089,10 @@ class TestCLISettings(unittest.TestCase):
     def test_set_keys(self, ini_file):
         # `--set key=value` can be used multiple times.
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file,
-                   '--set', 'a=ant',
-                   '--set', 'b=bee',
-                   '--set', 'c=cat']))
+            argv('-C', ini_file,
+                 '--set', 'a=ant',
+                 '--set', 'b=bee',
+                 '--set', 'c=cat'))
         cli_main()
         settings = Settings()
         self.assertEqual(settings.get('a'), 'ant')
@@ -1226,9 +1106,7 @@ class TestCLISettings(unittest.TestCase):
         settings.set('ant', 'insect')
         settings.set('bee', 'insect')
         settings.set('cat', 'mammal')
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--del', 'bee']))
+        self._resources.enter_context(argv('-C', ini_file, '--del', 'bee'))
         cli_main()
         settings = Settings()
         self.assertEqual(settings.get('ant'), 'insect')
@@ -1244,8 +1122,7 @@ class TestCLISettings(unittest.TestCase):
         settings.set('bee', 'insect')
         settings.set('cat', 'mammal')
         self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--del', 'bee', '--del', 'cat']))
+            argv('-C', ini_file, '--del', 'bee', '--del', 'cat'))
         cli_main()
         settings = Settings()
         self.assertEqual(settings.get('ant'), 'insect')
@@ -1257,9 +1134,7 @@ class TestCLISettings(unittest.TestCase):
     def test_del_missing_key(self, ini_file):
         # When asked to delete a key that's not in the database, nothing
         # much happens.
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file, '--del', 'missing']))
+        self._resources.enter_context(argv('-C', ini_file, '--del', 'missing'))
         cli_main()
         self.assertEqual(Settings().get('missing'), '')
 
@@ -1269,12 +1144,10 @@ class TestCLISettings(unittest.TestCase):
         # mixing and matching database arguments would be arbitrary, it is not
         # allowed to mix them.
         capture = StringIO()
+        self._resources.enter_context(capture_print(capture))
         self._resources.enter_context(
-            patch('builtins.print', partial(print, file=capture)))
-        self._resources.enter_context(
-            patch('systemimage.main.sys.argv',
-                  ['argv0', '-C', ini_file,
-                   '--set', 'c=cat', '--del', 'bee', '--get', 'dog']))
+            argv('-C', ini_file,
+                 '--set', 'c=cat', '--del', 'bee', '--get', 'dog'))
         with self.assertRaises(SystemExit) as cm:
             cli_main()
         self.assertEqual(cm.exception.code, 2)

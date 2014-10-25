@@ -88,13 +88,14 @@ def main():
                         help="""Show some information about the current
                                 device, including the current build number,
                                 device name and channel, then exit""")
-    parser.add_argument('-m', '--machine-id',
-                        default=None, action='store',
-                        help='Override the machine id just this once')
     parser.add_argument('-n', '--dry-run',
                         default=False, action='store_true',
                         help="""Calculate and print the upgrade path, but do
                                 not download or apply it""")
+    parser.add_argument('-p', '--percentage',
+                        default=None, action='store',
+                        help="""Override the device's phased percentage value
+                                during upgrade candidate calculation.""")
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
@@ -217,8 +218,8 @@ def main():
         config.channel = args.channel
     if args.device is not None:
         config.device = args.device
-    if args.machine_id is not None:
-        config.machine_id = args.machine_id
+    if args.percentage is not None:
+        config.phase_override = args.percentage
 
     if args.info:
         alias = getattr(config.service, 'channel_target', None)
@@ -226,7 +227,6 @@ def main():
             build_number=config.build_number,
             device=config.device,
             channel=config.channel,
-            machine_id=config.machine_id,
             last_update=last_update_date(),
             )
         if alias is None:
@@ -234,14 +234,12 @@ def main():
                 current build number: {build_number}
                 device name: {device}
                 channel: {channel}
-                machine-id: {machine_id}
                 last update: {last_update}"""
         else:
             template = """\
                 current build number: {build_number}
                 device name: {device}
                 channel: {channel}
-                machine-id: {machine_id}
                 alias: {alias}
                 last update: {last_update}"""
             kws['alias'] = alias

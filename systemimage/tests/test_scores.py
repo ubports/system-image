@@ -23,7 +23,7 @@ import unittest
 
 from systemimage.candidates import get_candidates
 from systemimage.scores import WeightedScorer
-from systemimage.testing.helpers import get_index
+from systemimage.testing.helpers import descriptions, get_index
 from unittest.mock import patch
 
 
@@ -73,11 +73,8 @@ class TestWeightedScorer(unittest.TestCase):
         self.assertEqual(len(winner), 3)
         self.assertEqual([image.version for image in winner],
                          [1200, 1201, 1304])
-        descriptions = []
-        for image in winner:
-            # There's only one description per image so order doesn't matter.
-            descriptions.extend(image.descriptions.values())
-        self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
+        self.assertEqual(descriptions(winner),
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
 
     def test_tied_candidates(self):
         # LP: #1206866 - TypeError when two candidate paths scored equal.
@@ -109,13 +106,14 @@ class TestPhasedUpdates(unittest.TestCase):
 
     def test_outside_phase_gets_update(self):
         # When the final image on an update path has a phase percentage lower
-        # than the device percentage, the candidate path is not okay.  In this
-        # case, the `Full B` has phase of 50%.
+        # than the device percentage, the scorer falls back to the next
+        # candidate path.
         index = get_index('index_22.json')
         candidates = get_candidates(index, 100)
         with patch('systemimage.scores.phased_percentage', return_value=66):
             winner = self.scorer.choose(candidates, 'devel')
-        self.assertEqual(len(winner), 0)
+        self.assertEqual(descriptions(winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
 
     def test_equal_phase_gets_update(self):
         # When the final image on an update path has a phase percentage exactly
@@ -125,10 +123,8 @@ class TestPhasedUpdates(unittest.TestCase):
         candidates = get_candidates(index, 100)
         with patch('systemimage.scores.phased_percentage', return_value=50):
             winner = self.scorer.choose(candidates, 'devel')
-            descriptions = []
-            for image in winner:
-                descriptions.extend(image.descriptions.values())
-        self.assertEqual(descriptions, ['Full B', 'Delta B.1', 'Delta B.2'])
+        self.assertEqual(descriptions(winner),
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
 
     def test_pulled_update(self):
         # When the final image on an update path has a phase percentage of
@@ -138,7 +134,8 @@ class TestPhasedUpdates(unittest.TestCase):
         candidates = get_candidates(index, 100)
         with patch('systemimage.scores.phased_percentage', return_value=0):
             winner = self.scorer.choose(candidates, 'devel')
-        self.assertEqual(len(winner), 0)
+        self.assertEqual(descriptions(winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
 
     def test_pulled_update_insanely_negative_randint(self):
         # When the final image on an update path has a phase percentage of
@@ -149,7 +146,8 @@ class TestPhasedUpdates(unittest.TestCase):
         candidates = get_candidates(index, 100)
         with patch('systemimage.scores.phased_percentage', return_value=-100):
             winner = self.scorer.choose(candidates, 'devel')
-        self.assertEqual(len(winner), 0)
+        self.assertEqual(descriptions(winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
 
     def test_pulled_update_insanely_positive_randint(self):
         # When the final image on an update path has a phase percentage of
