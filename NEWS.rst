@@ -5,11 +5,16 @@ NEWS for system-image updater
 2.5.1 (2014-10-21)
 ==================
  * Make phased upgrade percentage calculation idempotent for each tuple of
-   (channel, target-build-number, machine-id).  (LP: #1383539)
- * `system-image-cli -m/--machine-id` was added to allow command line override
-   of the machine id.
- * `system-image-cli --info` now also displays the machine id.
- * `system-image-cli --dry-run` now also displays the target phase percentage.
+   (channel, target-build-number, machine-id).  Also, modify the candidate
+   upgrade path selection process such that if the lowest scored candidate
+   path has a phased percentage greater than the device's percentage, the
+   candidate will be ignored, and the next lowest scored candidate will be
+   checked until either a winner is found or no candidates are left, in which
+   case the device is deemed to be up-to-date. (LP: #1383539)
+ * `system-image-cli -p/--percentage` is added to allow command line override
+   of the device's phased percentage.
+ * `system-image-cli --dry-run` now also displays the phase percentage of the
+   winning candidate upgrade path.
 
 2.5 (2014-09-29)
 ================
