@@ -8,6 +8,6 @@ build
 trustdb.gpg
 systemimage/tests/data/random_seed
 dist
-.coverage
+.coverage*
 coverage.xml
 htmlcov

@@ -21,6 +21,14 @@ collection as early as possible in the private bus D-Bus activated processes.
 
 import os
 
+# Set this environment variable if the controller won't start.  There's no
+# other good way to get debugging information about the D-Bus activated
+# process, since their stderr just seems to get lost.
+if os.environ.get('SYSTEMIMAGE_DEBUG_DBUS_ACTIVATION'):
+    import sys
+    sys.stderr = open('/tmp/debug.log', 'a', encoding='utf-8')
+
+
 # It's okay if this module isn't available.
 try:
     from coverage.control import coverage as _Coverage

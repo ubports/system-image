@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2014-09-29
+:Date: 2014-10-23
 :Copyright: 2013-2014 Canonical Ltd.
-:Version: 2.5
+:Version: 2.5.1
 :Manual section: 1
 
 
@@ -68,6 +68,11 @@ OPTIONS
 
 -n, --dry-run
     Calculate and print the upgrade path, but do not download or apply it.
+    *New in system-image 2.5.1: output displays the target phase percentage*
+
+-p VALUE, --percentage VALUE
+    For testing purposes, force a device specific phase percentage.  The value
+    must be an integer between 0 and 100.  *New in system-image 2.5.1*
 
 --no-reboot
     Downloads all files and prepares for a reboot into recovery, but doesn't
