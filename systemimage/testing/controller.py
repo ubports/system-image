@@ -45,7 +45,7 @@ DLSERVICE = os.environ.get(
     'SYSTEMIMAGE_DLSERVICE',
     '/usr/bin/ubuntu-download-manager'
     # For debugging the in-tree version of u-d-m.
-    #'/bin/sh /home/barry/projects/phone/runme.sh'
+    #'/bin/sh $HOME/projects/phone/runme.sh'
     )
 
 
