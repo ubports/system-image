@@ -48,12 +48,10 @@ from systemimage.helpers import calculate_signature
 from systemimage.state import ChecksumError, State
 from systemimage.testing.demo import DemoDevice
 from systemimage.testing.helpers import (
-    ServerTestBase, configuration, copy, data_path, get_index,
+    ServerTestBase, configuration, copy, data_path, descriptions, get_index,
     make_http_server, setup_keyring_txz, setup_keyrings, sign,
     temporary_directory, touch_build)
 from systemimage.testing.nose import SystemImagePlugin
-# FIXME
-from systemimage.tests.test_candidates import _descriptions
 from unittest.mock import call, patch
 
 BAD_SIGNATURE = 'f' * 64
@@ -939,23 +937,57 @@ class TestPhasedUpdates(ServerTestBase):
     INDEX_FILE = 'index_22.json'
 
     @configuration
-    def test_phased_updates(self):
-        # With our threshold at 66, the "Full B" image is suppressed, thus the
-        # upgrade path is different than it normally would be.  In this case,
-        # the 'A' path is taken (in fact, the B path isn't even considered).
+    def test_inside_phased_updates_0(self):
+        # With our threshold at 22, the normal upgrade to "Full B" image is ok.
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
         self._resources.enter_context(
-            patch('systemimage.index.phased_percentage', return_value=66))
+            patch('systemimage.scores.phased_percentage', return_value=22))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(_descriptions(state.winner),
+        self.assertEqual(descriptions(state.winner),
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
+
+    @configuration
+    def test_outside_phased_updates(self):
+        # With our threshold at 66, the normal upgrade to "Full B" image is
+        # discarded, and the previous Full A update is chosen instead.
+        self._setup_server_keyrings()
+        config.channel = 'daily'
+        state = State()
+        self._resources.enter_context(
+            patch('systemimage.scores.phased_percentage', return_value=66))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
+        self.assertEqual(descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])
+
+    @configuration
+    def test_equal_phased_updates_0(self):
+        # With our threshold at 50, i.e. exactly equal to the image's
+        # percentage, the normal upgrade to "Full B" image is ok.
+        self._setup_server_keyrings()
+        config.channel = 'daily'
+        state = State()
+        self._resources.enter_context(
+            patch('systemimage.scores.phased_percentage', return_value=50))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
+        self.assertEqual(descriptions(state.winner),
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
 
     @configuration
     def test_phased_updates_0(self):
@@ -965,33 +997,95 @@ class TestPhasedUpdates(ServerTestBase):
         config.channel = 'daily'
         state = State()
         self._resources.enter_context(
-            patch('systemimage.index.phased_percentage', return_value=0))
+            patch('systemimage.scores.phased_percentage', return_value=0))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(_descriptions(state.winner),
+        self.assertEqual(descriptions(state.winner),
                          ['Full B', 'Delta B.1', 'Delta B.2'])
 
     @configuration
     def test_phased_updates_100(self):
-        # With our threshold at 100, only the image without a specific
-        # phased-percentage key is allowed.  That's the 'A' path again.
+        # With our threshold at 100, the "Full B" image is discarded and the
+        # backup "Full A" image is chosen.
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
         self._resources.enter_context(
-            patch('systemimage.index.phased_percentage', return_value=77))
+            patch('systemimage.scores.phased_percentage', return_value=77))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(_descriptions(state.winner),
+        self.assertEqual(descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])
+
+
+class TestPhasedUpdatesPulled(ServerTestBase):
+    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+    INDEX_FILE = 'index_26.json'
+
+    @configuration
+    def test_pulled_update(self):
+        # Regardless of the device's phase percentage, when the image has a
+        # percentage of 0, it will never be considered.  In this case Full B
+        # has a phased percentage of 0, so the fallback Full A is chosen.
+        self._setup_server_keyrings()
+        config.channel = 'daily'
+        state = State()
+        self._resources.enter_context(
+            patch('systemimage.scores.phased_percentage', return_value=0))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
+        self.assertEqual(descriptions(state.winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
+
+    @configuration
+    def test_pulled_update_insanely_negative_randint(self):
+        # Regardless of the device's phase percentage, when the image has a
+        # percentage of 0, it will never be considered.  In this case Full B
+        # has a phased percentage of 0, so the fallback Full A is chosen.
+        self._setup_server_keyrings()
+        config.channel = 'daily'
+        state = State()
+        self._resources.enter_context(
+            patch('systemimage.scores.phased_percentage', return_value=-100))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
+        self.assertEqual(descriptions(state.winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
+
+    @configuration
+    def test_pulled_update_insanely_positive_randint(self):
+        # Regardless of the device's phase percentage, when the image has a
+        # percentage of 0, it will never be considered.
+        self._setup_server_keyrings()
+        config.channel = 'daily'
+        state = State()
+        self._resources.enter_context(
+            patch('systemimage.scores.phased_percentage', return_value=1000))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
+        self.assertEqual(len(state.winner), 0)
 
 
 class TestCachedFiles(ServerTestBase):

@@ -378,3 +378,26 @@ class TestConfiguration(unittest.TestCase):
         config.load(data_path('channel_07.ini'), override=True)
         with _patch_device_hook():
             self.assertEqual(config.device, '?')
+
+    @configuration
+    def test_phased_percentage(self, ini_file):
+        # By default, the phased percentage override is None.
+        config = Configuration(ini_file)
+        self.assertIsNone(config.phase_override)
+
+    @configuration
+    def test_phased_percentage_override(self, ini_file):
+        # The phased percentage for the device can be overridden.
+        config = Configuration(ini_file)
+        self.assertIsNone(config.phase_override)
+        config.phase_override = 33
+        self.assertEqual(config.phase_override, 33)
+        # It can also be reset.
+        del config.phase_override
+        self.assertIsNone(config.phase_override)
+
+    @configuration
+    def test_phased_percentage_override_int(self, ini_file):
+        # When overriding the phased percentage, the new value must be an int.
+        config = Configuration(ini_file)
+        self.assertRaises(ValueError, setattr, config, 'phase_override', '!')

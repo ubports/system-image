@@ -41,6 +41,13 @@ SPACE = ' '
 OVERRIDE = os.environ.get('SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS')
 HUP_SLEEP = (0 if OVERRIDE is None else int(OVERRIDE))
 
+DLSERVICE = os.environ.get(
+    'SYSTEMIMAGE_DLSERVICE',
+    '/usr/bin/ubuntu-download-manager'
+    # For debugging the in-tree version of u-d-m.
+    #'/bin/sh $HOME/projects/phone/runme.sh'
+    )
+
 
 def start_system_image(controller):
     bus = dbus.SystemBus()
@@ -103,11 +110,6 @@ def stop_downloader(controller):
         return
     if process is not None:
         process.wait(60)
-
-
-DLSERVICE = '/usr/bin/ubuntu-download-manager'
-# For debugging the in-tree version of u-d-m.
-#DLSERVICE = '/bin/sh /home/barry/projects/phone/runme'
 
 
 SERVICES = [

@@ -28,7 +28,7 @@ from systemimage.candidates import get_candidates
 from systemimage.config import config
 from systemimage.gpg import SignatureError
 from systemimage.helpers import temporary_directory
-from systemimage.state import ChecksumError, State
+from systemimage.state import State
 from systemimage.testing.helpers import (
     configuration, copy, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, touch_build)
