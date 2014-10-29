@@ -652,6 +652,35 @@ Upgrade path is 1200:1201:1304
 Target phase: 81%
 """)
 
+    @configuration
+    def test_crazy_p(self, ini_file):
+        # --percentage/-p value is floored at 0% and ceilinged at 100%.
+        self._setup_server_keyrings()
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            resources.enter_context(
+                argv('-C', ini_file, '--dry-run', '--p', '10000'))
+            cli_main()
+        self.assertEqual(
+            capture.getvalue(), """\
+Upgrade path is 1200:1201:1304
+Target phase: 100%
+""")
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            resources.enter_context(
+                argv('-C', ini_file, '--dry-run', '--p', '-10'))
+            cli_main()
+        self.assertEqual(
+            capture.getvalue(), """\
+Upgrade path is 1200:1201:1304
+Target phase: 0%
+""")
+
 
 class TestCLIMainDryRunAliases(ServerTestBase):
     INDEX_FILE = 'index_20.json'

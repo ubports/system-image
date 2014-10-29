@@ -211,7 +211,7 @@ class Configuration:
 
     @phase_override.setter
     def phase_override(self, value):
-        self._phase_override = int(value)
+        self._phase_override = max(0, min(100, int(value)))
 
     @phase_override.deleter
     def phase_override(self):

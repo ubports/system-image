@@ -401,3 +401,15 @@ class TestConfiguration(unittest.TestCase):
         # When overriding the phased percentage, the new value must be an int.
         config = Configuration(ini_file)
         self.assertRaises(ValueError, setattr, config, 'phase_override', '!')
+
+    @configuration
+    def test_crazy_phase(self, ini_file):
+        config = Configuration(ini_file)
+        config.phase_override = -100
+        self.assertEqual(config.phase_override, 0)
+        config.phase_override = 108
+        self.assertEqual(config.phase_override, 100)
+        config.phase_override = 0
+        self.assertEqual(config.phase_override, 0)
+        config.phase_override = 100
+        self.assertEqual(config.phase_override, 100)
