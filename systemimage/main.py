@@ -30,7 +30,8 @@ from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
 from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
-from systemimage.helpers import last_update_date, makedirs, version_detail
+from systemimage.helpers import (
+    last_update_date, makedirs, phased_percentage, version_detail)
 from systemimage.logging import initialize
 from systemimage.reboot import factory_reset
 from systemimage.settings import Settings
@@ -91,6 +92,10 @@ def main():
                         default=False, action='store_true',
                         help="""Calculate and print the upgrade path, but do
                                 not download or apply it""")
+    parser.add_argument('-p', '--percentage',
+                        default=None, action='store',
+                        help="""Override the device's phased percentage value
+                                during upgrade candidate calculation.""")
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
@@ -213,6 +218,8 @@ def main():
         config.channel = args.channel
     if args.device is not None:
         config.device = args.device
+    if args.percentage is not None:
+        config.phase_override = args.percentage
 
     if args.info:
         alias = getattr(config.service, 'channel_target', None)
@@ -296,15 +303,19 @@ def main():
         else:
             winning_path = [str(image.version) for image in state.winner]
             kws = dict(path=COLON.join(winning_path))
+            target_build = state.winner[-1].version
             if state.channel_switch is None:
                 # We're not switching channels due to an alias change.
                 template = 'Upgrade path is {path}'
+                percentage = phased_percentage(config.channel, target_build)
             else:
                 # This upgrade changes the channel that our alias is mapped
                 # to, so include that information in the output.
                 template = 'Upgrade path is {path} ({from} -> {to})'
                 kws['from'], kws['to'] = state.channel_switch
+                percentage = phased_percentage(kws['to'], target_build)
             print(template.format(**kws))
+            print('Target phase: {}%'.format(percentage))
         return
     else:
         # Run the state machine to conclusion.  Suppress all exceptions, but

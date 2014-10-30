@@ -75,6 +75,9 @@ class Configuration:
         self._device = None
         self._build_number = None
         self._channel = None
+        # This is used only to override the phased percentage via command line
+        # and the property setter.
+        self._phase_override = None
         self._tempdir = None
         self._resources = ExitStack()
         atexit.register(self._resources.close)
@@ -201,6 +204,18 @@ class Configuration:
     @channel.setter
     def channel(self, value):
         self._channel = value
+
+    @property
+    def phase_override(self):
+        return self._phase_override
+
+    @phase_override.setter
+    def phase_override(self, value):
+        self._phase_override = max(0, min(100, int(value)))
+
+    @phase_override.deleter
+    def phase_override(self):
+        self._phase_override = None
 
     @property
     def tempdir(self):

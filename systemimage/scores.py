@@ -26,9 +26,8 @@ __all__ = [
 
 import logging
 
-from io import StringIO
 from itertools import count
-from systemimage.helpers import MiB
+from systemimage.helpers import MiB, phased_percentage
 
 log = logging.getLogger('systemimage')
 
@@ -38,7 +37,7 @@ COLON = ':'
 class Scorer:
     """Abstract base class providing an API for candidate selection."""
 
-    def choose(self, candidates):
+    def choose(self, candidates, channel):
         """Choose the candidate upgrade paths.
 
         Lowest score wins.
@@ -47,6 +46,9 @@ class Scorer:
             the device from the current version to the latest version, sorted
             in order from oldest verson to newest.
         :type candidates: list of lists
+        :param channel: The channel being upgraded to.  This is used in the
+            phased update calculate.
+        :type channel: str
         :return: The chosen path.
         :rtype: list
         """
@@ -68,17 +70,31 @@ class Scorer:
         # Be sure that after all is said and done we return the list of Images
         # though!
         scores = sorted(zip(self.score(candidates), count(), candidates))
-        fp = StringIO()
-        print('{} path scores (last one wins):'.format(
-            self.__class__.__name__),
-            file=fp)
-        for score, i, candidate in reversed(scores):
-            print('\t[{:4d}] -> {}'.format(
+        # Calculate the phase percentage for the device.  Use the highest
+        # available build number as input into the random seed.
+        max_target_number = -1
+        for score, i, path in scores:
+            # The last image will be the target image.
+            assert len(path) > 0, 'Empty upgrade candidate path?'
+            max_target_number = max(max_target_number, path[-1].version)
+        assert max_target_number != -1, 'No max target version?'
+        device_percentage = phased_percentage(channel, max_target_number)
+        log.debug('Device phased percentage: {}%'.format(device_percentage))
+        log.debug('{} path scores:'.format(self.__class__.__name__))
+        # Log the candidate paths, their scores, and their phases.
+        for score, i, path in reversed(scores):
+            log.debug('\t[{:4d}] -> {} ({}%)'.format(
                 score,
-                COLON.join(str(image.version) for image in candidate)),
-                file=fp)
-        log.debug('{}'.format(fp.getvalue()))
-        return scores[0][2]
+                COLON.join(str(image.version) for image in path),
+                (path[-1].phased_percentage if len(path) > 0 else '--')
+                ))
+        for score, i, path in scores:
+            image_percentage = path[-1].phased_percentage
+            # An image percentage of 0 means that it's been pulled.
+            if image_percentage > 0 and device_percentage <= image_percentage:
+                return path
+        # No upgrade path.
+        return []
 
     def score(self, candidates): # pragma: no cover
         """Like `choose()` except returns the candidate path scores.

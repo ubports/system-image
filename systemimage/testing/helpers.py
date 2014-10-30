@@ -23,6 +23,7 @@ __all__ = [
     'data_path',
     'debug',
     'debuggable',
+    'descriptions',
     'find_dbus_process',
     'get_channels',
     'get_index',
@@ -553,3 +554,12 @@ class ServerTestBase(unittest.TestCase):
                 dict(type='device-signing'),
                 os.path.join(self._serverdir, self.CHANNEL, self.DEVICE,
                              'device-signing.tar.xz'))
+
+
+def descriptions(path):
+    descriptions = []
+    for image in path:
+        # There's only one description per image so order doesn't
+        # matter.
+        descriptions.extend(image.descriptions.values())
+    return descriptions

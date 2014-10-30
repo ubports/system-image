@@ -431,7 +431,10 @@ class State:
         candidates = get_candidates(self.index, build_number)
         if self._filter is not None:
             candidates = self._filter(candidates)
-        self.winner = config.hooks.scorer().choose(candidates)
+        self.winner = config.hooks.scorer().choose(
+            candidates, (channel_target
+                         if channel_alias is None
+                         else channel_alias))
         # If there is no winning upgrade candidate, then there's nothing more
         # to do.  We can skip everything between downloading the files and
         # doing the reboot.
