@@ -176,7 +176,7 @@ class Service(Object):
         # this method can return immediately.
         GLib.timeout_add(50, self._check_for_update)
 
-    @log_and_exit
+    #@log_and_exit
     def _progress_callback(self, received, total):
         # Plumb the progress through our own D-Bus API.  Our API is defined as
         # signalling a percentage and an eta.  We can calculate the percentage
@@ -418,7 +418,7 @@ class Service(Object):
                   last_update_date, repr(error_reason))
         self.loop.keepalive()
 
-    @log_and_exit
+    #@log_and_exit
     @signal('com.canonical.SystemImage', signature='id')
     def UpdateProgress(self, percentage, eta):
         """Download progress."""

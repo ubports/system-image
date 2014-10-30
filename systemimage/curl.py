@@ -275,9 +275,9 @@ class CurlDownloadManager(DownloadManagerBase):
     def resume(self):
         if self._pausables is None:
             return
+        self._paused = False
         from systemimage.testing.helpers import debug
         with debug() as print:
             print('RESUME')
         for c in self._pausables:
             c.pause(pycurl.PAUSE_CONT)
-        self._paused = False
