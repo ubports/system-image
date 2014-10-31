@@ -27,13 +27,14 @@ import os
 import dbus
 import logging
 
+from collections import namedtuple
+from io import StringIO
+from pprint import pformat
+
 try:
     import pycurl
 except ImportError:
     pycurl = None
-
-from collections import namedtuple
-from pprint import pformat
 
 
 log = logging.getLogger('systemimage')
@@ -186,6 +187,17 @@ class DownloadManagerBase:
             # Nothing to download.  See LP: #1245597.
             return
         records = self._get_download_records(downloads)
+        # Better logging of the requested downloads.  However, we want the
+        # entire block of multiline log output to appear under a single
+        # timestamp.
+        fp = StringIO()
+        print('[0x{:x}] Requesting group download:'.format(id(self)), file=fp)
+        for record in records:
+            if record.checksum == '':
+                print('\t{} -> {}'.format(*record[:2]), file=fp)
+            else:
+                print('\t{} [{}] -> {}'.format(*record), file=fp)
+        log.info('{}'.format(fp.getvalue()))
         self._get_files(records, pausable)
 
 

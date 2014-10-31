@@ -84,8 +84,8 @@ class SingleDownload:
         c.setopt(pycurl.CONNECTTIMEOUT, CONNECTION_TIMEOUT)
         # If the average transfer speed is below 10 bytes per second for 2
         # minutes, libcurl will consider the connection too slow and abort.
-        c.setopt(pycurl.LOW_SPEED_LIMIT, LOW_SPEED_LIMIT)
-        c.setopt(pycurl.LOW_SPEED_TIME, LOW_SPEED_TIME)
+        ## c.setopt(pycurl.LOW_SPEED_LIMIT, LOW_SPEED_LIMIT)
+        ## c.setopt(pycurl.LOW_SPEED_TIME, LOW_SPEED_TIME)
         # Fail on error codes >= 400.
         c.setopt(pycurl.FAILONERROR, 1)
         # Switch off the libcurl progress meters.  The multi that uses
@@ -258,9 +258,6 @@ class CurlDownloadManager(DownloadManagerBase):
     def pause(self):
         if self._pausables is None:
             return
-        from systemimage.testing.helpers import debug
-        with debug() as print:
-            print('PAUSE')
         for c in self._pausables:
             c.pause(pycurl.PAUSE_ALL)
         self._paused = True
@@ -276,8 +273,5 @@ class CurlDownloadManager(DownloadManagerBase):
         if self._pausables is None:
             return
         self._paused = False
-        from systemimage.testing.helpers import debug
-        with debug() as print:
-            print('RESUME')
         for c in self._pausables:
             c.pause(pycurl.PAUSE_CONT)

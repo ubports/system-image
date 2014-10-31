@@ -25,7 +25,6 @@ import dbus
 import logging
 
 from contextlib import suppress
-from io import StringIO
 from systemimage.config import config
 from systemimage.download import Canceled, DownloadManagerBase, USER_AGENT
 from systemimage.reactor import Reactor
@@ -139,15 +138,6 @@ class UDMDownloadManager(DownloadManagerBase):
         bus = dbus.SystemBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
         iface = dbus.Interface(service, MANAGER_INTERFACE)
-        # Better logging of the requested downloads.
-        fp = StringIO()
-        print('[0x{:x}] Requesting group download:'.format(id(self)), file=fp)
-        for record in records:
-            if record.checksum == '':
-                print('\t{} -> {}'.format(*record[:2]), file=fp)
-            else:
-                print('\t{} [{}] -> {}'.format(*record), file=fp)
-        log.info('{}'.format(fp.getvalue()))
         object_path = iface.createDownloadGroup(
             records,
             'sha256',

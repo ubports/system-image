@@ -21,6 +21,7 @@ __all__ = [
     'TestDBusCheckForUpdateToUnwritablePartition',
     'TestDBusCheckForUpdateWithBrokenIndex',
     'TestDBusDownload',
+    'TestDBusDownloadBigFiles',
     'TestDBusFactoryReset',
     'TestDBusGetSet',
     'TestDBusInfo',
@@ -63,6 +64,10 @@ from systemimage.testing.helpers import (
     copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
     setup_keyrings, sign, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
+
+
+# Precomputed SHA256 hash for 750MiB of b'x'.
+HASH750 = '5fdddb486eeb1aa4dbdada48424418fce5f753844544b6970e4a25879d6d6f52'
 
 
 # Use a namedtuple for more convenient argument unpacking.
@@ -601,6 +606,47 @@ unmount system
         self.assertEqual(failure_count, 1)
         # Don't count on a specific error message.
         self.assertEqual(last_reason[:25], 'DuplicateDestinationError')
+
+
+class TestDBusDownloadBigFiles(_LiveTesting):
+    # If the update contains several very large files, ensure that they can be
+    # successfully downloaded.   With the PyCURL downloader, this will ensure
+    # that the minimum transfer rate error isn't triggered.
+    def test_download_big_files(self):
+        # Start by creating some big files which will take a while to
+        # download.
+        def write_callback(dst):
+            # Write a 500 MiB sized file.
+            write_bytes(dst, 750)
+        self._prepare_index('index_24.json', write_callback)
+        # Fix the checksums.
+        index_path = os.path.join(SystemImagePlugin.controller.serverdir,
+                                  'stable', 'nexus7', 'index.json')
+        with open(index_path, 'r', encoding='utf-8') as fp:
+            index = json.load(fp)
+        for i in range(3):
+            index['images'][0]['files'][i]['checksum'] = HASH750
+        with open(index_path, 'w', encoding='utf-8') as fp:
+            json.dump(index, fp)
+        sign(index_path, 'device-signing.gpg')
+        # Do the download.
+        self.download_always()
+        reactor = SignalCapturingReactor('UpdateDownloaded')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        with open(self.command_file, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
 
 
 class TestDBusApply(_LiveTesting):
@@ -1556,7 +1602,7 @@ class TestDBusPauseResume(_LiveTesting):
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         # There must be an update available.
-        self.assertTrue(reactor.signals[0][0])
+        self.assertTrue(reactor.signals[0].is_available)
         # We're ready to start downloading.  We schedule a pause to happen in
         # a little bit and then ensure that we get the proper signal.
         reactor = PausingReactor(self.iface)
