@@ -632,7 +632,7 @@ class TestDBusDownloadBigFiles(_LiveTesting):
         # Do the download.
         self.download_always()
         reactor = SignalCapturingReactor('UpdateDownloaded')
-        reactor.run(self.iface.CheckForUpdate)
+        reactor.run(self.iface.CheckForUpdate, timeout=1200)
         self.assertEqual(len(reactor.signals), 1)
         with open(self.command_file, 'r', encoding='utf-8') as fp:
             command = fp.read()
