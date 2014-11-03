@@ -33,7 +33,7 @@ from pprint import pformat
 
 try:
     import pycurl
-except ImportError:
+except ImportError:                                 # pragma: no cover
     pycurl = None
 
 
@@ -142,14 +142,14 @@ class DownloadManagerBase:
 
     def pause(self):
         """Pause the download, but only if one is in progress."""
-        pass
+        pass                                        # pragma: no cover
 
     def resume(self):
         """Resume the download, but only if one is in progress."""
-        pass
+        pass                                        # pragma: no cover
 
     def _get_files(self, records, pausable):
-        raise NotImplementedError
+        raise NotImplementedError                   # pragma: no cover
 
     def get_files(self, downloads, *, pausable=False):
         """Download a bunch of files concurrently.
@@ -212,7 +212,7 @@ def get_download_manager(*args):
     # variable is set.  However, if we're told to use PyCURL and it's
     # unavailable, throw an exception.
     cls = None
-    use_pycurl = os.environ.get('SYSTEM_IMAGE_PYCURL')
+    use_pycurl = os.environ.get('SYSTEMIMAGE_PYCURL')
     if use_pycurl is None:
         # Auto-detect.  For backward compatibility, use udm if it's available,
         # otherwise use PyCURL.

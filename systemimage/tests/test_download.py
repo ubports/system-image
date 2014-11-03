@@ -16,8 +16,10 @@
 """Test asynchronous downloads."""
 
 __all__ = [
+    'TestCURL',
     'TestDownload',
     'TestDownloadBigFiles',
+    'TestDownloadManagerFactory',
     'TestDuplicateDownloads',
     'TestGSMDownloads',
     'TestHTTPSDownloads',
@@ -31,21 +33,24 @@ __all__ = [
 import os
 import sys
 import random
+import pycurl
 import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timedelta
+from dbus.exceptions import DBusException
 from gi.repository import GLib
 from hashlib import sha256
 from systemimage.config import Configuration, config
+from systemimage.curl import CurlDownloadManager
 from systemimage.download import (
     Canceled, DuplicateDestinationError, Record, get_download_manager)
 from systemimage.helpers import temporary_directory
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
-    configuration, data_path, make_http_server, write_bytes)
+    configuration, data_path, make_http_server, reset_envar, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
-from systemimage.udm import UDMDownloadManager
+from systemimage.udm import DOWNLOADER_INTERFACE, UDMDownloadManager
 from unittest.mock import patch
 from urllib.parse import urljoin
 
@@ -608,3 +613,152 @@ class TestDuplicateDownloads(unittest.TestCase):
             (   'http://localhost:8980/source.dat',
                 'local.dat',
                 '809ecb6ebc8bcefc733f6f2ec44f791abeed6a99edf0cc31519637898aebd52d')])]""")
+
+
+# This class only bumps coverage to 100% for the cURL-based downloader, so it
+# can be skipped when the test suite runs under u-d-m.  Checking the
+# environment variable wouldn't be enough for production (see download.py
+# get_download_manager() for other cases where the downloader is chosen), but
+# it's sufficient for the test suite.  See tox.ini.
+@unittest.skipUnless(os.environ.get('SYSTEMIMAGE_PYCURL', '0') == '1',
+                     'Not relevant for udm tests')
+class TestCURL(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self._resources = ExitStack()
+        try:
+            # Start the HTTP server running, vending files out of our test
+            # data directory.
+            directory = os.path.dirname(data_path('__init__.py'))
+            self._resources.push(make_http_server(directory, 8980))
+        except:
+            self._resources.close()
+            raise
+
+    def tearDown(self):
+        self._resources.close()
+        super().tearDown()
+
+    @configuration
+    def test_multi_perform(self):
+        # PyCURL's multi.perform() can return the E_CALL_MULTI_PEFORM status
+        # which tells us to just try again.  This doesn't happen in practice,
+        # but the code path needs coverage.  However, .perform() itself can't
+        # be mocked because pycurl.CurlMulti is a built-in.  Fun.
+        class FakeMulti:
+            def perform(self):
+                return pycurl.E_CALL_MULTI_PERFORM, 2
+        done_once = False
+        class Testable(CurlDownloadManager):
+            def _do_once(self, multi, handles):
+                nonlocal done_once
+                if done_once:
+                    return super()._do_once(multi, handles)
+                else:
+                    done_once = True
+                    return super()._do_once(FakeMulti(), handles)
+        Testable().get_files(_http_pathify([
+            ('channels_01.json', 'channels.json'),
+            ('index_01.json', 'index.json'),
+            ]))
+        self.assertTrue(done_once)
+        # The files still get downloaded.
+        self.assertEqual(
+            set(os.listdir(config.tempdir)),
+            set(['channels.json', 'index.json']))
+
+    @configuration
+    def test_multi_fail(self):
+        # PyCURL's multi.perform() can return a failure code (i.e. not E_OK)
+        # which triggers a FileNotFoundError.  It doesn't really matter which
+        # failure code it returns.
+        class FakeMulti:
+            def perform(self):
+                return pycurl.E_READ_ERROR, 2
+        class Testable(CurlDownloadManager):
+            def _do_once(self, multi, handles):
+                return super()._do_once(FakeMulti(), handles)
+        with self.assertRaises(FileNotFoundError) as cm:
+            Testable().get_files(_http_pathify([
+                ('channels_01.json', 'channels.json'),
+                ('index_01.json', 'index.json'),
+                ]))
+        # One of the two files will be contained in the error message, but
+        # which one is undefined, although in practice it will be the first
+        # one.
+        self.assertRegex(
+            cm.exception.args[0],
+            'http://localhost:8980/(channels|index)_01.json')
+
+
+class TestDownloadManagerFactory(unittest.TestCase):
+    """We have a factory for creating the download manager to use."""
+
+    def test_get_downloader_forced_curl(self):
+        # Setting SYSTEMIMAGE_PYCURL envar to 1, yes, or true forces the
+        # PyCURL downloader.
+        with reset_envar('SYSTEMIMAGE_PYCURL'):
+            os.environ['SYSTEMIMAGE_PYCURL'] = '1'
+            self.assertIsInstance(get_download_manager(), CurlDownloadManager)
+        with reset_envar('SYSTEMIMAGE_PYCURL'):
+            os.environ['SYSTEMIMAGE_PYCURL'] = 'tRuE'
+            self.assertIsInstance(get_download_manager(), CurlDownloadManager)
+        with reset_envar('SYSTEMIMAGE_PYCURL'):
+            os.environ['SYSTEMIMAGE_PYCURL'] = 'YES'
+            self.assertIsInstance(get_download_manager(), CurlDownloadManager)
+
+    def test_get_downloader_forced_udm(self):
+        # Setting SYSTEMIMAGE_PYCURL envar to anything else forces the udm
+        # downloader.
+        with reset_envar('SYSTEMIMAGE_PYCURL'):
+            os.environ['SYSTEMIMAGE_PYCURL'] = '0'
+            self.assertIsInstance(get_download_manager(), UDMDownloadManager)
+        with reset_envar('SYSTEMIMAGE_PYCURL'):
+            os.environ['SYSTEMIMAGE_PYCURL'] = 'false'
+            self.assertIsInstance(get_download_manager(), UDMDownloadManager)
+        with reset_envar('SYSTEMIMAGE_PYCURL'):
+            os.environ['SYSTEMIMAGE_PYCURL'] = 'nope'
+            self.assertIsInstance(get_download_manager(), UDMDownloadManager)
+
+    def test_auto_detect_udm(self):
+        # If the environment variable is not set, we do auto-detection.  For
+        # backward compatibility, if udm is available on the system bus, we
+        # use it.
+        with reset_envar('SYSTEMIMAGE_PYCURL'):
+            if 'SYSTEMIMAGE_PYCURL' in os.environ:
+                del os.environ['SYSTEMIMAGE_PYCURL']
+            with patch('dbus.SystemBus.get_object') as mock:
+                self.assertIsInstance(
+                    get_download_manager(), UDMDownloadManager)
+            mock.assert_called_once_with(DOWNLOADER_INTERFACE, '/')
+
+    def test_auto_detect_curl(self):
+        # If the environment variable is not set, we do auto-detection.  If udm
+        # is not available on the system bus, we use the cURL downloader.
+        import systemimage.download
+        with ExitStack() as resources:
+            resources.enter_context(reset_envar('SYSTEMIMAGE_PYCURL'))
+            if 'SYSTEMIMAGE_PYCURL' in os.environ:
+                del os.environ['SYSTEMIMAGE_PYCURL']
+            mock = resources.enter_context(
+                patch('dbus.SystemBus.get_object', side_effect=DBusException))
+            resources.enter_context(
+                patch.object(systemimage.download, 'pycurl', object()))
+            self.assertIsInstance(
+                get_download_manager(), CurlDownloadManager)
+            mock.assert_called_once_with(DOWNLOADER_INTERFACE, '/')
+
+    def test_auto_detect_none_available(self):
+        # Again, we're auto-detecting, but in this case, we have neither udm
+        # nor pycurl available.
+        import systemimage.download
+        with ExitStack() as resources:
+            resources.enter_context(reset_envar('SYSTEMIMAGE_PYCURL'))
+            if 'SYSTEMIMAGE_PYCURL' in os.environ:
+                del os.environ['SYSTEMIMAGE_PYCURL']
+            mock = resources.enter_context(
+                patch('dbus.SystemBus.get_object', side_effect=DBusException))
+            resources.enter_context(
+                patch.object(systemimage.download, 'pycurl', None))
+            self.assertRaises(ImportError, get_download_manager)
+            mock.assert_called_once_with(DOWNLOADER_INTERFACE, '/')

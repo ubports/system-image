@@ -76,6 +76,19 @@ UASRecord = namedtuple('UASRecord',
     'last_update_date error_reason')
 
 
+def tweak_checksums(checksum):
+    index_path = os.path.join(
+        SystemImagePlugin.controller.serverdir,
+        'stable', 'nexus7', 'index.json')
+    with open(index_path, 'r', encoding='utf-8') as fp:
+        index = json.load(fp)
+    for i in range(3):
+        index['images'][0]['files'][i]['checksum'] = checksum
+    with open(index_path, 'w', encoding='utf-8') as fp:
+        json.dump(index, fp)
+    sign(index_path, 'device-signing.gpg')
+
+
 class SignalCapturingReactor(Reactor):
     def __init__(self, *signals):
         super().__init__(dbus.SystemBus())
@@ -619,16 +632,7 @@ class TestDBusDownloadBigFiles(_LiveTesting):
             # Write a 500 MiB sized file.
             write_bytes(dst, 750)
         self._prepare_index('index_24.json', write_callback)
-        # Fix the checksums.
-        index_path = os.path.join(SystemImagePlugin.controller.serverdir,
-                                  'stable', 'nexus7', 'index.json')
-        with open(index_path, 'r', encoding='utf-8') as fp:
-            index = json.load(fp)
-        for i in range(3):
-            index['images'][0]['files'][i]['checksum'] = HASH750
-        with open(index_path, 'w', encoding='utf-8') as fp:
-            json.dump(index, fp)
-        sign(index_path, 'device-signing.gpg')
+        tweak_checksums(HASH750)
         # Do the download.
         self.download_always()
         reactor = SignalCapturingReactor('UpdateDownloaded')
@@ -1584,16 +1588,7 @@ class TestDBusPauseResume(_LiveTesting):
             full_path = os.path.join(
                 SystemImagePlugin.controller.serverdir, path)
             write_bytes(full_path, 750)
-        # Disable the checksums - they just get in the way of these tests.
-        index_path = os.path.join(SystemImagePlugin.controller.serverdir,
-                                  'stable', 'nexus7', 'index.json')
-        with open(index_path, 'r', encoding='utf-8') as fp:
-            index = json.load(fp)
-        for i in range(3):
-            index['images'][0]['files'][i]['checksum'] = ''
-        with open(index_path, 'w', encoding='utf-8') as fp:
-            json.dump(index, fp)
-        sign(index_path, 'device-signing.gpg')
+        tweak_checksums('')
 
     def test_pause(self):
         self.download_manually()
@@ -1757,7 +1752,6 @@ unmount system
 """)
 
 
-@unittest.skip('XXX FIXME UDM ONLY')
 class TestDBusMultipleChecksInFlight(_LiveTesting):
     def test_multiple_check_for_updates(self):
         # Log analysis of LP: #1277589 appears to show the following scenario,

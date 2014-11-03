@@ -58,7 +58,7 @@ class ChecksumError(Exception):
         self.got = got
         self.expected = checksum
 
-    def __str__(self):
+    def __str__(self):                              # pragma: no cover
         return 'got:{0.got} != exp:{0.expected}: {0.destination}'.format(self)
 
 

@@ -41,7 +41,7 @@ MAX_TOTAL_CONNECTIONS = 4
 SELECT_TIMEOUT = 0.05       # 20fps
 
 
-def _curl_debug(debug_type, debug_msg):
+def _curl_debug(debug_type, debug_msg):             # pragma: no cover
     from systemimage.testing.helpers import debug
     with debug(end='') as ddlog:
         ddlog('PYCURL:', debug_type, debug_msg)
@@ -131,7 +131,7 @@ class CurlDownloadManager(DownloadManagerBase):
 
     def __init__(self, callback=None):
         super().__init__(callback)
-        self._pausables = None
+        self._pausables = []
         self._paused = False
 
     def _get_files(self, records, pausable):
@@ -159,7 +159,6 @@ class CurlDownloadManager(DownloadManagerBase):
         # Now do a GET on all the URLs.  This will write the data to the
         # destination file and collect the checksums.
         with ExitStack() as resources:
-            self._pausables = []
             resources.callback(setattr, self, '_handles', None)
             downloads = []
             multi = pycurl.CurlMulti()
@@ -193,18 +192,19 @@ class CurlDownloadManager(DownloadManagerBase):
                 # For backward compatibility with ubuntu-download_manager.
                 raise FileNotFoundError('HASH ERROR: {}'.format(
                     first_mismatch.destination))
+        self._pausables = []
 
     def _do_once(self, multi, handles):
         status, active_count = multi.perform()
         if status == pycurl.E_CALL_MULTI_PERFORM:
             # Call .perform() again before calling select.
-            return
+            return True
         elif status != pycurl.E_OK:
             # An error occurred in the multi, so be done with the
             # whole thing.  We can't get a description string out of
             # PyCURL though.  Just raise one of the urls.
             log.error('CurlMulti() error: {}', status)
-            raise FileNotFoundError(handles[0].url)
+            raise FileNotFoundError(handles[0].getinfo(pycurl.EFFECTIVE_URL))
         # The multi is okay, but it's possible there are errors pending on
         # the individual downloads; check those now.
         queued_count, ok_list, error_list = multi.info_read()
@@ -256,8 +256,6 @@ class CurlDownloadManager(DownloadManagerBase):
         self._do_callback()
 
     def pause(self):
-        if self._pausables is None:
-            return
         for c in self._pausables:
             c.pause(pycurl.PAUSE_ALL)
         self._paused = True
@@ -270,8 +268,6 @@ class CurlDownloadManager(DownloadManagerBase):
         config.dbus_service.UpdatePaused(percentage)
 
     def resume(self):
-        if self._pausables is None:
-            return
         self._paused = False
         for c in self._pausables:
             c.pause(pycurl.PAUSE_CONT)

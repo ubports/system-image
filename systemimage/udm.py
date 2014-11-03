@@ -90,13 +90,7 @@ class DownloadReactor(Reactor):
         self.received = received
         self.total = total
         _print('PROGRESS:', received, total)
-        if self._callback is not None:
-            # Be defensive, so yes, use a bare except.  If an exception occurs
-            # in the callback, log it, but continue onward.
-            try:
-                self._callback(received, total)
-            except:
-                log.exception('Exception in progress callback')
+        self._callback()
 
     def _do_canceled(self, signal, path, canceled):
         # Why would we get this signal if it *wasn't* canceled?  Anyway,
@@ -152,7 +146,7 @@ class UDMDownloadManager(DownloadManagerBase):
         allow_gsm = Settings().get('auto_download') != '1'
         UDMDownloadManager._set_gsm(self._iface, allow_gsm=allow_gsm)
         # Start the download.
-        reactor = DownloadReactor(bus, self.callback, pausable)
+        reactor = DownloadReactor(bus, self._do_callback, pausable)
         reactor.schedule(self._iface.start)
         log.info('[0x{:x}] Running group download reactor', id(self))
         reactor.run()
