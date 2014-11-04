@@ -83,7 +83,7 @@ class DownloadManagerBase:
         """
         self._queued_cancel = False
         self.callback = callback
-        self.total_size = 0
+        self.total = 0
         self.received = 0
 
     def __repr__(self): # pragma: no cover

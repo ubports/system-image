@@ -59,10 +59,11 @@ class DownloadReactor(Reactor):
         super().__init__(bus)
         self._callback = callback
         self._pausable = pausable
+        # For _do_pause() percentage calculation.
+        self._received = 0
+        self._total = 0
         self.error = None
         self.canceled = False
-        self.received = 0
-        self.total = 0
         self.local_paths = None
         self.react_to('canceled')
         self.react_to('error')
@@ -87,10 +88,11 @@ class DownloadReactor(Reactor):
         self.quit()
 
     def _do_progress(self, signal, path, received, total):
-        self.received = received
-        self.total = total
         _print('PROGRESS:', received, total)
-        self._callback()
+        # For _do_pause() percentage calculation.
+        self._received = received
+        self._total = total
+        self._callback(received, total)
 
     def _do_canceled(self, signal, path, canceled):
         # Why would we get this signal if it *wasn't* canceled?  Anyway,
@@ -108,8 +110,8 @@ class DownloadReactor(Reactor):
             # main entry point for system-image-dbus, but that's actually a
             # bit of a pain, so do the expedient thing and grab the interface
             # here.
-            percentage = (int(self.received / self.total * 100.0)
-                          if self.total > 0 else 0)
+            percentage = (int(self._received / self._total * 100.0)
+                          if self._total > 0 else 0)
             config.dbus_service.UpdatePaused(percentage)
 
     def _do_resumed(self, signal, path, resumed):
@@ -146,7 +148,7 @@ class UDMDownloadManager(DownloadManagerBase):
         allow_gsm = Settings().get('auto_download') != '1'
         UDMDownloadManager._set_gsm(self._iface, allow_gsm=allow_gsm)
         # Start the download.
-        reactor = DownloadReactor(bus, self._do_callback, pausable)
+        reactor = DownloadReactor(bus, self._reactor_callback, pausable)
         reactor.schedule(self._iface.start)
         log.info('[0x{:x}] Running group download reactor', id(self))
         reactor.run()
@@ -176,6 +178,11 @@ class UDMDownloadManager(DownloadManagerBase):
             raise AssertionError(
                 'Missing destination files: {}\nlocal_paths: {}'.format(
                     missing, local_paths))
+
+    def _reactor_callback(self, received, total):
+        self.received = received
+        self.total = total
+        self._do_callback()
 
     @staticmethod
     def _set_gsm(iface, *, allow_gsm):
