@@ -27,6 +27,7 @@ import sys
 import dbus
 import time
 import psutil
+import pycurl
 import subprocess
 
 from contextlib import ExitStack
@@ -35,6 +36,7 @@ from pkg_resources import resource_string as resource_bytes
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
     data_path, find_dbus_process, reset_envar)
+from unittest.mock import patch
 
 
 SPACE = ' '
@@ -114,13 +116,14 @@ def stop_downloader(controller):
 
 SERVICES = [
    ('com.canonical.SystemImage',
-    '{python} -m {self.MODULE} -C {self.ini_path} --testing {self.mode}',
+    '{python} -m {self.MODULE} -C {self.ini_path} '
+    '{self.curl_cert} --testing {self.mode}',
     start_system_image,
     stop_system_image,
    ),
    ('com.canonical.applications.Downloader',
     DLSERVICE +
-        ' {self.certs} -disable-timeout -stoppable -log-dir {self.tmpdir}',
+        ' {self.udm_certs} -disable-timeout -stoppable -log-dir {self.tmpdir}',
     start_downloader,
     stop_downloader,
    ),
@@ -143,7 +146,9 @@ class Controller:
         self.serverdir = self._stack.enter_context(temporary_directory())
         self.daemon_pid = None
         self.mode = 'live'
-        self.certs = ''
+        self.udm_certs = ''
+        self.curl_cert = ''
+        self.patcher = None
         # Set up the dbus-daemon system configuration file.
         path = data_path('dbus-system.conf.in')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -193,9 +198,28 @@ class Controller:
 
     def set_mode(self, *, cert_pem=None, service_mode=''):
         self.mode = service_mode
-        self.certs = (
+        certificate_path = data_path(cert_pem)
+        self.udm_certs = (
             '' if cert_pem is None
-            else '-self-signed-certs ' + data_path(cert_pem))
+            else '-self-signed-certs ' + certificate_path)
+        # We have to set up the PyCURL downloader's self-signed certificate for
+        # the test in two ways.  First, because we might be spawning the D-Bus
+        # service, we have to pass the path to the cert to that service...
+        self.curl_cert = (
+            '' if cert_pem is None
+            else '--self-signed-cert ' + certificate_path)
+        # ...but the controller is also used to set the mode for foreground
+        # tests, such as test_download.py.  Here we don't spawn any D-Bus
+        # processes, but we still have to mock make_testable() in curl.py so
+        # that the PyCURL object accepts the self-signed cert.
+        if self.patcher is not None:
+            self.patcher.stop()
+            self.patcher = None
+        if cert_pem is not None:
+            def self_sign(c):
+                c.setopt(pycurl.CAINFO, certificate_path)
+            self.patcher = patch('systemimage.curl.make_testable', self_sign)
+            self.patcher.start()
         self._configure_services()
 
     def _start(self):

@@ -35,7 +35,7 @@ from itertools import islice
 from systemimage.candidates import get_candidates, iter_path
 from systemimage.channel import Channels
 from systemimage.config import config
-from systemimage.download import get_download_manager, Record
+from systemimage.download import Record, get_download_manager
 from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import (
     atomic, calculate_signature, makedirs, safe_remove, temporary_directory)
@@ -57,6 +57,9 @@ class ChecksumError(Exception):
         self.destination = destination
         self.got = got
         self.expected = checksum
+
+    def __str__(self):                              # pragma: no cover
+        return 'got:{0.got} != exp:{0.expected}: {0.destination}'.format(self)
 
 
 def _copy_if_missing(src, dstdir):

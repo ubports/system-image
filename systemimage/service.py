@@ -70,7 +70,10 @@ def main():
     # Hidden argument for special setup required by test environment.
     if instrument is not None: # pragma: no branch
         parser.add_argument('--testing',
-                            default=False, action='store',
+                            default=None, action='store',
+                            help=argparse.SUPPRESS)
+        parser.add_argument('--self-signed-cert',
+                            default=None, action='store',
                             help=argparse.SUPPRESS)
 
     args = parser.parse_args(sys.argv[1:])
@@ -112,7 +115,7 @@ def main():
         loop = Loop()
         testing_mode = getattr(args, 'testing', None)
         if testing_mode:
-            instrument(config, stack)
+            instrument(config, stack, args.self_signed_cert)
             config.dbus_service = get_service(
                 testing_mode, system_bus, '/Service', loop)
         else:

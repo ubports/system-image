@@ -22,6 +22,7 @@ __all__ = [
 
 
 import os
+import pycurl
 
 from dbus.service import method, signal
 from gi.repository import GLib
@@ -45,7 +46,7 @@ class _ActionLog:
             fp.write(SPACE.join(args[0]).strip())
 
 
-def instrument(config, stack):
+def instrument(config, stack, cert_file):
     """Instrument the system for testing."""
     # Ensure the destination directories exist.
     makedirs(config.updater.data_partition)
@@ -57,6 +58,11 @@ def instrument(config, stack):
         patch('systemimage.reboot.check_call', safe_reboot.write))
     stack.enter_context(
         patch('systemimage.device.check_output', return_value='nexus7'))
+    # Patch the PyCURL downloader to accept self-signed certificates.
+    def self_sign(c):
+        c.setopt(pycurl.CAINFO, cert_file)
+    stack.enter_context(
+        patch('systemimage.curl.make_testable', self_sign))
 
 
 class _LiveTestableService(Service):

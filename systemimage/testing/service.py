@@ -19,6 +19,13 @@ This is arranged so that the test suite can enable code coverage data
 collection as early as possible in the private bus D-Bus activated processes.
 """
 
+# Uncomment this if the controller won't start.  There's no other good way to
+# get debugging information about the D-Bus activated process, since their
+# stderr just seems to get lost.
+## import sys
+## sys.stderr = open('/tmp/debug.log', 'a', encoding='utf-8')
+
+
 import os
 
 # Set this environment variable if the controller won't start.  There's no

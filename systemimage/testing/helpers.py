@@ -48,7 +48,7 @@ import inspect
 import tarfile
 import unittest
 
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 from functools import partial, wraps
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -119,12 +119,15 @@ def make_http_server(directory, port, certpem=None, keypem=None):
                 super().handle_one_request()
 
         def do_HEAD(self):
-            # just tell the client we have the magic file
+            # Just tell the client we have the magic file.
             if self.path == '/user-agent.txt':
                 self.send_response(200)
                 self.end_headers()
             else:
-                super().do_HEAD()
+                # Canceling a download can cause our internal server to
+                # see various ignorable errors.  No worries.
+                with suppress(BrokenPipeError, ConnectionResetError):
+                    super().do_HEAD()
 
         def do_GET(self):
             # If we requested the magic 'user-agent.txt' file, send back the
@@ -136,12 +139,10 @@ def make_http_server(directory, port, certpem=None, keypem=None):
                 self.end_headers()
                 self.wfile.write(user_agent.encode('utf-8'))
             else:
-                try:
+                # Canceling a download can cause our internal server to
+                # see various ignorable errors.  No worries.
+                with suppress(BrokenPipeError, ConnectionResetError):
                     super().do_GET()
-                except (BrokenPipeError, ConnectionResetError):
-                    # Canceling a download can cause our internal server to
-                    # see various ignorable errors.  No worries.
-                    pass
     # Create the server in the main thread, but start it in the sub-thread.
     # This lets the main thread call .shutdown() to stop everything.  Return
     # just the shutdown method to the caller.
@@ -440,13 +441,13 @@ def debuggable(fn):
 
 
 @contextmanager
-def debug(*, check_flag=False):
+def debug(*, check_flag=False, end='\n'):
     if not check_flag or os.path.exists('/tmp/debug.enabled'):
         path = Path('/tmp/debug.log')
     else:
         path = Path(os.devnull)
     with path.open('a', encoding='utf-8') as fp:
-        function = partial(print, file=fp)
+        function = partial(print, file=fp, end=end)
         function.fp = fp
         yield function
         fp.flush()

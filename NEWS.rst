@@ -2,6 +2,14 @@
 NEWS for system-image updater
 =============================
 
+3.0 (2014-XX-XX)
+================
+ * Support a built-in PyCURL-based downloader in addition to the traditional
+   ubuntu-download-manager (over D-BUS) downloader.  Auto-detects which
+   downloader to use based on whether udm is available on the system bus,
+   pycurl is importable, and the setting of the SYSTEMIMAGE_PYCURL environment
+   variable.  Initial contribution by Michael Vogt.  (LP: #1374459)
+
 2.5.1 (2014-10-21)
 ==================
  * Make phased upgrade percentage calculation idempotent for each tuple of
