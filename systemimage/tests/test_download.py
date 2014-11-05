@@ -179,7 +179,9 @@ class TestDownload(unittest.TestCase):
                 ]))
         self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
 
-    @unittest.skip('XXX FIXME UDM ONLY')
+    # This test helps bump the udm-based downloader test coverage to 100%.
+    @unittest.skipIf(os.environ.get('SYSTEMIMAGE_PYCURL', '0') == '1',
+                     'Not relevant for PyCURL tests')
     @configuration
     def test_timeout(self):
         # If the reactor times out, we get an exception.  We fake the timeout
@@ -302,7 +304,11 @@ class TestHTTPSDownloadsNasty(unittest.TestCase):
                     ]))
 
 
-@unittest.skip('XXX FIXME UDM ONLY')
+# These tests don't strictly improve coverage for the udm-based downloader,
+# but they are still useful to keep because they test a implicit code path.
+# These can be removed once GSM-testing is pulled into s-i via LP: #1388886.
+@unittest.skipIf(os.environ.get('SYSTEMIMAGE_PYCURL', '0') == '1',
+                 'Not relevant for PyCURL tests')
 class TestGSMDownloads(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -373,7 +379,9 @@ class TestGSMDownloads(unittest.TestCase):
 
 
 class TestDownloadBigFiles(unittest.TestCase):
-    @unittest.skip('XXX FIXME UDM ONLY')
+    # This test helps bump the udm-based downloader test coverage to 100%.
+    @unittest.skipIf(os.environ.get('SYSTEMIMAGE_PYCURL', '0') == '1',
+                     'Not relevant for PyCURL tests')
     @configuration
     def test_cancel(self):
         # Try to cancel the download of a big file.
@@ -425,49 +433,6 @@ class TestDownloadBigFiles(unittest.TestCase):
                               downloads)
             # The temporary directory is empty.
             self.assertEqual(os.listdir(config.tempdir), [])
-
-    @unittest.skip('XXX FIXME UDM ONLY')
-    @configuration
-    def test_download_pause_resume(self):
-        with ExitStack() as stack:
-            serverdir = stack.enter_context(temporary_directory())
-            stack.push(make_http_server(serverdir, 8980))
-            # Create a couple of big files to download.
-            write_bytes(os.path.join(serverdir, 'bigfile_1.dat'), 10)
-            write_bytes(os.path.join(serverdir, 'bigfile_2.dat'), 10)
-            write_bytes(os.path.join(serverdir, 'bigfile_3.dat'), 10)
-            downloads = _http_pathify([
-                ('bigfile_1.dat', 'bigfile_1.dat'),
-                ('bigfile_2.dat', 'bigfile_2.dat'),
-                ('bigfile_3.dat', 'bigfile_3.dat'),
-                ])
-            downloader = get_download_manager()
-            pauses = []
-            def do_paused(self, signal, path, paused):
-                if paused:
-                    pauses.append(datetime.now())
-            resumes = []
-            def do_resumed(self, signal, path, resumed):
-                if resumed:
-                    resumes.append(datetime.now())
-            def pause_on_start(self, signal, path, started):
-                if started:
-                    downloader.pause()
-                    GLib.timeout_add_seconds(3, downloader.resume)
-            stack.enter_context(
-                patch('systemimage.udm.DownloadReactor._do_paused',
-                      do_paused))
-            stack.enter_context(
-                patch('systemimage.udm.DownloadReactor._do_resumed',
-                      do_resumed))
-            stack.enter_context(
-                patch('systemimage.udm.DownloadReactor._do_started',
-                      pause_on_start))
-            downloader.get_files(downloads, pausable=True)
-            self.assertEqual(len(pauses), 1)
-            self.assertEqual(len(resumes), 1)
-            self.assertGreaterEqual(resumes[0] - pauses[0],
-                                    timedelta(seconds=2.5))
 
 
 class TestRecord(unittest.TestCase):

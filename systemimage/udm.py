@@ -198,7 +198,7 @@ class UDMDownloadManager(DownloadManagerBase):
             # we don't do it this way, the caller will immediately get a
             # Canceled exception, which isn't helpful because it's expecting
             # one when the next download begins.
-            self._queued_cancel = True
+            super().cancel()
         else:
             self._iface.cancel()
 
