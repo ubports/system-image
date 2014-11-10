@@ -286,7 +286,7 @@ Signals
 Additional API details
 ----------------------
 
-The ``SetSettings()`` call takes a key string and a value string.  The
+The ``SetSetting()`` call takes a key string and a value string.  The
 following keys are predefined.
 
     * *min_battery* - The minimum battery strength which will allow downloads
