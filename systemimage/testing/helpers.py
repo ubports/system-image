@@ -57,7 +57,6 @@ from systemimage.channel import Channels
 from systemimage.config import Configuration, config
 from systemimage.helpers import MiB, atomic, makedirs, temporary_directory
 from systemimage.index import Index
-from systemimage.state import State
 from threading import Thread
 from unittest.mock import patch
 
@@ -448,11 +447,13 @@ def chmod(path, new_mode):
         os.chmod(path, old_mode)
 
 
-def touch_build(version, timestamp=None):
+def touch_build(version, timestamp=None, use_config=None):
     # LP: #1220238 - assert that no old-style version numbers are being used.
     assert 0 <= version < (1 << 16), (
         'Old style version number: {}'.format(version))
-    override = Path(config.config_d) / '99_build.ini'
+    if use_config is None:
+        use_config = config
+    override = Path(use_config.config_d) / '99_build.ini'
     with override.open('wt', encoding='utf-8') as fp:
         print("""\
 [service]
@@ -461,7 +462,7 @@ build_number: {}
     if timestamp is not None:
         timestamp = int(timestamp)
         os.utime(str(override), (timestamp, timestamp))
-    config.reload()
+    use_config.reload()
 
 
 def write_bytes(path, size_in_mib):
@@ -539,6 +540,8 @@ class ServerTestBase(unittest.TestCase):
         SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def setUp(self):
+        # Avoid circular imports.
+        from systemimage.state import State
         self._resources = ExitStack()
         self._state = State()
         try:

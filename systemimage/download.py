@@ -133,6 +133,9 @@ class DownloadReactor(Reactor):
             except:
                 log.exception('Exception in progress callback')
 
+    from systemimage.testing.helpers import debuggable
+
+    @debuggable
     def _do_canceled(self, signal, path, canceled):
         # Why would we get this signal if it *wasn't* canceled?  Anyway,
         # this'll be a D-Bus data type so converted it to a vanilla Python

@@ -126,7 +126,7 @@ class Service(Object):
             downloading,
             self._update.version,
             self._update.size,
-            self._update.last_update_date,
+            last_update_date(),
             self._update.error)
         # Stop GLib from calling this method again.
         return False
@@ -161,7 +161,7 @@ class Service(Object):
                     self._downloading,
                     self._update.version,
                     self._update.size,
-                    self._update.last_update_date,
+                    last_update_date(),
                     "")
             log.info('checking lock not acquired')
             return
