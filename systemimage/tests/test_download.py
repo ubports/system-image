@@ -37,9 +37,7 @@ import pycurl
 import unittest
 
 from contextlib import ExitStack
-from datetime import datetime, timedelta
 from dbus.exceptions import DBusException
-from gi.repository import GLib
 from hashlib import sha256
 from systemimage.config import Configuration, config
 from systemimage.curl import CurlDownloadManager
