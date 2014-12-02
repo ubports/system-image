@@ -78,7 +78,7 @@ def machine_id(mid):
         with open(path, 'w', encoding='utf-8') as fp:
             print(mid, file=fp)
         resources.enter_context(
-            patch('systemimage.helpers.UNIQUE_MACHINE_ID_FILE', path))
+            patch('systemimage.helpers.UNIQUE_MACHINE_ID_FILES', [path]))
         return resources.pop_all()
 
 

@@ -9,6 +9,9 @@ NEWS for system-image updater
    downloader to use based on whether udm is available on the system bus,
    pycurl is importable, and the setting of the SYSTEMIMAGE_PYCURL environment
    variable.  Initial contribution by Michael Vogt.  (LP: #1374459)
+ * Support alternative machine-id files as fall backs if the D-Bus file does
+   not exist.  Specifically, add systemd's /etc/machine-id to the list.
+   Initial contribution by Michael Vogt.  (LP: #1384859)
 
 2.5.1 (2014-10-21)
 ==================

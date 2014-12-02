@@ -279,7 +279,7 @@ class TestPhasedPercentage(unittest.TestCase):
         tmpdir = self._resources.enter_context(temporary_directory())
         self._mid_path = os.path.join(tmpdir, 'machine-id')
         self._resources.enter_context(patch(
-            'systemimage.helpers.UNIQUE_MACHINE_ID_FILE', self._mid_path))
+            'systemimage.helpers.UNIQUE_MACHINE_ID_FILES', [self._mid_path]))
 
     def tearDown(self):
         self._resources.close()
@@ -330,6 +330,27 @@ class TestPhasedPercentage(unittest.TestCase):
         # And reset.
         del config.phase_override
         self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+
+    def test_phased_percentage_machine_id_file_fallback(self):
+        # Ensure that the fallbacks for the machine-id file.
+        with ExitStack() as resources:
+            resources.enter_context(patch(
+                'systemimage.helpers.UNIQUE_MACHINE_ID_FILES',
+                ['/does/not/exist', self._mid_path]))
+            self._set_machine_id('0123456789abcdef')
+            self.assertEqual(
+                phased_percentage(channel='ubuntu', target=11), 51)
+
+    def test_phased_percentage_machine_id_file_fallbacks_exhausted(self):
+        # Not much we can do if there are no machine-id files.
+        with ExitStack() as resources:
+            resources.enter_context(patch(
+                'systemimage.helpers.UNIQUE_MACHINE_ID_FILES',
+                ['/does/not/exist', '/is/not/present']))
+            self._set_machine_id('0123456789abcdef')
+            self.assertRaises(RuntimeError, phased_percentage,
+                              channel='ubuntu', target=11)
+
 
 class TestSignature(unittest.TestCase):
     def test_calculate_signature(self):
