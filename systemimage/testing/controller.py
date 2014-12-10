@@ -35,7 +35,7 @@ from distutils.spawn import find_executable
 from pkg_resources import resource_string as resource_bytes
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
-    data_path, find_dbus_process, reset_envar)
+    data_path, find_dbus_process, makedirs, reset_envar)
 from unittest.mock import patch
 
 
@@ -142,7 +142,6 @@ class Controller:
         # Public.
         self.tmpdir = self._stack.enter_context(temporary_directory())
         self.config_path = os.path.join(self.tmpdir, 'dbus-system.conf')
-        self.ini_path = None
         self.serverdir = self._stack.enter_context(temporary_directory())
         self.daemon_pid = None
         self.mode = 'live'
@@ -163,10 +162,12 @@ class Controller:
         ini_logfile = (os.path.join(ini_tmpdir, 'client.log')
                        if logfile is None
                        else logfile)
-        self.ini_path = os.path.join(self.tmpdir, 'client.ini')
+        self.ini_path = os.path.join(self.tmpdir, 'config.d')
+        makedirs(self.ini_path)
         template = resource_bytes(
             'systemimage.tests.data', 'config_03.ini').decode('utf-8')
-        with open(self.ini_path, 'w', encoding='utf-8') as fp:
+        defaults = os.path.join(self.ini_path, '00_defaults.ini')
+        with open(defaults, 'w', encoding='utf-8') as fp:
             print(template.format(tmpdir=ini_tmpdir,
                                   vardir=ini_vardir,
                                   logfile=ini_logfile,
@@ -239,7 +240,7 @@ class Controller:
             daemon_exe,
             #'/usr/lib/x86_64-linux-gnu/dbus-1.0/debug-build/bin/dbus-daemon',
             '--fork',
-            '--config-file=' + self.config_path,
+            '--config-file=' + str(self.config_path),
             # Return the address and pid on stdout.
             '--print-address=1',
             '--print-pid=1',

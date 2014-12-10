@@ -149,3 +149,8 @@ class SystemImagePlugin(Plugin):
     ##     from systemimage.testing.helpers import debug
     ##     with debug() as dlog:
     ##         dlog('^^^^^', event.test)
+
+    def describeTest(self, event):
+        # This is fucked up.
+        if 'partial' in event.description:
+            event.description = event.description[:-73]

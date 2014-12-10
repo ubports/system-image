@@ -4,242 +4,160 @@
     },
     "images": [
         {
-            "bootme": true,
-            "description": "Full A",
+            "description": "Some kind of daily build",
             "files": [
-                {
-                    "checksum": "abc",
-                    "order": 1,
-                    "path": "/a/b/c.txt",
-                    "signature": "/a/b/c.txt.asc",
-                    "size": 104857600
-
-                },
-                {
-                    "checksum": "bcd",
-                    "order": 1,
-                    "path": "/b/c/d.txt",
-                    "signature": "/b/c/d.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "cde",
-                    "order": 1,
-                    "path": "/c/d/e.txt",
-                    "signature": "/c/d/e.txt.asc",
-                    "size": 104857600
-                }
+                {"path": "/sprint/nexus7/nexus7-20130300.full.zip",
+                 "signature": "/sprint/nexus7/nexus7-20130300.full.zip.asc",
+                 "checksum": "abcdef0",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/ubuntu/ubuntu-20130300.full.zip",
+                 "signature": "/sprint/ubuntu/ubuntu-20130300.full.zip.asc",
+                 "checksum": "abcdef1",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130300.zip",
+                 "signature": "/sprint/nexus7/version-20130300.zip.asc",
+                 "checksum": "abcdef2",
+                 "order": 1,
+                 "size": 0}
             ],
             "type": "full",
-            "version": 300
+            "version": 20130300,
+            "bootme": true
         },
         {
-            "base": 300,
-            "bootme": true,
-            "description": "Delta A.1",
+            "description": "Some kind of daily build",
             "files": [
-                {
-                    "checksum": "def",
-                    "order": 1,
-                    "path": "/d/e/f.txt",
-                    "signature": "/d/e/f.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "ef0",
-                    "order": 1,
-                    "path": "/e/f/0.txt",
-                    "signature": "/e/f/0.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "f01",
-                    "order": 1,
-                    "path": "/f/e/1.txt",
-                    "signature": "/f/e/1.txt.asc",
-                    "size": 104857600
-                }
-            ],
-            "type": "delta",
-            "version": 301
-        },
-        {
-            "base": 301,
-            "bootme": true,
-            "description": "Delta A.2",
-            "files": [
-                {
-                    "checksum": "012",
-                    "order": 1,
-                    "path": "/0/1/2.txt",
-                    "signature": "/0/1/2.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "123",
-                    "order": 1,
-                    "path": "/1/2/3.txt",
-                    "signature": "/1/2/3.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "234",
-                    "order": 1,
-                    "path": "/2/3/4.txt",
-                    "signature": "/2/3/4.txt.asc",
-                    "size": 104857600
-                }
-            ],
-            "type": "delta",
-            "version": 304
-        },
-
-        {
-            "description": "Full B",
-            "files": [
-                {
-                    "checksum": "345",
-                    "order": 1,
-                    "path": "/3/4/5.txt",
-                    "signature": "/3/4/5.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "456",
-                    "order": 1,
-                    "path": "/4/5/6.txt",
-                    "signature": "/4/5/6.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "567",
-                    "order": 1,
-                    "path": "/5/6/7.txt",
-                    "signature": "/5/6/7.txt.asc",
-                    "size": 104857600
-                }
+                {"path": "/sprint/nexus7/nexus7-20130300.full.zip",
+                 "signature": "/sprint/nexus7/nexus7-20130300.full.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/ubuntu/ubuntu-20130400.full.zip",
+                 "signature": "/sprint/ubuntu/ubuntu-20130400.full.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130400.zip",
+                 "signature": "/sprint/nexus7/version-20130400.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
             ],
             "type": "full",
-            "version": 200
+            "version": 20130400,
+            "bootme": true
         },
         {
-            "base": 200,
-            "description": "Delta B.1",
+            "base": 20130300,
+            "description": "Some kind of daily build",
             "files": [
-                {
-                    "checksum": "678",
-                    "order": 1,
-                    "path": "/6/7/8.txt",
-                    "signature": "/6/7/8.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "789",
-                    "order": 1,
-                    "path": "/7/8/9.txt",
-                    "signature": "/7/8/9.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "89a",
-                    "order": 1,
-                    "path": "/8/9/a.txt",
-                    "signature": "/8/9/a.txt.asc",
-                    "size": 104857600
-                }
+                {"path": "/sprint/ubuntu/ubuntu-20130400.delta-20130300.zip",
+                 "signature":
+                       "/sprint/ubuntu/ubuntu-20130400.delta-20130300.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130400.zip",
+                 "signature": "/sprint/nexus7/version-20130400.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
             ],
             "type": "delta",
-            "version": 201
+            "version": 20130400,
+            "bootme": true
         },
         {
-            "base": 201,
-            "description": "Delta B.2",
+            "base": 20130400,
+            "description": "Some kind of daily build",
             "files": [
-                {
-                    "checksum": "9ab",
-                    "order": 1,
-                    "path": "/9/a/b.txt",
-                    "signature": "/9/a/b.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "fed",
-                    "order": 1,
-                    "path": "/f/e/d.txt",
-                    "signature": "/f/e/d.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "edc",
-                    "order": 1,
-                    "path": "/e/d/c.txt",
-                    "signature": "/e/d/c.txt.asc",
-                    "size": 209715200
-
-                }
+                {"path": "/sprint/ubuntu/ubuntu-20130401.delta-20130400.zip",
+                 "signature":
+                       "/sprint/ubuntu/ubuntu-20130401.delta-20130400.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130401.zip",
+                 "signature": "/sprint/nexus7/version-20130401.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
             ],
             "type": "delta",
-            "version": 304,
-            "phased-percentage": 0
+            "version": 20130401,
+            "bootme": false
         },
-
         {
-            "description": "Full C",
+            "base": 20130401,
+            "description": "Some kind of daily build",
             "files": [
-                {
-                    "checksum": "dcb",
-                    "order": 1,
-                    "path": "/d/c/b.txt",
-                    "signature": "/d/c/b.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "cba",
-                    "order": 1,
-                    "path": "/c/b/a.txt",
-                    "signature": "/c/b/a.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "ba9",
-                    "order": 1,
-                    "path": "/b/a/9.txt",
-                    "signature": "/b/a/9.txt.asc",
-                    "size": 104857600
-                }
+                {"path": "/sprint/nexus7/nexus7-20130402.delta-20130401.zip",
+                 "signature":
+                       "/sprint/nexus7/nexus7-20130402.delta-20130401.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130402.zip",
+                 "signature": "/sprint/nexus7/version-20130402.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
+            ],
+            "type": "delta",
+            "version": 20130402,
+            "bootme": true
+        },
+        {
+            "description": "Some kind of daily build",
+            "files": [
+                {"path": "/sprint/nexus7/nexus7-20130500.full.zip",
+                 "signature": "/sprint/nexus7/nexus7-20130500.full.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/ubuntu/ubuntu-20130500.full.zip",
+                 "signature": "/sprint/ubuntu/ubuntu-20130500.full.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130500.zip",
+                 "signature": "/sprint/nexus7/version-20130500.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
             ],
             "type": "full",
-            "version": 100
+            "version": 20130500,
+            "bootme": true,
+            "minversion": 20130100
         },
         {
-            "base": 100,
-            "description": "Delta C.1",
+            "description": "Some kind of daily build",
+            "base": 20130402,
             "files": [
-                {
-                    "checksum": "a98",
-                    "order": 1,
-                    "path": "/a/9/8.txt",
-                    "signature": "/a/9/8.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "987",
-                    "order": 1,
-                    "path": "/9/8/7.txt",
-                    "signature": "/9/8/7.txt.asc",
-                    "size": 104857600
-                },
-                {
-                    "checksum": "876",
-                    "order": 1,
-                    "path": "/8/7/6.txt",
-                    "signature": "/8/7/6.txt.asc",
-                    "size": 838860800
-
-                }
+                {"path": "/sprint/nexus7/nexus7-20130500.delta-20130402.zip",
+                 "signature":
+                       "/sprint/nexus7/nexus7-20130500.delta-20130402.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/ubuntu/ubuntu-20130500.delta-20130402.zip",
+                 "signature":
+                       "/sprint/ubuntu/ubuntu-20130500.delta-20130402.zip.asc",
+                 "checksum": "",
+                 "order": 0,
+                 "size": 0},
+                {"path": "/sprint/nexus7/version-20130500.zip",
+                 "signature": "/sprint/nexus7/version-20130500.zip.asc",
+                 "checksum": "",
+                 "order": 1,
+                 "size": 0}
             ],
             "type": "delta",
-            "version": 303
+            "version": 20130500,
+            "bootme": true
         }
     ]
 }

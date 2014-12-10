@@ -82,10 +82,6 @@ these paths is given in `[1]`_.
 
 This section contains the following variables:
 
-build_file
-    The file on the local file system containing the system's current build
-    number.
-
 tempdir
     The base temporary directory on the local file system.  When any of the
     system-image processes run, a secure subdirectory inside `tempdir` will be

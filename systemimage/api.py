@@ -24,7 +24,6 @@ __all__ = [
 
 import logging
 
-from systemimage.helpers import last_update_date
 from systemimage.reboot import factory_reset
 from systemimage.state import State
 from unittest.mock import patch
@@ -61,10 +60,6 @@ class Update:
         except IndexError:
             # No winners.
             return ''
-
-    @property
-    def last_update_date(self):
-        return last_update_date()
 
 
 class Mediator:

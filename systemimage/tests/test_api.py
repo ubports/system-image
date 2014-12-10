@@ -22,10 +22,18 @@ __all__ = [
 
 
 import os
+import json
 
+from contextlib import ExitStack
+from datetime import datetime, timedelta
+from gi.repository import GLib
+from hashlib import sha256
+from pathlib import Path
 from systemimage.api import Mediator
-from systemimage.config import Configuration, config
+from systemimage.config import config
 from systemimage.download import Canceled
+from systemimage.gpg import SignatureError
+from systemimage.helpers import MiB
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, setup_index, sign,
     touch_build)
@@ -34,8 +42,8 @@ from unittest.mock import patch
 
 
 class TestAPI(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'api.index_01.json'
+    CHANNEL_FILE = 'api.channels_01.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -99,11 +107,11 @@ class TestAPI(ServerTestBase):
         self._setup_server_keyrings()
         # Index 14 has a more interesting upgrade path, and will yield a
         # richer description set.
-        index_dir = os.path.join(self._serverdir, self.CHANNEL, self.DEVICE)
-        index_path = os.path.join(index_dir, 'index.json')
-        copy('index_14.json', index_dir, 'index.json')
+        index_dir = Path(self._serverdir) / self.CHANNEL / self.DEVICE
+        index_path = index_dir / 'index.json'
+        copy('api.index_02.json', index_dir, 'index.json')
         sign(index_path, 'device-signing.gpg')
-        setup_index('index_14.json', self._serverdir, 'device-signing.gpg')
+        setup_index('api.index_02.json', self._serverdir, 'device-signing.gpg')
         # Get the descriptions.
         update = Mediator().check_for_update()
         self.assertTrue(update.is_available)
@@ -142,8 +150,8 @@ class TestAPI(ServerTestBase):
         # No reboot got issued.
         self.assertFalse(reboot.called)
         # But the command file did get written, and all the files are present.
-        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
-        with open(path, 'r', encoding='utf-8') as fp:
+        path = Path(config.updater.cache_partition) / 'ubuntu_command'
+        with path.open('r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, """\
 load_keyring image-master.tar.xz image-master.tar.xz.asc
@@ -196,8 +204,8 @@ unmount system
         with patch('systemimage.reboot.Reboot.reboot') as reboot:
             mediator.factory_reset()
         self.assertTrue(reboot.called)
-        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
-        with open(path, 'r', encoding='utf-8') as fp:
+        path = Path(config.updater.cache_partition) / 'ubuntu_command'
+        with path.open('r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, dedent("""\
             format data
@@ -234,11 +242,69 @@ unmount system
         self.assertNotEqual(total_bytes, 0)
 
     @configuration
-    def test_state_machine_exceptions(self, ini_file):
+    def test_pause_resume(self):
+        # Pause and resume the download.
+        self._setup_server_keyrings()
+        server_dir = Path(self._serverdir)
+        for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
+            full_path = server_dir / path
+            with full_path.open('wb') as fp:
+                fp.write(b'x' * 100 * MiB)
+        # We must update the file checksums in the index.json file, then we
+        # have to resign it.
+        index_path = server_dir / 'stable' / 'nexus7' / 'index.json'
+        with index_path.open('r', encoding='utf-8') as fp:
+            index = json.load(fp)
+        checksum = sha256(b'x' * 100 * MiB).hexdigest()
+        for i in range(3):
+            index['images'][0]['files'][i]['checksum'] = checksum
+        with index_path.open('w', encoding='utf-8') as fp:
+            json.dump(index, fp)
+        sign(index_path, 'device-signing.gpg')
+        # Now the test is all set up.
+        mediator = Mediator()
+        pauses = []
+        def do_paused(self, signal, path, paused):
+            if paused:
+                pauses.append(datetime.now())
+        resumes = []
+        def do_resumed(self, signal, path, resumed):
+            if resumed:
+                resumes.append(datetime.now())
+        def pause_on_start(self, signal, path, started):
+            if started and self._pausable:
+                mediator.pause()
+                GLib.timeout_add_seconds(3, mediator.resume)
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.download.DownloadReactor._do_paused',
+                      do_paused))
+            resources.enter_context(
+                patch('systemimage.download.DownloadReactor._do_resumed',
+                      do_resumed))
+            resources.enter_context(
+                patch('systemimage.download.DownloadReactor._do_started',
+                      pause_on_start))
+            mediator.check_for_update()
+            # We'll get a signature error because we messed with the file
+            # contents.  Since this check happens after all files are
+            # downloaded, this exception is inconsequential to the thing we're
+            # testing.
+            try:
+                mediator.download()
+            except SignatureError:
+                pass
+        # There should be at one pause and one resume event, separated by
+        # about 3 seconds.
+        self.assertEqual(len(pauses), 1)
+        self.assertEqual(len(resumes), 1)
+        self.assertGreaterEqual(resumes[0] - pauses[0], timedelta(seconds=2.5))
+
+    @configuration
+    def test_state_machine_exceptions(self, config):
         # An exception in the state machine captures the exception and returns
         # an error string in the Update instance.
         self._setup_server_keyrings()
-        config = Configuration(ini_file)
         with chmod(config.updater.cache_partition, 0):
             update = Mediator().check_for_update()
         # There's no winning path, but there is an error.

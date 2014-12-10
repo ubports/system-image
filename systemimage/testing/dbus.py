@@ -71,6 +71,7 @@ class _LiveTestableService(Service):
     @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
+        config.reload()
         self._api = Mediator()
         try:
             self._checking.release()

@@ -48,7 +48,6 @@ timeout: 1m
 
 [system]
 channel: daily
-build_file: {basedir}/etc/ubuntu-build
 tempdir: {basedir}/tmp/system-image
 logfile: {basedir}/var/system-image/client.log
 loglevel: error
