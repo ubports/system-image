@@ -110,8 +110,7 @@ class TestDownload(unittest.TestCase):
     def test_user_agent(self):
         # The User-Agent request header contains the build number.
         version = random.randint(0, 99)
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(version, file=fp)
+        config.build_number = version
         # Download a magic path which the server will interpret to return us
         # the User-Agent header value.
         self._downloader().get_files(_http_pathify([
@@ -528,7 +527,7 @@ class TestDuplicateDownloads(unittest.TestCase):
         with open(os.path.join(self._serverdir, 'source.dat'), 'wb') as fp:
             fp.write(content)
         downloader = get_download_manager()
-        url = urljoin(config.service.http_base, 'source.dat')
+        url = urljoin(config.http_base, 'source.dat')
         downloads = [
             Record(url, 'local.dat', checksum),
             # Mutate the checksum so they won't match.
@@ -560,7 +559,7 @@ class TestDuplicateDownloads(unittest.TestCase):
         with open(os.path.join(self._serverdir, 'source.dat'), 'wb') as fp:
             fp.write(content)
         downloader = get_download_manager()
-        url = urljoin(config.service.http_base, 'source.dat')
+        url = urljoin(config.http_base, 'source.dat')
         downloads = [
             Record(url, 'local.dat', checksum),
             # Mutate the checksum so they won't match.
