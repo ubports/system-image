@@ -299,50 +299,23 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(stdout[:29], 'drwx--S--- /tmp/system-image-')
         self.assertFalse(os.path.exists(stdout.split()[1]))
 
-    def test_constructor(self):
-        # LP: #1342183: Configuration constructor takes an ini_file argument.
-        config = Configuration(data_path('config_01.ini'))
+    @configuration('config.config_01.ini')
+    def test_constructor(self, config_d):
+        # Configuration constructor takes an optional directory argument.
+        config = Configuration(config_d)
         self.assertEqual(config.service.base, 'phablet.example.com')
-
-    def test_main_ini_file_must_contain_system_stanza(self):
-        # It's okay if an override is missing the [system] stanza, but the
-        # main ini file (i.e. non-override) must contain it.
-        ini_file = data_path('config_09.ini')
-        config = Configuration()
-        self.assertRaises(KeyError, config.load, ini_file)
-
-    def test_channel_ini_device_override(self):
-        # A channel.ini file can override the device name.
-        config = Configuration(data_path('config_01.ini'))
-        config.load(data_path('channel_06.ini'), override=True)
-        self.assertEqual(config.device, 'shoephone')
-
-    def test_channel_ini_missing_device_override(self):
-        # The channel.ini can omit the [service]device setting, in which case
-        # the hook is still used.
-        config = Configuration(data_path('config_01.ini'))
-        config.load(data_path('channel_05.ini'), override=True)
-        with _patch_device_hook():
-            self.assertEqual(config.device, '?')
-
-    def test_channel_ini_empty_device_override(self):
-        # The channel.ini can have an empty [service]device setting, in which
-        # case the hook is still used.
-        config = Configuration(data_path('config_01.ini'))
-        config.load(data_path('channel_07.ini'), override=True)
-        with _patch_device_hook():
-            self.assertEqual(config.device, '?')
+        # Passing in a non-directory is not allowed.
+        self.assertRaises(TypeError,
+                          Configuration, data_path('config.config_01.ini'))
 
     @configuration
-    def test_phased_percentage(self, ini_file):
+    def test_phased_percentage(self, config):
         # By default, the phased percentage override is None.
-        config = Configuration(ini_file)
         self.assertIsNone(config.phase_override)
 
     @configuration
-    def test_phased_percentage_override(self, ini_file):
+    def test_phased_percentage_override(self, config):
         # The phased percentage for the device can be overridden.
-        config = Configuration(ini_file)
         self.assertIsNone(config.phase_override)
         config.phase_override = 33
         self.assertEqual(config.phase_override, 33)
@@ -351,14 +324,12 @@ class TestConfiguration(unittest.TestCase):
         self.assertIsNone(config.phase_override)
 
     @configuration
-    def test_phased_percentage_override_int(self, ini_file):
+    def test_phased_percentage_override_int(self, config):
         # When overriding the phased percentage, the new value must be an int.
-        config = Configuration(ini_file)
         self.assertRaises(ValueError, setattr, config, 'phase_override', '!')
 
     @configuration
-    def test_crazy_phase(self, ini_file):
-        config = Configuration(ini_file)
+    def test_crazy_phase(self, config):
         config.phase_override = -100
         self.assertEqual(config.phase_override, 0)
         config.phase_override = 108

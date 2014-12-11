@@ -154,6 +154,9 @@ class Configuration:
         if self.config_d is not None:
             raise RuntimeError('Configuration already loaded; use .reload()')
         self.config_d = directory
+        if not Path(directory).is_dir():
+            raise TypeError(
+                '.load() requires a directory: {}'.format(directory))
         candidates = []
         for child in Path(directory).glob('*.ini'):
             order, _, base = child.stem.partition('_')
