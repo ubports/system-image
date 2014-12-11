@@ -303,7 +303,7 @@ class TestPhasedPercentage(unittest.TestCase):
         self.assertEqual(phased_percentage(channel='ubuntu', target=12), 1)
 
     @configuration
-    def test_phased_percentage_override(self):
+    def test_phased_percentage_override(self, config):
         # The phased percentage can be overridden.
         self._set_machine_id('0123456789abcdef')
         self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
