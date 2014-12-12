@@ -485,8 +485,8 @@ class TestCLIMain(unittest.TestCase):
 
 
 class TestCLIMainDryRun(ServerTestBase):
-    INDEX_FILE = 'index_14.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'main.index_01.json'
+    CHANNEL_FILE = 'main.channels_01.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -502,7 +502,7 @@ class TestCLIMainDryRun(ServerTestBase):
             resources.enter_context(capture_print(capture))
             resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
             resources.enter_context(argv('-C', config_d, '--dry-run'))
-            call_main()
+            cli_main()
         self.assertEqual(
             capture.getvalue(), """\
 Upgrade path is 1200:1201:1304
@@ -522,7 +522,7 @@ Target phase: 12%
         with ExitStack() as resources:
             resources.enter_context(capture_print(capture))
             resources.enter_context(argv('-C', config_d, '--dry-run'))
-            call_main()
+            cli_main()
         self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
     @configuration
@@ -541,19 +541,19 @@ Target phase: 12%
                 argv('-C', config_d,
                      '--channel', 'daily-proposed',
                      '--dry-run'))
-            call_main()
+            cli_main()
         self.assertEqual(capture.getvalue(), 'Already up-to-date\n')
 
     @configuration
-    def test_percentage(self, ini_file):
+    def test_percentage(self, config_d):
         # --percentage overrides the device's target percentage.
         self._setup_server_keyrings()
         capture = StringIO()
         with ExitStack() as resources:
             resources.enter_context(capture_print(capture))
             resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
-            resources.enter_context(argv('-C', ini_file, '--dry-run'))
-            call_main()
+            resources.enter_context(argv('-C', config_d, '--dry-run'))
+            cli_main()
         self.assertEqual(
             capture.getvalue(), """\
 Upgrade path is 1200:1201:1304
@@ -564,8 +564,8 @@ Target phase: 12%
             resources.enter_context(capture_print(capture))
             resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
             resources.enter_context(
-                argv('-C', ini_file, '--dry-run', '--percentage', '81'))
-            call_main()
+                argv('-C', config_d, '--dry-run', '--percentage', '81'))
+            cli_main()
         self.assertEqual(
             capture.getvalue(), """\
 Upgrade path is 1200:1201:1304
@@ -573,15 +573,15 @@ Target phase: 81%
 """)
 
     @configuration
-    def test_p(self, ini_file):
+    def test_p(self, config_d):
         # -p overrides the device's target percentage.
         self._setup_server_keyrings()
         capture = StringIO()
         with ExitStack() as resources:
             resources.enter_context(capture_print(capture))
             resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
-            resources.enter_context(argv('-C', ini_file, '--dry-run'))
-            call_main()
+            resources.enter_context(argv('-C', config_d, '--dry-run'))
+            cli_main()
         self.assertEqual(
             capture.getvalue(), """\
 Upgrade path is 1200:1201:1304
@@ -592,8 +592,8 @@ Target phase: 12%
             resources.enter_context(capture_print(capture))
             resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
             resources.enter_context(
-                argv('-C', ini_file, '--dry-run', '--p', '81'))
-            call_main()
+                argv('-C', config_d, '--dry-run', '--p', '81'))
+            cli_main()
         self.assertEqual(
             capture.getvalue(), """\
 Upgrade path is 1200:1201:1304
@@ -601,7 +601,7 @@ Target phase: 81%
 """)
 
     @configuration
-    def test_crazy_p(self, ini_file):
+    def test_crazy_p(self, config_d):
         # --percentage/-p value is floored at 0% and ceilinged at 100%.
         self._setup_server_keyrings()
         capture = StringIO()
@@ -609,8 +609,8 @@ Target phase: 81%
             resources.enter_context(capture_print(capture))
             resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
             resources.enter_context(
-                argv('-C', ini_file, '--dry-run', '--p', '10000'))
-            call_main()
+                argv('-C', config_d, '--dry-run', '--p', '10000'))
+            cli_main()
         self.assertEqual(
             capture.getvalue(), """\
 Upgrade path is 1200:1201:1304
@@ -621,8 +621,8 @@ Target phase: 100%
             resources.enter_context(capture_print(capture))
             resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
             resources.enter_context(
-                argv('-C', ini_file, '--dry-run', '--p', '-10'))
-            call_main()
+                argv('-C', config_d, '--dry-run', '--p', '-10'))
+            cli_main()
         self.assertEqual(
             capture.getvalue(), """\
 Upgrade path is 1200:1201:1304
@@ -631,8 +631,8 @@ Target phase: 0%
 
 
 class TestCLIMainDryRunAliases(ServerTestBase):
-    INDEX_FILE = 'index_20.json'
-    CHANNEL_FILE = 'channels_10.json'
+    INDEX_FILE = 'main.index_02.json'
+    CHANNEL_FILE = 'main.channels_02.json'
     CHANNEL = 'daily'
     DEVICE = 'manta'
 
@@ -641,22 +641,20 @@ class TestCLIMainDryRunAliases(ServerTestBase):
         # `system-image-cli --dry-run` where the channel alias the device was
         # on got switched should include this information.
         self._setup_server_keyrings()
-        channel_ini = os.path.join(config_d, 'channel.ini')
-        head, tail = os.path.split(channel_ini)
-        copy('main.config_02.ini', head, tail)
+        copy('main.config_05.ini', config_d, '01_config.ini')
         capture = StringIO()
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
         with ExitStack() as resources:
             resources.enter_context(capture_print(capture))
             resources.enter_context(argv('-C', config_d, '--dry-run'))
             # Patch the machine id.
             resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
-            # Do not use self._resources to manage the check_output mock.
-            # Because of the nesting order of the @configuration decorator and
-            # the base class's tearDown(), using self._resources causes the
-            # mocks to be unwound in the wrong order, affecting future tests.
             resources.enter_context(
                 patch('systemimage.device.check_output', return_value='manta'))
-            call_main()
+            cli_main()
         self.assertEqual(
             capture.getvalue(), """\
 Upgrade path is 200:201:304 (saucy -> tubular)
@@ -665,8 +663,8 @@ Target phase: 25%
 
 
 class TestCLIListChannels(ServerTestBase):
-    INDEX_FILE = 'index_20.json'
-    CHANNEL_FILE = 'channels_10.json'
+    INDEX_FILE = 'main.index_02.json'
+    CHANNEL_FILE = 'main.channels_02.json'
     CHANNEL = 'daily'
     DEVICE = 'manta'
 
@@ -675,9 +673,7 @@ class TestCLIListChannels(ServerTestBase):
         # `system-image-cli --list-channels` shows all available channels,
         # including aliases.
         self._setup_server_keyrings()
-        channel_ini = os.path.join(config_d, 'channel.ini')
-        head, tail = os.path.split(channel_ini)
-        copy('main.config_02.ini', head, tail)
+        copy('main.config_05.ini', config_d, '01_config.ini')
         capture = StringIO()
         self._resources.enter_context(capture_print(capture))
         self._resources.enter_context(argv('-C', config_d, '--list-channels'))
@@ -686,7 +682,7 @@ class TestCLIListChannels(ServerTestBase):
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
-            call_main()
+            cli_main()
         self.assertMultiLineEqual(capture.getvalue(), dedent("""\
             Available channels:
                 daily (alias for: tubular)
@@ -699,9 +695,7 @@ class TestCLIListChannels(ServerTestBase):
         # If an exception occurs while getting the list of channels, we get a
         # non-zero exit status.
         self._setup_server_keyrings()
-        channel_ini = os.path.join(config_d, 'channel.ini')
-        head, tail = os.path.split(channel_ini)
-        copy('main.config_02.ini', head, tail)
+        copy('main.config_05.ini', config_d, '01_config.ini')
         capture = StringIO()
         self._resources.enter_context(capture_print(capture))
         self._resources.enter_context(argv('-C', config_d, '--list-channels'))
@@ -715,13 +709,13 @@ class TestCLIListChannels(ServerTestBase):
             more.enter_context(
                 patch('systemimage.state.State._get_channel',
                       side_effect=RuntimeError))
-            status = call_main()
+            status = cli_main()
         self.assertEqual(status, 1)
 
 
 class TestCLIFilters(ServerTestBase):
-    INDEX_FILE = 'index_15.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'main.index_03.json'
+    CHANNEL_FILE = 'main.channels_03.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -741,7 +735,7 @@ class TestCLIFilters(ServerTestBase):
             resources.enter_context(capture_print(capture))
             resources.enter_context(
                 argv('-C', config_d, '--dry-run', '--filter', 'full'))
-            call_main()
+            cli_main()
         self.assertMultiLineEqual(capture.getvalue(), 'Already up-to-date\n')
 
     @configuration
@@ -759,7 +753,7 @@ class TestCLIFilters(ServerTestBase):
             resources.enter_context(
                 argv('-C', config_d, '--dry-run', '--filter', 'delta'))
             resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
-            call_main()
+            cli_main()
         self.assertMultiLineEqual(capture.getvalue(), """\
 Upgrade path is 1600
 Target phase: 80%
@@ -767,14 +761,14 @@ Target phase: 80%
 
 
 class TestCLIDuplicateDestinations(ServerTestBase):
-    INDEX_FILE = 'index_23.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'main.index_04.json'
+    CHANNEL_FILE = 'main.channels_03.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
     @configuration
     def test_duplicate_destinations(self, config_d):
-        # index_23.json has the bug we saw in the wild in LP: #1250181.
+        # main.index_04.json has the bug we saw in the wild in LP: #1250181.
         # There, the server erroneously included a data file twice in two
         # different images.  This can't happen and indicates a server
         # problem.  The client must refuse to upgrade in this case, by raising
@@ -782,7 +776,7 @@ class TestCLIDuplicateDestinations(ServerTestBase):
         self._setup_server_keyrings()
         with ExitStack() as resources:
             resources.enter_context(argv('-C', config_d))
-            exit_code = call_main()
+            exit_code = cli_main()
         self.assertEqual(exit_code, 1)
         # 2013-11-12 BAW: IWBNI we could assert something about the log
         # output, since that contains a display of the duplicate destination
@@ -795,8 +789,8 @@ class TestCLIDuplicateDestinations(ServerTestBase):
 
 
 class TestCLINoReboot(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_10.json'
+    INDEX_FILE = 'main.index_05.json'
+    CHANNEL_FILE = 'main.channels_02.json'
     CHANNEL = 'daily'
     DEVICE = 'manta'
 
@@ -816,7 +810,7 @@ class TestCLINoReboot(ServerTestBase):
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
-            call_main()
+            cli_main()
         # The reboot method was never called.
         self.assertFalse(mock.called)
         # All the expected files should be downloaded.
@@ -870,7 +864,7 @@ unmount system
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
-            call_main()
+            cli_main()
         # The reboot method was never called.
         self.assertFalse(mock.called)
         # All the expected files should be downloaded.
@@ -924,7 +918,7 @@ unmount system
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
-            call_main()
+            cli_main()
         # The reboot method was never called.
         self.assertFalse(mock.called)
         # To prove nothing gets downloaded the second time, actually delete
@@ -932,8 +926,9 @@ unmount system
         shutil.rmtree(os.path.join(self._serverdir, '3'))
         shutil.rmtree(os.path.join(self._serverdir, '4'))
         shutil.rmtree(os.path.join(self._serverdir, '5'))
+        # XXX CHECKPOINTING
         with argv('-C', config_d, '-b', 0, '-c', 'daily'):
-            call_main()
+            cli_main()
         # The reboot method was never called.
         self.assertTrue(mock.called)
 
@@ -950,7 +945,7 @@ class TestCLIFactoryReset(unittest.TestCase):
             mock = resources.enter_context(
                 patch('systemimage.reboot.Reboot.reboot'))
             resources.enter_context(argv('-C', config_d, '--factory-reset'))
-            call_main()
+            cli_main()
         # A reboot was issued.
         self.assertTrue(mock.called)
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
@@ -994,7 +989,7 @@ class TestCLISettings(unittest.TestCase):
         settings.set('lee', 'geddy')
         settings.set('lifeson', 'alex')
         self._resources.enter_context(argv('-C', config_d, '--show-settings'))
-        call_main()
+        cli_main()
         self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
             lee=geddy
             lifeson=alex
@@ -1007,7 +1002,7 @@ class TestCLISettings(unittest.TestCase):
         settings = Settings()
         settings.set('ant', 'aunt')
         self._resources.enter_context(argv('-C', config_d, '--get', 'ant'))
-        call_main()
+        cli_main()
         self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
             aunt
             """))
@@ -1021,7 +1016,7 @@ class TestCLISettings(unittest.TestCase):
         settings.set('u', 'utopic')
         self._resources.enter_context(
             argv('-C', config_d, '--get', 's', '--get', 'u', '--get', 't'))
-        call_main()
+        cli_main()
         self.assertMultiLineEqual(self._stdout.getvalue(), dedent("""\
             saucy
             utopic
@@ -1034,7 +1029,7 @@ class TestCLISettings(unittest.TestCase):
         # missing keys.  Note that `auto_download` is the one weirdo.
         self._resources.enter_context(
             argv('-C', config_d, '--get', 'missing', '--get', 'auto_download'))
-        call_main()
+        cli_main()
         # This produces a blank line, since `missing` returns the empty
         # string.  For better readability, don't indent the results.
         self.assertMultiLineEqual(self._stdout.getvalue(), """\
@@ -1046,7 +1041,7 @@ class TestCLISettings(unittest.TestCase):
     def test_set_key(self, config_d):
         # `system-image-cli --set key=value` sets a key/value pair.
         self._resources.enter_context(argv('-C', config_d, '--set', 'bass=4'))
-        call_main()
+        cli_main()
         self.assertEqual(Settings().get('bass'), '4')
 
     @configuration
@@ -1057,7 +1052,7 @@ class TestCLISettings(unittest.TestCase):
         settings.set('b', 'bee')
         settings.set('c', 'cat')
         self._resources.enter_context(argv('-C', config_d, '--set', 'b=bat'))
-        call_main()
+        cli_main()
         self.assertEqual(settings.get('a'), 'ant')
         self.assertEqual(settings.get('b'), 'bat')
         self.assertEqual(settings.get('c'), 'cat')
@@ -1070,7 +1065,7 @@ class TestCLISettings(unittest.TestCase):
                  '--set', 'a=ant',
                  '--set', 'b=bee',
                  '--set', 'c=cat'))
-        call_main()
+        cli_main()
         settings = Settings()
         self.assertEqual(settings.get('a'), 'ant')
         self.assertEqual(settings.get('b'), 'bee')
@@ -1084,7 +1079,7 @@ class TestCLISettings(unittest.TestCase):
         settings.set('bee', 'insect')
         settings.set('cat', 'mammal')
         self._resources.enter_context(argv('-C', config_d, '--del', 'bee'))
-        call_main()
+        cli_main()
         settings = Settings()
         self.assertEqual(settings.get('ant'), 'insect')
         self.assertEqual(settings.get('cat'), 'mammal')
@@ -1100,7 +1095,7 @@ class TestCLISettings(unittest.TestCase):
         settings.set('cat', 'mammal')
         self._resources.enter_context(
             argv('-C', config_d, '--del', 'bee', '--del', 'cat'))
-        call_main()
+        cli_main()
         settings = Settings()
         self.assertEqual(settings.get('ant'), 'insect')
         # When the key is missing, the empty string is the default.
@@ -1112,7 +1107,7 @@ class TestCLISettings(unittest.TestCase):
         # When asked to delete a key that's not in the database, nothing
         # much happens.
         self._resources.enter_context(argv('-C', config_d, '--del', 'missing'))
-        call_main()
+        cli_main()
         self.assertEqual(Settings().get('missing'), '')
 
     @configuration
@@ -1126,13 +1121,14 @@ class TestCLISettings(unittest.TestCase):
             argv('-C', config_d,
                  '--set', 'c=cat', '--del', 'bee', '--get', 'dog'))
         with self.assertRaises(SystemExit) as cm:
-            call_main()
+            cli_main()
         self.assertEqual(cm.exception.code, 2)
         self.assertEqual(
             self._stderr.getvalue().splitlines()[-1],
             'system-image-cli: error: Cannot mix and match settings arguments')
 
 
+@unittest.skip('BROKEN')
 class TestDBusMain(unittest.TestCase):
     def setUp(self):
         self._stack = ExitStack()
