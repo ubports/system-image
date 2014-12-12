@@ -89,7 +89,7 @@ class TestIndex(unittest.TestCase):
 
     def test_image_descriptions(self):
         # Image descriptions can come in a variety of locales.
-        index = get_index('index_14.json')
+        index = get_index('index.index_01.json')
         self.assertEqual(index.images[0].descriptions, {
             'description': 'Full A'})
         self.assertEqual(index.images[3].descriptions, {
