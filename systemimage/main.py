@@ -21,7 +21,6 @@ __all__ = [
     ]
 
 
-import os
 import sys
 import logging
 import argparse
@@ -47,7 +46,6 @@ COLON = ':'
 
 
 def main():
-    global config
     parser = argparse.ArgumentParser(
         prog='system-image-cli',
         description='Ubuntu System Image Upgrader')
@@ -137,16 +135,10 @@ def main():
     args = parser.parse_args(sys.argv[1:])
     try:
         config.load(args.config)
-    except FileNotFoundError as error:
-        parser.error('\nConfiguration file not found: {}'.format(error))
+    except (TypeError, FileNotFoundError):
+        parser.error('\nConfiguration directory not found: {}'.format(
+            args.config))
         assert 'parser.error() does not return' # pragma: no cover
-    # Load the optional channel.ini file, which must live next to the
-    # configuration file.  It's okay if this file does not exist.
-    channel_ini = os.path.join(os.path.dirname(args.config), 'channel.ini')
-    try:
-        config.load(channel_ini, override=True)
-    except FileNotFoundError:
-        pass
 
     # Perform a factory reset.
     if args.factory_reset:

@@ -229,7 +229,7 @@ def make_http_server(directory, port, certpem=None, keypem=None):
 #
 # In the latter case, e.g.
 #
-# @configuration('config_01.ini')
+# @configuration('some-config.ini')
 # def test_something(self):
 #
 # There's actually another level of interior function, because the outer
@@ -469,9 +469,11 @@ def touch_build(version, timestamp=None, use_config=None):
 [service]
 build_number: {}
 """.format(version), file=fp)
+    # We have to touch the mtimes for all the files in the config directory.
     if timestamp is not None:
         timestamp = int(timestamp)
-        os.utime(str(override), (timestamp, timestamp))
+        for path in Path(use_config.config_d).iterdir():
+            os.utime(str(path), (timestamp, timestamp))
     use_config.reload()
 
 
