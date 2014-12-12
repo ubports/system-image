@@ -12,3 +12,5 @@ dist
 coverage.xml
 htmlcov
 coverage-*
+py34-curl
+py34-udm

@@ -386,8 +386,8 @@ class TestState(unittest.TestCase):
 class TestRebooting(ServerTestBase):
     """Test various state transitions leading to a reboot."""
 
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -416,7 +416,7 @@ class TestRebooting(ServerTestBase):
         self.assertFalse(os.path.exists(signing_path + '.asc'))
         self.assertFalse(os.path.exists(device_path + '.asc'))
         # None of the data files are found yet.
-        for image in get_index('index_13.json').images:
+        for image in get_index('state.index_03.json').images:
             for filerec in image.files:
                 path = os.path.join(cache_dir, os.path.basename(filerec.path))
                 asc = os.path.join(
@@ -441,7 +441,7 @@ class TestRebooting(ServerTestBase):
         self.assertTrue(os.path.exists(signing_path + '.asc'))
         self.assertTrue(os.path.exists(device_path + '.asc'))
         # All of the data files are found.
-        for image in get_index('index_13.json').images:
+        for image in get_index('state.index_03.json').images:
             for filerec in image.files:
                 path = os.path.join(cache_dir, os.path.basename(filerec.path))
                 asc = os.path.join(
@@ -512,8 +512,8 @@ class TestRebooting(ServerTestBase):
 
 
 class TestRebootingNoDeviceSigning(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_11.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_03.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
     SIGNING_KEY = 'image-signing.gpg'
@@ -544,7 +544,7 @@ class TestRebootingNoDeviceSigning(ServerTestBase):
         self.assertFalse(os.path.exists(signing_path + '.asc'))
         self.assertFalse(os.path.exists(device_path + '.asc'))
         # None of the data files are found yet.
-        for image in get_index('index_13.json').images:
+        for image in get_index('state.index_03.json').images:
             for filerec in image.files:
                 path = os.path.join(cache_dir, os.path.basename(filerec.path))
                 asc = os.path.join(
@@ -570,7 +570,7 @@ class TestRebootingNoDeviceSigning(ServerTestBase):
         self.assertTrue(os.path.exists(signing_path + '.asc'))
         self.assertFalse(os.path.exists(device_path + '.asc'))
         # All of the data files are found.
-        for image in get_index('index_13.json').images:
+        for image in get_index('state.index_03.json').images:
             for filerec in image.files:
                 path = os.path.join(cache_dir, os.path.basename(filerec.path))
                 asc = os.path.join(
@@ -580,8 +580,8 @@ class TestRebootingNoDeviceSigning(ServerTestBase):
 
 
 class TestCommandFileFull(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -628,8 +628,8 @@ unmount system
 
 
 class TestCommandFileDelta(ServerTestBase):
-    INDEX_FILE = 'index_15.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_04.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -656,8 +656,8 @@ unmount system
 
 
 class TestFileOrder(ServerTestBase):
-    INDEX_FILE = 'index_16.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_05.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -694,8 +694,8 @@ unmount system
 class TestDailyProposed(ServerTestBase):
     """Test that the daily-proposed channel works as expected."""
 
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_07.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_04.json'
     CHANNEL = 'daily-proposed'
     DEVICE = 'grouper'
 
@@ -729,8 +729,8 @@ class TestDailyProposed(ServerTestBase):
 
 
 class TestVersionedProposed(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_08.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_05.json'
     CHANNEL = '14.04-proposed'
     DEVICE = 'grouper'
 
@@ -751,8 +751,8 @@ class TestVersionedProposed(ServerTestBase):
 
 
 class TestFilters(ServerTestBase):
-    INDEX_FILE = 'index_15.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_04.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -779,16 +779,18 @@ class TestFilters(ServerTestBase):
 
 
 class TestStateNewChannelsFormat(ServerTestBase):
-    CHANNEL_FILE = 'channels_09.json'
+    CHANNEL_FILE = 'state.channels_06.json'
     CHANNEL = 'saucy'
     DEVICE = 'manta'
-    INDEX_FILE = 'index_21.json'
+    INDEX_FILE = 'state.index_06.json'
 
     @configuration
-    def test_full_reboot(self):
+    def test_full_reboot(self, config_d):
         # Test that state transitions through reboot work for the new channel
         # format.  Also check that the right files get moved into place.
-        config.load(data_path('channel_04.ini'), override=True)
+        shutil.copy(data_path('state.channel_01.ini'),
+                    os.path.join(config_d, '02_channel.ini'))
+        config.reload()
         self._setup_server_keyrings()
         state = State()
         # Do not use self._resources to manage the check_output mock.  Because
@@ -820,19 +822,19 @@ unmount system
 
 
 class TestChannelAlias(ServerTestBase):
-    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL_FILE = 'state.channels_01.json'
     CHANNEL = 'daily'
     DEVICE = 'manta'
-    INDEX_FILE = 'index_20.json'
+    INDEX_FILE = 'state.index_01.json'
 
     @configuration
-    def test_channel_alias_switch(self):
+    def test_channel_alias_switch(self, config_d):
         # Channels in the channel.json files can have an optional "alias" key,
         # which if set, describes the other channel this channel is based on
         # (only in a server-side generated way; the client sees all channels
         # as fully "stocked").
         #
-        # The channel.ini file can have a channel_target key which names the
+        # The [service] section can have a `channel_target` key which names the
         # channel alias this device has been tracking.  If the channel_target
         # does not match the channel alias, then the client considers its
         # internal version number to be 0 and does a full update.
@@ -848,9 +850,8 @@ class TestChannelAlias(ServerTestBase):
         # upgrade from build number 0 to get on the right track.
         #
         # To test this condition, we calculate the upgrade path first in the
-        # absence of a channels.ini file.  The device is tracking the daily
-        # channel, and there isno channel_target attribute, so we get the
-        # latest build on that channel.
+        # absence of a [service]channel_target key.  The device is tracking the
+        # daily channel, so we get the latest build on that channel.
         self._setup_server_keyrings()
         touch_build(300)
         config.channel = 'daily'
@@ -874,12 +875,16 @@ class TestChannelAlias(ServerTestBase):
         # Set the build number back to 300 for the next test.
         del config.build_number
         touch_build(300)
-        # Now we pretend there was a channel.ini file, and load it.  This also
-        # tells us the current build number is 300, but through the
-        # channel_target field it tells us that the previous daily channel
-        # alias was saucy.  Now (via the channels.json file) it's tubular, and
-        # the upgrade path starting at build 0 is different.
-        config.load(data_path('channel_05.ini'), override=True)
+        # Now we drop in a configuration file which sets the
+        # [service]channel_target key.  This also tells us the current build
+        # number is 300, but through the channel_target field it tells us that
+        # the previous daily channel alias was saucy.  Now (via the
+        # channels.json file) it's tubular, and the upgrade path starting at
+        # build 0 is different.
+        override_path = os.path.join(config_d, '02_override.ini')
+        with open(override_path, 'w', encoding='utf-8') as fp:
+            print('[service]\nchannel_target: saucy\n', file=fp)
+        config.reload()
         # All things being equal to the first test above, except that now
         # we're in the middle of an alias switch.  The upgrade path is exactly
         # the same as if we were upgrading from build 0.
@@ -890,7 +895,7 @@ class TestChannelAlias(ServerTestBase):
                          [200, 201, 304])
 
     @configuration
-    def test_channel_alias_switch_with_cli_option(self):
+    def test_channel_alias_switch_with_cli_option(self, config_d):
         # Like the above test, but in similating the use of `system-image-cli
         # --build 300`, we set the build number explicitly.  This prevent the
         # channel alias squashing of the build number to 0.
@@ -907,11 +912,19 @@ class TestChannelAlias(ServerTestBase):
             state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
                          [301, 304])
-        # Now we pretend there was a channel.ini file, and load it.  This also
-        # tells us the current build number is 300, but through the
-        # channel_target field it tells us that the previous daily channel
-        # alias was saucy.  Now (via the channels.json file) it's tubular.
-        config.load(data_path('channel_05.ini'), override=True)
+        # Now we have an override file.  This also tells us the current build
+        # number is 300, but through the channel_target field it tells us that
+        # the previous daily channel alias was saucy.  Now (via the
+        # channels.json file) it's tubular.
+        override_path = os.path.join(config_d, '02_override.ini')
+        with open(override_path, 'w', encoding='utf-8') as fp:
+            print("""\
+[service]
+channel_target: saucy
+channeL: daily
+build_number: 300
+""", file=fp)
+        config.reload()
         # All things being equal to the first test above, except that now
         # we're in the middle of an alias switch.  The upgrade path is exactly
         # the same as if we were upgrading from build 0.
@@ -921,7 +934,7 @@ class TestChannelAlias(ServerTestBase):
         state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
                          [200, 201, 304])
-        # Finally, this mimic the effect of --build 300, thus giving us back
+        # Finally, this mimics the effect of --build 300, thus giving us back
         # the original upgrade path.
         config.build_number = 300
         state = State()
@@ -931,10 +944,10 @@ class TestChannelAlias(ServerTestBase):
 
 
 class TestPhasedUpdates(ServerTestBase):
-    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL_FILE = 'state.channels_01.json'
     CHANNEL = 'daily'
     DEVICE = 'manta'
-    INDEX_FILE = 'index_22.json'
+    INDEX_FILE = 'state.index_07.json'
 
     @configuration
     def test_inside_phased_updates_0(self):
@@ -1027,10 +1040,10 @@ class TestPhasedUpdates(ServerTestBase):
 
 
 class TestPhasedUpdatesPulled(ServerTestBase):
-    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL_FILE = 'state.channels_01.json'
     CHANNEL = 'daily'
     DEVICE = 'manta'
-    INDEX_FILE = 'index_26.json'
+    INDEX_FILE = 'state.index_02.json'
 
     @configuration
     def test_pulled_update(self):
@@ -1089,10 +1102,10 @@ class TestPhasedUpdatesPulled(ServerTestBase):
 
 
 class TestCachedFiles(ServerTestBase):
-    CHANNEL_FILE = 'channels_11.json'
+    CHANNEL_FILE = 'state.channels_03.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
-    INDEX_FILE = 'index_13.json'
+    INDEX_FILE = 'state.index_03.json'
     SIGNING_KEY = 'image-signing.gpg'
 
     @configuration
@@ -1449,10 +1462,10 @@ class TestCachedFiles(ServerTestBase):
 
 
 class TestKeyringDoubleChecks(ServerTestBase):
-    CHANNEL_FILE = 'channels_11.json'
+    CHANNEL_FILE = 'state.channels_03.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
-    INDEX_FILE = 'index_13.json'
+    INDEX_FILE = 'state.index_03.json'
     SIGNING_KEY = 'image-signing.gpg'
 
     @configuration
@@ -1618,7 +1631,7 @@ class TestStateDuplicateDestinations(ServerTestBase):
     """An index.json with duplicate destination files is broken."""
 
     INDEX_FILE = 'index_23.json'
-    CHANNEL_FILE = 'channels_06.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -1652,8 +1665,8 @@ class TestStateDuplicateDestinations(ServerTestBase):
 class TestMiscellaneous(ServerTestBase):
     """Test a few additional things for full code coverage."""
 
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 

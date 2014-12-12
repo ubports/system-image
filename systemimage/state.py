@@ -422,8 +422,12 @@ class State:
                 channel_alias == channel_target):
             build_number = config.build_number
         else:
-            # This is a channel switch caused by a new alias.
-            build_number = 0
+            # This is a channel switch caused by a new alias.  Unless the
+            # build number has been explicitly overridden on the command line
+            # via --build/-b, use build number 0 to force a full update.
+            build_number = (config.build_number
+                            if config.build_number_override
+                            else 0)
             self.channel_switch = (channel_target, channel_alias)
         candidates = get_candidates(self.index, build_number)
         if self._filter is not None:

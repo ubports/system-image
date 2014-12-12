@@ -68,6 +68,7 @@ class Configuration:
         # Cache.
         self._device = None
         self._build_number = None
+        self.build_number_override = False
         self._channel = None
         # This is used only to override the phased percentage via command line
         # and the property setter.
@@ -228,6 +229,7 @@ class Configuration:
             raise ValueError(
                 'integer is required, got: {}'.format(type(value).__name__))
         self._build_number = value
+        self.build_number_override = True
 
     @build_number.deleter
     def build_number(self):

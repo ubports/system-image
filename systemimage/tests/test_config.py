@@ -247,6 +247,21 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.channel, 'daily-proposed')
 
     @configuration
+    def test_build_number_cli_override(self, config):
+        # When setting the build number, e.g. --build on the cli, we have an
+        # additional value we can check.  Normally we only care what the build
+        # number is, but in a one specific case we care whether it was
+        # overridden on the command line.  When a channel alias switch is
+        # happening we normally set the build number to 0 to force a full
+        # update.  However the user can override this on the cli by setting
+        # --build, which takes precedence.
+        self.assertEqual(config.build_number, 0)
+        self.assertFalse(config.build_number_override)
+        config.build_number = 108
+        self.assertEqual(config.build_number, 108)
+        self.assertTrue(config.build_number_override)
+
+    @configuration
     def test_bad_override(self, config):
         with self.assertRaises(ValueError) as cm:
             # Looks like an int, but isn't.
