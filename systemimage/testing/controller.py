@@ -121,13 +121,19 @@ SERVICES = [
     start_system_image,
     stop_system_image,
    ),
-   ('com.canonical.applications.Downloader',
+   ]
+
+
+USING_PYCURL = int(os.environ.get('SYSTEMIMAGE_PYCURL', '0'))
+if not USING_PYCURL:
+    SERVICES.append(
+    ('com.canonical.applications.Downloader',
     DLSERVICE +
         ' {self.udm_certs} -disable-timeout -stoppable -log-dir {self.tmpdir}',
     start_downloader,
     stop_downloader,
-   ),
-   ]
+   )
+   )
 
 
 class Controller:
