@@ -350,6 +350,7 @@ class _LiveTesting(_TestBase):
         # Consume the UpdateFailed that results from the cancellation.
         reactor = SignalCapturingReactor('TornDown')
         reactor.run(self.iface.TearDown, timeout=15)
+        # Clear out any previously downloaded data files.
         for updater_dir in (self.config.updater.cache_partition,
                             self.config.updater.data_partition):
             try:
@@ -359,6 +360,11 @@ class _LiveTesting(_TestBase):
                 pass
             for filename in all_files:
                 safe_remove(os.path.join(updater_dir, filename))
+        # Since the controller re-uses the same config_d directory, clear out
+        # any touched config files that aren't the default.
+        for ini_file in os.listdir(self.config.config_d):
+            if ini_file != '00_defaults.ini':
+                safe_remove(os.path.join(self.config.config_d, ini_file))
         safe_remove(self.reboot_log)
         super().tearDown()
 
@@ -391,6 +397,8 @@ class TestDBusCheckForUpdate(_LiveTesting):
     def test_update_available_auto_download(self):
         # Automatically download the available update.
         self.download_always()
+        timestamp = int(datetime(2022, 8, 1, 10, 11, 12).timestamp())
+        touch_build(1701, timestamp, self.config)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -401,13 +409,14 @@ class TestDBusCheckForUpdate(_LiveTesting):
         self.assertEqual(signal.available_version, '1600')
         self.assertEqual(signal.update_size, 314572800)
         # This is the first update applied.
-        self.assertEqual(signal.last_update_date, 'Unknown')
+        self.assertEqual(signal.last_update_date, '2022-08-01 10:11:12')
         self.assertEqual(signal.error_reason, '')
 
     def test_no_update_available(self):
         # Our device is newer than the version that's available.
         timestamp = int(datetime(2022, 8, 1, 10, 11, 12).timestamp())
         touch_build(1701, timestamp, self.config)
+        self.iface.Reset()
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -487,6 +496,7 @@ unmount system
         # We're auto-downloading, but there's no update available.
         self.download_always()
         touch_build(1701, use_config=self.config)
+        self.iface.Reset()
         self.assertFalse(os.path.exists(self.command_file))
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
@@ -541,6 +551,7 @@ unmount system
         # We're manually downloading, but there's no update available.
         self.download_manually()
         touch_build(1701, use_config=self.config)
+        self.iface.Reset()
         self.assertFalse(os.path.exists(self.command_file))
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
@@ -651,6 +662,7 @@ class TestDBusApply(_LiveTesting):
         # There's no update to reboot to.
         self.assertFalse(os.path.exists(self.reboot_log))
         touch_build(1701, use_config=self.config)
+        self.iface.Reset()
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         reactor = SignalCapturingReactor('Rebooting')
@@ -1362,6 +1374,7 @@ class TestLiveDBusInfo(_LiveTesting):
         # .Info() where there is no channel.ini with version details.
         timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
         touch_build(45, timestamp, self.config)
+        self.iface.Reset()
         buildno, device, channel, last_update, details = self.iface.Info()
         self.assertEqual(buildno, 45)
         self.assertEqual(device, 'nexus7')
@@ -1374,6 +1387,7 @@ class TestLiveDBusInfo(_LiveTesting):
         # and no previous CheckForUpdate() call was made.
         timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
         touch_build(45, timestamp, self.config)
+        self.iface.Reset()
         response = self.iface.Information()
         self.assertEqual(response['current_build_number'], '45')
         self.assertEqual(response['device_name'], 'nexus7')
@@ -1388,6 +1402,7 @@ class TestLiveDBusInfo(_LiveTesting):
         # but a previous CheckForUpdate() call was made.
         timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
         touch_build(45, timestamp, self.config)
+        self.iface.Reset()
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         # Before we get the information, let's poke a known value into the
@@ -1414,7 +1429,9 @@ class TestLiveDBusInfo(_LiveTesting):
     def test_information(self):
         # .Information() where there is a channel.ini with version details,
         # and a previous CheckForUpdate() call was made.
-        touch_build(45, use_config=self.config)
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        touch_build(45, timestamp, use_config=self.config)
+        self.iface.Reset()
         ini_path = Path(SystemImagePlugin.controller.ini_path)
         channel_path = ini_path.with_name('channel.ini')
         with channel_path.open('w', encoding='utf-8') as fp:
@@ -1423,8 +1440,6 @@ class TestLiveDBusInfo(_LiveTesting):
 version_detail: ubuntu=222,mako=333,custom=444
 """, file=fp)
         # Set last_update_date.
-        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
-        os.utime(str(channel_path), (timestamp, timestamp))
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         # Before we get the information, let's poke a known value into the
@@ -1455,6 +1470,7 @@ version_detail: ubuntu=222,mako=333,custom=444
         # .Information() where we know that no update is available, gives us a
         # target build number equal to the current build number.
         touch_build(1701, use_config=self.config)
+        self.iface.Reset()
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         signal = reactor.signals[0]
@@ -1695,7 +1711,6 @@ unmount system
 """)
 
 
-@unittest.skip('TEMP SKIP')
 class TestDBusMultipleChecksInFlight(_LiveTesting):
     def test_multiple_check_for_updates(self):
         # Log analysis of LP: #1277589 appears to show the following scenario,
@@ -1713,6 +1728,8 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
             # Write a 100 MiB sized file.
             write_bytes(dst, 100)
         self._prepare_index('index_24.json', write_callback)
+        timestamp = int(datetime(2022, 8, 1, 10, 11, 12).timestamp())
+        touch_build(0, timestamp, self.config)
         # Create a reactor that will exit when the UpdateDownloaded signal is
         # received.  We're going to issue a CheckForUpdate with automatic
         # updates enabled.  As soon as we receive the UpdateAvailableStatus
@@ -1733,7 +1750,7 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
             self.assertTrue(signal.downloading)
             self.assertEqual(signal.available_version, '1600')
             self.assertEqual(signal.update_size, 314572800)
-            self.assertEqual(signal.last_update_date, 'Unknown')
+            self.assertEqual(signal.last_update_date, '2022-08-01 10:11:12')
             self.assertEqual(signal.error_reason, '')
 
     def test_multiple_check_for_updates_with_manual_downloading(self):
@@ -1773,19 +1790,25 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
 class TestDBusCheckForUpdateToUnwritablePartition(_LiveTesting):
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         # Put cache_partition in an unwritable directory.
         config = Configuration(SystemImagePlugin.controller.ini_path)
         cache_partition = config.updater.cache_partition
         cls.bad_path = Path(cache_partition) / 'unwritable'
         cls.bad_path.mkdir(mode=0, parents=True)
         # Write a .ini file to override the cache partition.
-        override = Path(config.config_d) / '10_override.ini'
-        with override.open('w', encoding='utf-8') as fp:
+        cls.override = os.path.join(config.config_d, '10_override.ini')
+        with open(cls.override, 'w', encoding='utf-8') as fp:
             print("""\
 [updater]
 cache_partition: {}
 """.format(cls.bad_path), file=fp)
-        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        safe_remove(cls.override)
+        shutil.rmtree(str(cls.bad_path))
+        super().tearDownClass()
 
     def tearDown(self):
         self.bad_path.chmod(0o777)

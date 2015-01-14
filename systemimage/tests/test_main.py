@@ -926,8 +926,11 @@ unmount system
         shutil.rmtree(os.path.join(self._serverdir, '3'))
         shutil.rmtree(os.path.join(self._serverdir, '4'))
         shutil.rmtree(os.path.join(self._serverdir, '5'))
-        # XXX CHECKPOINTING
-        with argv('-C', config_d, '-b', 0, '-c', 'daily'):
+        # Run main again without the -g flag this time we reboot.
+        with ExitStack() as stack:
+            stack.enter_context(argv('-C', config_d, '-b', 0, '-c', 'daily'))
+            stack.enter_context(
+                patch('systemimage.device.check_output', return_value='manta'))
             cli_main()
         # The reboot method was never called.
         self.assertTrue(mock.called)

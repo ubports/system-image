@@ -430,6 +430,8 @@ class State:
                             else 0)
             self.channel_switch = (channel_target, channel_alias)
         candidates = get_candidates(self.index, build_number)
+        log.debug('Candidates from build# {}: {}'.format(
+            build_number, len(candidates)))
         if self._filter is not None:
             candidates = self._filter(candidates)
         self.winner = config.hooks.scorer().choose(

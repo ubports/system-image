@@ -90,7 +90,7 @@ class SystemImagePlugin(Plugin):
                        'Set the log file for the test run',
                        nargs=1)
         def set_dbus_loglevel(level):
-            self.log_level = 'info:{}'.format(level[0])
+            self.log_level = level[0]
         self.addOption(set_dbus_loglevel, 'M', 'loglevel',
                        'Set the systemimage.dbus log level',
                        nargs=1)

@@ -20,7 +20,6 @@ __all__ = [
     ]
 
 
-import os
 import sys
 import dbus
 import logging
