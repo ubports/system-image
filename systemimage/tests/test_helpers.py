@@ -211,7 +211,7 @@ class TestLastUpdateDate(unittest.TestCase):
 
     @configuration
     def test_version_detail(self, config):
-        shutil.copy(data_path('helpers_01.ini'),
+        shutil.copy(data_path('helpers.config_01.ini'),
                     os.path.join(config.config_d, '00_config.ini'))
         config.reload()
         self.assertEqual(version_detail(),
@@ -219,7 +219,7 @@ class TestLastUpdateDate(unittest.TestCase):
 
     @configuration
     def test_no_version_detail(self, config):
-        shutil.copy(data_path('helpers_02.ini'),
+        shutil.copy(data_path('helpers.config_02.ini'),
                     os.path.join(config.config_d, '00_config.ini'))
         config.reload()
         self.assertEqual(version_detail(), {})

@@ -49,7 +49,7 @@ class TestWinnerDownloads(unittest.TestCase):
         self._stack = ExitStack()
         try:
             self._serverdir = self._stack.enter_context(temporary_directory())
-            copy('channels_02.json', self._serverdir, 'channels.json')
+            copy('winner.channels_01.json', self._serverdir, 'channels.json')
             sign(os.path.join(self._serverdir, 'channels.json'),
                  'image-signing.gpg')
             # index_10.json path B will win, with no bootme flags.
@@ -175,7 +175,7 @@ class TestWinnerDownloads(unittest.TestCase):
         setup_keyrings()
         # To set up the device signing key, we need to load channels_03.json
         # and copy the device keyring to the server.
-        copy('channels_03.json', self._serverdir, 'channels.json')
+        copy('winner.channels_02.json', self._serverdir, 'channels.json')
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_keyring_txz(
@@ -214,9 +214,9 @@ class TestWinnerDownloads(unittest.TestCase):
         # they are signed by the device key instead of the image signing
         # master.
         setup_keyrings()
-        # To set up the device signing key, we need to load channels_03.json
-        # and copy the device keyring to the server.
-        copy('channels_03.json', self._serverdir, 'channels.json')
+        # To set up the device signing key, we need to load this channels.json
+        # file and copy the device keyring to the server.
+        copy('winner.channels_02.json', self._serverdir, 'channels.json')
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_keyring_txz(
@@ -272,9 +272,9 @@ class TestWinnerDownloads(unittest.TestCase):
         # signing key, which according to the spec means the files are not
         # signed correctly.
         setup_keyrings()
-        # To set up the device signing key, we need to load channels_03.json
-        # and copy the device keyring to the server.
-        copy('channels_03.json', self._serverdir, 'channels.json')
+        # To set up the device signing key, we need to load this channels.json
+        # file and copy the device keyring to the server.
+        copy('winner.channels_02.json', self._serverdir, 'channels.json')
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_keyring_txz(

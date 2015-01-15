@@ -300,7 +300,7 @@ class _LiveTesting(_TestBase):
                 make_http_server(serverdir, 8943, 'cert.pem', 'key.pem'))
             cls._resources.push(make_http_server(serverdir, 8980))
             # Set up the server files.
-            copy('channels_06.json', serverdir, 'channels.json')
+            copy('dbus.channels_01.json', serverdir, 'channels.json')
             sign(os.path.join(serverdir, 'channels.json'), 'image-signing.gpg')
             # Only the archive-master key is pre-loaded.  All the other keys
             # are downloaded and there will be both a blacklist and device

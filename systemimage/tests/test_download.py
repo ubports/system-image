@@ -94,7 +94,7 @@ class TestDownload(unittest.TestCase):
         # Download a bunch of files that exist.  No callback.
         self._downloader().get_files(_http_pathify([
             ('channel.channels_05.json', 'channels.json'),
-            ('index_01.json', 'index.json'),
+            ('download.index_01.json', 'index.json'),
             ]))
         self.assertEqual(
             set(os.listdir(config.tempdir)),
@@ -135,7 +135,7 @@ class TestDownload(unittest.TestCase):
         downloader = self._downloader(callback)
         downloader.get_files(_http_pathify([
             ('channel.channels_05.json', 'channels.json'),
-            ('index_01.json', 'index.json'),
+            ('download.index_01.json', 'index.json'),
             ]))
         self.assertEqual(
             set(os.listdir(config.tempdir)),
@@ -621,7 +621,7 @@ class TestCURL(unittest.TestCase):
                     return super()._do_once(FakeMulti(), handles)
         Testable().get_files(_http_pathify([
             ('channel.channels_05.json', 'channels.json'),
-            ('index_01.json', 'index.json'),
+            ('download.index_01.json', 'index.json'),
             ]))
         self.assertTrue(done_once)
         # The files still get downloaded.
@@ -643,7 +643,7 @@ class TestCURL(unittest.TestCase):
         with self.assertRaises(FileNotFoundError) as cm:
             Testable().get_files(_http_pathify([
                 ('channel.channels_05.json', 'channels.json'),
-                ('index_01.json', 'index.json'),
+                ('download.index_01.json', 'index.json'),
                 ]))
         # One of the two files will be contained in the error message, but
         # which one is undefined, although in practice it will be the first

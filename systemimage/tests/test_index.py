@@ -41,13 +41,13 @@ class TestIndex(unittest.TestCase):
         SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def test_index_global(self):
-        index = get_index('index_01.json')
+        index = get_index('index.index_02.json')
         self.assertEqual(
             index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
 
     def test_index_image_count(self):
-        index = get_index('index_01.json')
+        index = get_index('index.index_02.json')
         self.assertEqual(len(index.images), 0)
         index = get_index('index_02.json')
         self.assertEqual(len(index.images), 2)
