@@ -212,7 +212,7 @@ class TestSignature(unittest.TestCase):
         # would be the case in production.  The signature will match a context
         # loaded with the public key.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
         sign(channels_json, 'image-signing.gpg')
         with temporary_directory() as tmpdir:
             keyring = os.path.join(tmpdir, 'image-signing.tar.xz')
@@ -227,7 +227,7 @@ class TestSignature(unittest.TestCase):
         # In this case, the file is signed with the device key, so it will not
         # verify against the image signing key.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
         sign(channels_json, 'device-signing.gpg')
         # Verify the signature with the pubkey.
         with temporary_directory() as tmpdir:
@@ -243,7 +243,7 @@ class TestSignature(unittest.TestCase):
         # Like above, the file is signed with the device key, but this time we
         # include both the image signing and device signing pubkeys.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
         sign(channels_json, 'device-signing.gpg')
         with temporary_directory() as tmpdir:
             keyring_1 = os.path.join(tmpdir, 'image-signing.tar.xz')
@@ -261,7 +261,7 @@ class TestSignature(unittest.TestCase):
         # The file is signed with the image master key, but it won't verify
         # against the image signing and device signing pubkeys.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
         sign(channels_json, 'image-master.gpg')
         # Verify the signature with the pubkey.
         with temporary_directory() as tmpdir:
@@ -279,8 +279,8 @@ class TestSignature(unittest.TestCase):
     def test_bad_not_even_a_signature(self):
         # The signature file isn't even a signature file.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst=channels_json)
-        copy('channels_01.json', self._tmpdir, dst=channels_json + '.asc')
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json + '.asc')
         with temporary_directory() as tmpdir:
             dst = os.path.join(tmpdir, 'device-signing.tar.xz')
             setup_keyring_txz('device-signing.gpg', 'image-signing.gpg',
@@ -297,7 +297,7 @@ class TestSignature(unittest.TestCase):
         # though, we also have a blacklist keyring, but none of the keyids in
         # the blacklist match the keyid that the file was signed with.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst='channels.json')
+        copy('gpg.channels_01.json', self._tmpdir, dst='channels.json')
         sign(channels_json, 'device-signing.gpg')
         # Verify the signature with the pubkey.
         with temporary_directory() as tmpdir:
@@ -318,7 +318,7 @@ class TestSignature(unittest.TestCase):
     def test_bad_signature_in_blacklist(self):
         # Like above, but we put the device signing key id in the blacklist.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
         sign(channels_json, 'device-signing.gpg')
         # Verify the signature with the pubkey.
         with temporary_directory() as tmpdir:
@@ -340,7 +340,7 @@ class TestSignature(unittest.TestCase):
     def test_good_validation(self):
         # The .validate() method does nothing if the signature is good.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
         sign(channels_json, 'image-signing.gpg')
         with temporary_directory() as tmpdir:
             keyring = os.path.join(tmpdir, 'image-signing.tar.xz')
@@ -382,7 +382,7 @@ class TestSignatureError(unittest.TestCase):
         # The .validate() method raises a SignatureError exception with extra
         # information when the signature is invalid.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
         sign(channels_json, 'device-signing.gpg')
         # Verify the signature with the pubkey.
         with temporary_directory() as tmpdir:
@@ -416,7 +416,7 @@ class TestSignatureError(unittest.TestCase):
     def test_signature_invalid_due_to_blacklist(self):
         # Like above, but we put the device signing key id in the blacklist.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
         sign(channels_json, 'device-signing.gpg')
         # Verify the signature with the pubkey.
         with temporary_directory() as tmpdir:
@@ -464,7 +464,7 @@ class TestSignatureError(unittest.TestCase):
         # The repr/str of the SignatureError should contain lots of useful
         # information that will make debugging easier.
         channels_json = os.path.join(self._tmpdir, 'channels.json')
-        copy('channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
         sign(channels_json, 'device-signing.gpg')
         # Verify the signature with the pubkey.
         tmpdir = self._stack.enter_context(temporary_directory())

@@ -93,7 +93,7 @@ class TestDownload(unittest.TestCase):
     def test_good_path(self):
         # Download a bunch of files that exist.  No callback.
         self._downloader().get_files(_http_pathify([
-            ('channels_01.json', 'channels.json'),
+            ('channel.channels_05.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ]))
         self.assertEqual(
@@ -134,7 +134,7 @@ class TestDownload(unittest.TestCase):
             total_bytes = total
         downloader = self._downloader(callback)
         downloader.get_files(_http_pathify([
-            ('channels_01.json', 'channels.json'),
+            ('channel.channels_05.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ]))
         self.assertEqual(
@@ -155,7 +155,7 @@ class TestDownload(unittest.TestCase):
         downloader = self._downloader(callback)
         with patch('systemimage.download.log.exception', capture):
             downloader.get_files(_http_pathify([
-                ('channels_01.json', 'channels.json'),
+                ('channel.channels_05.json', 'channels.json'),
                 ]))
         # The exception got logged.
         self.assertEqual(exception, 'Exception in progress callback')
@@ -172,7 +172,7 @@ class TestDownload(unittest.TestCase):
         # ImportError is raised when it tries to import it.
         with patch.dict(sys.modules, {'systemimage.testing.helpers': None}):
             self._downloader().get_files(_http_pathify([
-                ('channels_01.json', 'channels.json'),
+                ('channel.channels_05.json', 'channels.json'),
                 ]))
         self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
 
@@ -192,7 +192,7 @@ class TestDownload(unittest.TestCase):
             self.assertRaises(
                 TimeoutError,
                 self._downloader().get_files,
-                _http_pathify([('channels_01.json', 'channels.json')])
+                _http_pathify([('channel.channels_05.json', 'channels.json')])
                 )
 
 
@@ -212,7 +212,7 @@ class TestHTTPSDownloads(unittest.TestCase):
             stack.push(make_http_server(
                 self._directory, 8943, 'cert.pem', 'key.pem'))
             get_download_manager().get_files(_https_pathify([
-                ('channels_01.json', 'channels.json'),
+                ('channel.channels_05.json', 'channels.json'),
                 ]))
             self.assertEqual(
                 set(os.listdir(config.tempdir)),
@@ -236,7 +236,7 @@ class TestHTTPSDownloadsNoSelfSigned(unittest.TestCase):
                 FileNotFoundError,
                 get_download_manager().get_files,
                 _https_pathify([
-                    ('channels_01.json', 'channels.json'),
+                    ('channel.channels_05.json', 'channels.json'),
                     ]))
 
     @configuration
@@ -251,7 +251,7 @@ class TestHTTPSDownloadsNoSelfSigned(unittest.TestCase):
                 FileNotFoundError,
                 get_download_manager().get_files,
                 _https_pathify([
-                    ('channels_01.json', 'channels.json'),
+                    ('channel.channels_05.json', 'channels.json'),
                     ]))
 
 
@@ -274,7 +274,7 @@ class TestHTTPSDownloadsExpired(unittest.TestCase):
                 FileNotFoundError,
                 get_download_manager().get_files,
                 _https_pathify([
-                    ('channels_01.json', 'channels.json'),
+                    ('channel.channels_05.json', 'channels.json'),
                     ]))
 
 
@@ -297,7 +297,7 @@ class TestHTTPSDownloadsNasty(unittest.TestCase):
                 FileNotFoundError,
                 get_download_manager().get_files,
                 _https_pathify([
-                    ('channels_01.json', 'channels.json'),
+                    ('channel.channels_05.json', 'channels.json'),
                     ]))
 
 
@@ -346,7 +346,7 @@ class TestGSMDownloads(unittest.TestCase):
         config = Configuration(config_d)
         Settings(config).set('auto_download', '0')
         get_download_manager().get_files(_http_pathify([
-            ('channels_01.json', 'channels.json')
+            ('channel.channels_05.json', 'channels.json')
             ]))
         self.assertTrue(self._gsm_set_flag)
         self.assertTrue(self._gsm_get_flag)
@@ -358,7 +358,7 @@ class TestGSMDownloads(unittest.TestCase):
         config = Configuration(config_d)
         Settings(config).set('auto_download', '1')
         get_download_manager().get_files(_http_pathify([
-            ('channels_01.json', 'channels.json')
+            ('channel.channels_05.json', 'channels.json')
             ]))
         self.assertFalse(self._gsm_set_flag)
         self.assertFalse(self._gsm_get_flag)
@@ -369,7 +369,7 @@ class TestGSMDownloads(unittest.TestCase):
         config = Configuration(config_d)
         Settings(config).set('auto_download', '2')
         get_download_manager().get_files(_http_pathify([
-            ('channels_01.json', 'channels.json')
+            ('channel.channels_05.json', 'channels.json')
             ]))
         self.assertTrue(self._gsm_set_flag)
         self.assertTrue(self._gsm_get_flag)
@@ -620,7 +620,7 @@ class TestCURL(unittest.TestCase):
                     done_once = True
                     return super()._do_once(FakeMulti(), handles)
         Testable().get_files(_http_pathify([
-            ('channels_01.json', 'channels.json'),
+            ('channel.channels_05.json', 'channels.json'),
             ('index_01.json', 'index.json'),
             ]))
         self.assertTrue(done_once)
@@ -642,7 +642,7 @@ class TestCURL(unittest.TestCase):
                 return super()._do_once(FakeMulti(), handles)
         with self.assertRaises(FileNotFoundError) as cm:
             Testable().get_files(_http_pathify([
-                ('channels_01.json', 'channels.json'),
+                ('channel.channels_05.json', 'channels.json'),
                 ('index_01.json', 'index.json'),
                 ]))
         # One of the two files will be contained in the error message, but
@@ -650,7 +650,7 @@ class TestCURL(unittest.TestCase):
         # one.
         self.assertRegex(
             cm.exception.args[0],
-            'http://localhost:8980/(channels|index)_01.json')
+            'http://localhost:8980/(channel.channels_05|index_01).json')
 
 
 class TestDownloadManagerFactory(unittest.TestCase):

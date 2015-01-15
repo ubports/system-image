@@ -71,7 +71,7 @@ class TestState(unittest.TestCase):
             self._serverdir = self._stack.enter_context(temporary_directory())
             self._stack.push(make_http_server(
                 self._serverdir, 8943, 'cert.pem', 'key.pem'))
-            copy('channels_01.json', self._serverdir, 'channels.json')
+            copy('state.channels_07.json', self._serverdir, 'channels.json')
             self._channels_path = os.path.join(
                 self._serverdir, 'channels.json')
         except:
