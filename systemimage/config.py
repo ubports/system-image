@@ -241,9 +241,6 @@ class Configuration:
             # Start by looking for a [service]device setting.  Use this if it
             # exists, otherwise fall back to calling the hook.
             self._device = getattr(self.service, 'device', None)
-            # The key could exist in the channel.ini file, but its value could
-            # be empty.  That's semantically equivalent to a missing
-            # [service]device setting.
             if not self._device:
                 self._device = self.hooks.device().get_device()
         return self._device

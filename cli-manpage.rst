@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2014-10-23
-:Copyright: 2013-2014 Canonical Ltd.
-:Version: 2.5.1
+:Date: 2015-01-15
+:Copyright: 2013-2015 Canonical Ltd.
+:Version: 3.0
 :Manual section: 1
 
 
@@ -84,10 +84,13 @@ OPTIONS
     enabled.  With two ``-v`` (or ``-vv``), logging both to the console and to
     the log file are output at ``DEBUG`` level.
 
--C FILE, --config FILE
-    Use the given configuration file, otherwise use the default.  The program
-    will optionally also read a ``channel.ini`` file in the same directory as
-    ``FILE``.
+-C DIR, --config DIR
+    Use the given configuration directory, otherwise use the system default.
+    The program will read all the files in this directory that begin with a
+    number, followed by an underscore, and ending in ``.ini``
+    (e.g. ``03_myconfig.ini``).  The files are read in sorted numerical order
+    from lowest prefix number to highest, with later configuration files able
+    to override any variable in any section.
 
 --factory-reset
     Wipes the data partition and issues a reboot into recovery.  This
@@ -112,15 +115,11 @@ OPTIONS
 FILES
 =====
 
-/etc/system-image/client.ini
-    Default configuration file.
-
-/etc/system-image/channel.ini
-    Optional configuration file overrides (for the ``[service]`` section
-    only).
+/etc/system-image/[0-9]+*.ini
+    Default configuration files.
 
 
 SEE ALSO
 ========
 
-client.ini(5), system-image-dbus(8)
+system-image.ini(5), system-image-dbus(8)

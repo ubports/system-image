@@ -1338,7 +1338,7 @@ class TestDBusInfo(_TestBase):
     mode = 'more-info'
 
     def test_info(self):
-        # .Info() with a channel.ini containing version details.
+        # .Info() with some version details.
         buildno, device, channel, last_update, details = self.iface.Info()
         self.assertEqual(buildno, 45)
         self.assertEqual(device, 'nexus11')
@@ -1347,7 +1347,7 @@ class TestDBusInfo(_TestBase):
         self.assertEqual(details, dict(ubuntu='123', mako='456', custom='789'))
 
     def test_information(self):
-        # .Information() with a channel.ini containing version details.
+        # .Information() with some version details.
         response = self.iface.Information()
         self.assertEqual(
             sorted(str(key) for key in response), [
@@ -1371,7 +1371,7 @@ class TestDBusInfo(_TestBase):
 
 class TestLiveDBusInfo(_LiveTesting):
     def test_info_no_version_detail(self):
-        # .Info() where there is no channel.ini with version details.
+        # .Info() where there are no version details.
         timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
         touch_build(45, timestamp, self.config)
         self.iface.Reset()
@@ -1383,8 +1383,8 @@ class TestLiveDBusInfo(_LiveTesting):
         self.assertEqual(details, {})
 
     def test_information_before_check_no_details(self):
-        # .Information() where there is no channel.ini with version details,
-        # and no previous CheckForUpdate() call was made.
+        # .Information() where there are no version details, and no previous
+        # CheckForUpdate() call was made.
         timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
         touch_build(45, timestamp, self.config)
         self.iface.Reset()
@@ -1398,8 +1398,8 @@ class TestLiveDBusInfo(_LiveTesting):
         self.assertEqual(response['target_build_number'], '-1')
 
     def test_information_no_details(self):
-        # .Information() where there is no channel.ini with version details,
-        # but a previous CheckForUpdate() call was made.
+        # .Information() where there are no version details, but a previous
+        # CheckForUpdate() call was made.
         timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
         touch_build(45, timestamp, self.config)
         self.iface.Reset()
@@ -1427,18 +1427,18 @@ class TestLiveDBusInfo(_LiveTesting):
         self.assertEqual(response['target_build_number'], '1600')
 
     def test_information(self):
-        # .Information() where there is a channel.ini with version details,
-        # and a previous CheckForUpdate() call was made.
+        # .Information() where there there are version details, and a previous
+        # CheckForUpdate() call was made.
         timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
         touch_build(45, timestamp, use_config=self.config)
-        self.iface.Reset()
         ini_path = Path(SystemImagePlugin.controller.ini_path)
-        channel_path = ini_path.with_name('channel.ini')
-        with channel_path.open('w', encoding='utf-8') as fp:
+        override_ini = ini_path.with_name('03_override.ini')
+        with override_ini.open('w', encoding='utf-8') as fp:
             print("""\
 [service]
 version_detail: ubuntu=222,mako=333,custom=444
 """, file=fp)
+        self.iface.Reset()
         # Set last_update_date.
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)

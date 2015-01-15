@@ -413,7 +413,7 @@ class State:
         # winner.  Otherwise, trust the configured build number.
         channel = self.channels[config.channel]
         # channel_target is the channel we're on based on the alias mapping in
-        # our channel.ini file.  channel_alias is the alias mapping in the
+        # our config files.  channel_alias is the alias mapping in the
         # channel.json file, i.e. the channel an update will put us on.
         channel_target = getattr(config.service, 'channel_target', None)
         channel_alias = getattr(channel, 'alias', None)
