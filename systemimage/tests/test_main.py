@@ -45,7 +45,7 @@ from io import StringIO
 from pathlib import Path
 from pkg_resources import resource_string as resource_bytes
 from systemimage.config import Configuration, config
-from systemimage.helpers import safe_remove
+from systemimage.helpers import makedirs, safe_remove
 from systemimage.main import main as cli_main
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
@@ -1131,22 +1131,15 @@ class TestCLISettings(unittest.TestCase):
             'system-image-cli: error: Cannot mix and match settings arguments')
 
 
-@unittest.skip('BROKEN')
 class TestDBusMain(unittest.TestCase):
     def setUp(self):
         self._stack = ExitStack()
         try:
-            old_ini = SystemImagePlugin.controller.ini_path
-            self._stack.callback(
-                setattr, SystemImagePlugin.controller, 'ini_path', old_ini)
-            self.tmpdir = self._stack.enter_context(temporary_directory())
-            template = resource_bytes(
-                'systemimage.tests.data', 'config_04.ini').decode('utf-8')
-            self.ini_path = os.path.join(self.tmpdir, 'client.ini')
-            with open(self.ini_path, 'w', encoding='utf-8') as fp:
-                print(template.format(tmpdir=self.tmpdir, vardir=self.tmpdir),
-                      file=fp)
-            SystemImagePlugin.controller.ini_path = self.ini_path
+            config_d = SystemImagePlugin.controller.ini_path
+            override = os.path.join(config_d, '06_override.ini')
+            self._stack.callback(safe_remove, override)
+            with open(override, 'w', encoding='utf-8') as fp:
+                print('[dbus]\nlifetime: 3s\n', file=fp)
             SystemImagePlugin.controller.set_mode()
         except:
             self._stack.close()
@@ -1164,15 +1157,15 @@ class TestDBusMain(unittest.TestCase):
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        return iface.Info()
+        return iface.Information()
 
     def test_service_exits(self):
         # The dbus service automatically exits after a set amount of time.
-        #
+        config_d = SystemImagePlugin.controller.ini_path
         # Nothing has been spawned yet.
-        self.assertIsNone(find_dbus_process(self.ini_path))
+        self.assertIsNone(find_dbus_process(config_d))
         self._activate()
-        process = find_dbus_process(self.ini_path)
+        process = find_dbus_process(config_d)
         self.assertTrue(process.is_running())
         # Now wait for the process to self-terminate.  If this times out
         # before the process exits, a TimeoutExpired exception will be
@@ -1182,9 +1175,10 @@ class TestDBusMain(unittest.TestCase):
 
     def test_service_keepalive(self):
         # Proactively calling methods on the service keeps it alive.
-        self.assertIsNone(find_dbus_process(self.ini_path))
+        config_d = SystemImagePlugin.controller.ini_path
+        self.assertIsNone(find_dbus_process(config_d))
         self._activate()
-        process = find_dbus_process(self.ini_path)
+        process = find_dbus_process(config_d)
         self.assertTrue(process.is_running())
         # Normally the process would exit after 3 seconds, but we'll keep it
         # alive for a bit.
@@ -1193,26 +1187,20 @@ class TestDBusMain(unittest.TestCase):
             time.sleep(2)
         self.assertTrue(process.is_running())
 
-    def test_channel_ini_override(self):
-        # An optional channel.ini can override the build number and channel.
-        #
-        # The config.ini file names the `stable` channel.  Let's create an
-        # ubuntu-build file with a fake version number.
-        config = Configuration(self.ini_path)
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(33, file=fp)
-        # Now, write a channel.ini file to override both of these.
-        dirname = os.path.dirname(self.ini_path)
-        copy('channel_04.ini', dirname, 'channel.ini')
+    def test_config_override(self):
+        # Other ini files can override the build number and channel.
+        config_d = SystemImagePlugin.controller.ini_path
+        copy('main.config_07.ini', config_d, '07_override.ini')
         info = self._activate()
         # The build number.
-        self.assertEqual(info[0], 1)
+        self.assertEqual(info['current_build_number'], '33')
         # The channel
-        self.assertEqual(info[2], 'saucy')
+        self.assertEqual(info['channel_name'], 'saucy')
 
     def test_temp_directory(self):
         # The temporary directory gets created if it doesn't exist.
-        config = Configuration(self.ini_path)
+        config_d = SystemImagePlugin.controller.ini_path
+        config = Configuration(config_d)
         # The temporary directory may have already been created via the
         # .set_mode() call in the setUp().  That invokes a 'stopper' for the
         # -dbus process, which has the perverse effect of first D-Bus
@@ -1232,7 +1220,7 @@ class TestDBusMain(unittest.TestCase):
 
     def test_permissions(self):
         # LP: #1235975 - The created tempdir had unsafe permissions.
-        config = Configuration(self.ini_path)
+        config = Configuration(SystemImagePlugin.controller.ini_path)
         # See above.
         try:
             shutil.rmtree(config.system.tempdir)
@@ -1250,9 +1238,10 @@ class TestDBusMain(unittest.TestCase):
     def test_single_instance(self):
         # Only one instance of the system-image-dbus service is allowed to
         # remain active on a single system bus.
-        self.assertIsNone(find_dbus_process(self.ini_path))
+        config_d = SystemImagePlugin.controller.ini_path
+        self.assertIsNone(find_dbus_process(config_d))
         self._activate()
-        proc = find_dbus_process(self.ini_path)
+        proc = find_dbus_process(config_d)
         # Attempt to start a second process on the same system bus.
         env = dict(
             DBUS_SYSTEM_BUS_ADDRESS=os.environ['DBUS_SYSTEM_BUS_ADDRESS'])
@@ -1260,7 +1249,7 @@ class TestDBusMain(unittest.TestCase):
         if coverage_env is not None:
             env['COVERAGE_PROCESS_START'] = coverage_env
         args = (sys.executable, '-m', 'systemimage.testing.service',
-                '-C', self.ini_path)
+                '-C', config_d)
         second = subprocess.Popen(args, universal_newlines=True, env=env)
         # Allow a TimeoutExpired exception to fail the test.
         try:

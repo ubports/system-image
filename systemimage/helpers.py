@@ -197,10 +197,10 @@ def as_loglevel(value):
         dbus = 'ERROR'
     main_level = getattr(logging, main, None)
     if main_level is None or not isinstance(main_level, int):
-        raise ValueError
+        raise ValueError(value)
     dbus_level = getattr(logging, dbus, None)
     if dbus_level is None or not isinstance(dbus_level, int):
-        raise ValueError
+        raise ValueError(value)
     return main_level, dbus_level
 
 
