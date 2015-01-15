@@ -171,7 +171,7 @@ class Controller:
         self.ini_path = os.path.join(self.tmpdir, 'config.d')
         makedirs(self.ini_path)
         template = resource_bytes(
-            'systemimage.tests.data', 'config_03.ini').decode('utf-8')
+            'systemimage.tests.data', '01.ini').decode('utf-8')
         defaults = os.path.join(self.ini_path, '00_defaults.ini')
         with open(defaults, 'w', encoding='utf-8') as fp:
             print(template.format(tmpdir=ini_tmpdir,

@@ -1630,14 +1630,14 @@ class TestKeyringDoubleChecks(ServerTestBase):
 class TestStateDuplicateDestinations(ServerTestBase):
     """An index.json with duplicate destination files is broken."""
 
-    INDEX_FILE = 'index_23.json'
+    INDEX_FILE = 'state.index_08.json'
     CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
     @configuration
     def test_duplicate_destinations(self):
-        # index_23.json has the bug we saw in the wild in LP: #1250181.
+        # state.index_08.json has the bug we saw in the wild in LP: #1250181.
         # There, the server erroneously included a data file twice in two
         # different images.  This can't happen and indicates a server
         # problem.  The client must refuse to upgrade in this case, by raising

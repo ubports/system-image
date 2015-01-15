@@ -336,7 +336,7 @@ class _LiveTesting(_TestBase):
 
     def setUp(self):
         super().setUp()
-        self._prepare_index('index_13.json')
+        self._prepare_index('dbus.index_01.json')
         # We need a configuration file that agrees with the dbus client.
         self.config = Configuration(SystemImagePlugin.controller.ini_path)
         # For testing reboot preparation.
@@ -592,7 +592,7 @@ unmount system
         # same local destination file.  This is a bug on the server and the
         # client cannot perform an update.
         self.download_manually()
-        self._prepare_index('index_23.json')
+        self._prepare_index('dbus.index_03.json')
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -618,7 +618,7 @@ class TestDBusDownloadBigFiles(_LiveTesting):
         def write_callback(dst):
             # Write a 500 MiB sized file.
             write_bytes(dst, 750)
-        self._prepare_index('index_24.json', write_callback)
+        self._prepare_index('dbus.index_04.json', write_callback)
         tweak_checksums(HASH750)
         # Do the download.
         self.download_always()
@@ -1154,9 +1154,9 @@ class TestDBusRegressions(_LiveTesting):
         file_path = os.path.join(serverdir, '5', '6', '7.txt')
         # This index file has a 5/6/7.txt checksum equal to the one we're
         # going to create below.
-        setup_index('index_18.json', serverdir, 'device-signing.gpg')
+        setup_index('dbus.index_02.json', serverdir, 'device-signing.gpg')
         head, tail = os.path.split(index_path)
-        copy('index_18.json', head, tail)
+        copy('dbus.index_02.json', head, tail)
         sign(index_path, 'device-signing.gpg')
         write_bytes(file_path, 50)
         sign(file_path, 'device-signing.gpg')
@@ -1727,7 +1727,7 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         def write_callback(dst):
             # Write a 100 MiB sized file.
             write_bytes(dst, 100)
-        self._prepare_index('index_24.json', write_callback)
+        self._prepare_index('dbus.index_04.json', write_callback)
         timestamp = int(datetime(2022, 8, 1, 10, 11, 12).timestamp())
         touch_build(0, timestamp, self.config)
         # Create a reactor that will exit when the UpdateDownloaded signal is
@@ -1769,7 +1769,7 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         def write_callback(dst):
             # Write a 100 MiB sized file.
             write_bytes(dst, 100)
-        self._prepare_index('index_24.json', write_callback)
+        self._prepare_index('dbus.index_04.json', write_callback)
         touch_build(0, use_config=self.config)
         # Create a reactor that implements the following test plan:
         # * Set the device to download manually.
@@ -1829,7 +1829,7 @@ class TestDBusCheckForUpdateWithBrokenIndex(_LiveTesting):
         # LP: #1222910.  A broken index.json file contained an image with type
         # == 'delta' but no base field.  This breaks the hash calculation of
         # that image and causes the check-for-update to fail.
-        self._prepare_index('index_25.json')
+        self._prepare_index('dbus.index_05.json')
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
