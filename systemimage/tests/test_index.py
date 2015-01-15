@@ -144,7 +144,7 @@ class TestDownloadIndex(unittest.TestCase):
         # Load the index.json pointed to by the channels.json.  All signatures
         # validate correctly and there is no device keyring or blacklist.
         self._copysign(
-            'index_channels_05.json', 'channels.json', 'image-signing.gpg')
+            'index.channels_05.json', 'channels.json', 'image-signing.gpg')
         # index.index_04.json path B will win, with no bootme flags.
         self._copysign(
             'index.index_04.json', 'stable/nexus7/index.json',
@@ -162,7 +162,7 @@ class TestDownloadIndex(unittest.TestCase):
     def test_load_index_with_device_keyring(self):
         # Here, the index.json file is signed with a device keyring.
         self._copysign(
-            'index_channels_02.json', 'channels.json', 'image-signing.gpg')
+            'index.channels_02.json', 'channels.json', 'image-signing.gpg')
         # index.index_04.json.json path B will win, with no bootme flags.
         self._copysign(
             'index.index_04.json', 'stable/nexus7/index.json',
@@ -185,7 +185,7 @@ class TestDownloadIndex(unittest.TestCase):
         # Here, the index.json file is signed with the image signing keyring,
         # even though there is a device key.  That's fine.
         self._copysign(
-            'index_channels_02.json', 'channels.json', 'image-signing.gpg')
+            'index.channels_02.json', 'channels.json', 'image-signing.gpg')
         # index.index_04.json.json path B will win, with no bootme flags.
         self._copysign(
             'index.index_04.json', 'stable/nexus7/index.json',
@@ -207,7 +207,7 @@ class TestDownloadIndex(unittest.TestCase):
     def test_load_index_with_bad_keyring(self):
         # Here, the index.json file is signed with a defective device keyring.
         self._copysign(
-            'index_channels_02.json', 'channels.json', 'image-signing.gpg')
+            'index.channels_02.json', 'channels.json', 'image-signing.gpg')
         # This will be signed by a keyring that is not the device keyring.
         self._copysign(
             'index.index_04.json', 'stable/nexus7/index.json', 'spare.gpg')
@@ -224,7 +224,7 @@ class TestDownloadIndex(unittest.TestCase):
     def test_load_index_with_blacklist(self):
         # Here, we've blacklisted the device key.
         self._copysign(
-            'index_channels_02.json', 'channels.json', 'image-signing.gpg')
+            'index.channels_02.json', 'channels.json', 'image-signing.gpg')
         # This will be signed by a keyring that is not the device keyring.
         self._copysign(
             'index.index_04.json', 'stable/nexus7/index.json',
@@ -245,7 +245,7 @@ class TestDownloadIndex(unittest.TestCase):
     def test_missing_channel(self):
         # The system's channel does not exist.
         self._copysign(
-            'index_channels_03.json', 'channels.json', 'image-signing.gpg')
+            'index.channels_03.json', 'channels.json', 'image-signing.gpg')
         # index.index_04.json path B will win, with no bootme flags.
         self._copysign(
             'index.index_04.json', 'stable/nexus7/index.json',
@@ -263,7 +263,7 @@ class TestDownloadIndex(unittest.TestCase):
     def test_missing_device(self):
         # The system's device does not exist.
         self._copysign(
-            'index_channels_04.json', 'channels.json', 'image-signing.gpg')
+            'index.channels_04.json', 'channels.json', 'image-signing.gpg')
         # index.index_04.json path B will win, with no bootme flags.
         self._copysign(
             'index.index_04.json', 'stable/nexus7/index.json',
