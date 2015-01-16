@@ -17,7 +17,6 @@
 
 __all__ = [
     'Configuration',
-    'DISABLED',
     'config',
     ]
 
@@ -27,82 +26,175 @@ import atexit
 
 from configparser import ConfigParser
 from contextlib import ExitStack
-from pkg_resources import resource_filename
+from pathlib import Path
 from systemimage.bag import Bag
 from systemimage.helpers import (
-    as_loglevel, as_object, as_timedelta, makedirs, temporary_directory)
+    NO_PORT, as_loglevel, as_object, as_port, as_stripped, as_timedelta,
+    makedirs, temporary_directory)
 
 
-DISABLED = object()
+SECTIONS = ('service', 'system', 'gpg', 'updater', 'hooks', 'dbus')
 
 
 def expand_path(path):
     return os.path.abspath(os.path.expanduser(path))
 
 
-def port_value_converter(value):
-    if value.lower() in ('disabled', 'disable'):
-        return DISABLED
-    result = int(value)
-    if result < 0:
-        raise ValueError(value)
-    return result
+class SafeConfigParser(ConfigParser):
+    """Like ConfigParser, but with default empty sections.
 
+    This makes the **style of loading keys/values into the Bag objects a
+    little cleaner since it doesn't have to worry about KeyErrors when a
+    configuration file doesn't contain a section, which is allowed.
+    """
 
-def device_converter(value):
-    return value.strip()
+    def __init__(self, *args, **kws):
+        super().__init__(args, **kws)
+        for section in SECTIONS:
+            self[section] = {}
 
 
 class Configuration:
-    def __init__(self, ini_file=None):
-        # Defaults.
-        self.config_file = None
-        self.service = Bag()
-        self.system = Bag()
-        if ini_file is None:
-            ini_file = resource_filename('systemimage.data', 'client.ini')
-        self.load(ini_file)
-        self._override = False
+    def __init__(self, directory=None):
+        self._set_defaults()
         # 2013-10-14 BAW This is a placeholder for rendezvous between the
-        # downloader and the D-Bus service.  When running udner D-Bus and we
+        # downloader and the D-Bus service.  When running under D-Bus and we
         # get a `paused` signal from the download manager, we need this to
         # plumb through an UpdatePaused signal to our clients.  It rather
         # sucks that we need a global for this, but I can't get the plumbing
         # to work otherwise.  This seems like the least horrible place to
         # stash this global.
         self.dbus_service = None
-        # Cache/overrides.
+        # Cache.
         self._device = None
         self._build_number = None
+        self.build_number_override = False
         self._channel = None
         # This is used only to override the phased percentage via command line
         # and the property setter.
         self._phase_override = None
         self._tempdir = None
+        self.config_d = None
+        self.ini_files = []
+        self.http_base = None
+        self.https_base = None
+        if directory is not None:
+            self.load(directory)
+        self._calculate_http_bases()
         self._resources = ExitStack()
         atexit.register(self._resources.close)
 
-    def load(self, path, *, override=False):
-        parser = ConfigParser()
-        files_read = parser.read(path)
-        if files_read != [path]:
+    def _set_defaults(self):
+        self.service = Bag(
+            base='system-image.ubuntu.com',
+            http_port=80,
+            https_port=443,
+            channel='daily',
+            build_number=0,
+            )
+        self.system = Bag(
+            timeout=as_timedelta('1h'),
+            tempdir='/tmp',
+            logfile='/var/log/system-image/client.log',
+            loglevel=as_loglevel('info'),
+            settings_db='/var/lib/system-image/settings.db',
+            )
+        self.gpg = Bag(
+            archive_master='/etc/system-image/archive-master.tar.xz',
+            image_master='/var/lib/system-image/keyrings/image-master.tar.xz',
+            image_signing=
+                '/var/lib/system-image/keyrings/image-signing.tar.xz',
+            device_signing=
+                '/var/lib/system-image/keyrings/device-signing.tar.xz',
+            )
+        self.updater = Bag(
+            cache_partition='/android/cache/recovery',
+            data_partition='/var/lib/system-image',
+            )
+        self.hooks = Bag(
+            device=as_object('systemimage.device.SystemProperty'),
+            scorer=as_object('systemimage.scores.WeightedScorer'),
+            reboot=as_object('systemimage.reboot.Reboot'),
+            )
+        self.dbus = Bag(
+            lifetime=as_timedelta('10m'),
+            )
+
+    def _load_file(self, path):
+        parser = SafeConfigParser()
+        str_path = str(path)
+        files_read = parser.read(str_path)
+        if files_read != [str_path]:
             raise FileNotFoundError(path)
-        self.config_file = path
-        self.service.update(converters=dict(http_port=port_value_converter,
-                                            https_port=port_value_converter,
+        self.ini_files.append(path)
+        self.service.update(converters=dict(http_port=as_port,
+                                            https_port=as_port,
                                             build_number=int,
-                                            device=device_converter,
+                                            device=as_stripped,
                                             ),
-                           **parser['service'])
-        if (self.service.http_port is DISABLED and
-            self.service.https_port is DISABLED):
+                            **parser['service'])
+        self.system.update(converters=dict(timeout=as_timedelta,
+                                           loglevel=as_loglevel,
+                                           settings_db=expand_path,
+                                           tempdir=expand_path),
+                            **parser['system'])
+        self.gpg.update(**parser['gpg'])
+        self.updater.update(**parser['updater'])
+        self.hooks.update(converters=dict(device=as_object,
+                                          scorer=as_object,
+                                          reboot=as_object),
+                          **parser['hooks'])
+        self.dbus.update(converters=dict(lifetime=as_timedelta),
+                         **parser['dbus'])
+
+    def load(self, directory):
+        """Load up the configuration from a config.d directory."""
+        # Look for all the files in the given directory with .ini or .cfg
+        # suffixes.  The files must start with a number, and the files are
+        # loaded in numeric order.
+        if self.config_d is not None:
+            raise RuntimeError('Configuration already loaded; use .reload()')
+        self.config_d = directory
+        if not Path(directory).is_dir():
+            raise TypeError(
+                '.load() requires a directory: {}'.format(directory))
+        candidates = []
+        for child in Path(directory).glob('*.ini'):
+            order, _, base = child.stem.partition('_')
+            # XXX 2014-10-03: The logging system isn't initialized when we get
+            # here, so we can't log that these files are being ignored.
+            if len(_) == 0:
+                continue
+            try:
+                serial = int(order)
+            except ValueError:
+                continue
+            candidates.append((serial, child))
+        for serial, path in sorted(candidates):
+            self._load_file(path)
+        self._calculate_http_bases()
+
+    def reload(self):
+        """Reload the configuration directory."""
+        # Reset some cached attributes.
+        directory = self.config_d
+        self.ini_files = []
+        self.config_d = None
+        self._build_number = None
+        # Now load the defaults, then reload the previous config.d directory.
+        self._set_defaults()
+        self.load(directory)
+
+    def _calculate_http_bases(self):
+        if (self.service.http_port is NO_PORT and
+            self.service.https_port is NO_PORT):
             raise ValueError('Cannot disable both http and https ports')
         # Construct the HTTP and HTTPS base urls, which most applications will
-        # actually use.  We do this in two steps, in order to support
-        # disabling one or the other (but not both) protocols.
+        # actually use.  We do this in two steps, in order to support disabling
+        # one or the other (but not both) protocols.
         if self.service.http_port == 80:
             http_base = 'http://{}'.format(self.service.base)
-        elif self.service.http_port is DISABLED:
+        elif self.service.http_port is NO_PORT:
             http_base = None
         else:
             http_base = 'http://{}:{}'.format(
@@ -110,7 +202,7 @@ class Configuration:
         # HTTPS.
         if self.service.https_port == 443:
             https_base = 'https://{}'.format(self.service.base)
-        elif self.service.https_port is DISABLED:
+        elif self.service.https_port is NO_PORT:
             https_base = None
         else:
             https_base = 'https://{}:{}'.format(
@@ -122,45 +214,13 @@ class Configuration:
         if https_base is None:
             assert http_base is not None
             https_base = http_base
-        self.service['http_base'] = http_base
-        self.service['https_base'] = https_base
-        try:
-            self.system.update(converters=dict(timeout=as_timedelta,
-                                               build_file=expand_path,
-                                               loglevel=as_loglevel,
-                                               settings_db=expand_path,
-                                               tempdir=expand_path),
-                              **parser['system'])
-        except KeyError:
-            # If we're overriding via a channel.ini file, it's okay if the
-            # [system] section is missing.  However, the main configuration
-            # ini file must include all sections.
-            if not override:
-                raise
-        # Short-circuit, since we're loading a channel.ini file.
-        self._override = override
-        if override:
-            return
-        self.gpg = Bag(**parser['gpg'])
-        self.updater = Bag(**parser['updater'])
-        self.hooks = Bag(converters=dict(device=as_object,
-                                         scorer=as_object,
-                                         reboot=as_object),
-                         **parser['hooks'])
-        self.dbus = Bag(converters=dict(lifetime=as_timedelta),
-                        **parser['dbus'])
+        self.http_base = http_base
+        self.https_base = https_base
 
     @property
     def build_number(self):
         if self._build_number is None:
-            if self._override:
-                return self.service.build_number
-            else:
-                try:
-                    with open(self.system.build_file, encoding='utf-8') as fp:
-                        return int(fp.read().strip())
-                except FileNotFoundError:
-                    return 0
+            self._build_number = self.service.build_number
         return self._build_number
 
     @build_number.setter
@@ -169,14 +229,11 @@ class Configuration:
             raise ValueError(
                 'integer is required, got: {}'.format(type(value).__name__))
         self._build_number = value
+        self.build_number_override = True
 
     @build_number.deleter
     def build_number(self):
         self._build_number = None
-
-    @property
-    def build_number_cli(self):
-        return self._build_number
 
     @property
     def device(self):
@@ -184,9 +241,6 @@ class Configuration:
             # Start by looking for a [service]device setting.  Use this if it
             # exists, otherwise fall back to calling the hook.
             self._device = getattr(self.service, 'device', None)
-            # The key could exist in the channel.ini file, but its value could
-            # be empty.  That's semantically equivalent to a missing
-            # [service]device setting.
             if not self._device:
                 self._device = self.hooks.device().get_device()
         return self._device
@@ -227,20 +281,8 @@ class Configuration:
         return self._tempdir
 
 
-# Define the global configuration object.  Normal use can be as simple as:
-#
-# from systemimage.config import config
-# build_file = config.system.build_file
-#
-# In the test suite though, the actual configuration object can be easily
-# patched by doing something like this:
-#
-# test_config = Configuration(...)
-# with unittest.mock.patch('config._config', test_config):
-#     run_test()
-#
-# and now every module which does the first code example will get build_file
-# from the mocked Configuration instance.
+# Define the global configuration object.  We use a proxy here so that
+# post-object creation loading will work.
 
 _config = Configuration()
 

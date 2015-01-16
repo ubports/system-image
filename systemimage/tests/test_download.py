@@ -45,6 +45,7 @@ from systemimage.download import (
     Canceled, DuplicateDestinationError, Record, get_download_manager)
 from systemimage.helpers import temporary_directory
 from systemimage.settings import Settings
+from systemimage.testing.controller import USING_PYCURL
 from systemimage.testing.helpers import (
     configuration, data_path, make_http_server, reset_envar, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
@@ -55,14 +56,14 @@ from urllib.parse import urljoin
 
 def _http_pathify(downloads):
     return [
-        (urljoin(config.service.http_base, url),
+        (urljoin(config.http_base, url),
          os.path.join(config.tempdir, filename)
         ) for url, filename in downloads]
 
 
 def _https_pathify(downloads):
     return [
-        (urljoin(config.service.https_base, url),
+        (urljoin(config.https_base, url),
          os.path.join(config.tempdir, filename)
         ) for url, filename in downloads]
 
@@ -93,8 +94,8 @@ class TestDownload(unittest.TestCase):
     def test_good_path(self):
         # Download a bunch of files that exist.  No callback.
         self._downloader().get_files(_http_pathify([
-            ('channels_01.json', 'channels.json'),
-            ('index_01.json', 'index.json'),
+            ('channel.channels_05.json', 'channels.json'),
+            ('download.index_01.json', 'index.json'),
             ]))
         self.assertEqual(
             set(os.listdir(config.tempdir)),
@@ -110,8 +111,7 @@ class TestDownload(unittest.TestCase):
     def test_user_agent(self):
         # The User-Agent request header contains the build number.
         version = random.randint(0, 99)
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(version, file=fp)
+        config.build_number = version
         # Download a magic path which the server will interpret to return us
         # the User-Agent header value.
         self._downloader().get_files(_http_pathify([
@@ -135,8 +135,8 @@ class TestDownload(unittest.TestCase):
             total_bytes = total
         downloader = self._downloader(callback)
         downloader.get_files(_http_pathify([
-            ('channels_01.json', 'channels.json'),
-            ('index_01.json', 'index.json'),
+            ('channel.channels_05.json', 'channels.json'),
+            ('download.index_01.json', 'index.json'),
             ]))
         self.assertEqual(
             set(os.listdir(config.tempdir)),
@@ -156,7 +156,7 @@ class TestDownload(unittest.TestCase):
         downloader = self._downloader(callback)
         with patch('systemimage.download.log.exception', capture):
             downloader.get_files(_http_pathify([
-                ('channels_01.json', 'channels.json'),
+                ('channel.channels_05.json', 'channels.json'),
                 ]))
         # The exception got logged.
         self.assertEqual(exception, 'Exception in progress callback')
@@ -173,13 +173,12 @@ class TestDownload(unittest.TestCase):
         # ImportError is raised when it tries to import it.
         with patch.dict(sys.modules, {'systemimage.testing.helpers': None}):
             self._downloader().get_files(_http_pathify([
-                ('channels_01.json', 'channels.json'),
+                ('channel.channels_05.json', 'channels.json'),
                 ]))
         self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
 
     # This test helps bump the udm-based downloader test coverage to 100%.
-    @unittest.skipIf(os.environ.get('SYSTEMIMAGE_PYCURL', '0') == '1',
-                     'Not relevant for PyCURL tests')
+    @unittest.skipIf(USING_PYCURL, 'Test is not relevant for PyCURL')
     @configuration
     def test_timeout(self):
         # If the reactor times out, we get an exception.  We fake the timeout
@@ -193,7 +192,7 @@ class TestDownload(unittest.TestCase):
             self.assertRaises(
                 TimeoutError,
                 self._downloader().get_files,
-                _http_pathify([('channels_01.json', 'channels.json')])
+                _http_pathify([('channel.channels_05.json', 'channels.json')])
                 )
 
 
@@ -213,7 +212,7 @@ class TestHTTPSDownloads(unittest.TestCase):
             stack.push(make_http_server(
                 self._directory, 8943, 'cert.pem', 'key.pem'))
             get_download_manager().get_files(_https_pathify([
-                ('channels_01.json', 'channels.json'),
+                ('channel.channels_05.json', 'channels.json'),
                 ]))
             self.assertEqual(
                 set(os.listdir(config.tempdir)),
@@ -237,7 +236,7 @@ class TestHTTPSDownloadsNoSelfSigned(unittest.TestCase):
                 FileNotFoundError,
                 get_download_manager().get_files,
                 _https_pathify([
-                    ('channels_01.json', 'channels.json'),
+                    ('channel.channels_05.json', 'channels.json'),
                     ]))
 
     @configuration
@@ -252,7 +251,7 @@ class TestHTTPSDownloadsNoSelfSigned(unittest.TestCase):
                 FileNotFoundError,
                 get_download_manager().get_files,
                 _https_pathify([
-                    ('channels_01.json', 'channels.json'),
+                    ('channel.channels_05.json', 'channels.json'),
                     ]))
 
 
@@ -275,7 +274,7 @@ class TestHTTPSDownloadsExpired(unittest.TestCase):
                 FileNotFoundError,
                 get_download_manager().get_files,
                 _https_pathify([
-                    ('channels_01.json', 'channels.json'),
+                    ('channel.channels_05.json', 'channels.json'),
                     ]))
 
 
@@ -298,15 +297,14 @@ class TestHTTPSDownloadsNasty(unittest.TestCase):
                 FileNotFoundError,
                 get_download_manager().get_files,
                 _https_pathify([
-                    ('channels_01.json', 'channels.json'),
+                    ('channel.channels_05.json', 'channels.json'),
                     ]))
 
 
 # These tests don't strictly improve coverage for the udm-based downloader,
 # but they are still useful to keep because they test a implicit code path.
 # These can be removed once GSM-testing is pulled into s-i via LP: #1388886.
-@unittest.skipIf(os.environ.get('SYSTEMIMAGE_PYCURL', '0') == '1',
-                 'Not relevant for PyCURL tests')
+@unittest.skipIf(USING_PYCURL, 'Test is not relevant for PyCURL')
 class TestGSMDownloads(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -341,36 +339,36 @@ class TestGSMDownloads(unittest.TestCase):
         super().tearDown()
 
     @configuration
-    def test_manual_downloads_gsm_allowed(self, ini_file):
+    def test_manual_downloads_gsm_allowed(self, config_d):
         # When auto_download is 0, manual downloads are enabled so assuming
         # the user knows what they're doing, GSM downloads are allowed.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         Settings(config).set('auto_download', '0')
         get_download_manager().get_files(_http_pathify([
-            ('channels_01.json', 'channels.json')
+            ('channel.channels_05.json', 'channels.json')
             ]))
         self.assertTrue(self._gsm_set_flag)
         self.assertTrue(self._gsm_get_flag)
 
     @configuration
-    def test_wifi_downloads_gsm_disallowed(self, ini_file):
+    def test_wifi_downloads_gsm_disallowed(self, config_d):
         # Obviously GSM downloads are not allowed when downloading
         # automatically on wifi-only.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         Settings(config).set('auto_download', '1')
         get_download_manager().get_files(_http_pathify([
-            ('channels_01.json', 'channels.json')
+            ('channel.channels_05.json', 'channels.json')
             ]))
         self.assertFalse(self._gsm_set_flag)
         self.assertFalse(self._gsm_get_flag)
 
     @configuration
-    def test_always_downloads_gsm_allowed(self, ini_file):
+    def test_always_downloads_gsm_allowed(self, config_d):
         # GSM downloads are allowed when always downloading.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         Settings(config).set('auto_download', '2')
         get_download_manager().get_files(_http_pathify([
-            ('channels_01.json', 'channels.json')
+            ('channel.channels_05.json', 'channels.json')
             ]))
         self.assertTrue(self._gsm_set_flag)
         self.assertTrue(self._gsm_get_flag)
@@ -378,8 +376,7 @@ class TestGSMDownloads(unittest.TestCase):
 
 class TestDownloadBigFiles(unittest.TestCase):
     # This test helps bump the udm-based downloader test coverage to 100%.
-    @unittest.skipIf(os.environ.get('SYSTEMIMAGE_PYCURL', '0') == '1',
-                     'Not relevant for PyCURL tests')
+    @unittest.skipIf(USING_PYCURL, 'Test is not relevant for PyCURL')
     @configuration
     def test_cancel(self):
         # Try to cancel the download of a big file.
@@ -528,7 +525,7 @@ class TestDuplicateDownloads(unittest.TestCase):
         with open(os.path.join(self._serverdir, 'source.dat'), 'wb') as fp:
             fp.write(content)
         downloader = get_download_manager()
-        url = urljoin(config.service.http_base, 'source.dat')
+        url = urljoin(config.http_base, 'source.dat')
         downloads = [
             Record(url, 'local.dat', checksum),
             # Mutate the checksum so they won't match.
@@ -560,7 +557,7 @@ class TestDuplicateDownloads(unittest.TestCase):
         with open(os.path.join(self._serverdir, 'source.dat'), 'wb') as fp:
             fp.write(content)
         downloader = get_download_manager()
-        url = urljoin(config.service.http_base, 'source.dat')
+        url = urljoin(config.http_base, 'source.dat')
         downloads = [
             Record(url, 'local.dat', checksum),
             # Mutate the checksum so they won't match.
@@ -583,8 +580,7 @@ class TestDuplicateDownloads(unittest.TestCase):
 # environment variable wouldn't be enough for production (see download.py
 # get_download_manager() for other cases where the downloader is chosen), but
 # it's sufficient for the test suite.  See tox.ini.
-@unittest.skipUnless(os.environ.get('SYSTEMIMAGE_PYCURL', '0') == '1',
-                     'Not relevant for udm tests')
+@unittest.skipIf(USING_PYCURL, 'Test is not relevant for PyCURL')
 class TestCURL(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -621,8 +617,8 @@ class TestCURL(unittest.TestCase):
                     done_once = True
                     return super()._do_once(FakeMulti(), handles)
         Testable().get_files(_http_pathify([
-            ('channels_01.json', 'channels.json'),
-            ('index_01.json', 'index.json'),
+            ('channel.channels_05.json', 'channels.json'),
+            ('download.index_01.json', 'index.json'),
             ]))
         self.assertTrue(done_once)
         # The files still get downloaded.
@@ -643,15 +639,15 @@ class TestCURL(unittest.TestCase):
                 return super()._do_once(FakeMulti(), handles)
         with self.assertRaises(FileNotFoundError) as cm:
             Testable().get_files(_http_pathify([
-                ('channels_01.json', 'channels.json'),
-                ('index_01.json', 'index.json'),
+                ('channel.channels_05.json', 'channels.json'),
+                ('download.index_01.json', 'index.json'),
                 ]))
         # One of the two files will be contained in the error message, but
         # which one is undefined, although in practice it will be the first
         # one.
         self.assertRegex(
             cm.exception.args[0],
-            'http://localhost:8980/(channels|index)_01.json')
+            'http://localhost:8980/(channel.channels_05|index_01).json')
 
 
 class TestDownloadManagerFactory(unittest.TestCase):

@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-3.0 (2014-XX-XX)
+3.0 (2015-XX-XX)
 ================
  * Support a built-in PyCURL-based downloader in addition to the traditional
    ubuntu-download-manager (over D-BUS) downloader.  Auto-detects which
@@ -12,6 +12,10 @@ NEWS for system-image updater
  * Support alternative machine-id files as fall backs if the D-Bus file does
    not exist.  Specifically, add systemd's /etc/machine-id to the list.
    Initial contribution by Michael Vogt.  (LP: #1384859)
+ * Support multiple configuration files, as in a ``config.d`` directory.  Now,
+   configuration files are named `NN_whatever.ini` where "NN" must be a
+   numeric prefix.  Files are loaded in sorted numeric order, with later files
+   overriding newer files.  (LP: #1373467)
 
 2.5.1 (2014-10-21)
 ==================

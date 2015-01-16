@@ -22,10 +22,13 @@ __all__ = [
 
 
 import os
+import unittest
 
+from pathlib import Path
 from systemimage.api import Mediator
-from systemimage.config import Configuration, config
+from systemimage.config import config
 from systemimage.download import Canceled
+from systemimage.testing.controller import USING_PYCURL
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, setup_index, sign,
     touch_build)
@@ -34,8 +37,8 @@ from unittest.mock import patch
 
 
 class TestAPI(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'api.index_01.json'
+    CHANNEL_FILE = 'api.channels_01.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -99,11 +102,11 @@ class TestAPI(ServerTestBase):
         self._setup_server_keyrings()
         # Index 14 has a more interesting upgrade path, and will yield a
         # richer description set.
-        index_dir = os.path.join(self._serverdir, self.CHANNEL, self.DEVICE)
-        index_path = os.path.join(index_dir, 'index.json')
-        copy('index_14.json', index_dir, 'index.json')
+        index_dir = Path(self._serverdir) / self.CHANNEL / self.DEVICE
+        index_path = index_dir / 'index.json'
+        copy('api.index_02.json', index_dir, 'index.json')
         sign(index_path, 'device-signing.gpg')
-        setup_index('index_14.json', self._serverdir, 'device-signing.gpg')
+        setup_index('api.index_02.json', self._serverdir, 'device-signing.gpg')
         # Get the descriptions.
         update = Mediator().check_for_update()
         self.assertTrue(update.is_available)
@@ -142,8 +145,8 @@ class TestAPI(ServerTestBase):
         # No reboot got issued.
         self.assertFalse(reboot.called)
         # But the command file did get written, and all the files are present.
-        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
-        with open(path, 'r', encoding='utf-8') as fp:
+        path = Path(config.updater.cache_partition) / 'ubuntu_command'
+        with path.open('r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, """\
 load_keyring image-master.tar.xz image-master.tar.xz.asc
@@ -196,8 +199,8 @@ unmount system
         with patch('systemimage.reboot.Reboot.reboot') as reboot:
             mediator.factory_reset()
         self.assertTrue(reboot.called)
-        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
-        with open(path, 'r', encoding='utf-8') as fp:
+        path = Path(config.updater.cache_partition) / 'ubuntu_command'
+        with path.open('r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, dedent("""\
             format data
@@ -233,12 +236,12 @@ unmount system
         self.assertNotEqual(received_bytes, 0)
         self.assertNotEqual(total_bytes, 0)
 
+    @unittest.skipUnless(USING_PYCURL, 'LP: #1411866')
     @configuration
-    def test_state_machine_exceptions(self, ini_file):
+    def test_state_machine_exceptions(self, config):
         # An exception in the state machine captures the exception and returns
         # an error string in the Update instance.
         self._setup_server_keyrings()
-        config = Configuration(ini_file)
         with chmod(config.updater.cache_partition, 0):
             update = Mediator().check_for_update()
         # There's no winning path, but there is an error.

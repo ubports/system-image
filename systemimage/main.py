@@ -21,7 +21,6 @@ __all__ = [
     ]
 
 
-import os
 import sys
 import logging
 import argparse
@@ -42,12 +41,11 @@ from textwrap import dedent
 __version__ = resource_bytes(
     'systemimage', 'version.txt').decode('utf-8').strip()
 
-DEFAULT_CONFIG_FILE = '/etc/system-image/client.ini'
+DEFAULT_CONFIG_D = '/etc/system-image/config.d'
 COLON = ':'
 
 
 def main():
-    global config
     parser = argparse.ArgumentParser(
         prog='system-image-cli',
         description='Ubuntu System Image Upgrader')
@@ -55,7 +53,7 @@ def main():
                         action='version',
                         version='system-image-cli {}'.format(__version__))
     parser.add_argument('-C', '--config',
-                        default=DEFAULT_CONFIG_FILE, action='store',
+                        default=DEFAULT_CONFIG_D, action='store',
                         metavar='FILE',
                         help="""Use the given configuration file instead of
                                 the default""")
@@ -137,16 +135,10 @@ def main():
     args = parser.parse_args(sys.argv[1:])
     try:
         config.load(args.config)
-    except FileNotFoundError as error:
-        parser.error('\nConfiguration file not found: {}'.format(error))
+    except (TypeError, FileNotFoundError):
+        parser.error('\nConfiguration directory not found: {}'.format(
+            args.config))
         assert 'parser.error() does not return' # pragma: no cover
-    # Load the optional channel.ini file, which must live next to the
-    # configuration file.  It's okay if this file does not exist.
-    channel_ini = os.path.join(os.path.dirname(args.config), 'channel.ini')
-    try:
-        config.load(channel_ini, override=True)
-    except FileNotFoundError:
-        pass
 
     # Perform a factory reset.
     if args.factory_reset:

@@ -49,17 +49,18 @@ class TestWinnerDownloads(unittest.TestCase):
         self._stack = ExitStack()
         try:
             self._serverdir = self._stack.enter_context(temporary_directory())
-            copy('channels_02.json', self._serverdir, 'channels.json')
+            copy('winner.channels_01.json', self._serverdir, 'channels.json')
             sign(os.path.join(self._serverdir, 'channels.json'),
                  'image-signing.gpg')
-            # index_10.json path B will win, with no bootme flags.
+            # Path B will win, with no bootme flags.
             self._indexpath = os.path.join('stable', 'nexus7', 'index.json')
-            copy('index_12.json', self._serverdir, self._indexpath)
+            copy('winner.index_02.json', self._serverdir, self._indexpath)
             sign(os.path.join(self._serverdir, self._indexpath),
                  'image-signing.gpg')
             # Create every file in path B.  The file contents will be the
             # checksum value.  We need to create the signatures on the fly.
-            setup_index('index_12.json', self._serverdir, 'image-signing.gpg')
+            setup_index('winner.index_02.json', self._serverdir,
+                        'image-signing.gpg')
             self._stack.push(
                 make_http_server(self._serverdir, 8943, 'cert.pem', 'key.pem'))
             self._stack.push(make_http_server(self._serverdir, 8980))
@@ -175,7 +176,7 @@ class TestWinnerDownloads(unittest.TestCase):
         setup_keyrings()
         # To set up the device signing key, we need to load channels_03.json
         # and copy the device keyring to the server.
-        copy('channels_03.json', self._serverdir, 'channels.json')
+        copy('winner.channels_02.json', self._serverdir, 'channels.json')
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_keyring_txz(
@@ -186,7 +187,8 @@ class TestWinnerDownloads(unittest.TestCase):
         # signed with the device key.
         sign(os.path.join(self._serverdir, self._indexpath),
              'device-signing.gpg')
-        setup_index('index_12.json', self._serverdir, 'device-signing.gpg')
+        setup_index('winner.index_02.json', self._serverdir,
+                    'device-signing.gpg')
         touch_build(100)
         # Run the state machine until we download the files.
         state = State()
@@ -214,9 +216,9 @@ class TestWinnerDownloads(unittest.TestCase):
         # they are signed by the device key instead of the image signing
         # master.
         setup_keyrings()
-        # To set up the device signing key, we need to load channels_03.json
-        # and copy the device keyring to the server.
-        copy('channels_03.json', self._serverdir, 'channels.json')
+        # To set up the device signing key, we need to load this channels.json
+        # file and copy the device keyring to the server.
+        copy('winner.channels_02.json', self._serverdir, 'channels.json')
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_keyring_txz(
@@ -226,7 +228,8 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, self._indexpath),
              'device-signing.gpg')
         # All the downloadable files are now signed with the image signing key.
-        setup_index('index_12.json', self._serverdir, 'image-signing.gpg')
+        setup_index('winner.index_02.json', self._serverdir,
+                    'image-signing.gpg')
         touch_build(100)
         # Run the state machine until we download the files.
         state = State()
@@ -251,11 +254,12 @@ class TestWinnerDownloads(unittest.TestCase):
     @configuration
     def test_download_winners_bad_checksums(self):
         # Similar to the various good paths, except because the checksums are
-        # wrong in index_10.json, we'll get a error when downloading.
-        copy('index_10.json', self._serverdir, self._indexpath)
+        # wrong in this index.json file, we'll get a error when downloading.
+        copy('winner.index_01.json', self._serverdir, self._indexpath)
         sign(os.path.join(self._serverdir, self._indexpath),
              'image-signing.gpg')
-        setup_index('index_10.json', self._serverdir, 'image-signing.gpg')
+        setup_index('winner.index_01.json', self._serverdir,
+                    'image-signing.gpg')
         setup_keyrings()
         state = State()
         touch_build(100)
@@ -272,9 +276,9 @@ class TestWinnerDownloads(unittest.TestCase):
         # signing key, which according to the spec means the files are not
         # signed correctly.
         setup_keyrings()
-        # To set up the device signing key, we need to load channels_03.json
-        # and copy the device keyring to the server.
-        copy('channels_03.json', self._serverdir, 'channels.json')
+        # To set up the device signing key, we need to load this channels.json
+        # file and copy the device keyring to the server.
+        copy('winner.channels_02.json', self._serverdir, 'channels.json')
         sign(os.path.join(self._serverdir, 'channels.json'),
              'image-signing.gpg')
         setup_keyring_txz(
@@ -284,7 +288,7 @@ class TestWinnerDownloads(unittest.TestCase):
         sign(os.path.join(self._serverdir, self._indexpath),
              'device-signing.gpg')
         # All the downloadable files are now signed with a bogus key.
-        setup_index('index_12.json', self._serverdir, 'spare.gpg')
+        setup_index('winner.index_02.json', self._serverdir, 'spare.gpg')
         touch_build(100)
         # Run the state machine until just before we download the files.
         state = State()

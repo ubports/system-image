@@ -36,21 +36,21 @@ from systemimage.testing.helpers import (
 class TestCandidates(unittest.TestCase):
     def test_no_images(self):
         # If there are no images defined, there are no candidates.
-        index = get_index('index_01.json')
+        index = get_index('candidates.index_01.json')
         candidates = get_candidates(index, 1400)
         self.assertEqual(candidates, [])
 
     def test_only_higher_fulls(self):
         # All the full images have a minversion greater than our version, so
         # we cannot upgrade to any of them.
-        index = get_index('index_02.json')
+        index = get_index('candidates.index_02.json')
         candidates = get_candidates(index, 100)
         self.assertEqual(candidates, [])
 
     def test_one_higher_full(self):
         # Our device is between the minversions of the two available fulls, so
         # the older one can be upgraded too.
-        index = get_index('index_02.json')
+        index = get_index('candidates.index_02.json')
         candidates = get_candidates(index, 800)
         # There is exactly one upgrade path.
         self.assertEqual(len(candidates), 1)
@@ -64,7 +64,7 @@ class TestCandidates(unittest.TestCase):
     def test_fulls_with_no_minversion(self):
         # Like the previous test, there are two full upgrades, but because
         # neither of them have minversions, both are candidates.
-        index = get_index('index_05.json')
+        index = get_index('candidates.index_03.json')
         candidates = get_candidates(index, 400)
         self.assertEqual(len(candidates), 2)
         # Both candidate paths have exactly one image in them.  We can't sort
@@ -82,13 +82,13 @@ class TestCandidates(unittest.TestCase):
     def test_no_deltas_based_on_us(self):
         # There are deltas in the test data, but no fulls.  None of the deltas
         # have a base equal to our build number.
-        index = get_index('index_03.json')
+        index = get_index('candidates.index_04.json')
         candidates = get_candidates(index, 100)
         self.assertEqual(candidates, [])
 
     def test_one_delta_based_on_us(self):
         # There is one delta in the test data that is based on us.
-        index = get_index('index_03.json')
+        index = get_index('candidates.index_04.json')
         candidates = get_candidates(index, 500)
         self.assertEqual(len(candidates), 1)
         path = candidates[0]
@@ -100,7 +100,7 @@ class TestCandidates(unittest.TestCase):
     def test_two_deltas_based_on_us(self):
         # There are two deltas that are based on us, so both are candidates.
         # They get us to different final versions.
-        index = get_index('index_04.json')
+        index = get_index('candidates.index_05.json')
         candidates = get_candidates(index, 1100)
         self.assertEqual(len(candidates), 2)
         # Both candidate paths have exactly one image in them.  We can't sort
@@ -115,7 +115,7 @@ class TestCandidates(unittest.TestCase):
     def test_one_path_with_full_and_deltas(self):
         # There's one path to upgrade from our version to the final version.
         # This one starts at a full and includes several deltas.
-        index = get_index('index_06.json')
+        index = get_index('candidates.index_06.json')
         candidates = get_candidates(index, 1000)
         self.assertEqual(len(candidates), 1)
         path = candidates[0]
@@ -128,7 +128,7 @@ class TestCandidates(unittest.TestCase):
         # Similar to above, except that because we're upgrading from the
         # version of the full, the path is only two images long, i.e. the
         # deltas.
-        index = get_index('index_06.json')
+        index = get_index('candidates.index_06.json')
         candidates = get_candidates(index, 1300)
         self.assertEqual(len(candidates), 1)
         path = candidates[0]
@@ -140,7 +140,7 @@ class TestCandidates(unittest.TestCase):
         # We have a fork in the road.  There is a full update, but two deltas
         # with different versions point to the same base.  This will give us
         # two upgrade paths, both of which include the full.
-        index = get_index('index_07.json')
+        index = get_index('candidates.index_07.json')
         candidates = get_candidates(index, 1200)
         self.assertEqual(len(candidates), 2)
         # We can sort the paths by length.
@@ -171,7 +171,7 @@ class TestCandidateDownloads(unittest.TestCase):
     def test_get_downloads(self):
         # Path B will win; it has one full and two deltas, none of which have
         # a bootme flag.  Download all their files.
-        index = get_index('index_10.json')
+        index = get_index('candidates.index_08.json')
         candidates = get_candidates(index, 600)
         winner = WeightedScorer().choose(candidates, 'devel')
         descriptions = []
@@ -209,7 +209,7 @@ class TestCandidateDownloads(unittest.TestCase):
     def test_get_downloads_with_bootme(self):
         # Path B will win; it has one full and two deltas.  The first delta
         # has a bootme flag so the second delta's files are not downloaded.
-        index = get_index('index_11.json')
+        index = get_index('candidates.index_09.json')
         candidates = get_candidates(index, 600)
         winner = WeightedScorer().choose(candidates, 'devel')
         descriptions = []
@@ -234,7 +234,7 @@ class TestCandidateFilters(unittest.TestCase):
         # Run a filter over the candidates, such that the only ones left are
         # those that contain only full upgrades.  This can truncate any paths
         # that start with some fulls and then contain some deltas.
-        index = get_index('index_10.json')
+        index = get_index('candidates.index_08.json')
         candidates = get_candidates(index, 600)
         filtered = full_filter(candidates)
         # Since all images start with a full update, we're still left with
@@ -249,7 +249,7 @@ class TestCandidateFilters(unittest.TestCase):
 
     def test_filter_for_fulls_one_candidate(self):
         # Filter for full updates, where the only candidate has one full image.
-        index = get_index('index_13.json')
+        index = get_index('candidates.index_10.json')
         candidates = get_candidates(index, 600)
         filtered = full_filter(candidates)
         self.assertEqual(filtered, candidates)
@@ -257,7 +257,7 @@ class TestCandidateFilters(unittest.TestCase):
     def test_filter_for_fulls_with_just_delta_candidates(self):
         # A candidate path that contains only deltas will have no filtered
         # paths if all the images are delta updates.
-        index = get_index('index_15.json')
+        index = get_index('candidates.index_11.json')
         candidates = get_candidates(index, 100)
         self.assertEqual(len(candidates), 1)
         filtered = full_filter(candidates)
@@ -265,7 +265,7 @@ class TestCandidateFilters(unittest.TestCase):
 
     def test_filter_for_deltas(self):
         # Filter the candidates, where the only available path is a delta path.
-        index = get_index('index_15.json')
+        index = get_index('candidates.index_11.json')
         candidates = get_candidates(index, 100)
         self.assertEqual(len(candidates), 1)
         filtered = delta_filter(candidates)
@@ -276,21 +276,21 @@ class TestCandidateFilters(unittest.TestCase):
         # Run a filter over the candidates, such that the only ones left are
         # those that start with and contain only deltas.  Since none of the
         # paths do so, tere are no candidates left.
-        index = get_index('index_10.json')
+        index = get_index('candidates.index_08.json')
         candidates = get_candidates(index, 600)
         filtered = delta_filter(candidates)
         self.assertEqual(len(filtered), 0)
 
     def test_filter_for_deltas_one_candidate(self):
         # Filter for delta updates, but the only candidate is a full.
-        index = get_index('index_13.json')
+        index = get_index('candidates.index_10.json')
         candidates = get_candidates(index, 600)
         filtered = delta_filter(candidates)
         self.assertEqual(len(filtered), 0)
 
     def test_filter_for_multiple_deltas(self):
         # The candidate path has multiple deltas.  All are preserved.
-        index = get_index('index_19.json')
+        index = get_index('candidates.index_12.json')
         candidates = get_candidates(index, 100)
         filtered = delta_filter(candidates)
         self.assertEqual(len(filtered), 1)
@@ -305,7 +305,7 @@ class TestNewVersionRegime(unittest.TestCase):
 
     def test_candidates(self):
         # Path B will win; it has one full and two deltas.
-        index = get_index('index_20.json')
+        index = get_index('candidates.index_13.json')
         candidates = get_candidates(index, 0)
         self.assertEqual(len(candidates), 3)
         path0 = candidates[0]

@@ -29,8 +29,8 @@ import logging
 from itertools import count
 from systemimage.helpers import MiB, phased_percentage
 
-log = logging.getLogger('systemimage')
 
+log = logging.getLogger('systemimage')
 COLON = ':'
 
 
@@ -53,6 +53,7 @@ class Scorer:
         :rtype: list
         """
         if len(candidates) == 0:
+            log.debug('No candidates, so no winner')
             return []
         # We want to zip together the score for each candidate path, plus the
         # candidate path, so that when we sort the sequence, we'll always get

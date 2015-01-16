@@ -49,7 +49,7 @@ import tarfile
 import unittest
 
 from contextlib import ExitStack, contextmanager, suppress
-from functools import partial, wraps
+from functools import partial, partialmethod, wraps
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from pkg_resources import resource_filename, resource_string as resource_bytes
@@ -58,7 +58,6 @@ from systemimage.channel import Channels
 from systemimage.config import Configuration, config
 from systemimage.helpers import MiB, atomic, makedirs, temporary_directory
 from systemimage.index import Index
-from systemimage.state import State
 from threading import Thread
 from unittest.mock import patch
 
@@ -208,47 +207,98 @@ def make_http_server(directory, port, certpem=None, keypem=None):
         return resources.pop_all()
 
 
-def configuration(function):
-    """Decorator that produces a temporary configuration for testing.
-
-    The config_00.ini template is copied to a temporary file and the the
-    various file system locations are filled in with the location for a,
-    er, temporary temporary directory.  This temporary configuration
-    file is loaded up and the global configuration object is patched so
-    that all other code will see it instead of the default global
-    configuration object.
-
-    Everything is properly cleaned up after the test method exits.
-    """
-    @wraps(function)
-    def wrapper(*args, **kws):
-        with ExitStack() as resources:
-            etc_dir = resources.enter_context(temporary_directory())
-            ini_file = os.path.join(etc_dir, 'client.ini')
-            temp_tmpdir = resources.enter_context(temporary_directory())
-            temp_vardir = resources.enter_context(temporary_directory())
+# This defines the @configuration decorator used in various test suites to
+# create a temporary config.d/ directory for a test.  This is all fairly
+# complicated, but here's what's going on.
+#
+# The _wrapper() function is the inner part of the decorator, and it does the
+# heart of the operation, which is to create a temporary directory for
+# config.d, along with temporary var and tmp directories.  These latter two
+# will be interpolated into any configuration file copied into config.d.
+#
+# The outer decorator function differs depending on whether @configuration was
+# given without arguments, or called with arguments at the time of the
+# function definition.
+#
+# In the former case, e.g.
+#
+# @configuration
+# def test_something(self):
+#
+# The default 00.ini file is interpolated and copied into config.d.  Simple.
+#
+# In the latter case, e.g.
+#
+# @configuration('some-config.ini')
+# def test_something(self):
+#
+# There's actually another level of interior function, because the outer
+# decorator itself is getting called.  Here, any named configuration file is
+# additionally copied to the config.d directory, renaming it sequentionally to
+# something like 01_override.ini, with the numeric part incrementing
+# monotonically.
+#
+# The implementation is tricky because we want the call sites to be simple.
+def _wrapper(self, function, ini_files, *args, **kws):
+    start = 0
+    with ExitStack() as resources:
+        # Create the config.d directory and copy all the source ini files to
+        # this directory in sequential order, interpolating in the temporary
+        # tmp and var directories.
+        config_d = resources.enter_context(temporary_directory())
+        temp_tmpdir = resources.enter_context(temporary_directory())
+        temp_vardir = resources.enter_context(temporary_directory())
+        for ini_file in ini_files:
+            dst = os.path.join(config_d, '{:02d}_override.ini'.format(start))
+            start += 1
             template = resource_bytes(
-                'systemimage.tests.data', 'config_00.ini').decode('utf-8')
-            with atomic(ini_file) as fp:
+                'systemimage.tests.data', ini_file).decode('utf-8')
+            with atomic(dst) as fp:
                 print(template.format(tmpdir=temp_tmpdir,
                                       vardir=temp_vardir), file=fp)
-            config = Configuration(ini_file)
-            resources.enter_context(
-                patch('systemimage.config._config', config))
-            resources.enter_context(
-                patch('systemimage.device.check_output',
-                      return_value='nexus7'))
-            # Make sure the cache_partition and data_partition exist.
-            makedirs(config.updater.cache_partition)
-            makedirs(config.updater.data_partition)
-            # The method under test is allowed to specify some additional
-            # keyword arguments, in order to pass some variables in from the
-            # wrapper.
-            signature = inspect.signature(function)
-            if 'ini_file' in signature.parameters:
-                kws['ini_file'] = ini_file
-            return function(*args, **kws)
-    return wrapper
+        # Patch the global configuration object so that it can be used
+        # directly, which is good enough in most cases.  Also patch the bit of
+        # code that detects the device name.
+        config = Configuration(config_d)
+        resources.enter_context(
+            patch('systemimage.config._config', config))
+        resources.enter_context(
+            patch('systemimage.device.check_output',
+                  return_value='nexus7'))
+        # Make sure the cache_partition and data_partition exist.
+        makedirs(config.updater.cache_partition)
+        makedirs(config.updater.data_partition)
+        # The method under test is allowed to specify some additional
+        # keyword arguments, in order to pass some variables in from the
+        # wrapper.
+        signature = inspect.signature(function)
+        if 'config_d' in signature.parameters:
+            kws['config_d'] = config_d
+        if 'config' in signature.parameters:
+            kws['config'] = config
+        # Call the function with the given arguments and return the result.
+        return function(self, *args, **kws)
+
+
+def configuration(*args):
+    """Outer decorator which can be called or not at function definition time.
+
+    If called, the arguments are positional only, and name the test data .ini
+    files which are to be copied to config.d directory.  If none are given,
+    then 00.ini is used.
+    """
+    if len(args) == 1 and callable(args[0]):
+        # We assume this was the bare @configuration decorator flavor.
+        function = args[0]
+        inner = partialmethod(_wrapper, function, ('00.ini',))
+        return wraps(function)(inner)
+    else:
+        # We assume this was the called @configuration(...) decorator flavor,
+        # so create the actual decorator that wraps the _wrapper function.
+        def decorator(function):
+            inner = partialmethod(_wrapper, function, args)
+            return wraps(function)(inner)
+        return decorator
 
 
 def sign(filename, pubkey_ring):
@@ -259,6 +309,8 @@ def sign(filename, pubkey_ring):
         with.  This keyring must contain only one key, and its key id must
         exist in the master secret keyring.
     """
+    # filename could be a Path object.  For now, just str-ify it.
+    filename = str(filename)
     with ExitStack() as resources:
         home = resources.enter_context(temporary_directory())
         secring = data_path('master-secring.gpg')
@@ -278,7 +330,7 @@ def sign(filename, pubkey_ring):
 
 def copy(filename, todir, dst=None):
     src = data_path(filename)
-    dst = os.path.join(todir, filename if dst is None else dst)
+    dst = os.path.join(str(todir), filename if dst is None else dst)
     makedirs(os.path.dirname(dst))
     shutil.copy(src, dst)
 
@@ -405,21 +457,24 @@ def chmod(path, new_mode):
         os.chmod(path, old_mode)
 
 
-def touch_build(version, timestamp=None):
+def touch_build(version, timestamp=None, use_config=None):
     # LP: #1220238 - assert that no old-style version numbers are being used.
     assert 0 <= version < (1 << 16), (
-        'old style version number: {}'.format(version))
-    with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-        print(version, file=fp)
+        'Old style version number: {}'.format(version))
+    if use_config is None:
+        use_config = config
+    override = Path(use_config.config_d) / '99_build.ini'
+    with override.open('wt', encoding='utf-8') as fp:
+        print("""\
+[service]
+build_number: {}
+""".format(version), file=fp)
+    # We have to touch the mtimes for all the files in the config directory.
     if timestamp is not None:
         timestamp = int(timestamp)
-        os.utime(config.system.build_file, (timestamp, timestamp))
-        channel_ini = os.path.join(
-            os.path.dirname(config.config_file), 'channel.ini')
-        try:
-            os.utime(channel_ini, (timestamp, timestamp))
-        except FileNotFoundError:
-            pass
+        for path in Path(use_config.config_d).iterdir():
+            os.utime(str(path), (timestamp, timestamp))
+    use_config.reload()
 
 
 def write_bytes(path, size_in_mib):
@@ -497,6 +552,8 @@ class ServerTestBase(unittest.TestCase):
         SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def setUp(self):
+        # Avoid circular imports.
+        from systemimage.state import State
         self._resources = ExitStack()
         self._state = State()
         try:

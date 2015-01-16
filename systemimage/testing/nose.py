@@ -90,7 +90,7 @@ class SystemImagePlugin(Plugin):
                        'Set the log file for the test run',
                        nargs=1)
         def set_dbus_loglevel(level):
-            self.log_level = 'info:{}'.format(level[0])
+            self.log_level = level[0]
         self.addOption(set_dbus_loglevel, 'M', 'loglevel',
                        'Set the systemimage.dbus log level',
                        nargs=1)
@@ -149,3 +149,8 @@ class SystemImagePlugin(Plugin):
     ##     from systemimage.testing.helpers import debug
     ##     with debug() as dlog:
     ##         dlog('^^^^^', event.test)
+
+    def describeTest(self, event):
+        # This is fucked up.
+        if 'partial' in event.description:
+            event.description = event.description[:-73]

@@ -1,0 +1,38 @@
+{
+    "daily": {
+        "devices": {
+            "grouper": {
+                "index": "/daily/grouper/index.json"
+            },
+            "maguro": {
+                "index": "/daily/maguro/index.json"
+            },
+            "mako": {
+                "index": "/daily/mako/index.json"
+            },
+            "manta": {
+                "index": "/daily/manta/index.json"
+            }
+        }
+    },
+    "daily-proposed": {
+        "devices": {
+            "grouper": {
+                "index": "/daily-proposed/grouper/index.json",
+                "keyring": {
+                    "path": "/daily-proposed/grouper/device-signing.tar.xz",
+                    "signature": "/daily-proposed/grouper/device-signing.tar.xz.asc"
+                }
+            },
+            "maguro": {
+                "index": "/daily-proposed/maguro/index.json"
+            },
+            "mako": {
+                "index": "/daily-proposed/mako/index.json"
+            },
+            "manta": {
+                "index": "/daily-proposed/manta/index.json"
+            }
+        }
+    }
+}

@@ -41,19 +41,19 @@ class TestIndex(unittest.TestCase):
         SystemImagePlugin.controller.set_mode(cert_pem='cert.pem')
 
     def test_index_global(self):
-        index = get_index('index_01.json')
+        index = get_index('index.index_02.json')
         self.assertEqual(
             index.global_.generated_at,
             datetime(2013, 4, 29, 18, 45, 27, tzinfo=timezone.utc))
 
     def test_index_image_count(self):
-        index = get_index('index_01.json')
+        index = get_index('index.index_02.json')
         self.assertEqual(len(index.images), 0)
-        index = get_index('index_02.json')
+        index = get_index('index.index_03.json')
         self.assertEqual(len(index.images), 2)
 
     def test_image_20130300_full(self):
-        index = get_index('sprint_nexus7_index_01.json')
+        index = get_index('index.index_05.json')
         image = index.images[0]
         self.assertEqual(
             image.descriptions,
@@ -80,7 +80,7 @@ class TestIndex(unittest.TestCase):
     def test_image_20130500_minversion(self):
         # Some full images have a minimum version older than which they refuse
         # to upgrade from.
-        index = get_index('sprint_nexus7_index_01.json')
+        index = get_index('index.index_05.json')
         image = index.images[5]
         self.assertEqual(image.type, 'full')
         self.assertEqual(image.version, 20130500)
@@ -89,7 +89,7 @@ class TestIndex(unittest.TestCase):
 
     def test_image_descriptions(self):
         # Image descriptions can come in a variety of locales.
-        index = get_index('index_14.json')
+        index = get_index('index.index_01.json')
         self.assertEqual(index.images[0].descriptions, {
             'description': 'Full A'})
         self.assertEqual(index.images[3].descriptions, {
@@ -144,10 +144,11 @@ class TestDownloadIndex(unittest.TestCase):
         # Load the index.json pointed to by the channels.json.  All signatures
         # validate correctly and there is no device keyring or blacklist.
         self._copysign(
-            'channels_02.json', 'channels.json', 'image-signing.gpg')
-        # index_10.json path B will win, with no bootme flags.
+            'index.channels_05.json', 'channels.json', 'image-signing.gpg')
+        # index.index_04.json path B will win, with no bootme flags.
         self._copysign(
-            'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
+            'index.index_04.json', 'stable/nexus7/index.json',
+            'image-signing.gpg')
         setup_keyrings()
         state = State()
         state.run_thru('get_index')
@@ -161,10 +162,11 @@ class TestDownloadIndex(unittest.TestCase):
     def test_load_index_with_device_keyring(self):
         # Here, the index.json file is signed with a device keyring.
         self._copysign(
-            'channels_03.json', 'channels.json', 'image-signing.gpg')
-        # index_10.json path B will win, with no bootme flags.
+            'index.channels_02.json', 'channels.json', 'image-signing.gpg')
+        # index.index_04.json.json path B will win, with no bootme flags.
         self._copysign(
-            'index_10.json', 'stable/nexus7/index.json', 'device-signing.gpg')
+            'index.index_04.json', 'stable/nexus7/index.json',
+            'device-signing.gpg')
         setup_keyrings()
         setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
@@ -183,10 +185,11 @@ class TestDownloadIndex(unittest.TestCase):
         # Here, the index.json file is signed with the image signing keyring,
         # even though there is a device key.  That's fine.
         self._copysign(
-            'channels_03.json', 'channels.json', 'image-signing.gpg')
-        # index_10.json path B will win, with no bootme flags.
+            'index.channels_02.json', 'channels.json', 'image-signing.gpg')
+        # index.index_04.json.json path B will win, with no bootme flags.
         self._copysign(
-            'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
+            'index.index_04.json', 'stable/nexus7/index.json',
+            'image-signing.gpg')
         setup_keyrings()
         setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
@@ -204,10 +207,10 @@ class TestDownloadIndex(unittest.TestCase):
     def test_load_index_with_bad_keyring(self):
         # Here, the index.json file is signed with a defective device keyring.
         self._copysign(
-            'channels_03.json', 'channels.json', 'image-signing.gpg')
+            'index.channels_02.json', 'channels.json', 'image-signing.gpg')
         # This will be signed by a keyring that is not the device keyring.
         self._copysign(
-            'index_10.json', 'stable/nexus7/index.json', 'spare.gpg')
+            'index.index_04.json', 'stable/nexus7/index.json', 'spare.gpg')
         setup_keyrings()
         setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
@@ -221,10 +224,11 @@ class TestDownloadIndex(unittest.TestCase):
     def test_load_index_with_blacklist(self):
         # Here, we've blacklisted the device key.
         self._copysign(
-            'channels_03.json', 'channels.json', 'image-signing.gpg')
+            'index.channels_02.json', 'channels.json', 'image-signing.gpg')
         # This will be signed by a keyring that is not the device keyring.
         self._copysign(
-            'index_10.json', 'stable/nexus7/index.json', 'device-signing.gpg')
+            'index.index_04.json', 'stable/nexus7/index.json',
+            'device-signing.gpg')
         setup_keyrings()
         setup_keyring_txz(
             'device-signing.gpg', 'image-signing.gpg',
@@ -241,10 +245,11 @@ class TestDownloadIndex(unittest.TestCase):
     def test_missing_channel(self):
         # The system's channel does not exist.
         self._copysign(
-            'channels_04.json', 'channels.json', 'image-signing.gpg')
-        # index_10.json path B will win, with no bootme flags.
+            'index.channels_03.json', 'channels.json', 'image-signing.gpg')
+        # index.index_04.json path B will win, with no bootme flags.
         self._copysign(
-            'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
+            'index.index_04.json', 'stable/nexus7/index.json',
+            'image-signing.gpg')
         setup_keyrings()
         # Our channel (stable) isn't in the channels.json file, so there's
         # nothing to do.  Running the state machine to its conclusion leaves
@@ -258,10 +263,11 @@ class TestDownloadIndex(unittest.TestCase):
     def test_missing_device(self):
         # The system's device does not exist.
         self._copysign(
-            'channels_05.json', 'channels.json', 'image-signing.gpg')
-        # index_10.json path B will win, with no bootme flags.
+            'index.channels_04.json', 'channels.json', 'image-signing.gpg')
+        # index.index_04.json path B will win, with no bootme flags.
         self._copysign(
-            'index_10.json', 'stable/nexus7/index.json', 'image-signing.gpg')
+            'index.index_04.json', 'stable/nexus7/index.json',
+            'image-signing.gpg')
         setup_keyrings()
         # Our device (nexus7) isn't in the channels.json file, so there's
         # nothing to do.  Running the state machine to its conclusion leaves

@@ -20,6 +20,8 @@ __all__ = [
     'MiB',
     'as_loglevel',
     'as_object',
+    'as_port',
+    'as_stripped',
     'as_timedelta',
     'atomic',
     'calculate_signature',
@@ -50,6 +52,7 @@ LAST_UPDATE_FILE = '/userdata/.last_update'
 DEFAULT_DIRMODE = 0o02700
 MiB = 1 << 20
 EMPTYSTRING = ''
+NO_PORT = object()
 
 
 def calculate_signature(fp, hash_class=None):
@@ -78,7 +81,7 @@ def safe_remove(path):
     """Like os.remove() but don't complain if the file doesn't exist."""
     try:
         os.remove(path)
-    except (FileNotFoundError, IsADirectoryError):
+    except (FileNotFoundError, IsADirectoryError, PermissionError):
         pass
 
 
@@ -194,11 +197,24 @@ def as_loglevel(value):
         dbus = 'ERROR'
     main_level = getattr(logging, main, None)
     if main_level is None or not isinstance(main_level, int):
-        raise ValueError
+        raise ValueError(value)
     dbus_level = getattr(logging, dbus, None)
     if dbus_level is None or not isinstance(dbus_level, int):
-        raise ValueError
+        raise ValueError(value)
     return main_level, dbus_level
+
+
+def as_port(value):
+    if value.lower() in ('disabled', 'disable'):
+        return NO_PORT
+    result = int(value)
+    if result < 0:
+        raise ValueError(value)
+    return result
+
+
+def as_stripped(value):
+    return value.strip()
 
 
 @contextmanager
@@ -226,30 +242,24 @@ def makedirs(dir, mode=DEFAULT_DIRMODE):
 def last_update_date():
     """Return the last update date.
 
-    Taken from the mtime of the following files, in order:
-
-    - /userdata/.last_update
-    - /etc/system-image/channel.ini
-    - /etc/ubuntu-build
-
-    First existing path wins.
+    If /userdata/.last_update exists, we use this file's mtime.  If it doesn't
+    exist, then we use the latest mtime of any of the files in
+    /etc/system-image/config.d/*.ini (or whatever directory was given with the
+    -C/--config option).
     """
     # Avoid circular imports.
     from systemimage.config import config
-    channel_ini = os.path.join(
-        os.path.dirname(config.config_file), 'channel.ini')
-    ubuntu_build = config.system.build_file
-    for path in (LAST_UPDATE_FILE, channel_ini, ubuntu_build):
-        try:
-            # Local time, since we can't know the timezone.
-            timestamp = datetime.fromtimestamp(os.stat(path).st_mtime)
-            # Seconds resolution.
-            timestamp = timestamp.replace(microsecond=0)
-            return str(timestamp)
-        except (FileNotFoundError, PermissionError):
-            pass
-    else:
-        return 'Unknown'
+    try:
+        timestamp = datetime.fromtimestamp(os.stat(LAST_UPDATE_FILE).st_mtime)
+    except (FileNotFoundError, PermissionError):
+        # We fall back to the latest mtime of the config.d/*.ini files.
+        timestamps = sorted(
+            datetime.fromtimestamp(path.stat().st_mtime)
+            for path in config.ini_files)
+        if len(timestamps) == 0:
+            return 'Unknown'
+        timestamp = timestamps[-1]
+    return str(timestamp.replace(microsecond=0))
 
 
 def version_detail(details_string=None):
