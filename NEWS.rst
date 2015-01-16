@@ -15,7 +15,13 @@ NEWS for system-image updater
  * Support multiple configuration files, as in a ``config.d`` directory.  Now,
    configuration files are named `NN_whatever.ini` where "NN" must be a
    numeric prefix.  Files are loaded in sorted numeric order, with later files
-   overriding newer files.  (LP: #1373467)
+   overriding newer files.  Support for both the ``client.ini`` and
+   ``channel.ini`` files has been removed. (LP: #1373467)
+ * The ``[system]build_file`` variable has been removed.  Build number
+   information now must come from the ``.ini`` files, and last update date
+   comes from the newest ``.ini`` file loaded.
+ * The ``-C`` command line option now takes a path to the configuration
+   directory.
 
 2.5.1 (2014-10-21)
 ==================
