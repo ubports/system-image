@@ -22,6 +22,8 @@ NEWS for system-image updater
    comes from the newest ``.ini`` file loaded.
  * The ``-C`` command line option now takes a path to the configuration
    directory.
+ * Reworked the checking and downloading locks/flags to so that they will work
+   better with configuration reloading.  (LP: #1412698)
 
 2.5.1 (2014-10-21)
 ==================

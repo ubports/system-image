@@ -78,8 +78,12 @@ class _LiveTestableService(Service):
         except RuntimeError:
             # Lock is already released.
             pass
+        try:
+            self._downloading.release()
+        except RuntimeError:
+            # Lock is already released.
+            pass
         self._update = None
-        self._downloading = False
         self._rebootable = False
         self._failure_count = 0
         del config.build_number
