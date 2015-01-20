@@ -98,8 +98,8 @@ class Service(Object):
         self._api = Mediator(self._progress_callback)
         log.info('Mediator created {}', self._api)
         self._checking = Lock()
+        self._downloading = Lock()
         self._update = None
-        self._downloading = False
         self._paused = False
         self._rebootable = False
         self._failure_count = 0
@@ -110,8 +110,15 @@ class Service(Object):
         # Asynchronous method call.
         log.info('Enter _check_for_update()')
         self._update = self._api.check_for_update()
+        log.info('_check_for_update(): checking lock releasing')
+        try:
+            self._checking.release()
+        except RuntimeError:
+            log.info('_check_for_update(): checking lock already released')
+        else:
+            log.info('_check_for_update(): checking lock released')
         # Do we have an update and can we auto-download it?
-        downloading = False
+        delayed_download = False
         if self._update.is_available:
             settings = Settings()
             auto = settings.get('auto_download')
@@ -119,11 +126,16 @@ class Service(Object):
             if auto in ('1', '2'):
                 # XXX When we have access to the download service, we can
                 # check if we're on the wifi (auto == '1').
+                delayed_download = True
                 GLib.timeout_add(50, self._download)
-                downloading = True
+        # We have a timing issue.  We can't lock the downloading lock here,
+        # otherwise when _download() starts running in ~50ms it will think a
+        # download is already in progress.  But we want to send the UAS signal
+        # here and now, *and* indicate whether the download is about to happen.
+        # So just lie for now since in ~50ms the download will begin.
         self.UpdateAvailableStatus(
             self._update.is_available,
-            downloading,
+            delayed_download,
             self._update.version,
             self._update.size,
             last_update_date(),
@@ -150,22 +162,22 @@ class Service(Object):
         """
         self.loop.keepalive()
         # Check-and-acquire the lock.
-        log.info('test and acquire checking lock')
+        log.info('CheckForUpdate(): checking lock test and acquire')
         if not self._checking.acquire(blocking=False):
+            log.info('CheckForUpdate(): checking lock not acquired')
             # Check is already in progress, so there's nothing more to do.  If
             # there's status available (i.e. we are in the auto-downloading
             # phase of the last CFU), then send the status.
             if self._update is not None:
                 self.UpdateAvailableStatus(
                     self._update.is_available,
-                    self._downloading,
+                    self._downloading.locked(),
                     self._update.version,
                     self._update.size,
                     last_update_date(),
                     "")
-            log.info('checking lock not acquired')
             return
-        log.info('checking lock acquired')
+        log.info('CheckForUpdate(): checking lock acquired')
         # We've now acquired the lock.  Reset any failure or in-progress
         # state.  Get a new mediator to reset any of its state.
         self._api = Mediator(self._progress_callback)
@@ -187,12 +199,12 @@ class Service(Object):
 
     @log_and_exit
     def _download(self):
-        if self._downloading and self._paused:
+        if self._downloading.locked() and self._paused:
             self._api.resume()
             self._paused = False
             log.info('Download previously paused')
             return
-        if (self._downloading                           # Already in progress.
+        if (self._downloading.locked()                  # Already in progress.
             or self._update is None                     # Not yet checked.
             or not self._update.is_available            # No update available.
             ):
@@ -204,7 +216,11 @@ class Service(Object):
             log.info('Update failures: {}; last error: {}',
                      self._failure_count, self._last_error)
             return
-        self._downloading = True
+        log.info('_download(): downloading lock test and acquire')
+        if self._downloading.acquire(blocking=False):
+            log.info('_download(): downloading lock acquired')
+        else:
+            log.info('_download(): downloading lock already acquired')
         log.info('Update is downloading')
         try:
             # Always start by sending a UpdateProgress(0, 0).  This is
@@ -229,22 +245,13 @@ class Service(Object):
             self._failure_count = 0
             self._last_error = ''
             self._rebootable = True
-        self._downloading = False
-        log.info('releasing checking lock from _download()')
+        log.info('_download(): downloading lock releasing')
         try:
-            self._checking.release()
+            self._downloading.release()
         except RuntimeError:
-            # 2014-09-11 BAW: We don't own the lock.  There are several reasons
-            # why this can happen including: 1) the client canceled the
-            # download while it was in progress, and CancelUpdate() already
-            # released the lock; 2) the client called DownloadUpdate() without
-            # first calling CheckForUpdate(); 3) the client called DU()
-            # multiple times in a row but the update was already downloaded and
-            # all the file signatures have been verified.  I can't think of
-            # reason why we shouldn't just ignore the double release, so
-            # that's what we do.  See LP: #1365646.
-            pass
-        log.info('released checking lock from _download()')
+            log.info('_download(): downloading lock already released')
+        else:
+            log.info('_download(): downloading lock released')
         # Stop GLib from calling this method again.
         return False
 
@@ -265,7 +272,7 @@ class Service(Object):
     def PauseDownload(self):
         """Pause a downloading update."""
         self.loop.keepalive()
-        if self._downloading:
+        if self._downloading.locked():
             self._api.pause()
             self._paused = True
             error_message = ''
@@ -284,14 +291,14 @@ class Service(Object):
         # send *another* signal when downloading, because we never will be
         # downloading by the time we get past this next call.
         self._api.cancel()
-        # If we're holding the checking lock, release it.
+        # If we're holding the downloading lock, release it.
+        log.info('CancelUpdate(): downloading lock releasing')
         try:
-            log.info('releasing checking lock from CancelUpdate()')
-            self._checking.release()
-            log.info('released checking lock from CancelUpdate()')
+            self._downloading.release()
         except RuntimeError:
-            # We're not holding the lock.
-            pass
+            log.info('CancelUpdate(): downloading lock already released')
+        else:
+            log.info('CancelUpdate(): downloading lock released')
         # XXX 2013-08-22: If we can't cancel the current download, return the
         # reason in this string.
         return ''
