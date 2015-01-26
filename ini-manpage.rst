@@ -17,12 +17,12 @@ Ubuntu System Image Upgrader configuration files
 DESCRIPTION
 ===========
 
-``/etc/system-image/`` is the default configuration directory for the system
-image upgrader.  It contains ini-style configuration files with sections that
-define the service to connect to, as well as local system resources.
-Generally, the options never need to be changed.
+``/etc/system-image/config.d`` is the default configuration directory for the
+system image upgrader.  It contains ini-style configuration files with
+sections that define the service to connect to, as well as local system
+resources.  Generally, the options never need to be changed.
 
-The system image upgrader will read a all files in this directory that start
+The system image upgrader will read all files in this directory that start
 with a numeric prefix, followed by an underscore, and then any alphanumeric
 suffix, ending in ``.ini``.  E.g. ``07_myconfig.ini``.
 
