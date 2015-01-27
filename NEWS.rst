@@ -24,6 +24,8 @@ NEWS for system-image updater
    directory.
  * Reworked the checking and downloading locks/flags to so that they will work
    better with configuration reloading.  (LP: #1412698)
+ * Support for the ``/etc/ubuntu-build`` file has been removed.  The build
+   number now comes from the configuration files.  (LP: #1377312)
 
 2.5.1 (2014-10-21)
 ==================
