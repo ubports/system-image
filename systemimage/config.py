@@ -100,7 +100,7 @@ class Configuration:
             settings_db='/var/lib/system-image/settings.db',
             )
         self.gpg = Bag(
-            archive_master='/etc/system-image/archive-master.tar.xz',
+            archive_master='/usr/share/system-image/archive-master.tar.xz',
             image_master='/var/lib/system-image/keyrings/image-master.tar.xz',
             image_signing=
                 '/var/lib/system-image/keyrings/image-signing.tar.xz',

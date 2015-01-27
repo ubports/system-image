@@ -76,7 +76,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.hooks.reboot, Reboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
-                         '/etc/system-image/archive-master.tar.xz')
+                         '/usr/share/system-image/archive-master.tar.xz')
         self.assertEqual(
             config.gpg.image_master,
             '/var/lib/system-image/keyrings/image-master.tar.xz')
@@ -120,7 +120,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(config.hooks.reboot, Reboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
-                         '/etc/phablet/archive-master.tar.xz')
+                         '/usr/share/phablet/archive-master.tar.xz')
         self.assertEqual(config.gpg.image_master,
                          '/etc/phablet/image-master.tar.xz')
         self.assertEqual(config.gpg.image_signing,
