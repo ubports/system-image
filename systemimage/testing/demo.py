@@ -22,8 +22,8 @@ __all__ = [
     ]
 
 
+from systemimage.apply import BaseReboot
 from systemimage.device import BaseDevice
-from systemimage.reboot import BaseReboot
 
 
 class DemoReboot(BaseReboot):

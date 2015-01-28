@@ -616,5 +616,5 @@ class State:
 
     def _reboot(self):
         log.info('rebooting')
-        config.hooks.reboot().reboot()
+        config.hooks.apply().reboot()
         # Nothing more to do.

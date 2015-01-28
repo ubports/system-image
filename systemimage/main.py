@@ -27,12 +27,12 @@ import argparse
 
 from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
+from systemimage.apply import factory_reset
 from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
 from systemimage.helpers import (
     last_update_date, makedirs, phased_percentage, version_detail)
 from systemimage.logging import initialize
-from systemimage.reboot import factory_reset
 from systemimage.settings import Settings
 from systemimage.state import State
 from textwrap import dedent

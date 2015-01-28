@@ -455,7 +455,7 @@ class TestRebooting(ServerTestBase):
         self._setup_server_keyrings()
         with ExitStack() as resources:
             mock = resources.enter_context(
-                patch('systemimage.reboot.check_call'))
+                patch('systemimage.apply.check_call'))
             list(State())
         self.assertEqual(mock.call_args[0][0],
                          ['/sbin/reboot', '-f', 'recovery'])
@@ -469,7 +469,7 @@ class TestRebooting(ServerTestBase):
         touch_build(5000)
         with ExitStack() as resources:
             mock = resources.enter_context(
-                patch('systemimage.reboot.Reboot.reboot'))
+                patch('systemimage.apply.Reboot.reboot'))
             list(State())
         self.assertEqual(mock.call_count, 0)
 
@@ -501,12 +501,12 @@ class TestRebooting(ServerTestBase):
         def reboot_mock(self):
             nonlocal got_reboot
             got_reboot = True
-        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
+        with patch('systemimage.apply.Reboot.reboot', reboot_mock):
             state.run_until('reboot')
         # No reboot got issued.
         self.assertFalse(got_reboot)
         # Finish it off.
-        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
+        with patch('systemimage.apply.Reboot.reboot', reboot_mock):
             list(state)
         self.assertTrue(got_reboot)
 
@@ -816,7 +816,7 @@ unmount system
         def reboot_mock(self):
             nonlocal got_reboot
             got_reboot = True
-        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
+        with patch('systemimage.apply.Reboot.reboot', reboot_mock):
             list(state)
         self.assertTrue(got_reboot)
 

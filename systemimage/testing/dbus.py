@@ -55,7 +55,7 @@ def instrument(config, stack, cert_file):
     # file which the testing parent process can open and read.
     safe_reboot = _ActionLog('reboot.log')
     stack.enter_context(
-        patch('systemimage.reboot.check_call', safe_reboot.write))
+        patch('systemimage.apply.check_call', safe_reboot.write))
     stack.enter_context(
         patch('systemimage.device.check_output', return_value='nexus7'))
     # Patch the PyCURL downloader to accept self-signed certificates.

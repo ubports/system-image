@@ -59,4 +59,4 @@ def factory_reset():
     with atomic(command_file) as fp:
         print('format data', file=fp)
     log.info('Performing a factory reset')
-    config.hooks.reboot().reboot()
+    config.hooks.apply().reboot()

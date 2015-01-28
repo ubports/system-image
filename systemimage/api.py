@@ -24,9 +24,10 @@ __all__ = [
 
 import logging
 
-from systemimage.reboot import factory_reset
+from systemimage.apply import factory_reset
 from systemimage.state import State
 from unittest.mock import patch
+
 
 log = logging.getLogger('systemimage')
 

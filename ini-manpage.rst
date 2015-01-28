@@ -181,9 +181,11 @@ scorer
     The Python import path to the class implementing the upgrade scoring
     algorithm.
 
-reboot
-    The Python import path to the class that implements the system reboot
-    command.
+apply
+    The Python import path to the class that implements the mechanism for
+    applying the update.  This often reboots the device.
+
+    *New in system-image 3.0: ``reboot`` was renamed to ``apply``*
 
 
 THE DBUS SECTION

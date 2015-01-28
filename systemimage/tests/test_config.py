@@ -30,9 +30,9 @@ import unittest
 from contextlib import ExitStack, contextmanager
 from datetime import timedelta
 from subprocess import CalledProcessError, check_output
+from systemimage.apply import Reboot
 from systemimage.config import Configuration
 from systemimage.device import SystemProperty
-from systemimage.reboot import Reboot
 from systemimage.scores import WeightedScorer
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
@@ -73,7 +73,7 @@ class TestConfiguration(unittest.TestCase):
         # [hooks]
         self.assertEqual(config.hooks.device, SystemProperty)
         self.assertEqual(config.hooks.scorer, WeightedScorer)
-        self.assertEqual(config.hooks.reboot, Reboot)
+        self.assertEqual(config.hooks.apply, Reboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
                          '/usr/share/system-image/archive-master.tar.xz')
@@ -117,7 +117,7 @@ class TestConfiguration(unittest.TestCase):
         # [hooks]
         self.assertEqual(config.hooks.device, SystemProperty)
         self.assertEqual(config.hooks.scorer, WeightedScorer)
-        self.assertEqual(config.hooks.reboot, Reboot)
+        self.assertEqual(config.hooks.apply, Reboot)
         # [gpg]
         self.assertEqual(config.gpg.archive_master,
                          '/usr/share/phablet/archive-master.tar.xz')

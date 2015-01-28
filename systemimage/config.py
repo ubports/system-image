@@ -114,7 +114,7 @@ class Configuration:
         self.hooks = Bag(
             device=as_object('systemimage.device.SystemProperty'),
             scorer=as_object('systemimage.scores.WeightedScorer'),
-            reboot=as_object('systemimage.reboot.Reboot'),
+            apply=as_object('systemimage.apply.Reboot'),
             )
         self.dbus = Bag(
             lifetime=as_timedelta('10m'),
@@ -142,7 +142,7 @@ class Configuration:
         self.updater.update(**parser['updater'])
         self.hooks.update(converters=dict(device=as_object,
                                           scorer=as_object,
-                                          reboot=as_object),
+                                          apply=as_object),
                           **parser['hooks'])
         self.dbus.update(converters=dict(lifetime=as_timedelta),
                          **parser['dbus'])

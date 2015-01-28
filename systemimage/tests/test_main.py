@@ -803,7 +803,7 @@ class TestCLINoReboot(ServerTestBase):
         self._resources.enter_context(
             argv('-C', config_d, '--no-reboot', '-b', 0, '-c', 'daily'))
         mock = self._resources.enter_context(
-            patch('systemimage.reboot.Reboot.reboot'))
+            patch('systemimage.apply.Reboot.reboot'))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
@@ -857,7 +857,7 @@ unmount system
         self._resources.enter_context(
             argv('-C', config_d, '-g', '-b', 0, '-c', 'daily'))
         mock = self._resources.enter_context(
-            patch('systemimage.reboot.Reboot.reboot'))
+            patch('systemimage.apply.Reboot.reboot'))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
@@ -909,7 +909,7 @@ unmount system
         capture = StringIO()
         self._resources.enter_context(capture_print(capture))
         mock = self._resources.enter_context(
-            patch('systemimage.reboot.Reboot.reboot'))
+            patch('systemimage.apply.Reboot.reboot'))
         self._resources.enter_context(
             argv('-C', config_d, '-g', '-b', 0, '-c', 'daily'))
         # Do not use self._resources to manage the check_output mock.  Because
@@ -945,7 +945,7 @@ class TestCLIFactoryReset(unittest.TestCase):
         with ExitStack() as resources:
             resources.enter_context(capture_print(capture))
             mock = resources.enter_context(
-                patch('systemimage.reboot.Reboot.reboot'))
+                patch('systemimage.apply.Reboot.reboot'))
             resources.enter_context(argv('-C', config_d, '--factory-reset'))
             cli_main()
         # A reboot was issued.

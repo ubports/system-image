@@ -140,7 +140,7 @@ class TestAPI(ServerTestBase):
         mediator = Mediator()
         self.assertTrue(mediator.check_for_update())
         # Make sure a reboot did not get issued.
-        with patch('systemimage.reboot.Reboot.reboot') as reboot:
+        with patch('systemimage.apply.Reboot.reboot') as reboot:
             mediator.download()
         # No reboot got issued.
         self.assertFalse(reboot.called)
@@ -186,7 +186,7 @@ unmount system
         self._setup_server_keyrings()
         mediator = Mediator()
         # Mock to check the state of reboot.
-        with patch('systemimage.reboot.Reboot.reboot') as reboot:
+        with patch('systemimage.apply.Reboot.reboot') as reboot:
             mediator.check_for_update()
             mediator.download()
             self.assertFalse(reboot.called)
@@ -196,7 +196,7 @@ unmount system
     @configuration
     def test_factory_reset(self):
         mediator = Mediator()
-        with patch('systemimage.reboot.Reboot.reboot') as reboot:
+        with patch('systemimage.apply.Reboot.reboot') as reboot:
             mediator.factory_reset()
         self.assertTrue(reboot.called)
         path = Path(config.updater.cache_partition) / 'ubuntu_command'

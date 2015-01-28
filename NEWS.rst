@@ -28,6 +28,8 @@ NEWS for system-image updater
    number now comes from the configuration files.  (LP: #1377312)
  * Move the ``archive-master.tar.xz`` file to ``/usr/share/system-image`` for
    better FHS compliance.  (LP: #1377184)
+ * Since devices do not always reboot to apply changes, the ``[hooks]update``
+   variable has been renamed to ``[hooks]apply``.  (LP: #1381538)
 
 2.5.1 (2014-10-21)
 ==================
