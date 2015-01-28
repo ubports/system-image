@@ -19,6 +19,7 @@ __all__ = [
     'TestKeyrings',
     'TestSignature',
     'TestSignatureError',
+    'TestSignatureWithOverrides',
     ]
 
 
@@ -201,10 +202,8 @@ class TestKeyrings(unittest.TestCase):
 class TestSignature(unittest.TestCase):
     def setUp(self):
         self._stack = ExitStack()
+        self.addCleanup(self._stack.close)
         self._tmpdir = self._stack.enter_context(temporary_directory())
-
-    def tearDown(self):
-        self._stack.close()
 
     @configuration
     def test_good_signature(self):
@@ -354,10 +353,8 @@ class TestSignature(unittest.TestCase):
 class TestSignatureError(unittest.TestCase):
     def setUp(self):
         self._stack = ExitStack()
+        self.addCleanup(self._stack.close)
         self._tmpdir = self._stack.enter_context(temporary_directory())
-
-    def tearDown(self):
-        self._stack.close()
 
     def test_extra_data(self):
         # A SignatureError includes extra information about the path to the
@@ -503,3 +500,116 @@ class TestSignatureError(unittest.TestCase):
                 self.assertTrue(line.endswith("/image-signing.tar.xz']"))
             elif i == 8:
                 self.assertEqual(line, '    blacklist: no blacklist ')
+
+
+class TestSignatureWithOverrides(unittest.TestCase):
+    """system-image-cli supports a --skip-gpg-verification flag."""
+
+    def setUp(self):
+        self._stack = ExitStack()
+        self.addCleanup(self._stack.close)
+        self._tmpdir = self._stack.enter_context(temporary_directory())
+
+    @configuration
+    def test_bad_signature(self, config):
+        # In this case, the file is signed with the device key, so it will not
+        # verify against the image signing key, unless the
+        # --skip-gpg-verification flag is set.
+        channels_json = os.path.join(self._tmpdir, 'channels.json')
+        channels_asc = channels_json + '.asc'
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
+        sign(channels_json, 'device-signing.gpg')
+        # Verify the signature with the pubkey.
+        with temporary_directory() as tmpdir:
+            dst = os.path.join(tmpdir, 'image-signing.tar.xz')
+            setup_keyring_txz('image-signing.gpg', 'image-master.gpg',
+                              dict(type='image-signing'), dst)
+            with Context(dst) as ctx:
+                self.assertFalse(ctx.verify(channels_asc, channels_json))
+                # But with the --skip-gpg-verification flag set, the verify
+                # call returns success.
+                config.skip_gpg_verification = True
+                self.assertTrue(ctx.verify(channels_asc, channels_json))
+
+    @configuration
+    def test_bad_signature_with_multiple_keyrings(self, config):
+        # The file is signed with the image master key, but it won't verify
+        # against the image signing and device signing pubkeys, unless the
+        # --skip-gpg-verification flag is set.
+        channels_json = os.path.join(self._tmpdir, 'channels.json')
+        channels_asc = channels_json + '.asc'
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
+        sign(channels_json, 'image-master.gpg')
+        # Verify the signature with the pubkey.
+        with temporary_directory() as tmpdir:
+            keyring_1 = os.path.join(tmpdir, 'image-signing.tar.xz')
+            keyring_2 = os.path.join(tmpdir, 'device-signing.tar.xz')
+            setup_keyring_txz('image-signing.gpg', 'image-master.gpg',
+                              dict(type='image-signing'), keyring_1)
+            setup_keyring_txz('device-signing.gpg', 'image-signing.gpg',
+                              dict(type='device-signing'), keyring_2)
+            with Context(keyring_1, keyring_2) as ctx:
+                self.assertFalse(ctx.verify(channels_asc, channels_json))
+                config.skip_gpg_verification = True
+                self.assertTrue(ctx.verify(channels_asc, channels_json))
+
+    @configuration
+    def test_bad_not_even_a_signature(self, config):
+        # The signature file isn't even a signature file.  Verification will
+        # fail unless the --skip-gpg-verification flag is set.
+        channels_json = os.path.join(self._tmpdir, 'channels.json')
+        channels_asc = channels_json + '.asc'
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json + '.asc')
+        with temporary_directory() as tmpdir:
+            dst = os.path.join(tmpdir, 'device-signing.tar.xz')
+            setup_keyring_txz('device-signing.gpg', 'image-signing.gpg',
+                              dict(type='device-signing'),
+                              dst)
+            with Context(dst) as ctx:
+                self.assertFalse(ctx.verify(channels_asc, channels_json))
+                config.skip_gpg_verification = True
+                self.assertTrue(ctx.verify(channels_asc, channels_json))
+
+    @configuration
+    def test_bad_signature_in_blacklist(self):
+        # Like above, but we put the device signing key id in the blacklist.
+        channels_json = os.path.join(self._tmpdir, 'channels.json')
+        channels_asc = channels_json + '.asc'
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
+        sign(channels_json, 'device-signing.gpg')
+        # Verify the signature with the pubkey.
+        with temporary_directory() as tmpdir:
+            keyring_1 = os.path.join(tmpdir, 'image-signing.tar.xz')
+            keyring_2 = os.path.join(tmpdir, 'device-signing.tar.xz')
+            blacklist = os.path.join(tmpdir, 'blacklist.tar.xz')
+            setup_keyring_txz('image-signing.gpg', 'image-master.gpg',
+                              dict(type='image-signing'), keyring_1)
+            setup_keyring_txz('device-signing.gpg', 'image-signing.gpg',
+                              dict(type='device-signing'), keyring_2)
+            # We're letting the device signing pubkey stand in for a blacklist.
+            setup_keyring_txz('device-signing.gpg', 'image-master.gpg',
+                              dict(type='blacklist'), blacklist)
+            with Context(keyring_1, keyring_2, blacklist=blacklist) as ctx:
+                self.assertFalse(ctx.verify(channels_asc, channels_json))
+                config.skip_gpg_verification = True
+                self.assertTrue(ctx.verify(channels_asc, channels_json))
+
+    @configuration
+    def test_bad_signature_with_validate(self, config):
+        # This is similar to the above, except that the .validate() API is
+        # used instead.
+        channels_json = os.path.join(self._tmpdir, 'channels.json')
+        channels_asc = channels_json + '.asc'
+        copy('gpg.channels_01.json', self._tmpdir, dst=channels_json)
+        sign(channels_json, 'device-signing.gpg')
+        # Verify the signature with the pubkey.
+        with temporary_directory() as tmpdir:
+            dst = os.path.join(tmpdir, 'image-signing.tar.xz')
+            setup_keyring_txz('image-signing.gpg', 'image-master.gpg',
+                              dict(type='image-signing'), dst)
+            with Context(dst) as ctx:
+                self.assertRaises(SignatureError, ctx.validate,
+                                  channels_asc, channels_json)
+                config.skip_gpg_verification = True
+                ctx.validate(channels_asc, channels_json)

@@ -57,14 +57,19 @@ class SafeConfigParser(ConfigParser):
 class Configuration:
     def __init__(self, directory=None):
         self._set_defaults()
-        # 2013-10-14 BAW This is a placeholder for rendezvous between the
-        # downloader and the D-Bus service.  When running under D-Bus and we
-        # get a `paused` signal from the download manager, we need this to
-        # plumb through an UpdatePaused signal to our clients.  It rather
-        # sucks that we need a global for this, but I can't get the plumbing
-        # to work otherwise.  This seems like the least horrible place to
-        # stash this global.
+        # Because the configuration object is a global singleton, it makes for
+        # a convenient place to stash information used by widely separate
+        # components.  For example, this is a placeholder for rendezvous
+        # between the downloader and the D-Bus service.  When running under
+        # D-Bus and we get a `paused` signal from the download manager, we need
+        # this to plumb through an UpdatePaused signal to our clients.  It
+        # rather sucks that we need a global for this, but I can't get the
+        # plumbing to work otherwise.  This seems like the least horrible place
+        # to stash this global.
         self.dbus_service = None
+        # This is used to plumb command line arguments from the main() to
+        # other parts of the system.
+        self.skip_gpg_verification = False
         # Cache.
         self._device = None
         self._build_number = None
