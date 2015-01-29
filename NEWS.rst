@@ -30,6 +30,9 @@ NEWS for system-image updater
    better FHS compliance.  (LP: #1377184)
  * Since devices do not always reboot to apply changes, the ``[hooks]update``
    variable has been renamed to ``[hooks]apply``.  (LP: #1381538)
+ * For testing purposes only, ``system-image-cli`` now supports an
+   undocumented command line switch ``--skip-gpg-verification``.  Originally
+   given by Jani Monoses.  (LP: #1333414)
 
 2.5.1 (2014-10-21)
 ==================
