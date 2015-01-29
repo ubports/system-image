@@ -131,6 +131,10 @@ def main():
                         help="""Delete the key and its value.  It is a no-op
                                 if the key does not exist.  Multiple
                                 --del arguments can be given.""")
+    # Hidden system-image-cli only feature for testing purposes.  LP: #1333414
+    parser.add_argument('--skip-gpg-verification',
+                        default=False, action='store_true',
+                        help=argparse.SUPPRESS)
 
     args = parser.parse_args(sys.argv[1:])
     try:
@@ -139,6 +143,12 @@ def main():
         parser.error('\nConfiguration directory not found: {}'.format(
             args.config))
         assert 'parser.error() does not return' # pragma: no cover
+
+    if args.skip_gpg_verification:
+        print("""\
+WARNING: All GPG signature verifications have been disabled.
+Your upgrades are INSECURE.""", file=sys.stderr)
+        config.skip_gpg_verification = True
 
     # Perform a factory reset.
     if args.factory_reset:
@@ -308,7 +318,7 @@ def main():
                 percentage = phased_percentage(kws['to'], target_build)
             print(template.format(**kws))
             print('Target phase: {}%'.format(percentage))
-        return
+        return 0
     else:
         # Run the state machine to conclusion.  Suppress all exceptions, but
         # note that the state machine will log them.  If an exception occurs,

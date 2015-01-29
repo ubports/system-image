@@ -17,6 +17,7 @@
 
 __all__ = [
     'TestCLIDuplicateDestinations',
+    'TestCLIFactoryReset',
     'TestCLIFilters',
     'TestCLIListChannels',
     'TestCLIMain',
@@ -24,7 +25,7 @@ __all__ = [
     'TestCLIMainDryRunAliases',
     'TestCLINoReboot',
     'TestCLISettings',
-    'TestCLIFactoryReset',
+    'TestCLISignatures',
     'TestDBusMain',
     ]
 
@@ -49,7 +50,7 @@ from systemimage.main import main as cli_main
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, data_path, find_dbus_process,
-    temporary_directory, touch_build)
+    sign, temporary_directory, touch_build)
 from systemimage.testing.nose import SystemImagePlugin
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
@@ -1259,3 +1260,91 @@ class TestDBusMain(unittest.TestCase):
             raise
         self.assertNotEqual(second.pid, proc.pid)
         self.assertEqual(code, 2)
+
+
+class TestCLISignatures(ServerTestBase):
+    INDEX_FILE = 'main.index_01.json'
+    CHANNEL_FILE = 'main.channels_01.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    @configuration
+    def test_update_attempt_with_bad_signatures(self, config_d):
+        # Let's say the index.json file has a bad signature.  The update
+        # should refuse to apply.
+        self._setup_server_keyrings()
+        # Sign the index.json file with the wrong (i.e. bad) key.
+        index_path = os.path.join(
+            self._serverdir, self.CHANNEL, self.DEVICE, 'index.json')
+        sign(index_path, 'spare.gpg')
+        stdout = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(stdout))
+            # Patch argparse's stderr to capture its error messages.
+            resources.push(machine_id('feedfacebeefbacafeedfacebeefbaca'))
+            resources.enter_context(argv('-C', config_d, '--dry-run'))
+            # Now that the index.json on the server is signed with the wrong
+            # keyring, try to upgrade.
+            code = cli_main()
+        # The upgrade failed because of the signature.
+        self.assertEqual(code, 1)
+        with open(config.system.logfile, encoding='utf-8') as fp:
+            logged = fp.readlines()
+        # Slog through the log output and look for evidence that the upgrade
+        # failed because of the faulty signature on the index.json file.
+        # Then assert on those clues, but get rid of the trailing newlines.
+        exception_found = False
+        data_path = sig_path = None
+        i = 0
+        while i < len(logged):
+            line = logged[i][:-1]
+            i += 1
+            if line.startswith('systemimage.gpg.SignatureError'):
+                # There should only be one of these lines.
+                self.assertFalse(exception_found)
+                exception_found = True
+            elif line.strip().startswith('sig path'):
+                sig_path = logged[i][:-1]
+                i += 1
+            elif line.strip().startswith('data path'):
+                data_path = logged[i][:-1]
+                i += 1
+        # Check the clues.
+        self.assertTrue(exception_found)
+        self.assertTrue(sig_path.endswith('index.json.asc'), repr(sig_path))
+        self.assertTrue(data_path.endswith('index.json'), repr(data_path))
+
+    @configuration
+    def test_update_attempt_with_bad_signatures_overridden(self, config_d):
+        # Let's say the index.json file has a bad signature.  Normally, the
+        # update should refuse to apply, but we override the GPG checks so it
+        # will succeed.
+        self._setup_server_keyrings()
+        # Sign the index.json file with the wrong (i.e. bad) key.
+        index_path = os.path.join(
+            self._serverdir, self.CHANNEL, self.DEVICE, 'index.json')
+        sign(index_path, 'spare.gpg')
+        stdout = StringIO()
+        stderr = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(stdout))
+            resources.enter_context(
+                patch('systemimage.main.sys.stderr', stderr))
+            # Patch argparse's stderr to capture its error messages.
+            resources.push(machine_id('feedfacebeefbacafeedfacebeefbaca'))
+            resources.enter_context(
+                argv('-C', config_d, '--dry-run', '--skip-gpg-verification'))
+            # Now that the index.json on the server is signed with the wrong
+            # keyring, try to upgrade.
+            code = cli_main()
+        # The upgrade failed because of the signature.
+        self.assertEqual(code, 0)
+        self.assertEqual(stdout.getvalue(), """\
+Upgrade path is 1200:1201:1304
+Target phase: 64%
+""")
+        # And we get the scary warning on the console.
+        self.assertMultiLineEqual(stderr.getvalue(), """\
+WARNING: All GPG signature verifications have been disabled.
+Your upgrades are INSECURE.
+""")
