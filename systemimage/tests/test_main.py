@@ -26,6 +26,7 @@ __all__ = [
     'TestCLISettings',
     'TestCLIFactoryReset',
     'TestDBusMain',
+    'TestDBusMainNoConfigD',
     ]
 
 
@@ -40,6 +41,7 @@ import subprocess
 
 from contextlib import ExitStack, contextmanager
 from datetime import datetime
+from dbus.exceptions import DBusException
 from functools import partial
 from io import StringIO
 from pathlib import Path
@@ -47,6 +49,7 @@ from systemimage.config import Configuration, config
 from systemimage.helpers import safe_remove
 from systemimage.main import main as cli_main
 from systemimage.settings import Settings
+from systemimage.testing.controller import HUP_SLEEP
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, data_path, find_dbus_process,
     temporary_directory, touch_build)
@@ -1259,3 +1262,52 @@ class TestDBusMain(unittest.TestCase):
             raise
         self.assertNotEqual(second.pid, proc.pid)
         self.assertEqual(code, 2)
+
+
+class TestDBusMainNoConfigD(unittest.TestCase):
+    def test_start_with_missing_config_d(self):
+        # Trying to start the D-Bus service with a configuration directory
+        # that doesn't exist yields an error.
+        #
+        # First stop any existing D-Bus service, but it's okay if it's not
+        # running.
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        try:
+            iface.Exit()
+            time.sleep(HUP_SLEEP)
+        except DBusException:
+            pass
+        # Try to start a new process with a bogus configuration directory.
+        env = dict(
+            DBUS_SYSTEM_BUS_ADDRESS=os.environ['DBUS_SYSTEM_BUS_ADDRESS'])
+        coverage_env = os.environ.get('COVERAGE_PROCESS_START')
+        if coverage_env is not None:
+            env['COVERAGE_PROCESS_START'] = coverage_env
+        args = (sys.executable, '-m', 'systemimage.testing.service',
+                '-C', '/does/not/exist')
+        with temporary_directory() as tempdir:
+            stdout_path = os.path.join(tempdir, 'stdout')
+            stderr_path = os.path.join(tempdir, 'stderr')
+            with ExitStack() as files:
+                tempdir = files.enter_context(temporary_directory())
+                stdout = files.enter_context(
+                    open(stdout_path, 'w', encoding='utf-8'))
+                stderr = files.enter_context(
+                    open(stderr_path, 'w', encoding='utf-8'))
+                try:
+                    subprocess.check_call(args,
+                                          universal_newlines=True, env=env,
+                                          stdout=stdout, stderr=stderr)
+                except subprocess.CalledProcessError as error:
+                    self.assertNotEqual(error.returncode, 0)
+            with open(stdout_path, 'r', encoding='utf-8') as fp:
+                stdout = fp.read()
+            with open(stderr_path, 'r', encoding='utf-8') as fp:
+                stderr = fp.readlines()
+            self.assertEqual(stdout, '')
+            self.assertEqual(
+                stderr[-1],
+                'Configuration directory not found: .load() requires a '
+                'directory: /does/not/exist\n')

@@ -288,7 +288,7 @@ def phased_percentage(channel, target):
         try:
             with open(path, 'r', encoding='utf-8') as fp:
                 machine_id = fp.read().strip()
-                break
+                break                               # pragma: no branch
         except FileNotFoundError:
             pass
     else:

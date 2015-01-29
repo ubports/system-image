@@ -580,7 +580,7 @@ class TestDuplicateDownloads(unittest.TestCase):
 # environment variable wouldn't be enough for production (see download.py
 # get_download_manager() for other cases where the downloader is chosen), but
 # it's sufficient for the test suite.  See tox.ini.
-@unittest.skipIf(USING_PYCURL, 'Test is not relevant for PyCURL')
+@unittest.skipUnless(USING_PYCURL, 'Test is not relevant for UDM')
 class TestCURL(unittest.TestCase):
     def setUp(self):
         super().setUp()

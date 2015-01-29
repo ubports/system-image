@@ -123,9 +123,7 @@ class Configuration:
     def _load_file(self, path):
         parser = SafeConfigParser()
         str_path = str(path)
-        files_read = parser.read(str_path)
-        if files_read != [str_path]:
-            raise FileNotFoundError(path)
+        parser.read(str_path)
         self.ini_files.append(path)
         self.service.update(converters=dict(http_port=as_port,
                                             https_port=as_port,

@@ -39,7 +39,7 @@ from unittest.mock import patch
 
 
 @contextmanager
-def _patch_device_hook():
+def _patch_device_hook(side_effect=FileNotFoundError):
     # The device hook has two things that generally need patching.  The first
     # is the logging output, which is just noise for testing purposes, so
     # silence it.  The second is that the `getprop` command may actually exist
@@ -48,8 +48,7 @@ def _patch_device_hook():
     with ExitStack() as resources:
         resources.enter_context(patch('systemimage.device.logging.getLogger'))
         resources.enter_context(
-            patch('systemimage.device.check_output',
-                  side_effect=FileNotFoundError))
+            patch('systemimage.device.check_output', side_effect=side_effect))
         yield
 
 
@@ -135,6 +134,30 @@ class TestConfiguration(unittest.TestCase):
         # [dbus]
         self.assertEqual(config.dbus.lifetime.total_seconds(), 120)
 
+    @configuration
+    def test_should_have_reloaded(self, config_d):
+        # If a configuration is already loaded, it cannot be loaded again.
+        # Use .reload() instead.
+        config = Configuration(config_d)
+        self.assertRaises(RuntimeError, config.load, config_d)
+
+    @configuration
+    def test_ignore_some_files(self, config_d):
+        # Any file that doesn't follow the NN_whatever.ini format isn't loaded.
+        path_1 = os.path.join(config_d, 'dummy_file')
+        with open(path_1, 'w', encoding='utf-8') as fp:
+            print('ignore me', file=fp)
+        path_2 = os.path.join(config_d, 'nounderscore.ini')
+        with open(path_2, 'w', encoding='utf-8') as fp:
+            print('ignore me', file=fp)
+        path_3 = os.path.join(config_d, 'XX_almost.ini')
+        with open(path_3, 'w', encoding='utf-8') as fp:
+            print('ignore me', file=fp)
+        config = Configuration(config_d)
+        self.assertNotIn('dummy_file', config.ini_files)
+        self.assertNotIn('nounderscore.ini', config.ini_files)
+        self.assertNotIn('XX_almost.ini', config.ini_files)
+
     @configuration('config.config_02.ini')
     def test_special_dbus_logging_level(self, config):
         # Read a config.ini that has a loglevel value with an explicit dbus
@@ -217,12 +240,20 @@ class TestConfiguration(unittest.TestCase):
     @configuration
     def test_get_device_name_fallback(self, config):
         # Fallback for testing on non-images.
-        # Silence the log exceptions this will provoke.
-        with patch('systemimage.device.logging.getLogger'):
-            # It's possible getprop actually does exist on the system.
-            with patch('systemimage.device.check_output',
-                       side_effect=CalledProcessError(1, 'ignore')):
-                self.assertEqual(config.device, '?')
+        with _patch_device_hook(side_effect=CalledProcessError(1, 'ignore')):
+            self.assertEqual(config.device, '?')
+
+    @configuration
+    def test_service_device(self, config_d):
+        # A configuration file could have a [service]device variable, which
+        # takes precedence.
+        shutil.copy(data_path('config.config_11.ini'),
+                    os.path.join(config_d, '01_override.ini'))
+        with patch('systemimage.device.check_output', return_value='nexus9'):
+            config = Configuration(config_d)
+            # This gets the [service]device value from the configuration file,
+            # not the output of the hook.
+            self.assertEqual(config.device, 'nexus8')
 
     @configuration
     def test_device_no_getprop_fallback(self, config):
