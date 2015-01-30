@@ -1712,7 +1712,7 @@ unmount system
 """)
 
 
-@unittest.skipUnless(USING_PYCURL, 'LP: #1413265')
+#@unittest.skipUnless(USING_PYCURL, 'LP: #1413265')
 class TestDBusMultipleChecksInFlight(_LiveTesting):
     def test_multiple_check_for_updates(self):
         # Log analysis of LP: #1277589 appears to show the following scenario,
@@ -1789,7 +1789,7 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         self.assertTrue(reactor.rebooting)
 
 
-@unittest.skipUnless(USING_PYCURL, 'LP: #1411866')
+#@unittest.skipUnless(USING_PYCURL, 'LP: #1411866')
 class TestDBusCheckForUpdateToUnwritablePartition(_LiveTesting):
     @classmethod
     def setUpClass(cls):
