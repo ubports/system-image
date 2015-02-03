@@ -78,7 +78,7 @@ def get_channels(filename):
 
 def data_path(filename):
     return os.path.abspath(
-        resource_filename('systemimage.tests.data', filename))
+   resource_filename('systemimage.tests.data', filename))
 
 
 def make_http_server(directory, port, certpem=None, keypem=None):

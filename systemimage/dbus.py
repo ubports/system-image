@@ -216,42 +216,33 @@ class Service(Object):
             log.info('Update failures: {}; last error: {}',
                      self._failure_count, self._last_error)
             return
-        log.info('_download(): downloading lock test and acquire')
-        if self._downloading.acquire(blocking=False):
-            log.info('_download(): downloading lock acquired')
-        else:
-            log.info('_download(): downloading lock already acquired')
-        log.info('Update is downloading')
-        try:
-            # Always start by sending a UpdateProgress(0, 0).  This is
-            # enough to get the u/i's attention.
-            self.UpdateProgress(0, 0)
-            self._api.download()
-        except Exception:
-            log.exception('Download failed')
-            self._failure_count += 1
-            # Set the last error string to the exception's class name.
-            exception, value = sys.exc_info()[:2]
-            # if there's no meaningful value, omit it.
-            value_str = str(value)
-            name = exception.__name__
-            self._last_error = ('{}'.format(name)
-                                if len(value_str) == 0
-                                else '{}: {}'.format(name, value))
-            self.UpdateFailed(self._failure_count, self._last_error)
-        else:
-            log.info('Update downloaded')
-            self.UpdateDownloaded()
-            self._failure_count = 0
-            self._last_error = ''
-            self._rebootable = True
-        log.info('_download(): downloading lock releasing')
-        try:
-            self._downloading.release()
-        except RuntimeError:
-            log.info('_download(): downloading lock already released')
-        else:
-            log.info('_download(): downloading lock released')
+        log.info('_download(): downloading lock entering critical section')
+        with self._downloading:
+            log.info('Update is downloading')
+            try:
+                # Always start by sending a UpdateProgress(0, 0).  This is
+                # enough to get the u/i's attention.
+                self.UpdateProgress(0, 0)
+                self._api.download()
+            except Exception:
+                log.exception('Download failed')
+                self._failure_count += 1
+                # Set the last error string to the exception's class name.
+                exception, value = sys.exc_info()[:2]
+                # if there's no meaningful value, omit it.
+                value_str = str(value)
+                name = exception.__name__
+                self._last_error = ('{}'.format(name)
+                                    if len(value_str) == 0
+                                    else '{}: {}'.format(name, value))
+                self.UpdateFailed(self._failure_count, self._last_error)
+            else:
+                log.info('Update downloaded')
+                self.UpdateDownloaded()
+                self._failure_count = 0
+                self._last_error = ''
+                self._rebootable = True
+        log.info('_download(): downloading lock finished critical section')
         # Stop GLib from calling this method again.
         return False
 
@@ -291,14 +282,6 @@ class Service(Object):
         # send *another* signal when downloading, because we never will be
         # downloading by the time we get past this next call.
         self._api.cancel()
-        # If we're holding the downloading lock, release it.
-        log.info('CancelUpdate(): downloading lock releasing')
-        try:
-            self._downloading.release()
-        except RuntimeError:
-            log.info('CancelUpdate(): downloading lock already released')
-        else:
-            log.info('CancelUpdate(): downloading lock released')
         # XXX 2013-08-22: If we can't cancel the current download, return the
         # reason in this string.
         return ''
