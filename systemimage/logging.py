@@ -80,7 +80,9 @@ def _make_handler(path):
 def initialize(*, verbosity=0):
     """Initialize the loggers."""
     main, dbus = config.system.loglevel
-    for name, loglevel in (('systemimage', main), ('systemimage.dbus', dbus)):
+    for name, loglevel in (('systemimage', main),
+                           ('systemimage.dbus', dbus),
+                           ('dbus.proxies', dbus)):
         level = {
             0: logging.ERROR,
             1: logging.INFO,

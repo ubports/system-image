@@ -112,10 +112,10 @@ class Mediator:
         """Download the available update."""
         # We only want callback progress during the actual download.
         with patch.object(self._state.downloader, 'callback', self._callback):
-            self._state.run_until('reboot')
+            self._state.run_until('apply')
 
-    def reboot(self):
-        """Issue the reboot."""
+    def apply(self):
+        """Apply the update."""
         # Transition through all remaining states.
         list(self._state)
 

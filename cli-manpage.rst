@@ -74,9 +74,11 @@ OPTIONS
     For testing purposes, force a device specific phase percentage.  The value
     must be an integer between 0 and 100.  *New in system-image 2.5.1*
 
---no-reboot
-    Downloads all files and prepares for a reboot into recovery, but doesn't
-    actually issue the reboot.
+-g, --no-apply
+    Downloads all files and prepares for, but does not actually apply the
+    update.  On devices which require a reboot to apply the update, no reboot
+    is performed.  *New in system-image 3.0: --no-reboot is renamed to
+    --no-apply*
 
 -v, --verbose
     Increase the logging verbosity.  With one ``-v``, logging goes to the

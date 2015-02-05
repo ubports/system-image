@@ -22,13 +22,11 @@ __all__ = [
 
 
 import os
-import unittest
 
 from pathlib import Path
 from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.download import Canceled
-from systemimage.testing.controller import USING_PYCURL
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, setup_index, sign,
     touch_build)
@@ -140,10 +138,10 @@ class TestAPI(ServerTestBase):
         mediator = Mediator()
         self.assertTrue(mediator.check_for_update())
         # Make sure a reboot did not get issued.
-        with patch('systemimage.apply.Reboot.reboot') as reboot:
+        with patch('systemimage.apply.Reboot.apply') as mock:
             mediator.download()
-        # No reboot got issued.
-        self.assertFalse(reboot.called)
+        # The update was not applied.
+        self.assertFalse(mock.called)
         # But the command file did get written, and all the files are present.
         path = Path(config.updater.cache_partition) / 'ubuntu_command'
         with path.open('r', encoding='utf-8') as fp:
@@ -181,24 +179,24 @@ unmount system
             ]))
 
     @configuration
-    def test_reboot(self):
-        # Run the intermediate steps, and finish with a reboot.
+    def test_apply(self):
+        # Run the intermediate steps, applying the update at the end.
         self._setup_server_keyrings()
         mediator = Mediator()
         # Mock to check the state of reboot.
-        with patch('systemimage.apply.Reboot.reboot') as reboot:
+        with patch('systemimage.apply.Reboot.apply') as mock:
             mediator.check_for_update()
             mediator.download()
-            self.assertFalse(reboot.called)
-            mediator.reboot()
-            self.assertTrue(reboot.called)
+            self.assertFalse(mock.called)
+            mediator.apply()
+            self.assertTrue(mock.called)
 
     @configuration
     def test_factory_reset(self):
         mediator = Mediator()
-        with patch('systemimage.apply.Reboot.reboot') as reboot:
+        with patch('systemimage.apply.Reboot.apply') as mock:
             mediator.factory_reset()
-        self.assertTrue(reboot.called)
+        self.assertTrue(mock.called)
         path = Path(config.updater.cache_partition) / 'ubuntu_command'
         with path.open('r', encoding='utf-8') as fp:
             command = fp.read()

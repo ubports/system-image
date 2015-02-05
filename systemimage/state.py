@@ -612,9 +612,9 @@ class State:
                     file=fp)
             # The filesystem must be unmounted.
             print('unmount system', file=fp)
-        self._next.append(self._reboot)
+        self._next.append(self._apply)
 
-    def _reboot(self):
-        log.info('rebooting')
-        config.hooks.apply().reboot()
+    def _apply(self):
+        log.info('applying')
+        config.hooks.apply().apply()
         # Nothing more to do.

@@ -33,6 +33,17 @@ NEWS for system-image updater
  * For testing purposes only, ``system-image-cli`` now supports an
    undocumented command line switch ``--skip-gpg-verification``.  Originally
    given by Jani Monoses.  (LP: #1333414)
+ * A new D-Bus signal ``Applied(bool)`` is added, which is returned in
+   response to the ``ApplyUpdate()`` asynchronous method call.  For devices
+   which do not need to reboot in order to apply the update, this is the only
+   signal you will get.  If your device needs to reboot you will also receive
+   the ``Rebooting(bool)`` command as with earlier versions.  The semantics of
+   the flag argument are the same in both cases, as are the race timing issues
+   inherent in these signals.  See the ``system-image-dbus(8)`` manpage for
+   details.  (LP: #1417176)
+ * As part of LP: #1417176, the ``--no-reboot`` switch for
+   ``system-image-cli(1)`` has been deprecated.  Use ``--no-apply`` instead
+   (``-g`` is still the shortcut).
 
 2.5.1 (2014-10-21)
 ==================
