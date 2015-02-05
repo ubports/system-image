@@ -101,7 +101,7 @@ class Service(Object):
         self._downloading = Lock()
         self._update = None
         self._paused = False
-        self._rebootable = False
+        self._applicable = False
         self._failure_count = 0
         self._last_error = ''
 
@@ -241,7 +241,7 @@ class Service(Object):
                 self.UpdateDownloaded()
                 self._failure_count = 0
                 self._last_error = ''
-                self._rebootable = True
+                self._applicable = True
         log.info('_download(): downloading lock finished critical section')
         # Stop GLib from calling this method again.
         return False
@@ -289,18 +289,20 @@ class Service(Object):
     @log_and_exit
     def _apply_update(self):
         self.loop.keepalive()
-        if not self._rebootable:
+        if not self._applicable:
             command_file = os.path.join(
                 config.updater.cache_partition, 'ubuntu_command')
             if not os.path.exists(command_file):
-                # Not enough has been downloaded to allow for a reboot.
-                self.Rebooting(False)
+                # Not enough has been downloaded to allow for the update to be
+                # applied.
+                self.Applied(False)
                 return
-        self._api.reboot()
-        # This code may or may not run.  We're racing against the system
-        # reboot procedure.
-        self._rebootable = False
-        self.Rebooting(True)
+        self._api.apply()
+        # This code may or may not run.  On devices for which applying the
+        # update requires a system reboot, we're racing against that reboot
+        # procedure.
+        self._applicable = False
+        self.Applied(True)
 
     @log_and_exit
     @method('com.canonical.SystemImage')
@@ -442,6 +444,13 @@ class Service(Object):
     def SettingChanged(self, key, new_value):
         """A setting value has change."""
         log.debug('EMIT SettingChanged({}, {})', repr(key), repr(new_value))
+        self.loop.keepalive()
+
+    @log_and_exit
+    @signal('com.canonical.SystemImage', signature='b')
+    def Applied(self, status):
+        """The update has been applied."""
+        log.debug('EMIT Applied({})', status)
         self.loop.keepalive()
 
     @log_and_exit

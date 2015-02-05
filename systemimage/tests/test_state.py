@@ -25,10 +25,10 @@ __all__ = [
     'TestKeyringDoubleChecks',
     'TestMiscellaneous',
     'TestPhasedUpdates',
-    'TestRebooting',
     'TestState',
     'TestStateDuplicateDestinations',
     'TestStateNewChannelsFormat',
+    'TestUpdateApplied',
     ]
 
 
@@ -383,8 +383,8 @@ class TestState(unittest.TestCase):
         self.assertRaises(SignatureError, next, state)
 
 
-class TestRebooting(ServerTestBase):
-    """Test various state transitions leading to a reboot."""
+class TestUpdateApplied(ServerTestBase):
+    """Test various state transitions leading to the applying of the update."""
 
     INDEX_FILE = 'state.index_03.json'
     CHANNEL_FILE = 'state.channels_02.json'
@@ -450,26 +450,27 @@ class TestRebooting(ServerTestBase):
                 self.assertTrue(os.path.exists(asc))
 
     @configuration
-    def test_reboot_issued(self):
-        # The reboot gets issued.
+    def test_update_applied(self, config):
+        # The update gets applied
         self._setup_server_keyrings()
-        with ExitStack() as resources:
-            mock = resources.enter_context(
-                patch('systemimage.apply.check_call'))
+        ini_path = os.path.join(config.config_d, '10_state.ini')
+        shutil.copy(data_path('state.config_01.ini'), ini_path)
+        config.reload()
+        with patch('systemimage.apply.Noop.apply') as mock:
             list(State())
-        self.assertEqual(mock.call_args[0][0],
-                         ['/sbin/reboot', '-f', 'recovery'])
+        self.assertEqual(mock.call_count, 1)
 
     @configuration
-    def test_no_update_available_no_reboot(self):
+    def test_no_update_available_no_apply(self, config):
         # LP: #1202915.  If there's no update available, running the state
-        # machine to completion should not result in a reboot.
+        # machine to completion should not make the call to apply it.
         self._setup_server_keyrings()
+        ini_path = os.path.join(config.config_d, '10_state.ini')
+        shutil.copy(data_path('state.config_01.ini'), ini_path)
+        config.reload()
         # Hack the current build number so that no update is available.
         touch_build(5000)
-        with ExitStack() as resources:
-            mock = resources.enter_context(
-                patch('systemimage.apply.Reboot.reboot'))
+        with patch('systemimage.apply.Noop.apply') as mock:
             list(State())
         self.assertEqual(mock.call_count, 0)
 
@@ -481,10 +482,13 @@ class TestRebooting(ServerTestBase):
         self.assertRaises(CalledProcessError, list, State())
 
     @configuration
-    def test_run_until(self):
+    def test_run_until(self, config):
         # It is possible to run the state machine either until some specific
         # state is completed, or it runs to the end.
         self._setup_server_keyrings()
+        ini_path = os.path.join(config.config_d, '10_state.ini')
+        shutil.copy(data_path('state.config_01.ini'), ini_path)
+        config.reload()
         state = State()
         self.assertIsNone(state.channels)
         state.run_thru('get_channel')
@@ -494,21 +498,14 @@ class TestRebooting(ServerTestBase):
         # Run it some more.
         state.run_thru('get_index')
         self.assertIsNotNone(state.index)
-        # Run until just before the reboot.
-        #
-        # Mock the reboot to make sure a reboot did not get issued.
-        got_reboot = False
-        def reboot_mock(self):
-            nonlocal got_reboot
-            got_reboot = True
-        with patch('systemimage.apply.Reboot.reboot', reboot_mock):
-            state.run_until('reboot')
-        # No reboot got issued.
-        self.assertFalse(got_reboot)
-        # Finish it off.
-        with patch('systemimage.apply.Reboot.reboot', reboot_mock):
+        # Run until just before the apply step.
+        with patch('systemimage.apply.Noop.apply') as mock:
+            state.run_until('apply')
+        self.assertEqual(mock.call_count, 0)
+        # Run to the end of the state machine.
+        with patch('systemimage.apply.Noop.apply', mock):
             list(state)
-        self.assertTrue(got_reboot)
+        self.assertEqual(mock.call_count, 1)
 
 
 class TestRebootingNoDeviceSigning(ServerTestBase):
@@ -589,7 +586,7 @@ class TestCommandFileFull(ServerTestBase):
     def test_full_command_file(self):
         # A full update's command file gets properly filled.
         self._setup_server_keyrings()
-        State().run_until('reboot')
+        State().run_until('apply')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()
@@ -639,7 +636,7 @@ class TestCommandFileDelta(ServerTestBase):
         self._setup_server_keyrings()
         # Set the current build number so a delta update will work.
         touch_build(100)
-        State().run_until('reboot')
+        State().run_until('apply')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()
@@ -668,7 +665,7 @@ class TestFileOrder(ServerTestBase):
         self._setup_server_keyrings()
         # Set the current build number so a delta update will work.
         touch_build(100)
-        State().run_until('reboot')
+        State().run_until('apply')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()
@@ -788,8 +785,10 @@ class TestStateNewChannelsFormat(ServerTestBase):
     def test_full_reboot(self, config_d):
         # Test that state transitions through reboot work for the new channel
         # format.  Also check that the right files get moved into place.
-        shutil.copy(data_path('state.channel_01.ini'),
-                    os.path.join(config_d, '02_channel.ini'))
+        shutil.copy(data_path('state.config_01.ini'),
+                    os.path.join(config_d, '11_state.ini'))
+        shutil.copy(data_path('state.config_02.ini'),
+                    os.path.join(config_d, '12_state.ini'))
         config.reload()
         self._setup_server_keyrings()
         state = State()
@@ -798,7 +797,7 @@ class TestStateNewChannelsFormat(ServerTestBase):
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
-            state.run_until('reboot')
+            state.run_until('apply')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()
@@ -812,13 +811,9 @@ update 7.txt 7.txt.asc
 update 5.txt 5.txt.asc
 unmount system
 """)
-        got_reboot = False
-        def reboot_mock(self):
-            nonlocal got_reboot
-            got_reboot = True
-        with patch('systemimage.apply.Reboot.reboot', reboot_mock):
+        with patch('systemimage.apply.Noop.apply') as mock:
             list(state)
-        self.assertTrue(got_reboot)
+        self.assertEqual(mock.call_count, 1)
 
 
 class TestChannelAlias(ServerTestBase):
@@ -1385,7 +1380,7 @@ class TestCachedFiles(ServerTestBase):
         # Otherwise we clean those files out and start from scratch.
         self._setup_server_keyrings()
         state = State()
-        state.run_until('reboot')
+        state.run_until('apply')
         self.assertTrue(os.path.exists(
             os.path.join(config.updater.cache_partition, 'ubuntu_command')))
         # Now, to prove that the data files are not re-downloaded with a new
@@ -1401,11 +1396,11 @@ class TestCachedFiles(ServerTestBase):
                 path = os.path.join(config.updater.cache_partition, filename)
                 mtimes[filename] = os.stat(path).st_mtime_ns
         self.assertGreater(len(mtimes), 0)
-        # Now create a new state machine, and run until reboot again.  Even
-        # though there are no data files on the server, this still completes
-        # successfully.
+        # Now create a new state machine, and run until the update gets applied
+        # again.  Even though there are no data files on the server, this still
+        # completes successfully.
         state = State()
-        state.run_until('reboot')
+        state.run_until('apply')
         # Check all the mtimes.
         for filename in os.listdir(config.updater.cache_partition):
             if filename.endswith('.txt') or filename.endswith('.txt.asc'):
@@ -1455,7 +1450,7 @@ class TestCachedFiles(ServerTestBase):
         with open(asc_path, 'rb') as fp:
             checksum = hashlib.md5(fp.read()).digest()
         mtime = os.stat(txt_path).st_mtime_ns
-        state.run_until('reboot')
+        state.run_until('apply')
         with open(asc_path, 'rb') as fp:
             self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest)
         self.assertNotEqual(mtime, os.stat(txt_path).st_mtime_ns)
@@ -1721,7 +1716,7 @@ class TestMiscellaneous(ServerTestBase):
                          call('No blacklist found on second attempt'))
         # Even though there's no blacklist file, everything still gets
         # downloaded correctly.
-        state.run_until('reboot')
+        state.run_until('apply')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()

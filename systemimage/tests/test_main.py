@@ -798,16 +798,70 @@ class TestCLINoReboot(ServerTestBase):
     DEVICE = 'manta'
 
     @configuration
+    def test_no_apply(self, config_d):
+        # `system-image-cli --no-apply` downloads everything but does not
+        # apply the update.
+        self._setup_server_keyrings()
+        capture = StringIO()
+        self._resources.enter_context(capture_print(capture))
+        self._resources.enter_context(
+            argv('-C', config_d, '--no-apply', '-b', 0, '-c', 'daily'))
+        mock = self._resources.enter_context(
+            patch('systemimage.apply.Reboot.apply'))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            cli_main()
+        # The reboot method was never called.
+        self.assertFalse(mock.called)
+        # All the expected files should be downloaded.
+        self.assertEqual(set(os.listdir(config.updater.data_partition)), set([
+            'blacklist.tar.xz',
+            'blacklist.tar.xz.asc',
+            ]))
+        self.assertEqual(set(os.listdir(config.updater.cache_partition)), set([
+            '5.txt',
+            '5.txt.asc',
+            '6.txt',
+            '6.txt.asc',
+            '7.txt',
+            '7.txt.asc',
+            'device-signing.tar.xz',
+            'device-signing.tar.xz.asc',
+            'image-master.tar.xz',
+            'image-master.tar.xz.asc',
+            'image-signing.tar.xz',
+            'image-signing.tar.xz.asc',
+            'ubuntu_command',
+            ]))
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
+
+    @configuration
     def test_no_reboot(self, config_d):
         # `system-image-cli --no-reboot` downloads everything but does not
-        # reboot into recovery.
+        # apply the update.  THIS IS DEPRECATED IN SI 3.0.
         self._setup_server_keyrings()
         capture = StringIO()
         self._resources.enter_context(capture_print(capture))
         self._resources.enter_context(
             argv('-C', config_d, '--no-reboot', '-b', 0, '-c', 'daily'))
         mock = self._resources.enter_context(
-            patch('systemimage.apply.Reboot.reboot'))
+            patch('systemimage.apply.Reboot.apply'))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
@@ -861,7 +915,7 @@ unmount system
         self._resources.enter_context(
             argv('-C', config_d, '-g', '-b', 0, '-c', 'daily'))
         mock = self._resources.enter_context(
-            patch('systemimage.apply.Reboot.reboot'))
+            patch('systemimage.apply.Reboot.apply'))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
@@ -913,7 +967,7 @@ unmount system
         capture = StringIO()
         self._resources.enter_context(capture_print(capture))
         mock = self._resources.enter_context(
-            patch('systemimage.apply.Reboot.reboot'))
+            patch('systemimage.apply.Reboot.apply'))
         self._resources.enter_context(
             argv('-C', config_d, '-g', '-b', 0, '-c', 'daily'))
         # Do not use self._resources to manage the check_output mock.  Because
@@ -949,7 +1003,7 @@ class TestCLIFactoryReset(unittest.TestCase):
         with ExitStack() as resources:
             resources.enter_context(capture_print(capture))
             mock = resources.enter_context(
-                patch('systemimage.apply.Reboot.reboot'))
+                patch('systemimage.apply.Reboot.apply'))
             resources.enter_context(argv('-C', config_d, '--factory-reset'))
             cli_main()
         # A reboot was issued.

@@ -195,9 +195,9 @@ class _UpdateAutoSuccess(Service):
     @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         # Always succeeds.
-        def _rebooting():
-            self.Rebooting(True)
-        GLib.timeout_add(50, _rebooting)
+        def _applied():
+            self.Applied(True)
+        GLib.timeout_add(50, _applied)
 
 
 class _UpdateManualSuccess(_UpdateAutoSuccess):
@@ -265,9 +265,9 @@ class _FailApply(Service):
     @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         # The update cannot be applied.
-        def _rebooting():
-            self.Rebooting(False)
-        GLib.timeout_add(50, _rebooting)
+        def _applied():
+            self.Applied(False)
+        GLib.timeout_add(50, _applied)
 
 
 class _FailResume(Service):

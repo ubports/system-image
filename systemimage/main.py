@@ -75,12 +75,16 @@ def main():
                                 full updates or only delta updates.  The
                                 argument to this option must be either `full`
                                 or `delta`""")
-    parser.add_argument('-g', '--no-reboot',
+    parser.add_argument('-g', '--no-apply',
                         default=False, action='store_true',
                         help="""Download (i.e. "get") all the data files and
                                 prepare for updating, but don't actually
                                 reboot the device into recovery to apply the
                                 update""")
+    # Deprecated since si 3.0.
+    parser.add_argument('--no-reboot',
+                        default=False, action='store_true',
+                        help="""Deprecated; use -g/--no-apply""")
     parser.add_argument('-i', '--info',
                         default=False, action='store_true',
                         help="""Show some information about the current
@@ -326,8 +330,8 @@ Your upgrades are INSECURE.""", file=sys.stderr)
         log.info('running state machine [{}/{}]',
                  config.channel, config.device)
         try:
-            if args.no_reboot:
-                state.run_until('reboot')
+            if args.no_apply or args.no_reboot:
+                state.run_until('apply')
             else:
                 list(state)
         except KeyboardInterrupt:                   # pragma: no cover

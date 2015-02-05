@@ -22,12 +22,12 @@ __all__ = [
     ]
 
 
-from systemimage.apply import BaseReboot
+from systemimage.apply import BaseApply
 from systemimage.device import BaseDevice
 
 
-class DemoReboot(BaseReboot):
-    def reboot(self):
+class DemoReboot(BaseApply):
+    def apply(self):
         print("If I was a phone, I'd be rebooting right about now.")
 
 

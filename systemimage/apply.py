@@ -16,7 +16,8 @@
 """Reboot issuer."""
 
 __all__ = [
-    'BaseReboot',
+    'BaseApply',
+    'Noop',
     'Reboot',
     'factory_reset',
     ]
@@ -32,24 +33,34 @@ from systemimage.helpers import atomic
 log = logging.getLogger('systemimage')
 
 
-class BaseReboot:
-    """Common reboot actions."""
+class BaseApply:
+    """Common apply-the-update actions."""
 
-    def reboot(self): # pragma: no cover
+    def apply(self): # pragma: no cover
         """Subclasses must override this."""
         raise NotImplementedError
 
 
-class Reboot(BaseReboot):
-    """Issue a standard reboot."""
+class Reboot(BaseApply):
+    """Apply the update by rebooting the device."""
 
-    def reboot(self):
+    def apply(self):
         try:
             check_call('/sbin/reboot -f recovery'.split(),
                        universal_newlines=True)
         except CalledProcessError as error:
             log.exception('reboot exit status: {}'.format(error.returncode))
             raise
+        # This code may or may not run.  We're racing against the system
+        # reboot procedure.
+        config.dbus_service.Rebooting(True)
+
+
+class Noop(BaseApply):
+    """No-op apply, mostly for testing."""
+
+    def apply(self):
+        pass
 
 
 def factory_reset():
@@ -59,4 +70,4 @@ def factory_reset():
     with atomic(command_file) as fp:
         print('format data', file=fp)
     log.info('Performing a factory reset')
-    config.hooks.apply().reboot()
+    config.hooks.apply().apply()

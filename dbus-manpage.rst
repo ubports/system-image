@@ -97,11 +97,12 @@ Methods
 
 ``ApplyUpdate()``
     This is an **asynchronous** call used to apply a previously downloaded
-    update and initiate a reboot to apply the update.  It is a no-op if no new
-    update has been downloaded.  Just before the device reboots, a
-    ``Rebooting`` signal is sent, although the timing of this signal both
-    being sent and received depends on how quickly the device is shut down for
-    reboot.
+    update.  After the update has been applied, an ``Applied`` signal is
+    sent.  Some devices require a reboot in order to apply the update, and
+    such devices may also issue a ``Rebooting`` signal.  However, on devices
+    which require a reboot, the timing and emission of both the ``Applied``
+    and ``Rebooting`` signals are in a race condition with system shutdown,
+    and may not occur.
 
 ``CancelUpdate()``
     This is a **synchronous** call to cancel any update check or download in
@@ -268,15 +269,20 @@ Signals
     * **last_reason** - A string containing the reason for why this updated
       failed.
 
-``Rebooting(status)``
-    Sent just before the device reboots.  Because the system is in the process
-    of being rebooted, clients may or may not receive this signal.
+``Applied(status)``
+    Sent in response to an ``ApplyUpdate()`` call.  See the timing caveats for
+    that method.  **New in system-image 3.0**
 
-    * **status** - A boolean indicating whether the application of the update
-      is successful or not.  Generally, when status is true you won't ever
-      receive the signal because the device will be rebooting.  When status is
-      false it means the application of the update or reboot failed for some
-      reason.
+    * **status** - A boolean indicating whether an update has been applied or
+      not.
+
+``Rebooting(status)``
+    On devices which require a reboot in order to apply an update, this signal
+    may be sent in response to an ``ApplyUpdate()`` call.  See the timing
+    caveats for that method.
+
+    * **status** - A boolean indicating whether the device has initiated a
+      reboot sequence or not.
 
 ``SettingChanged(key, value)``
     Sent when a setting is changed.  This signal is not sent if the new value

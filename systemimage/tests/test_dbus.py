@@ -201,11 +201,11 @@ class ManualUpdateReactor(Reactor):
     def __init__(self, iface):
         super().__init__(dbus.SystemBus())
         self.iface = iface
-        self.rebooting = False
+        self.applied = False
         self.react_to('UpdateAvailableStatus')
         self.react_to('UpdateProgress')
         self.react_to('UpdateDownloaded')
-        self.react_to('Rebooting')
+        self.react_to('Applied')
         self.react_to('UpdateFailed')
         self.iface.CheckForUpdate()
 
@@ -225,13 +225,37 @@ class ManualUpdateReactor(Reactor):
 
     def _do_UpdateFailed(self, signal, path, *args, **kws):
         # Before LP: #1287919 was fixed, this signal would have been sent.
-        self.rebooting = False
+        self.applied = False
         self.quit()
 
-    def _do_Rebooting(self, signal, path, *args, **kws):
-        # The system is now rebooting <wink>.
-        self.rebooting = True
+    def _do_Applied(self, signal, path, *args, **kws):
+        # The update was applied.
+        self.applied = True
         self.quit()
+
+
+class AppliedNoRebootingReactor(Reactor):
+    def __init__(self, iface):
+        super().__init__(dbus.SystemBus())
+        self.iface = iface
+        # Values here are (received, flag)
+        self.applied = (False, False)
+        self.rebooting = (False, False)
+        self.react_to('Applied')
+        self.react_to('Rebooting')
+        self.react_to('UpdateDownloaded')
+        self.schedule(self.iface.CheckForUpdate)
+
+    def _do_UpdateDownloaded(self, signal, path, *args, **kws):
+        # The update successfully downloaded, so apply the update now.
+        self.iface.ApplyUpdate()
+
+    def _do_Applied(self, signal, path, *args):
+        self.applied = (True, args[0])
+        self.quit()
+
+    def _do_Rebooting(self, signal, path, *args):
+        self.rebooting = (True, args[0])
 
 
 class _TestBase(unittest.TestCase):
@@ -659,18 +683,46 @@ class TestDBusApply(_LiveTesting):
             reboot = fp.read()
         self.assertEqual(reboot, '/sbin/reboot -f recovery')
 
-    def test_reboot_no_update(self):
-        # There's no update to reboot to.
+    def test_applied(self):
+        # Apply the update, and the Applied signal we'll get.
         self.assertFalse(os.path.exists(self.reboot_log))
+        reactor = SignalCapturingReactor('UpdateDownloaded')
+        reactor.run(self.iface.CheckForUpdate)
+        reactor = SignalCapturingReactor('Applied')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(reactor.signals[0])
+
+    def test_applied_no_reboot(self):
+        # Apply the update, but do not reboot.
+        ini_path = os.path.join(
+            SystemImagePlugin.controller.ini_path,
+            '12_noreboot.ini')
+        with open(ini_path, 'w', encoding='utf-8') as fp:
+            print("""\
+[hooks]
+apply: systemimage.apply.Noop
+""", file=fp)
+        self.iface.Reset()
+        reactor = AppliedNoRebootingReactor(self.iface)
+        reactor.run()
+        # We should have gotten only one signal, the Applied.
+        received, flag = reactor.applied
+        self.assertTrue(received)
+        self.assertTrue(flag)
+        received, flag = reactor.rebooting
+        self.assertFalse(received)
+
+    def test_applied_no_update(self):
+        # There's no update to reboot to.
         touch_build(1701, use_config=self.config)
         self.iface.Reset()
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
-        reactor = SignalCapturingReactor('Rebooting')
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertFalse(reactor.signals[0][0])
-        self.assertFalse(os.path.exists(self.reboot_log))
 
     def test_reboot_after_update_failed(self):
         # Cause the update to fail by deleting a file from the server.
@@ -685,8 +737,27 @@ class TestDBusApply(_LiveTesting):
         failure_count, reason = reactor.signals[0]
         self.assertEqual(failure_count, 1)
         self.assertNotEqual(reason, '')
-        # The reboot fails, so we get an error message.
-        reactor = SignalCapturingReactor('Rebooting')
+        # The reboot fails.
+        reactor = SignalCapturingReactor('Applied')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertFalse(reactor.signals[0][0])
+
+    def test_applied_after_update_failed(self):
+        # Cause the update to fail by deleting a file from the server.
+        self.download_manually()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        os.remove(os.path.join(SystemImagePlugin.controller.serverdir,
+                               '4/5/6.txt.asc'))
+        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.run(self.iface.DownloadUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        failure_count, reason = reactor.signals[0]
+        self.assertEqual(failure_count, 1)
+        self.assertNotEqual(reason, '')
+        # Applying the update fails.
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertFalse(reactor.signals[0][0])
@@ -708,9 +779,8 @@ class TestDBusApply(_LiveTesting):
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        # There's no update to apply, so we'll get an error string instead of
-        # the empty string for this call.  But it will restart the server.
-        reactor = SignalCapturingReactor('Rebooting')
+        # There's no update to apply.
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertFalse(reactor.signals[0][0])
@@ -840,7 +910,7 @@ class TestDBusMockUpdateAutoSuccess(_TestBase):
             self.assertEqual(percentage, i)
             self.assertEqual(eta, 50 - (i * 0.5))
         self.assertTrue(reactor.downloaded)
-        reactor = SignalCapturingReactor('Rebooting')
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertTrue(reactor.signals[0])
@@ -961,7 +1031,7 @@ class TestDBusMockUpdateManualSuccess(_TestBase):
             self.assertEqual(percentage, i)
             self.assertEqual(eta, 50 - (i * 0.5))
         self.assertTrue(reactor.downloaded)
-        reactor = SignalCapturingReactor('Rebooting')
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertTrue(reactor.signals[0])
@@ -1053,7 +1123,7 @@ class TestDBusMockFailApply(_TestBase):
                          '1983-09-13T12:13:14')
         self.assertEqual(reactor.status.error_reason, '')
         self.assertTrue(reactor.downloaded)
-        reactor = SignalCapturingReactor('Rebooting')
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertFalse(bool(reactor.signals[0][0]))
@@ -1668,7 +1738,7 @@ class TestDBusUseCache(_LiveTesting):
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
         # Now, if we just apply the update, it will succeed, since it knows
         # that the cached files are valid.
-        reactor = SignalCapturingReactor('Rebooting')
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertTrue(reactor.signals[0])
@@ -1786,7 +1856,7 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         #   the update, and reboot
         reactor = ManualUpdateReactor(self.iface)
         reactor.run()
-        self.assertTrue(reactor.rebooting)
+        self.assertTrue(reactor.applied)
 
 
 #@unittest.skipUnless(USING_PYCURL, 'LP: #1411866')
