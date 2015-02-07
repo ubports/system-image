@@ -390,6 +390,14 @@ class Service(Object):
 
     @log_and_exit
     @method('com.canonical.SystemImage')
+    def ProductionReset(self):
+        self._api.production_reset()
+        # This code may or may not run.  We're racing against the system
+        # reboot procedure.
+        self.Rebooting(True)
+
+    @log_and_exit
+    @method('com.canonical.SystemImage')
     def Exit(self):
         """Quit the daemon immediately."""
         self.loop.quit()

@@ -18,6 +18,7 @@
 __all__ = [
     'TestCLIDuplicateDestinations',
     'TestCLIFactoryReset',
+    'TestCLIProductionReset',
     'TestCLIFilters',
     'TestCLIListChannels',
     'TestCLIMain',
@@ -1013,6 +1014,30 @@ class TestCLIFactoryReset(unittest.TestCase):
             command = fp.read()
         self.assertMultiLineEqual(command, dedent("""\
             format data
+            """))
+
+
+class TestCLIProductionReset(unittest.TestCase):
+    """Test the --production-reset option for production factory resets."""
+
+    @configuration
+    def test_production_reset(self, config_d):
+        # system-image-cli --production-reset
+        capture = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            mock = resources.enter_context(
+                patch('systemimage.apply.Reboot.apply'))
+            resources.enter_context(argv('-C', config_d, '--production-reset'))
+            cli_main()
+        # A reboot was issued.
+        self.assertTrue(mock.called)
+        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
+        with open(path, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, dedent("""\
+            format data
+            enable factory_wipe
             """))
 
 

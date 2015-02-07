@@ -205,6 +205,20 @@ unmount system
             """))
 
     @configuration
+    def test_production_reset(self):
+        mediator = Mediator()
+        with patch('systemimage.apply.Reboot.apply') as mock:
+            mediator.production_reset()
+        self.assertTrue(mock.called)
+        path = Path(config.updater.cache_partition) / 'ubuntu_command'
+        with path.open('r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, dedent("""\
+            format data
+            enable factory_wipe
+            """))
+
+    @configuration
     def test_cancel(self):
         # When we get to the step of downloading the files, cancel it.
         self._setup_server_keyrings()

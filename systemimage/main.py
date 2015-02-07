@@ -109,6 +109,12 @@ def main():
                         help="""Perform a destructive factory reset and
                                 reboot.  WARNING: this will wipe all user data
                                 on the device!""")
+    parser.add_argument('--production-reset',
+                        default=False, action='store_true',
+                        help="""Perform a destructive production reset
+                                (similar to factory reset) and reboot.
+                                WARNING: this will wipe all user data
+                                on the device!""")
     parser.add_argument('--switch',
                         default=None, action='store', metavar='CHANNEL',
                         help="""Switch to the given channel.  This is
@@ -155,8 +161,8 @@ Your upgrades are INSECURE.""", file=sys.stderr)
         config.skip_gpg_verification = True
 
     # Perform a factory reset.
-    if args.factory_reset:
-        factory_reset()
+    if args.factory_reset or args.production_reset:
+        factory_reset(args.production_reset)
         # We should never get here, except possibly during the testing
         # process, so just return as normal.
         return 0

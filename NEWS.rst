@@ -44,6 +44,8 @@ NEWS for system-image updater
  * As part of LP: #1417176, the ``--no-reboot`` switch for
    ``system-image-cli(1)`` has been deprecated.  Use ``--no-apply`` instead
    (``-g`` is still the shortcut).
+ * Support production factory resets.  `system-image-cli --production-reset`
+   and a new D-Bus API method `ProductionReset()` are added. (LP: #1419027)
 
 2.5.1 (2014-10-21)
 ==================

@@ -63,11 +63,16 @@ class Noop(BaseApply):
         pass
 
 
-def factory_reset():
+def factory_reset(production_reset=False):
     """Perform a factory reset."""
     command_file = os.path.join(
         config.updater.cache_partition, 'ubuntu_command')
     with atomic(command_file) as fp:
         print('format data', file=fp)
-    log.info('Performing a factory reset')
+        if production_reset:
+            print('enable factory_wipe', file=fp)
+    if production_reset:
+        log.info('Performing a production factory reset')
+    else:
+        log.info('Performing a factory reset')
     config.hooks.apply().apply()

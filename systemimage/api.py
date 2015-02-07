@@ -121,3 +121,6 @@ class Mediator:
 
     def factory_reset(self):
         factory_reset()
+
+    def production_reset(self):
+        factory_reset(True)
