@@ -23,6 +23,7 @@ __all__ = [
     'TestDBusDownload',
     'TestDBusDownloadBigFiles',
     'TestDBusFactoryReset',
+    'TestDBusProductionReset',
     'TestDBusGetSet',
     'TestDBusInfo',
     'TestDBusMiscellaneous',
@@ -55,6 +56,7 @@ from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
 from pathlib import Path
+from textwrap import dedent
 from systemimage.config import Configuration
 from systemimage.helpers import MiB, safe_remove
 from systemimage.reactor import Reactor
@@ -1575,6 +1577,28 @@ class TestDBusFactoryReset(_LiveTesting):
         with open(command_file, encoding='utf-8') as fp:
             command = fp.read()
         self.assertEqual(command, 'format data\n')
+
+
+class TestDBusProductionReset(_LiveTesting):
+    def test_production_reset(self):
+        # A production factory reset is applied.
+        command_file = os.path.join(
+            self.config.updater.cache_partition, 'ubuntu_command')
+        self.assertFalse(os.path.exists(self.reboot_log))
+        self.assertFalse(os.path.exists(command_file))
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.ProductionReset)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(reactor.signals[0])
+        with open(self.reboot_log, encoding='utf-8') as fp:
+            reboot = fp.read()
+        self.assertEqual(reboot, '/sbin/reboot -f recovery')
+        with open(command_file, encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, dedent("""\
+            format data
+            enable factory_wipe
+            """))
 
 
 class TestDBusProgress(_LiveTesting):

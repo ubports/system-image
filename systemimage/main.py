@@ -27,7 +27,7 @@ import argparse
 
 from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
-from systemimage.apply import factory_reset
+from systemimage.apply import factory_reset, production_reset
 from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
 from systemimage.helpers import (
@@ -109,6 +109,12 @@ def main():
                         help="""Perform a destructive factory reset and
                                 reboot.  WARNING: this will wipe all user data
                                 on the device!""")
+    parser.add_argument('--production-reset',
+                        default=False, action='store_true',
+                        help="""Perform a destructive production reset
+                                (similar to factory reset) and reboot.
+                                WARNING: this will wipe all user data
+                                on the device!""")
     parser.add_argument('--switch',
                         default=None, action='store', metavar='CHANNEL',
                         help="""Switch to the given channel.  This is
@@ -154,9 +160,14 @@ WARNING: All GPG signature verifications have been disabled.
 Your upgrades are INSECURE.""", file=sys.stderr)
         config.skip_gpg_verification = True
 
-    # Perform a factory reset.
+    # Perform factory and production resets.
     if args.factory_reset:
         factory_reset()
+        # We should never get here, except possibly during the testing
+        # process, so just return as normal.
+        return 0
+    if args.production_reset:
+        production_reset()
         # We should never get here, except possibly during the testing
         # process, so just return as normal.
         return 0

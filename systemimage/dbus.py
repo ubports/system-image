@@ -384,9 +384,11 @@ class Service(Object):
     @method('com.canonical.SystemImage')
     def FactoryReset(self):
         self._api.factory_reset()
-        # This code may or may not run.  We're racing against the system
-        # reboot procedure.
-        self.Rebooting(True)
+
+    @log_and_exit
+    @method('com.canonical.SystemImage')
+    def ProductionReset(self):
+        self._api.production_reset()
 
     @log_and_exit
     @method('com.canonical.SystemImage')

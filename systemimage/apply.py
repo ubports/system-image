@@ -20,6 +20,7 @@ __all__ = [
     'Noop',
     'Reboot',
     'factory_reset',
+    'production_reset',
     ]
 
 
@@ -70,4 +71,15 @@ def factory_reset():
     with atomic(command_file) as fp:
         print('format data', file=fp)
     log.info('Performing a factory reset')
+    config.hooks.apply().apply()
+
+
+def production_reset():
+    """Perform a production reset."""
+    command_file = os.path.join(
+        config.updater.cache_partition, 'ubuntu_command')
+    with atomic(command_file) as fp:
+        print('format data', file=fp)
+        print('enable factory_wipe', file=fp)
+    log.info('Performing a production factory reset')
     config.hooks.apply().apply()

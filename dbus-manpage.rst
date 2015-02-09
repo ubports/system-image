@@ -161,6 +161,13 @@ Methods
 
     *New in system-image 2.3*.
 
+``ProductionReset()``
+    This is a **synchronous** call which wipes the data partition, sets a flag
+    for factory wipe (used in production), and issue a reboot to recovery.
+    A ``Rebooting`` signal may be sent, depending on timing.
+
+    *New in system-image 3.0*.
+
 ``SetSetting(key, value)``
     This is a **synchronous** call to write or update a setting.  ``key`` and
     ``value`` are strings.  While any key/value pair may be set, some keys
