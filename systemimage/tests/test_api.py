@@ -18,6 +18,7 @@
 
 __all__ = [
     'TestAPI',
+    'TestAPIVersionDetail',
     ]
 
 
@@ -259,3 +260,27 @@ unmount system
         # There's no winning path, but there is an error.
         self.assertFalse(update.is_available)
         self.assertIn('Permission denied', update.error)
+
+
+class TestAPIVersionDetail(ServerTestBase):
+    INDEX_FILE = 'api.index_03.json'
+    CHANNEL_FILE = 'api.channels_01.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    @configuration
+    def test_update_available_version(self):
+        # An update is available.  What's the target version number?
+        self._setup_server_keyrings()
+        update = Mediator().check_for_update()
+        self.assertEqual(update.version_detail,
+                         'ubuntu=101,raw-device=201,version=301')
+
+    @configuration
+    def test_no_update_available_version(self):
+        # No update is available, so the target version number is zero.
+        self._setup_server_keyrings()
+        touch_build(1600)
+        update = Mediator().check_for_update()
+        self.assertFalse(update.is_available)
+        self.assertEqual(update.version_detail, '')

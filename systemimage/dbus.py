@@ -327,20 +327,24 @@ class Service(Object):
         self.loop.keepalive()
         settings = Settings()
         current_build_number = str(config.build_number)
+        version_detail = getattr(config.service, 'version_detail', '')
         response = dict(
             current_build_number=current_build_number,
             device_name=config.device,
             channel_name=config.channel,
             last_update_date=last_update_date(),
-            version_detail=getattr(config.service, 'version_detail', ''),
+            version_detail=version_detail,
             last_check_date=settings.get('last_check_date'),
             )
         if self._update is None:
             response['target_build_number'] = '-1'
+            response['target_version_detail'] = ''
         elif not self._update.is_available:
             response['target_build_number'] = current_build_number
+            response['target_version_detail'] = version_detail
         else:
             response['target_build_number'] = str(self._update.version)
+            response['target_version_detail'] = self._update.version_detail
         return response
 
     @log_and_exit

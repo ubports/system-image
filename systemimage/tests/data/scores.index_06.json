@@ -1,0 +1,253 @@
+{
+    "global": {
+        "generated_at": "Mon Apr 29 18:45:27 UTC 2013"
+    },
+    "images": [
+        {
+            "bootme": true,
+            "description": "Full A",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                }
+            ],
+            "type": "full",
+            "version": 1300,
+            "version_detail": "ubuntu=100,raw-device=200,version=300"
+        },
+        {
+            "base": 1300,
+            "bootme": true,
+            "description": "Delta A.1",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                }
+            ],
+            "type": "delta",
+            "version": 1301,
+            "version_detail": "ubuntu=101,raw-device=201,version=301"
+        },
+        {
+            "base": 1301,
+            "bootme": true,
+            "description": "Delta A.2",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                }
+            ],
+            "type": "delta",
+            "version": 1304,
+            "version_detail": "ubuntu=102,raw-device=202,version=302"
+        },
+
+        {
+            "description": "Full B",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                }
+            ],
+            "type": "full",
+            "version": 1200,
+            "version_detail": "ubuntu=103,raw-device=203,version=303"            
+        },
+        {
+            "base": 1200,
+            "bootme": true,
+            "description": "Delta B.1",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                }
+            ],
+            "type": "delta",
+            "version": 1201,
+            "version_detail": "ubuntu=104,raw-device=204,version=304"
+        },
+        {
+            "base": 1201,
+            "description": "Delta B.2",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 209715200
+
+                }
+            ],
+            "type": "delta",
+            "version": 1304,
+            "version_detail": "ubuntu=105,raw-device=205,version=305"
+        },
+
+        {
+            "description": "Full C",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                }
+            ],
+            "type": "full",
+            "version": 1100,
+            "version_detail": "ubuntu=106,raw-device=206,version=306"
+        },
+        {
+            "base": 1100,
+            "description": "Delta C.1",
+            "files": [
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 104857600
+                },
+                {
+                    "checksum": "",
+                    "order": 1,
+                    "path": "",
+                    "signature": "",
+                    "size": 838860800
+
+                }
+            ],
+            "type": "delta",
+            "version": 1303,
+            "version_detail": "ubuntu=107,raw-device=207,version=307"
+        }
+    ]
+}

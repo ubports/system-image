@@ -1500,7 +1500,7 @@ class TestLiveDBusInfo(_LiveTesting):
         timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
         touch_build(45, timestamp, use_config=self.config)
         ini_path = Path(SystemImagePlugin.controller.ini_path)
-        override_ini = ini_path.with_name('03_override.ini')
+        override_ini = ini_path / '03_override.ini'
         with override_ini.open('w', encoding='utf-8') as fp:
             print("""\
 [service]
@@ -1527,7 +1527,8 @@ version_detail: ubuntu=222,mako=333,custom=444
         self.assertEqual(response['device_name'], 'nexus7')
         self.assertEqual(response['channel_name'], 'stable')
         self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
-        self.assertEqual(response['version_detail'], '')
+        self.assertEqual(response['version_detail'],
+                         'ubuntu=222,mako=333,custom=444')
         # We can't really check the returned last check date against anything
         # in a robust way.  E.g. what if we just happen to be at 12:59:59 on
         # December 31st?  Let's at least make sure it has a sane format.
@@ -1558,6 +1559,61 @@ version_detail: ubuntu=222,mako=333,custom=444
         self.assertEqual(signal.available_version, '1600')
         response = self.iface.Information()
         self.assertEqual(response['target_build_number'], '1600')
+
+    def test_target_version_detail_before_check(self):
+        # Before we do a CheckForUpdate, there is no target version detail.
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        touch_build(45, timestamp, self.config)
+        self.iface.Reset()
+        response = self.iface.Information()
+        self.assertEqual(response['version_detail'], '')
+        self.assertEqual(response['target_version_detail'], '')
+
+    def test_target_version_detail_after_check_no_update_available(self):
+        # After a CheckForUpdate, if there is no update available, the target
+        # version detail is the same as the version detail.
+        ini_path = Path(SystemImagePlugin.controller.ini_path)
+        override_ini = ini_path / '03_override.ini'
+        with override_ini.open('w', encoding='utf-8') as fp:
+            print("""\
+[service]
+version_detail: ubuntu=401,mako=501,custom=601
+""", file=fp)
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        touch_build(1700, timestamp, use_config=self.config)
+        self.iface.Reset()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        response = self.iface.Information()
+        self.assertEqual(response['version_detail'],
+                         'ubuntu=401,mako=501,custom=601')
+        self.assertEqual(response['target_version_detail'],
+                         'ubuntu=401,mako=501,custom=601')
+
+    def test_target_version_detail_after_check_update_available(self):
+        # After a CheckForUpdate, if there is an update available, the target
+        # version detail is the new update.
+        ini_path = Path(SystemImagePlugin.controller.ini_path)
+        override_ini = ini_path / '03_override.ini'
+        with override_ini.open('w', encoding='utf-8') as fp:
+            print("""\
+[service]
+version_detail: ubuntu=401,mako=501,custom=601
+""", file=fp)
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        touch_build(45, timestamp, use_config=self.config)
+        # This index.json file is exactly like the tests's default
+        # dbus.index_01.json file except that it has version_detail keys in
+        # the image sections.
+        self._prepare_index('dbus.index_06.json')
+        self.iface.Reset()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        response = self.iface.Information()
+        self.assertEqual(response['version_detail'],
+                         'ubuntu=401,mako=501,custom=601')
+        self.assertEqual(response['target_version_detail'],
+                         'ubuntu=402,mako=502,custom=602')
 
 
 class TestDBusFactoryReset(_LiveTesting):

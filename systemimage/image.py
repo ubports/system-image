@@ -74,3 +74,7 @@ class Image(Bag):
     @property
     def phased_percentage(self):
         return self.__untranslated__.get('phased-percentage', 100)
+
+    @property
+    def version_detail(self):
+        return self.__untranslated__.get('version_detail', '')

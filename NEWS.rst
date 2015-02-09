@@ -47,6 +47,8 @@ NEWS for system-image updater
  * Support production factory resets.  `system-image-cli --production-reset`
    and a new D-Bus API method `ProductionReset()` are added.  Given by Ricardo
    Salveti.  (LP: #1419027)
+ * A new key, ``target_version_detail`` has been added to the dictionary
+   returned by the ``.Information()`` D-Bus method.  (LP: #1399687)
 
 2.5.1 (2014-10-21)
 ==================

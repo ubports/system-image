@@ -15,6 +15,7 @@
 
 __all__ = [
     'TestPhasedUpdates',
+    'TestVersionDetail',
     'TestWeightedScorer',
     ]
 
@@ -159,3 +160,41 @@ class TestPhasedUpdates(unittest.TestCase):
         with patch('systemimage.scores.phased_percentage', return_value=1000):
             winner = self.scorer.choose(candidates, 'devel')
         self.assertEqual(len(winner), 0)
+
+
+class TestVersionDetail(unittest.TestCase):
+    def setUp(self):
+        self.scorer = WeightedScorer()
+
+    def test_version_detail(self):
+        # The index.json file has three paths for updates, but only one is
+        # selected.  The winning path lands on an image with a version_detail
+        # key.
+        index = get_index('scores.index_06.json')
+        candidates = get_candidates(index, 600)
+        scores = self.scorer.score(candidates)
+        self.assertEqual(scores, [300, 200, 9401])
+        winner = self.scorer.choose(candidates, 'devel')
+        self.assertEqual(len(winner), 3)
+        self.assertEqual([image.version for image in winner],
+                         [1200, 1201, 1304])
+        self.assertEqual(descriptions(winner),
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
+        self.assertEqual(winner[-1].version_detail,
+                         "ubuntu=105,raw-device=205,version=305")
+
+    def test_no_version_detail(self):
+        # The index.json file has three paths for updates, but only one is
+        # selected.  The winning path lands on an image without a
+        # version_detail key.
+        index = get_index('scores.index_07.json')
+        candidates = get_candidates(index, 600)
+        scores = self.scorer.score(candidates)
+        self.assertEqual(scores, [300, 200, 9401])
+        winner = self.scorer.choose(candidates, 'devel')
+        self.assertEqual(len(winner), 3)
+        self.assertEqual([image.version for image in winner],
+                         [1200, 1201, 1304])
+        self.assertEqual(descriptions(winner),
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
+        self.assertEqual(winner[-1].version_detail, '')

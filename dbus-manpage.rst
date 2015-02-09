@@ -147,12 +147,21 @@ Methods
     * *version_detail* - A string containing a comma-separated list of
       key-value pairs providing additional component version details,
       e.g. "ubuntu=123,mako=456,custom=789".
+    * *target_version_detail* - Like *version_detail* but contains the
+      information from the server.  If an update is known to be available,
+      this will be taken from ``index.json`` file's image specification, for
+      the image that the upgrade will leave the device at.  If no update is
+      available this will be identical to *version_detail*.  If no
+      `CheckForUpdate()` as been previously performed, then the
+      *target_version_detail* will be the empty string.
     * *last_check_date* - The last time a ``CheckForUpdate()`` call was
       performed.
 
     *New in system-image 2.3*
 
-    *New in system-image 2.5: target_build_number*
+    *New in system-image 2.5: target_build_number was added.*
+
+    *New in system-image 3.0: target_version_detail was added.*
 
 ``FactoryReset()``
     This is a **synchronous** call which wipes the data partition and issue a

@@ -62,6 +62,14 @@ class Update:
             # No winners.
             return ''
 
+    @property
+    def version_detail(self):
+        try:
+            return self._winners[-1].version_detail
+        except IndexError:
+            # No winners.
+            return ''
+
 
 class Mediator:
     """This is the DBus API mediator.
