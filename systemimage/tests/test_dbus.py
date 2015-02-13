@@ -198,6 +198,25 @@ class DoubleCheckingReactor(Reactor):
         self.quit()
 
 
+class DoubleFiringReactor(Reactor):
+    def __init__(self, iface, wait_count=2):
+        super().__init__(dbus.SystemBus())
+        self.iface = iface
+        self.wait_count = wait_count
+        self.uas_signals = []
+        self.react_to('UpdateAvailableStatus')
+
+    def _do_UpdateAvailableStatus(self, signal, path, *args):
+        self.uas_signals.append(UASRecord(*args))
+        if len(self.uas_signals) >= self.wait_count:
+            self.quit()
+
+    def run(self):
+        self.schedule(self.iface.CheckForUpdate, milliseconds=50)
+        self.schedule(self.iface.CheckForUpdate, milliseconds=55)
+        super().run()
+
+
 class ManualUpdateReactor(Reactor):
     def __init__(self, iface):
         super().__init__(dbus.SystemBus())
@@ -1857,7 +1876,6 @@ unmount system
 """)
 
 
-#@unittest.skipUnless(USING_PYCURL, 'LP: #1413265')
 class TestDBusMultipleChecksInFlight(_LiveTesting):
     def test_multiple_check_for_updates(self):
         # Log analysis of LP: #1277589 appears to show the following scenario,
@@ -1933,8 +1951,25 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         reactor.run()
         self.assertTrue(reactor.applied)
 
+    def test_schedule_lots_of_checks(self):
+        # There is a checking lock in the D-Bus layer.  If that lock cannot be
+        # acquired *and* the results of a previous check have already been
+        # cached, then the cached results are returned.
+        self.download_manually()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        # At this point, we now have a cached update status.  Although this is
+        # timing dependent, schedule two more CheckForUpdates right after each
+        # other.  The second one should get caught by the checking lock.
+        reactor = DoubleFiringReactor(self.iface)
+        reactor.run()
+        self.assertEqual(reactor.uas_signals[0], reactor.uas_signals[1])
 
-#@unittest.skipUnless(USING_PYCURL, 'LP: #1411866')
+
+from unittest import skipUnless
+from systemimage.testing.controller import USING_PYCURL
+
+@skipUnless(USING_PYCURL, 'LP: #1411866')
 class TestDBusCheckForUpdateToUnwritablePartition(_LiveTesting):
     @classmethod
     def setUpClass(cls):

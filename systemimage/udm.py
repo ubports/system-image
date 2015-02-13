@@ -24,7 +24,6 @@ import os
 import dbus
 import logging
 
-from contextlib import suppress
 from systemimage.config import config
 from systemimage.download import Canceled, DownloadManagerBase, USER_AGENT
 from systemimage.reactor import Reactor
@@ -43,19 +42,16 @@ def _headers():
     return {'User-Agent': USER_AGENT.format(config.build_number)}
 
 
-# The systemimage.testing module will not be available on installed systems
-# unless the system-image-dev binary package is installed, which is not usually
-# the case.  Disable _print() debugging in that case.
 def _print(*args, **kws):
-    with suppress(ImportError):
-        # We must import this here to avoid circular imports.
-        from systemimage.testing.helpers import debug
-        with debug(check_flag=True) as ddlog:
-            ddlog(*args, **kws)
+    # We must import this here to avoid circular imports.
+    ## from systemimage.testing.helpers import debug
+    ## with debug() as ddlog:
+    ##     ddlog(*args, **kws)
+    pass
 
 
 class DownloadReactor(Reactor):
-    def __init__(self, bus, callback=None, pausable=False):
+    def __init__(self, bus, object_path, callback=None, pausable=False):
         super().__init__(bus)
         self._callback = callback
         self._pausable = pausable
@@ -65,13 +61,13 @@ class DownloadReactor(Reactor):
         self.error = None
         self.canceled = False
         self.local_paths = None
-        self.react_to('canceled')
-        self.react_to('error')
-        self.react_to('finished')
-        self.react_to('paused')
-        self.react_to('progress')
-        self.react_to('resumed')
-        self.react_to('started')
+        self.react_to('canceled', object_path)
+        self.react_to('error', object_path)
+        self.react_to('finished', object_path)
+        self.react_to('paused', object_path)
+        self.react_to('progress', object_path)
+        self.react_to('resumed', object_path)
+        self.react_to('started', object_path)
 
     def _do_started(self, signal, path, started):
         _print('STARTED:', started)
@@ -148,15 +144,16 @@ class UDMDownloadManager(DownloadManagerBase):
         allow_gsm = Settings().get('auto_download') != '1'
         UDMDownloadManager._set_gsm(self._iface, allow_gsm=allow_gsm)
         # Start the download.
-        reactor = DownloadReactor(bus, self._reactor_callback, pausable)
+        reactor = DownloadReactor(
+            bus, object_path, self._reactor_callback, pausable)
         reactor.schedule(self._iface.start)
-        log.info('[0x{:x}] Running group download reactor', id(self))
+        log.info('[{}] Running group download reactor', object_path)
         reactor.run()
         # This download is complete so the object path is no longer
         # applicable.  Setting this to None will cause subsequent cancels to
         # be queued.
         self._iface = None
-        log.info('[0x{:x}] Group download reactor done', id(self))
+        log.info('[{}] Group download reactor done', object_path)
         if reactor.error is not None:
             log.error('Reactor error: {}'.format(reactor.error))
         if reactor.canceled:

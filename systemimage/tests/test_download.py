@@ -163,20 +163,6 @@ class TestDownload(unittest.TestCase):
         # The file still got downloaded.
         self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
 
-    @configuration
-    def test_no_dev_package(self):
-        # system-image-dev contains the systemimage.testing subpackage, but
-        # this is not normally installed on the device.  When it's missing,
-        # the DownloadReactor's _print() debugging method should no-op.
-        #
-        # To test this, we patch systemimage.testing in sys.modules so that an
-        # ImportError is raised when it tries to import it.
-        with patch.dict(sys.modules, {'systemimage.testing.helpers': None}):
-            self._downloader().get_files(_http_pathify([
-                ('channel.channels_05.json', 'channels.json'),
-                ]))
-        self.assertEqual(os.listdir(config.tempdir), ['channels.json'])
-
     # This test helps bump the udm-based downloader test coverage to 100%.
     @unittest.skipIf(USING_PYCURL, 'Test is not relevant for PyCURL')
     @configuration
