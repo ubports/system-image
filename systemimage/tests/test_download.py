@@ -31,7 +31,6 @@ __all__ = [
 
 
 import os
-import sys
 import random
 import pycurl
 import unittest
@@ -112,6 +111,8 @@ class TestDownload(unittest.TestCase):
         # The User-Agent request header contains the build number.
         version = random.randint(0, 99)
         config.build_number = version
+        config.device = 'geddyboard'
+        config.channel = 'devel-trio'
         # Download a magic path which the server will interpret to return us
         # the User-Agent header value.
         self._downloader().get_files(_http_pathify([
@@ -122,7 +123,9 @@ class TestDownload(unittest.TestCase):
             user_agent = fp.read()
         self.assertEqual(
             user_agent,
-            'Ubuntu System Image Upgrade Client; Build {}'.format(version))
+            'Ubuntu System Image Upgrade Client: '
+            'device=geddyboard;channel=devel-trio;build={}'.format(
+                version))
 
     @configuration
     def test_download_with_callback(self):

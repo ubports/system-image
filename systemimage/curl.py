@@ -27,7 +27,7 @@ import logging
 from contextlib import ExitStack
 from gi.repository import GLib
 from systemimage.config import config
-from systemimage.download import Canceled, DownloadManagerBase, USER_AGENT
+from systemimage.download import Canceled, DownloadManagerBase
 
 log = logging.getLogger('systemimage')
 
@@ -68,7 +68,7 @@ class SingleDownload:
         c = pycurl.Curl()
         # Set the common options.
         c.setopt(pycurl.URL, self.url)
-        c.setopt(pycurl.USERAGENT, USER_AGENT.format(config.build_number))
+        c.setopt(pycurl.USERAGENT, config.user_agent)
         # If we're doing a HEAD, then we don't want the body of the
         # file.  Otherwise, set things up to write the body data to the
         # destination file.

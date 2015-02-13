@@ -391,3 +391,14 @@ class TestConfiguration(unittest.TestCase):
         # to the built-in default values.
         self.assertEqual(config.system.logfile,
                          '/var/log/system-image/client.log')
+
+    @configuration
+    def test_user_agent(self, config):
+        # The User-Agent string contains the device, channel, and build.
+        config.device = 'geddyboard'
+        config.channel = 'devel-trio'
+        config.build_number = 2112
+        self.assertEqual(
+            config.user_agent,
+            'Ubuntu System Image Upgrade Client: '
+            'device=geddyboard;channel=devel-trio;build=2112')

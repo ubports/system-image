@@ -25,7 +25,7 @@ import dbus
 import logging
 
 from systemimage.config import config
-from systemimage.download import Canceled, DownloadManagerBase, USER_AGENT
+from systemimage.download import Canceled, DownloadManagerBase
 from systemimage.reactor import Reactor
 from systemimage.settings import Settings
 
@@ -39,7 +39,7 @@ OBJECT_INTERFACE = 'com.canonical.applications.GroupDownload'
 
 
 def _headers():
-    return {'User-Agent': USER_AGENT.format(config.build_number)}
+    return {'User-Agent': config.user_agent}
 
 
 def _print(*args, **kws):

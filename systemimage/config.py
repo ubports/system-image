@@ -34,6 +34,8 @@ from systemimage.helpers import (
 
 
 SECTIONS = ('service', 'system', 'gpg', 'updater', 'hooks', 'dbus')
+USER_AGENT = ('Ubuntu System Image Upgrade Client: '
+              'device={0.device};channel={0.channel};build={0.build_number}')
 
 
 def expand_path(path):
@@ -282,6 +284,10 @@ class Configuration:
                 temporary_directory(prefix='system-image-',
                                     dir=self.system.tempdir))
         return self._tempdir
+
+    @property
+    def user_agent(self):
+        return USER_AGENT.format(self)
 
 
 # Define the global configuration object.  We use a proxy here so that

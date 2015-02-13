@@ -39,8 +39,6 @@ except ImportError:                                 # pragma: no cover
 
 log = logging.getLogger('systemimage')
 
-USER_AGENT = 'Ubuntu System Image Upgrade Client; Build {}'
-
 
 class Canceled(Exception):
     """Raised when the download was canceled."""
