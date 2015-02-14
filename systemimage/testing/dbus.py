@@ -22,7 +22,11 @@ __all__ = [
 
 
 import os
-import pycurl
+
+try:
+    import pycurl
+except ImportError:
+    pycurl = None
 
 from dbus.service import method, signal
 from gi.repository import GLib
@@ -58,11 +62,13 @@ def instrument(config, stack, cert_file):
         patch('systemimage.apply.check_call', safe_reboot.write))
     stack.enter_context(
         patch('systemimage.device.check_output', return_value='nexus7'))
-    # Patch the PyCURL downloader to accept self-signed certificates.
-    def self_sign(c):
-        c.setopt(pycurl.CAINFO, cert_file)
-    stack.enter_context(
-        patch('systemimage.curl.make_testable', self_sign))
+    # If available, patch the PyCURL downloader to accept self-signed
+    # certificates.
+    if pycurl is not None:
+        def self_sign(c):
+            c.setopt(pycurl.CAINFO, cert_file)
+        stack.enter_context(
+            patch('systemimage.curl.make_testable', self_sign))
 
 
 class _LiveTestableService(Service):

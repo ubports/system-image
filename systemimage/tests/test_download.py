@@ -32,7 +32,6 @@ __all__ = [
 
 import os
 import random
-import pycurl
 import unittest
 
 from contextlib import ExitStack
@@ -51,6 +50,9 @@ from systemimage.testing.nose import SystemImagePlugin
 from systemimage.udm import DOWNLOADER_INTERFACE, UDMDownloadManager
 from unittest.mock import patch
 from urllib.parse import urljoin
+
+if USING_PYCURL:
+    import pycurl
 
 
 def _http_pathify(downloads):

@@ -27,8 +27,12 @@ import sys
 import dbus
 import time
 import psutil
-import pycurl
 import subprocess
+
+try:
+    import pycurl
+except ImportError:
+    pycurl = None
 
 from contextlib import ExitStack
 from distutils.spawn import find_executable
@@ -124,7 +128,11 @@ SERVICES = [
    ]
 
 
-USING_PYCURL = int(os.environ.get('SYSTEMIMAGE_PYCURL', '0'))
+if pycurl is None:
+    USING_PYCURL = False
+else:
+    USING_PYCURL = int(os.environ.get('SYSTEMIMAGE_PYCURL', '0'))
+
 if not USING_PYCURL:
     SERVICES.append(
     ('com.canonical.applications.Downloader',
@@ -203,12 +211,12 @@ class Controller:
             iface.ReloadConfig()
             time.sleep(HUP_SLEEP)
 
-    def set_mode(self, *, cert_pem=None, service_mode=''):
-        self.mode = service_mode
-        certificate_path = data_path(cert_pem)
+    def _set_udm_certs(self, cert_pem, certificate_path):
         self.udm_certs = (
             '' if cert_pem is None
             else '-self-signed-certs ' + certificate_path)
+
+    def _set_curl_certs(self, cert_pem, certificate_path):
         # We have to set up the PyCURL downloader's self-signed certificate for
         # the test in two ways.  First, because we might be spawning the D-Bus
         # service, we have to pass the path to the cert to that service...
@@ -227,6 +235,14 @@ class Controller:
                 c.setopt(pycurl.CAINFO, certificate_path)
             self.patcher = patch('systemimage.curl.make_testable', self_sign)
             self.patcher.start()
+
+    def set_mode(self, *, cert_pem=None, service_mode=''):
+        self.mode = service_mode
+        certificate_path = data_path(cert_pem)
+        if USING_PYCURL:
+            self._set_curl_certs(cert_pem, certificate_path)
+        else:
+            self._set_udm_certs(cert_pem, certificate_path)
         self._configure_services()
 
     def _start(self):
