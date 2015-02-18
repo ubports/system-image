@@ -102,6 +102,7 @@ class TestSettings(unittest.TestCase):
         keyval.sort()
         self.assertEqual(keyval, [('a', 'ant'), ('b', 'bee'), ('c', 'cat')])
 
+    @unittest.skipIf(os.getuid() == 0, 'Test cannot succeed when run as root')
     @configuration
     def test_settings_db_permission_denied(self, config):
         # LP: #1349478 - some tests are run as non-root, meaning they don't

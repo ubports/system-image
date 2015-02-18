@@ -23,6 +23,7 @@ __all__ = [
 
 
 import os
+import unittest
 
 from pathlib import Path
 from systemimage.api import Mediator
@@ -249,10 +250,10 @@ unmount system
         self.assertNotEqual(received_bytes, 0)
         self.assertNotEqual(total_bytes, 0)
 
-    from unittest import skipUnless
     from systemimage.testing.controller import USING_PYCURL
 
-    @skipUnless(USING_PYCURL, 'LP: #1411866')
+    @unittest.skipIf(os.getuid() == 0, 'Test cannot succeed when run as root')
+    @unittest.skipUnless(USING_PYCURL, 'LP: #1411866')
     @configuration
     def test_state_machine_exceptions(self, config):
         # An exception in the state machine captures the exception and returns
