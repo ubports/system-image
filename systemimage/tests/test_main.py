@@ -404,6 +404,7 @@ class TestCLIMain(unittest.TestCase):
             r'\[systemimage\] [^(]+ \(\d+\) '
             r'state machine finished\n')
 
+    @unittest.skipIf(os.getuid() == 0, 'Test cannot succeed when run as root')
     @configuration
     def test_log_file_permission_denied(self, config):
         # LP: #1301995 - some tests are run as non-root, meaning they don't

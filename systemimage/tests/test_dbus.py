@@ -1966,10 +1966,10 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         self.assertEqual(reactor.uas_signals[0], reactor.uas_signals[1])
 
 
-from unittest import skipUnless
 from systemimage.testing.controller import USING_PYCURL
 
-@skipUnless(USING_PYCURL, 'LP: #1411866')
+@unittest.skipIf(os.getuid() == 0, 'Test cannot succeed when run as root')
+@unittest.skipUnless(USING_PYCURL, 'LP: #1411866')
 class TestDBusCheckForUpdateToUnwritablePartition(_LiveTesting):
     @classmethod
     def setUpClass(cls):

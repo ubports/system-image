@@ -231,6 +231,7 @@ class TestLastUpdateDate(unittest.TestCase):
     def test_no_version_in_version_detail(self):
         self.assertEqual(version_detail('ubuntu,mako,custom'), {})
 
+    @unittest.skipIf(os.getuid() == 0, 'Test cannot succeed when run as root')
     @configuration
     def test_last_date_no_permission(self, config):
         # LP: #1365761 reports a problem where stat'ing /userdata/.last_update
