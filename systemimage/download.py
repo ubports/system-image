@@ -71,7 +71,7 @@ def Record(url, destination, checksum=''):
 class DownloadManagerBase:
     """Base class for all download managers."""
 
-    def __init__(self, callback=None):
+    def __init__(self):
         """
         :param callback: If given, a function that is called every so often
             during downloading.
@@ -79,10 +79,14 @@ class DownloadManagerBase:
             of bytes received so far, and the total amount of bytes to be
             downloaded.
         """
-        self._queued_cancel = False
-        self.callback = callback
+        # This is a list of functions that are called every so often during
+        # downloading.  Functions in this list take two arguments, the number
+        # of bytes received so far, and the total amount of bytes to be
+        # downloaded.
+        self.callbacks = []
         self.total = 0
         self.received = 0
+        self._queued_cancel = False
 
     def __repr__(self): # pragma: no cover
         return '<{} at 0x{:x}>'.format(self.__class__.__name__, id(self))
@@ -128,9 +132,9 @@ class DownloadManagerBase:
     def _do_callback(self):
         # Be defensive, so yes, use a bare except.  If an exception occurs in
         # the callback, log it, but continue onward.
-        if self.callback is not None:
+        for callback in self.callbacks:
             try:
-                self.callback(self.received, self.total)
+                callback(self.received, self.total)
             except:
                 log.exception('Exception in progress callback')
 

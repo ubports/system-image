@@ -130,7 +130,9 @@ class CurlDownloadManager(DownloadManagerBase):
     """The PyCURL based download manager."""
 
     def __init__(self, callback=None):
-        super().__init__(callback)
+        super().__init__()
+        if callback is not None:
+            self.callbacks.append(callback)
         self._pausables = []
         self._paused = False
 
