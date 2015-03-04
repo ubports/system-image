@@ -44,6 +44,7 @@ __version__ = resource_bytes(
 
 DEFAULT_CONFIG_D = '/etc/system-image/config.d'
 COLON = ':'
+LINE_LENGTH = 78
 
 
 class _DotsProgress:
@@ -51,10 +52,13 @@ class _DotsProgress:
         self._dot_count = 0
 
     def callback(self, received, total):
+        received = int(received)
+        total = int(total)
         sys.stderr.write('.')
         sys.stderr.flush()
         self._dot_count += 1
-        if self._dot_count % 78 == 0 or received >= total:
+        show_dots = self._dot_count % LINE_LENGTH == 0
+        if show_dots or received >= total:          # pragma: no cover
             sys.stderr.write('\n')
             sys.stderr.flush()
 
@@ -329,10 +333,10 @@ Your upgrades are INSECURE.""", file=sys.stderr)
         elif meter == 'json':
             state.downloader.callbacks.append(_json_progress)
         elif meter == 'logfile':
-            state.downloader.callbacks.append(_LogfileProgress().callback)
+            state.downloader.callbacks.append(_LogfileProgress(log).callback)
         else:
             parser.error('Unknown progress meter: {}'.format(meter))
-            return 1
+            assert 'parser.error() does not return' # pragma: no cover
 
     if args.dry_run:
         try:
