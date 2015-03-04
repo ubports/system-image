@@ -22,6 +22,7 @@ __all__ = [
 
 
 import sys
+import json
 import logging
 import argparse
 
@@ -43,6 +44,39 @@ __version__ = resource_bytes(
 
 DEFAULT_CONFIG_D = '/etc/system-image/config.d'
 COLON = ':'
+LINE_LENGTH = 78
+
+
+class _DotsProgress:
+    def __init__(self):
+        self._dot_count = 0
+
+    def callback(self, received, total):
+        received = int(received)
+        total = int(total)
+        sys.stderr.write('.')
+        sys.stderr.flush()
+        self._dot_count += 1
+        show_dots = self._dot_count % LINE_LENGTH == 0
+        if show_dots or received >= total:          # pragma: no cover
+            sys.stderr.write('\n')
+            sys.stderr.flush()
+
+
+class _LogfileProgress:
+    def __init__(self, log):
+        self._log = log
+
+    def callback(self, received, total):
+        self._log.debug('received: {} of {} bytes', received, total)
+
+
+def _json_progress(received, total):
+    # For use with --progress=json output.  LP: #1423622
+    print(json.dumps(dict(
+        type='progress',
+        now=received,
+        total=total)))
 
 
 def main():
@@ -94,13 +128,18 @@ def main():
                         default=False, action='store_true',
                         help="""Calculate and print the upgrade path, but do
                                 not download or apply it""")
+    parser.add_argument('-v', '--verbose',
+                        default=0, action='count',
+                        help='Increase verbosity')
+    parser.add_argument('--progress',
+                        default=[], action='append',
+                        help="""Add a progress meter.  Available meters are:
+                                dots, logfile, and json.  Multiple --progress
+                                options are allowed.""")
     parser.add_argument('-p', '--percentage',
                         default=None, action='store',
                         help="""Override the device's phased percentage value
                                 during upgrade candidate calculation.""")
-    parser.add_argument('-v', '--verbose',
-                        default=0, action='count',
-                        help='Increase verbosity')
     parser.add_argument('--list-channels',
                         default=False, action='store_true',
                         help="""List all available channels, then exit""")
@@ -285,29 +324,20 @@ Your upgrades are INSECURE.""", file=sys.stderr)
                 print('    {} (alias for: {})'.format(key, alias))
         return 0
 
-    # When verbosity is at 1, logging every progress signal from
-    # ubuntu-download-manager would be way too noisy.  OTOH, not printing
-    # anything leads some folks to think the process is just hung, since it
-    # can take a long time to download all the data files.  As a compromise,
-    # we'll output some dots to stderr at verbosity 1, but we won't log these
-    # dots since they would just be noise.  This doesn't have to be perfect.
-    if args.verbose == 1:                           # pragma: no cover
-        dot_count = 0
-        def callback(received, total):
-            nonlocal dot_count
-            sys.stderr.write('.')
-            sys.stderr.flush()
-            dot_count += 1
-            if dot_count % 78 == 0 or received >= total:
-                sys.stderr.write('\n')
-                sys.stderr.flush()
-    else:
-        def callback(received, total):
-            log.debug('received: {} of {} bytes', received, total)
-
     DBusGMainLoop(set_as_default=True)
     state = State(candidate_filter=candidate_filter)
-    state.downloader.callback = callback
+
+    for meter in args.progress:
+        if meter == 'dots':
+            state.downloader.callbacks.append(_DotsProgress().callback)
+        elif meter == 'json':
+            state.downloader.callbacks.append(_json_progress)
+        elif meter == 'logfile':
+            state.downloader.callbacks.append(_LogfileProgress(log).callback)
+        else:
+            parser.error('Unknown progress meter: {}'.format(meter))
+            assert 'parser.error() does not return' # pragma: no cover
+
     if args.dry_run:
         try:
             state.run_until('download_files')

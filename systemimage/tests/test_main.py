@@ -18,13 +18,14 @@
 __all__ = [
     'TestCLIDuplicateDestinations',
     'TestCLIFactoryReset',
-    'TestCLIProductionReset',
     'TestCLIFilters',
     'TestCLIListChannels',
     'TestCLIMain',
     'TestCLIMainDryRun',
     'TestCLIMainDryRunAliases',
     'TestCLINoReboot',
+    'TestCLIProductionReset',
+    'TestCLIProgress',
     'TestCLISettings',
     'TestCLISignatures',
     'TestDBusMain',
@@ -35,6 +36,7 @@ __all__ = [
 import os
 import sys
 import dbus
+import json
 import stat
 import time
 import shutil
@@ -1480,3 +1482,127 @@ Target phase: 64%
 WARNING: All GPG signature verifications have been disabled.
 Your upgrades are INSECURE.
 """)
+
+
+class TestCLIProgress(ServerTestBase):
+    INDEX_FILE = 'main.index_01.json'
+    CHANNEL_FILE = 'main.channels_01.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    @configuration
+    def test_dots_progress(self, config_d):
+        # --progress=dots prints a bunch of dots to stderr.
+        self._setup_server_keyrings()
+        stderr = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.main.LINE_LENGTH', 10))
+            resources.enter_context(
+                patch('systemimage.main.sys.stderr', stderr))
+            resources.enter_context(
+                argv('-C', config_d, '-b', '0', '--no-reboot',
+                     '--progress', 'dots'))
+            cli_main()
+        # There should be some dots in the stderr.
+        self.assertGreater(stderr.getvalue().count('.'), 2)
+
+    @configuration
+    def test_json_progress(self, config_d):
+        # --progress=json prints some JSON to stdout.
+        self._setup_server_keyrings()
+        stdout = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(stdout))
+            resources.enter_context(
+                argv('-C', config_d, '-b', '0', '--no-reboot',
+                     '--progress', 'json'))
+            cli_main()
+        # stdout is now filled with JSON goodness.  We can't assert too much
+        # about the contents though.
+        line_count = 0
+        for line in stdout.getvalue().splitlines():
+            line_count += 1
+            record = json.loads(line)
+            self.assertEqual(record['type'], 'progress')
+            self.assertIn('now', record)
+            self.assertIn('total', record)
+        self.assertGreater(line_count, 4)
+
+    @configuration
+    def test_logfile_progress(self, config_d):
+        # --progress=logfile dumps some messages to the log file.
+        self._setup_server_keyrings()
+        log_mock = MagicMock()
+        from systemimage.main import _LogfileProgress
+        class Testable(_LogfileProgress):
+            def __init__(self, log):
+                super().__init__(log)
+                self._log = log_mock
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.main._LogfileProgress', Testable))
+            resources.enter_context(
+                argv('-C', config_d, '-b', '0', '--no-reboot',
+                     '--progress', 'logfile'))
+            cli_main()
+        self.assertGreater(log_mock.debug.call_count, 4)
+        positional, keyword = log_mock.debug.call_args
+        self.assertTrue(positional[0].startswith('received: '))
+
+    @configuration
+    def test_all_progress(self, config_d):
+        # We can have more than one --progress flag.
+        self._setup_server_keyrings()
+        stdout = StringIO()
+        stderr = StringIO()
+        log_mock = MagicMock()
+        from systemimage.main import _LogfileProgress
+        class Testable(_LogfileProgress):
+            def __init__(self, log):
+                super().__init__(log)
+                self._log = log_mock
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.main.LINE_LENGTH', 10))
+            resources.enter_context(
+                patch('systemimage.main.sys.stderr', stderr))
+            resources.enter_context(capture_print(stdout))
+            resources.enter_context(
+                patch('systemimage.main._LogfileProgress', Testable))
+            resources.enter_context(
+                argv('-C', config_d, '-b', '0', '--no-reboot',
+                     '--progress', 'dots',
+                     '--progress', 'json',
+                     '--progress', 'logfile'))
+            cli_main()
+        self.assertGreater(stderr.getvalue().count('.'), 2)
+        line_count = 0
+        for line in stdout.getvalue().splitlines():
+            line_count += 1
+            record = json.loads(line)
+            self.assertEqual(record['type'], 'progress')
+            self.assertIn('now', record)
+            self.assertIn('total', record)
+        self.assertGreater(line_count, 4)
+        self.assertGreater(log_mock.debug.call_count, 4)
+        positional, keyword = log_mock.debug.call_args
+        self.assertTrue(positional[0].startswith('received: '))
+
+    @configuration
+    def test_bad_progress(self, config_d):
+        # An unknown progress type results in an error.
+        stderr = StringIO()
+        with ExitStack() as resources:
+            resources.enter_context(
+                patch('systemimage.main.sys.stderr', stderr))
+            resources.enter_context(
+                argv('-C', config_d, '-b', '0', '--no-reboot',
+                     '--progress', 'not-a-meter'))
+            with self.assertRaises(SystemExit) as cm:
+                cli_main()
+            exit_code = cm.exception.code
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(
+            stderr.getvalue().splitlines()[-1],
+            'system-image-cli: error: Unknown progress meter: not-a-meter')

@@ -122,7 +122,9 @@ class UDMDownloadManager(DownloadManagerBase):
     """Download via ubuntu-download-manager (UDM)."""
 
     def __init__(self, callback=None):
-        super().__init__(callback)
+        super().__init__()
+        if callback is not None:
+            self.callbacks.append(callback)
         self._iface = None
 
     def _get_files(self, records, pausable):

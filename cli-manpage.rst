@@ -101,6 +101,13 @@ OPTIONS
 --show-settings
     Show all the key/value pairs in the settings database.
 
+--progress [dots|logfile|json]
+    Report progress in various ways.  `dots` prints some dots every once in a
+    while to stderr; this mimic what was available in system-image 2.5.
+    `logfile` prints messages at debug level to the system-image log file, and
+    is also available in 2.5 (via the `--verbose` flag).  `json` prints JSON
+    records to stdout.  *New in system-image 3.0*
+
 --get KEY
     Print the value for the given key in the settings database.  If the key is
     missing, a default value is printed.  May be given multiple times.

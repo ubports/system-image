@@ -12,45 +12,49 @@ NEWS for system-image updater
  * Support alternative machine-id files as fall backs if the D-Bus file does
    not exist.  Specifically, add systemd's /etc/machine-id to the list.
    Initial contribution by Michael Vogt.  (LP: #1384859)
- * Support multiple configuration files, as in a ``config.d`` directory.  Now,
+ * Support multiple configuration files, as in a `config.d` directory.  Now,
    configuration files are named `NN_whatever.ini` where "NN" must be a
    numeric prefix.  Files are loaded in sorted numeric order, with later files
-   overriding newer files.  Support for both the ``client.ini`` and
-   ``channel.ini`` files has been removed. (LP: #1373467)
- * The ``[system]build_file`` variable has been removed.  Build number
-   information now must come from the ``.ini`` files, and last update date
-   comes from the newest ``.ini`` file loaded.
- * The ``-C`` command line option now takes a path to the configuration
+   overriding newer files.  Support for both the `client.ini` and
+   `channel.ini` files has been removed. (LP: #1373467)
+ * The `[system]build_file` variable has been removed.  Build number
+   information now must come from the `.ini` files, and last update date
+   comes from the newest `.ini` file loaded.
+ * The `-C` command line option now takes a path to the configuration
    directory.
  * Reworked the checking and downloading locks/flags to so that they will work
    better with configuration reloading.  (LP: #1412698)
- * Support for the ``/etc/ubuntu-build`` file has been removed.  The build
+ * Support for the `/etc/ubuntu-build` file has been removed.  The build
    number now comes from the configuration files.  (LP: #1377312)
- * Move the ``archive-master.tar.xz`` file to ``/usr/share/system-image`` for
+ * Move the `archive-master.tar.xz` file to `/usr/share/system-image` for
    better FHS compliance.  (LP: #1377184)
- * Since devices do not always reboot to apply changes, the ``[hooks]update``
-   variable has been renamed to ``[hooks]apply``.  (LP: #1381538)
- * For testing purposes only, ``system-image-cli`` now supports an
-   undocumented command line switch ``--skip-gpg-verification``.  Originally
+ * Since devices do not always reboot to apply changes, the `[hooks]update`
+   variable has been renamed to `[hooks]apply`.  (LP: #1381538)
+ * For testing purposes only, `system-image-cli` now supports an
+   undocumented command line switch `--skip-gpg-verification`.  Originally
    given by Jani Monoses.  (LP: #1333414)
- * A new D-Bus signal ``Applied(bool)`` is added, which is returned in
-   response to the ``ApplyUpdate()`` asynchronous method call.  For devices
+ * A new D-Bus signal `Applied(bool)` is added, which is returned in
+   response to the `ApplyUpdate()` asynchronous method call.  For devices
    which do not need to reboot in order to apply the update, this is the only
    signal you will get.  If your device needs to reboot you will also receive
-   the ``Rebooting(bool)`` command as with earlier versions.  The semantics of
+   the `Rebooting(bool)` command as with earlier versions.  The semantics of
    the flag argument are the same in both cases, as are the race timing issues
-   inherent in these signals.  See the ``system-image-dbus(8)`` manpage for
+   inherent in these signals.  See the `system-image-dbus(8)` manpage for
    details.  (LP: #1417176)
- * As part of LP: #1417176, the ``--no-reboot`` switch for
-   ``system-image-cli(1)`` has been deprecated.  Use ``--no-apply`` instead
-   (``-g`` is still the shortcut).
+ * As part of LP: #1417176, the `--no-reboot` switch for
+   `system-image-cli(1)` has been deprecated.  Use `--no-apply` instead
+   (`-g` is still the shortcut).
  * Support production factory resets.  `system-image-cli --production-reset`
    and a new D-Bus API method `ProductionReset()` are added.  Given by Ricardo
    Salveti.  (LP: #1419027)
- * A new key, ``target_version_detail`` has been added to the dictionary
-   returned by the ``.Information()`` D-Bus method.  (LP: #1399687)
- * The ``User-Agent`` HTTP header now also includes device and channel names.
+ * A new key, `target_version_detail` has been added to the dictionary
+   returned by the `.Information()` D-Bus method.  (LP: #1399687)
+ * The `User-Agent` HTTP header now also includes device and channel names.
    (LP: #1387719)
+ * Added `--progress` flag to `system-image-cli` for specifying methods for
+   reporting progress.  Current available values are: `dots` (compatible with
+   system-image 2.5), `logfile` (compatible with system-image 2.5's
+   `--verbose` flag), and `json` for JSON records on stdout.  (LP: #1423622)
 
 2.5.1 (2014-10-21)
 ==================

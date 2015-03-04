@@ -26,7 +26,6 @@ import logging
 
 from systemimage.apply import factory_reset, production_reset
 from systemimage.state import State
-from unittest.mock import patch
 
 
 log = logging.getLogger('systemimage')
@@ -119,8 +118,12 @@ class Mediator:
     def download(self):
         """Download the available update."""
         # We only want callback progress during the actual download.
-        with patch.object(self._state.downloader, 'callback', self._callback):
+        old_callbacks = self._state.downloader.callbacks[:]
+        try:
+            self._state.downloader.callbacks = [self._callback]
             self._state.run_until('apply')
+        finally:
+            self._state.downloader.callbacks = old_callbacks
 
     def apply(self):
         """Apply the update."""
