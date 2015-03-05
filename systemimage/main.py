@@ -73,10 +73,13 @@ class _LogfileProgress:
 
 def _json_progress(received, total):
     # For use with --progress=json output.  LP: #1423622
-    print(json.dumps(dict(
+    message = json.dumps(dict(
         type='progress',
         now=received,
-        total=total)))
+        total=total))
+    sys.stdout.write(message)
+    sys.stdout.write('\n')
+    sys.stdout.flush()
 
 
 def main():
@@ -379,6 +382,8 @@ Your upgrades are INSECURE.""", file=sys.stderr)
             return 0
         except Exception:
             log.exception('system-image-cli exception')
+            print('Exception occurred during update; see log file for details',
+                  file=sys.stderr)
             return 1
         else:
             return 0

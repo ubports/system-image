@@ -1513,7 +1513,8 @@ class TestCLIProgress(ServerTestBase):
         self._setup_server_keyrings()
         stdout = StringIO()
         with ExitStack() as resources:
-            resources.enter_context(capture_print(stdout))
+            resources.enter_context(
+                patch('systemimage.main.sys.stdout', stdout))
             resources.enter_context(
                 argv('-C', config_d, '-b', '0', '--no-reboot',
                      '--progress', 'json'))
@@ -1567,7 +1568,8 @@ class TestCLIProgress(ServerTestBase):
                 patch('systemimage.main.LINE_LENGTH', 10))
             resources.enter_context(
                 patch('systemimage.main.sys.stderr', stderr))
-            resources.enter_context(capture_print(stdout))
+            resources.enter_context(
+                patch('systemimage.main.sys.stdout', stdout))
             resources.enter_context(
                 patch('systemimage.main._LogfileProgress', Testable))
             resources.enter_context(
