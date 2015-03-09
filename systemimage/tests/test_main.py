@@ -53,10 +53,9 @@ from systemimage.config import Configuration, config
 from systemimage.helpers import safe_remove
 from systemimage.main import main as cli_main
 from systemimage.settings import Settings
-from systemimage.testing.controller import HUP_SLEEP
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, data_path, find_dbus_process,
-    sign, temporary_directory, touch_build)
+    sign, temporary_directory, touch_build, wait_for_service)
 from systemimage.testing.nose import SystemImagePlugin
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
@@ -1359,7 +1358,7 @@ class TestDBusMainNoConfigD(unittest.TestCase):
         iface = dbus.Interface(service, 'com.canonical.SystemImage')
         try:
             iface.Exit()
-            time.sleep(HUP_SLEEP)
+            wait_for_service(reload=False)
         except DBusException:
             pass
         # Try to start a new process with a bogus configuration directory.

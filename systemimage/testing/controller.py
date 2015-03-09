@@ -25,7 +25,6 @@ import os
 import pwd
 import sys
 import dbus
-import time
 import psutil
 import subprocess
 
@@ -39,7 +38,7 @@ from distutils.spawn import find_executable
 from pkg_resources import resource_string as resource_bytes
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
-    data_path, find_dbus_process, makedirs, reset_envar)
+    data_path, find_dbus_process, makedirs, reset_envar, wait_for_service)
 from unittest.mock import patch
 
 
@@ -203,16 +202,7 @@ class Controller:
             self._stoppers.append(stopper)
         # If the dbus-daemon is running, reload its configuration files.
         if self.daemon_pid is not None:
-            service = dbus.SystemBus().get_object('org.freedesktop.DBus', '/')
-            iface = dbus.Interface(service, 'org.freedesktop.DBus')
-            iface.ReloadConfig()
-            # Wait until the system-image-dbus process is actually running.
-            # http://people.freedesktop.org/~david/eggdbus-20091014/eggdbus-interface-org.freedesktop.DBus.html#eggdbus-method-org.freedesktop.DBus.StartServiceByName
-            reply = 0
-            while reply != 2:
-                reply = iface.StartServiceByName(
-                    'com.canonical.SystemImage', 0)
-                time.sleep(0.1)
+            wait_for_service()
 
     def _set_udm_certs(self, cert_pem, certificate_path):
         self.udm_certs = (

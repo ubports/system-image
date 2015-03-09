@@ -34,13 +34,16 @@ __all__ = [
     'setup_keyrings',
     'sign',
     'touch_build',
+    'wait_for_service',
     'write_bytes',
     ]
 
 
 import os
 import ssl
+import dbus
 import json
+import time
 import gnupg
 import psutil
 import shutil
@@ -620,3 +623,19 @@ def descriptions(path):
         # matter.
         descriptions.extend(image.descriptions.values())
     return descriptions
+
+
+def wait_for_service(*, reload=True):
+    service = dbus.SystemBus().get_object('org.freedesktop.DBus', '/')
+    iface = dbus.Interface(service, 'org.freedesktop.DBus')
+    if reload:
+        iface.ReloadConfig()
+    # Wait until the system-image-dbus process is actually running.
+    # http://people.freedesktop.org/~david/eggdbus-20091014/eggdbus-interface-org.freedesktop.DBus.html#eggdbus-method-org.freedesktop.DBus.StartServiceByName
+    reply = 0
+    # 2015-03-09 BAW: This could potentially spin forever, but we'll assume
+    # D-Bus eventually is successful in starting the service.
+    while reply != 2:
+        reply = iface.StartServiceByName(
+            'com.canonical.SystemImage', 0)
+        time.sleep(0.1)
