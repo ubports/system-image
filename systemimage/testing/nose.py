@@ -28,7 +28,7 @@ from dbus.mainloop.glib import DBusGMainLoop
 from nose2.events import Plugin
 from systemimage.config import config
 from systemimage.logging import initialize
-from systemimage.testing.controller import Controller, HUP_SLEEP
+from systemimage.testing.controller import Controller
 from systemimage.testing.helpers import configuration
 
 
@@ -137,7 +137,6 @@ class SystemImagePlugin(Plugin):
                 event.excludedNames.append(name)
 
     def afterTestRun(self, event):
-        time.sleep(HUP_SLEEP)
         SystemImagePlugin.controller.stop()
         # Let other plugins continue printing.
         return None

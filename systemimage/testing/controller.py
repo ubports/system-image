@@ -44,9 +44,6 @@ from unittest.mock import patch
 
 
 SPACE = ' '
-OVERRIDE = os.environ.get('SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS')
-HUP_SLEEP = (0 if OVERRIDE is None else int(OVERRIDE))
-
 DLSERVICE = os.environ.get(
     'SYSTEMIMAGE_DLSERVICE',
     '/usr/bin/ubuntu-download-manager'
@@ -209,7 +206,13 @@ class Controller:
             service = dbus.SystemBus().get_object('org.freedesktop.DBus', '/')
             iface = dbus.Interface(service, 'org.freedesktop.DBus')
             iface.ReloadConfig()
-            time.sleep(HUP_SLEEP)
+            # Wait until the system-image-dbus process is actually running.
+            # http://people.freedesktop.org/~david/eggdbus-20091014/eggdbus-interface-org.freedesktop.DBus.html#eggdbus-method-org.freedesktop.DBus.StartServiceByName
+            reply = 0
+            while reply != 2:
+                reply = iface.StartServiceByName(
+                    'com.canonical.SystemImage', 0)
+                time.sleep(0.1)
 
     def _set_udm_certs(self, cert_pem, certificate_path):
         self.udm_certs = (
