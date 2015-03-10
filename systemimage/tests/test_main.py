@@ -1217,7 +1217,9 @@ class TestCLISettings(unittest.TestCase):
 
 class TestDBusMain(unittest.TestCase):
     def setUp(self):
+        super().setUp()
         self._stack = ExitStack()
+        self._iface = None
         try:
             config_d = SystemImagePlugin.controller.ini_path
             override = os.path.join(config_d, '06_override.ini')
@@ -1225,23 +1227,35 @@ class TestDBusMain(unittest.TestCase):
             with open(override, 'w', encoding='utf-8') as fp:
                 print('[dbus]\nlifetime: 3s\n', file=fp)
             SystemImagePlugin.controller.set_mode()
+            # The testing framework will have caused system-image-dbus to be
+            # started by now.  The tests below assume it is not yet running, so
+            # let's be sure to stop it.
+            self._terminate()
         except:
             self._stack.close()
             raise
 
     def tearDown(self):
-        bus = dbus.SystemBus()
-        service = bus.get_object('com.canonical.SystemImage', '/Service')
-        iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        iface.Exit()
-        self._stack.close()
+        try:
+            self._terminate()
+        finally:
+            self._stack.close()
+
+    def _terminate(self):
+        if self._iface is None:
+            bus = dbus.SystemBus()
+            service = bus.get_object('com.canonical.SystemImage', '/Service')
+            self._iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        self._iface.Exit()
+        self._iface = None
 
     def _activate(self):
-        # Start the D-Bus service.
+        # Re-start and reload the D-Bus service.
+        wait_for_service()
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
-        iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        return iface.Information()
+        self._iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        return self._iface.Information()
 
     def test_service_exits(self):
         # The dbus service automatically exits after a set amount of time.
@@ -1256,6 +1270,7 @@ class TestDBusMain(unittest.TestCase):
         # raised.  Let this propagate up as a test failure.
         process.wait(timeout=6)
         self.assertFalse(process.is_running())
+        self._iface = None
 
     def test_service_keepalive(self):
         # Proactively calling methods on the service keeps it alive.
@@ -1267,7 +1282,7 @@ class TestDBusMain(unittest.TestCase):
         # Normally the process would exit after 3 seconds, but we'll keep it
         # alive for a bit.
         for i in range(3):
-            self._activate()
+            self._iface.Information()
             time.sleep(2)
         self.assertTrue(process.is_running())
 

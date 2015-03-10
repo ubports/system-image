@@ -63,7 +63,8 @@ from systemimage.reactor import Reactor
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
     copy, data_path, find_dbus_process, make_http_server, setup_index,
-    setup_keyring_txz, setup_keyrings, sign, touch_build, write_bytes)
+    setup_keyring_txz, setup_keyrings, sign, touch_build, wait_for_service,
+    write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
 
 
@@ -1992,6 +1993,13 @@ cache_partition: {}
         safe_remove(cls.override)
         shutil.rmtree(str(cls.bad_path))
         super().tearDownClass()
+
+    def setUp(self):
+        # wait_for_service() must be called befor the upcall to setUp(),
+        # otherwise self will have an iface attribute pointing to a defunct
+        # proxy.
+        wait_for_service(restart=True)
+        super().setUp()
 
     def tearDown(self):
         self.bad_path.chmod(0o777)

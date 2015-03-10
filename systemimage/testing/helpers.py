@@ -625,7 +625,12 @@ def descriptions(path):
     return descriptions
 
 
-def wait_for_service(*, reload=True):
+def wait_for_service(*, restart=False, reload=True):
+    bus = dbus.SystemBus()
+    if restart:
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        iface.Exit()
     service = dbus.SystemBus().get_object('org.freedesktop.DBus', '/')
     iface = dbus.Interface(service, 'org.freedesktop.DBus')
     if reload:
@@ -636,6 +641,5 @@ def wait_for_service(*, reload=True):
     # 2015-03-09 BAW: This could potentially spin forever, but we'll assume
     # D-Bus eventually is successful in starting the service.
     while reply != 2:
-        reply = iface.StartServiceByName(
-            'com.canonical.SystemImage', 0)
+        reply = iface.StartServiceByName('com.canonical.SystemImage', 0)
         time.sleep(0.1)
