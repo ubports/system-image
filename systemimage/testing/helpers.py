@@ -33,6 +33,7 @@ __all__ = [
     'setup_keyring_txz',
     'setup_keyrings',
     'sign',
+    'terminate_service',
     'touch_build',
     'wait_for_service',
     'write_bytes',
@@ -643,3 +644,15 @@ def wait_for_service(*, restart=False, reload=True):
     while reply != 2:
         reply = iface.StartServiceByName('com.canonical.SystemImage', 0)
         time.sleep(0.1)
+
+
+def terminate_service():
+    # Avoid circular imports.
+    from systemimage.testing.nose import SystemImagePlugin
+    proc = find_dbus_process(SystemImagePlugin.controller.ini_path)
+    if proc is not None:
+        bus = dbus.SystemBus()
+        service = bus.get_object('com.canonical.SystemImage', '/Service')
+        iface = dbus.Interface(service, 'com.canonical.SystemImage')
+        iface.Exit()
+        proc.wait()

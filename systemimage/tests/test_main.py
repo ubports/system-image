@@ -55,7 +55,8 @@ from systemimage.main import main as cli_main
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, data_path, find_dbus_process,
-    sign, temporary_directory, touch_build, wait_for_service)
+    sign, temporary_directory, terminate_service, touch_build,
+    wait_for_service)
 from systemimage.testing.nose import SystemImagePlugin
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
@@ -1219,7 +1220,6 @@ class TestDBusMain(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._stack = ExitStack()
-        self._iface = None
         try:
             config_d = SystemImagePlugin.controller.ini_path
             override = os.path.join(config_d, '06_override.ini')
@@ -1230,24 +1230,16 @@ class TestDBusMain(unittest.TestCase):
             # The testing framework will have caused system-image-dbus to be
             # started by now.  The tests below assume it is not yet running, so
             # let's be sure to stop it.
-            self._terminate()
+            terminate_service()
         except:
             self._stack.close()
             raise
 
     def tearDown(self):
         try:
-            self._terminate()
+            terminate_service()
         finally:
             self._stack.close()
-
-    def _terminate(self):
-        if self._iface is None:
-            bus = dbus.SystemBus()
-            service = bus.get_object('com.canonical.SystemImage', '/Service')
-            self._iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        self._iface.Exit()
-        self._iface = None
 
     def _activate(self):
         # Re-start and reload the D-Bus service.
@@ -1270,7 +1262,6 @@ class TestDBusMain(unittest.TestCase):
         # raised.  Let this propagate up as a test failure.
         process.wait(timeout=6)
         self.assertFalse(process.is_running())
-        self._iface = None
 
     def test_service_keepalive(self):
         # Proactively calling methods on the service keeps it alive.
