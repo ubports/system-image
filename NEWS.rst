@@ -55,6 +55,8 @@ NEWS for system-image updater
    reporting progress.  Current available values are: `dots` (compatible with
    system-image 2.5), `logfile` (compatible with system-image 2.5's
    `--verbose` flag), and `json` for JSON records on stdout.  (LP: #1423622)
+ * Support for the `SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS` environment
+   variable has been removed.
 
 2.5.1 (2014-10-21)
 ==================
