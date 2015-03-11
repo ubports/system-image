@@ -25,6 +25,7 @@ import os
 import pwd
 import sys
 import dbus
+import time
 import psutil
 import subprocess
 
@@ -87,12 +88,14 @@ def _find_udm_process():
 
 
 def start_downloader(controller):
-    bus = dbus.SystemBus()
-    service = bus.get_object('com.canonical.applications.Downloader', '/')
-    iface = dbus.Interface(
-        service, 'com.canonical.applications.DownloadManager')
+    service = dbus.SystemBus().get_object('org.freedesktop.DBus', '/')
+    iface = dbus.Interface(service, 'org.freedesktop.DBus')
+    reply = 0
+    while reply != 2:
+        reply = iface.StartServiceByName(
+            'com.canonical.applications.Downloader', 0)
+        time.sleep(0.1)
     # Something innocuous.
-    iface.defaultThrottle()
     process = _find_udm_process()
     if process is None:
         raise RuntimeError('Could not start ubuntu-download-manager')
