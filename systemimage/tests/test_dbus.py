@@ -63,8 +63,8 @@ from systemimage.reactor import Reactor
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
     copy, data_path, find_dbus_process, make_http_server, setup_index,
-    setup_keyring_txz, setup_keyrings, sign, touch_build, wait_for_service,
-    write_bytes)
+    setup_keyring_txz, setup_keyrings, sign, terminate_service, touch_build,
+    wait_for_service, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
 
 
@@ -790,8 +790,10 @@ class TestDBusApply(_LiveTesting):
 
     def test_exit(self):
         # There is a D-Bus method to exit the server immediately.
+        proc = find_dbus_process(SystemImagePlugin.controller.ini_path)
         self.iface.Exit()
-        self.assertRaises(DBusException, self.iface.Info)
+        proc.wait()
+        self.assertRaises(DBusException, self.iface.Information)
         # Re-establish a new connection.
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
@@ -1328,7 +1330,7 @@ class TestDBusGetSet(_TestBase):
         # Set a key, restart the dbus server, and the key's value persists.
         self.iface.SetSetting('permanent', 'waves')
         self.assertEqual(self.iface.GetSetting('permanent'), 'waves')
-        self.iface.Exit()
+        terminate_service()
         self.assertRaises(DBusException, self.iface.GetSetting, 'permanent')
         # Re-establish a new connection.
         bus = dbus.SystemBus()
@@ -1821,13 +1823,10 @@ class TestDBusUseCache(_LiveTesting):
             path = os.path.join(config.updater.cache_partition, filename)
             if filename.endswith('.txt') or filename.endswith('.txt.asc'):
                 mtimes[filename] = os.stat(path).st_mtime_ns
-        # Don't issue the reboot.  Instead, kill the services, which throws
-        # away all state, but does not delete the cached files.
-        # Re-establish a new connection.
-        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
-        if process is not None:
-            self.iface.Exit()
-            process.wait(60)
+        # Don't issue the reboot.  Instead, kill the service, which throws away
+        # all state, but does not delete the cached files.  Re-establish a new
+        # connection.
+        terminate_service()
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')

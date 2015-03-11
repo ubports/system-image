@@ -45,7 +45,6 @@ import subprocess
 
 from contextlib import ExitStack, contextmanager
 from datetime import datetime
-from dbus.exceptions import DBusException
 from functools import partial
 from io import StringIO
 from pathlib import Path
@@ -1356,17 +1355,8 @@ class TestDBusMainNoConfigD(unittest.TestCase):
     def test_start_with_missing_config_d(self):
         # Trying to start the D-Bus service with a configuration directory
         # that doesn't exist yields an error.
-        #
-        # First stop any existing D-Bus service, but it's okay if it's not
-        # running.
-        bus = dbus.SystemBus()
-        service = bus.get_object('com.canonical.SystemImage', '/Service')
-        iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        try:
-            iface.Exit()
-            wait_for_service(reload=False)
-        except DBusException:
-            pass
+        terminate_service()
+        wait_for_service(reload=False)
         # Try to start a new process with a bogus configuration directory.
         env = dict(
             DBUS_SYSTEM_BUS_ADDRESS=os.environ['DBUS_SYSTEM_BUS_ADDRESS'])
