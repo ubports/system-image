@@ -91,9 +91,9 @@ def main():
                         version='system-image-cli {}'.format(__version__))
     parser.add_argument('-C', '--config',
                         default=DEFAULT_CONFIG_D, action='store',
-                        metavar='FILE',
-                        help="""Use the given configuration file instead of
-                                the default""")
+                        metavar='DIRECTORY',
+                        help="""Use the given configuration directory instead 
+                                of the default""")
     parser.add_argument('-b', '--build',
                         default=None, action='store',
                         help="""Override the current build number just

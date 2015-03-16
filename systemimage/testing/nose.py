@@ -21,7 +21,6 @@ __all__ = [
 
 
 import re
-import time
 import atexit
 
 from dbus.mainloop.glib import DBusGMainLoop
