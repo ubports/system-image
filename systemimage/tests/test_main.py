@@ -1220,12 +1220,12 @@ class TestDBusMain(unittest.TestCase):
         super().setUp()
         self._stack = ExitStack()
         try:
+            SystemImagePlugin.controller.set_mode()
             config_d = SystemImagePlugin.controller.ini_path
             override = os.path.join(config_d, '06_override.ini')
             self._stack.callback(safe_remove, override)
             with open(override, 'w', encoding='utf-8') as fp:
                 print('[dbus]\nlifetime: 3s\n', file=fp)
-            SystemImagePlugin.controller.set_mode()
             # The testing framework will have caused system-image-dbus to be
             # started by now.  The tests below assume it is not yet running, so
             # let's be sure to stop it.

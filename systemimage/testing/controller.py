@@ -53,10 +53,7 @@ DLSERVICE = os.environ.get(
 
 
 def start_system_image(controller):
-    bus = dbus.SystemBus()
-    service = bus.get_object('com.canonical.SystemImage', '/Service')
-    iface = dbus.Interface(service, 'com.canonical.SystemImage')
-    iface.Info()
+    wait_for_service(reload=False)
     process = find_dbus_process(controller.ini_path)
     if process is None:
         raise RuntimeError('Could not start system-image-dbus')
@@ -149,6 +146,7 @@ class Controller:
     MODULE = 'systemimage.testing.service'
 
     def __init__(self, logfile=None, loglevel='info'):
+        self.loglevel = loglevel
         # Non-public.
         self._stack = ExitStack()
         self._stoppers = []
@@ -170,21 +168,27 @@ class Controller:
         with open(self.config_path, 'w', encoding='utf-8') as fp:
             fp.write(config)
         # We need a client.ini file for the subprocess.
-        ini_tmpdir = self._stack.enter_context(temporary_directory())
-        ini_vardir = self._stack.enter_context(temporary_directory())
-        ini_logfile = (os.path.join(ini_tmpdir, 'client.log')
-                       if logfile is None
-                       else logfile)
+        self.ini_tmpdir = self._stack.enter_context(temporary_directory())
+        self.ini_vardir = self._stack.enter_context(temporary_directory())
+        self.ini_logfile = (os.path.join(self.ini_tmpdir, 'client.log')
+                            if logfile is None
+                            else logfile)
         self.ini_path = os.path.join(self.tmpdir, 'config.d')
         makedirs(self.ini_path)
+        self._reset_configs()
+
+    def _reset_configs(self):
+        for filename in os.listdir(self.ini_path):
+            if filename.endswith('.ini'):
+                os.remove(os.path.join(self.ini_path, filename))
         template = resource_bytes(
             'systemimage.tests.data', '01.ini').decode('utf-8')
         defaults = os.path.join(self.ini_path, '00_defaults.ini')
         with open(defaults, 'w', encoding='utf-8') as fp:
-            print(template.format(tmpdir=ini_tmpdir,
-                                  vardir=ini_vardir,
-                                  logfile=ini_logfile,
-                                  loglevel=loglevel),
+            print(template.format(tmpdir=self.ini_tmpdir,
+                                  vardir=self.ini_vardir,
+                                  logfile=self.ini_logfile,
+                                  loglevel=self.loglevel),
                   file=fp)
 
     def _configure_services(self):
@@ -239,6 +243,7 @@ class Controller:
             self._set_curl_certs(cert_pem, certificate_path)
         else:
             self._set_udm_certs(cert_pem, certificate_path)
+        self._reset_configs()
         self._configure_services()
 
     def _start(self):
