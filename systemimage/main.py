@@ -311,11 +311,16 @@ Your upgrades are INSECURE.""", file=sys.stderr)
             print('version {}: {}'.format(key, details[key]))
         return 0
 
+    DBusGMainLoop(set_as_default=True)
+
     if args.list_channels:
         state = State()
         try:
             state.run_thru('get_channel')
         except Exception:
+            print('Exception occurred during channel search; '
+                  'see log file for details',
+                  file=sys.stderr)
             log.exception('system-image-cli exception')
             return 1
         print('Available channels:')
@@ -327,7 +332,6 @@ Your upgrades are INSECURE.""", file=sys.stderr)
                 print('    {} (alias for: {})'.format(key, alias))
         return 0
 
-    DBusGMainLoop(set_as_default=True)
     state = State(candidate_filter=candidate_filter)
 
     for meter in args.progress:
@@ -345,6 +349,9 @@ Your upgrades are INSECURE.""", file=sys.stderr)
         try:
             state.run_until('download_files')
         except Exception:
+            print('Exception occurred during dry-run; '
+                  'see log file for details',
+                  file=sys.stderr)
             log.exception('system-image-cli exception')
             return 1
         # Say -c <no-such-channel> was given.  This will fail.
@@ -381,9 +388,9 @@ Your upgrades are INSECURE.""", file=sys.stderr)
         except KeyboardInterrupt:                   # pragma: no cover
             return 0
         except Exception:
-            log.exception('system-image-cli exception')
             print('Exception occurred during update; see log file for details',
                   file=sys.stderr)
+            log.exception('system-image-cli exception')
             return 1
         else:
             return 0

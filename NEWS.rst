@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-3.0 (2015-XX-XX)
+3.0 (2015-04-24)
 ================
  * Support a built-in PyCURL-based downloader in addition to the traditional
    ubuntu-download-manager (over D-BUS) downloader.  Auto-detects which
@@ -57,6 +57,7 @@ NEWS for system-image updater
    `--verbose` flag), and `json` for JSON records on stdout.  (LP: #1423622)
  * Support for the `SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS` environment
    variable has been removed.
+ * Fix `system-image-cli --list-channels`.  (LP: #1448153)
 
 2.5.1 (2014-10-21)
 ==================
