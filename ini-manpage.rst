@@ -1,39 +1,43 @@
-==========
-client.ini
-==========
+================
+system-image.ini
+================
 
 
------------------------------------------------
-Ubuntu System Image Upgrader configuration file
------------------------------------------------
+------------------------------------------------
+Ubuntu System Image Upgrader configuration files
+------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2014-09-11
-:Copyright: 2013-2014 Canonical Ltd.
-:Version: 2.4
+:Date: 2015-01-15
+:Copyright: 2013-2015 Canonical Ltd.
+:Version: 3.0
 :Manual section: 5
 
 
 DESCRIPTION
 ===========
 
-``/etc/system-image/client.ini`` is the configuration file for the system
-image upgrader.  It is an ini-style configuration file with sections that
-define the service to connect to, as well as local system resources.
-Generally, the options never need to be changed.
+``/etc/system-image/config.d`` is the default configuration directory for the
+system image upgrader.  It contains ini-style configuration files with
+sections that define the service to connect to, as well as local system
+resources.  Generally, the options never need to be changed.
 
-The system image upgrader will also optionally read a
-``/etc/system-image/channel.ini`` file with the same format as ``client.ini``.
-This file should only contain a ``[service]`` section for overriding in the
-``client.ini`` file.  All other sections are ignored.
+The system image upgrader will read all files in this directory that start
+with a numeric prefix, followed by an underscore, and then any alphanumeric
+suffix, ending in ``.ini``.  E.g. ``07_myconfig.ini``.
+
+The files are read in sorted numerical order, from lowest prefix number to
+highest, with later configuration files able to override any variable in any
+section.
 
 
 SYNTAX
 ======
 
-Sections are delimited by square brackets, e.g. ``[service]``.  Variables
-inside the service separate the variable name and value by a colon.  Blank
-lines and lines that start with a ``#`` are ignored.
+Sections in the ``.ini`` files are delimited by square brackets,
+e.g. ``[service]``.  Variables inside the service separate the variable name
+and value by a colon.  Blank lines and lines that start with a ``#`` are
+ignored.
 
 
 THE SERVICE SECTION
@@ -81,10 +85,6 @@ appropriate to the given device on the given schedule.  The specification for
 these paths is given in `[1]`_.
 
 This section contains the following variables:
-
-build_file
-    The file on the local file system containing the system's current build
-    number.
 
 tempdir
     The base temporary directory on the local file system.  When any of the
@@ -181,9 +181,11 @@ scorer
     The Python import path to the class implementing the upgrade scoring
     algorithm.
 
-reboot
-    The Python import path to the class that implements the system reboot
-    command.
+apply
+    The Python import path to the class that implements the mechanism for
+    applying the update.  This often reboots the device.
+
+    *New in system-image 3.0: ``reboot`` was renamed to ``apply``*
 
 
 THE DBUS SECTION
@@ -203,6 +205,7 @@ SEE ALSO
 ========
 
 system-image-cli(1)
+
 
 [1]: https://wiki.ubuntu.com/ImageBasedUpgrades/Server
 

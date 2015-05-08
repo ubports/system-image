@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -188,6 +188,11 @@ class Context:
         :type data_path: str
         :return: bool
         """
+        # For testing on some systems that are connecting to test servers, GPG
+        # verification isn't possible.  The s-i-cli supports a switch to
+        # disable all GPG checks.
+        if config.skip_gpg_verification:
+            return True
         with open(signature_path, 'rb') as sig_fp:
             verified = self._ctx.verify_file(sig_fp, data_path)
         # If the file is properly signed, we'll be able to get back a set of

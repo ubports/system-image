@@ -1,0 +1,56 @@
+{
+    "daily": {
+        "alias": "saucy",
+        "devices": {
+            "grouper": {
+                "index": "/daily/grouper/index.json"
+            },
+            "maguro": {
+                "index": "/daily/maguro/index.json"
+            },
+            "mako": {
+                "index": "/daily/mako/index.json"
+            },
+            "manta": {
+                "index": "/daily/manta/index.json"
+            }
+        }
+    },
+    "saucy": {
+        "devices": {
+            "grouper": {
+                "index": "/saucy/grouper/index.json"
+            },
+            "maguro": {
+                "index": "/saucy/maguro/index.json"
+            },
+            "mako": {
+                "index": "/saucy/mako/index.json"
+            },
+            "manta": {
+                "index": "/saucy/manta/index.json",
+                "keyring": {
+                    "path": "/saucy/manta/device-signing.tar.xz",
+                    "signature": "/saucy/manta/device-signing.tar.xz.asc"
+                }
+            }
+        }
+    },
+    "saucy-proposed": {
+        "hidden": true,
+        "devices": {
+            "grouper": {
+                "index": "/saucy-proposed/grouper/index.json"
+            },
+            "maguro": {
+                "index": "/saucy-proposed/maguro/index.json"
+            },
+            "mako": {
+                "index": "/saucy-proposed/mako/index.json"
+            },
+            "manta": {
+                "index": "/saucy-proposed/manta/index.json"
+            }
+        }
+    }
+}

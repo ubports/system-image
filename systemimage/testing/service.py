@@ -1,4 +1,4 @@
-# Copyright (C) 2014 Canonical Ltd.
+# Copyright (C) 2014-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,22 @@ This is arranged so that the test suite can enable code coverage data
 collection as early as possible in the private bus D-Bus activated processes.
 """
 
+# Uncomment this if the controller won't start.  There's no other good way to
+# get debugging information about the D-Bus activated process, since their
+# stderr just seems to get lost.
+## import sys
+## sys.stderr = open('/tmp/debug.log', 'a', encoding='utf-8')
+
+
 import os
+
+# Set this environment variable if the controller won't start.  There's no
+# other good way to get debugging information about the D-Bus activated
+# process, since their stderr just seems to get lost.
+if os.environ.get('SYSTEMIMAGE_DEBUG_DBUS_ACTIVATION'):
+    import sys
+    sys.stderr = open('/tmp/debug.log', 'a', encoding='utf-8')
+
 
 # It's okay if this module isn't available.
 try:

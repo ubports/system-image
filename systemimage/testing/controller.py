@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -29,24 +29,31 @@ import time
 import psutil
 import subprocess
 
+try:
+    import pycurl
+except ImportError:
+    pycurl = None
+
 from contextlib import ExitStack
 from distutils.spawn import find_executable
 from pkg_resources import resource_string as resource_bytes
 from systemimage.helpers import temporary_directory
 from systemimage.testing.helpers import (
-    data_path, find_dbus_process, reset_envar)
+    data_path, find_dbus_process, makedirs, reset_envar, wait_for_service)
+from unittest.mock import patch
 
 
 SPACE = ' '
-OVERRIDE = os.environ.get('SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS')
-HUP_SLEEP = (0 if OVERRIDE is None else int(OVERRIDE))
+DLSERVICE = os.environ.get(
+    'SYSTEMIMAGE_DLSERVICE',
+    '/usr/bin/ubuntu-download-manager'
+    # For debugging the in-tree version of u-d-m.
+    #'/bin/sh $HOME/projects/phone/trunk/tools/runme.sh'
+    )
 
 
 def start_system_image(controller):
-    bus = dbus.SystemBus()
-    service = bus.get_object('com.canonical.SystemImage', '/Service')
-    iface = dbus.Interface(service, 'com.canonical.SystemImage')
-    iface.Info()
+    wait_for_service(reload=False)
     process = find_dbus_process(controller.ini_path)
     if process is None:
         raise RuntimeError('Could not start system-image-dbus')
@@ -78,12 +85,14 @@ def _find_udm_process():
 
 
 def start_downloader(controller):
-    bus = dbus.SystemBus()
-    service = bus.get_object('com.canonical.applications.Downloader', '/')
-    iface = dbus.Interface(
-        service, 'com.canonical.applications.DownloadManager')
+    service = dbus.SystemBus().get_object('org.freedesktop.DBus', '/')
+    iface = dbus.Interface(service, 'org.freedesktop.DBus')
+    reply = 0
+    while reply != 2:
+        reply = iface.StartServiceByName(
+            'com.canonical.applications.Downloader', 0)
+        time.sleep(0.1)
     # Something innocuous.
-    iface.defaultThrottle()
     process = _find_udm_process()
     if process is None:
         raise RuntimeError('Could not start ubuntu-download-manager')
@@ -105,24 +114,30 @@ def stop_downloader(controller):
         process.wait(60)
 
 
-DLSERVICE = '/usr/bin/ubuntu-download-manager'
-# For debugging the in-tree version of u-d-m.
-#DLSERVICE = '/bin/sh /home/barry/projects/phone/runme'
-
-
 SERVICES = [
    ('com.canonical.SystemImage',
-    '{python} -m {self.MODULE} -C {self.ini_path} --testing {self.mode}',
+    '{python} -m {self.MODULE} -C {self.ini_path} '
+    '{self.curl_cert} --testing {self.mode}',
     start_system_image,
     stop_system_image,
    ),
-   ('com.canonical.applications.Downloader',
+   ]
+
+
+if pycurl is None:
+    USING_PYCURL = False
+else:
+    USING_PYCURL = int(os.environ.get('SYSTEMIMAGE_PYCURL', '0'))
+
+if not USING_PYCURL:
+    SERVICES.append(
+    ('com.canonical.applications.Downloader',
     DLSERVICE +
-        ' {self.certs} -disable-timeout -stoppable -log-dir {self.tmpdir}',
+        ' {self.udm_certs} -disable-timeout -stoppable -log-dir {self.tmpdir}',
     start_downloader,
     stop_downloader,
-   ),
-   ]
+   )
+   )
 
 
 class Controller:
@@ -131,17 +146,19 @@ class Controller:
     MODULE = 'systemimage.testing.service'
 
     def __init__(self, logfile=None, loglevel='info'):
+        self.loglevel = loglevel
         # Non-public.
         self._stack = ExitStack()
         self._stoppers = []
         # Public.
         self.tmpdir = self._stack.enter_context(temporary_directory())
         self.config_path = os.path.join(self.tmpdir, 'dbus-system.conf')
-        self.ini_path = None
         self.serverdir = self._stack.enter_context(temporary_directory())
         self.daemon_pid = None
         self.mode = 'live'
-        self.certs = ''
+        self.udm_certs = ''
+        self.curl_cert = ''
+        self.patcher = None
         # Set up the dbus-daemon system configuration file.
         path = data_path('dbus-system.conf.in')
         with open(path, 'r', encoding='utf-8') as fp:
@@ -151,19 +168,27 @@ class Controller:
         with open(self.config_path, 'w', encoding='utf-8') as fp:
             fp.write(config)
         # We need a client.ini file for the subprocess.
-        ini_tmpdir = self._stack.enter_context(temporary_directory())
-        ini_vardir = self._stack.enter_context(temporary_directory())
-        ini_logfile = (os.path.join(ini_tmpdir, 'client.log')
-                       if logfile is None
-                       else logfile)
-        self.ini_path = os.path.join(self.tmpdir, 'client.ini')
+        self.ini_tmpdir = self._stack.enter_context(temporary_directory())
+        self.ini_vardir = self._stack.enter_context(temporary_directory())
+        self.ini_logfile = (os.path.join(self.ini_tmpdir, 'client.log')
+                            if logfile is None
+                            else logfile)
+        self.ini_path = os.path.join(self.tmpdir, 'config.d')
+        makedirs(self.ini_path)
+        self._reset_configs()
+
+    def _reset_configs(self):
+        for filename in os.listdir(self.ini_path):
+            if filename.endswith('.ini'):
+                os.remove(os.path.join(self.ini_path, filename))
         template = resource_bytes(
-            'systemimage.tests.data', 'config_03.ini').decode('utf-8')
-        with open(self.ini_path, 'w', encoding='utf-8') as fp:
-            print(template.format(tmpdir=ini_tmpdir,
-                                  vardir=ini_vardir,
-                                  logfile=ini_logfile,
-                                  loglevel=loglevel),
+            'systemimage.tests.data', '01.ini').decode('utf-8')
+        defaults = os.path.join(self.ini_path, '00_defaults.ini')
+        with open(defaults, 'w', encoding='utf-8') as fp:
+            print(template.format(tmpdir=self.ini_tmpdir,
+                                  vardir=self.ini_vardir,
+                                  logfile=self.ini_logfile,
+                                  loglevel=self.loglevel),
                   file=fp)
 
     def _configure_services(self):
@@ -184,16 +209,41 @@ class Controller:
             self._stoppers.append(stopper)
         # If the dbus-daemon is running, reload its configuration files.
         if self.daemon_pid is not None:
-            service = dbus.SystemBus().get_object('org.freedesktop.DBus', '/')
-            iface = dbus.Interface(service, 'org.freedesktop.DBus')
-            iface.ReloadConfig()
-            time.sleep(HUP_SLEEP)
+            wait_for_service()
+
+    def _set_udm_certs(self, cert_pem, certificate_path):
+        self.udm_certs = (
+            '' if cert_pem is None
+            else '-self-signed-certs ' + certificate_path)
+
+    def _set_curl_certs(self, cert_pem, certificate_path):
+        # We have to set up the PyCURL downloader's self-signed certificate for
+        # the test in two ways.  First, because we might be spawning the D-Bus
+        # service, we have to pass the path to the cert to that service...
+        self.curl_cert = (
+            '' if cert_pem is None
+            else '--self-signed-cert ' + certificate_path)
+        # ...but the controller is also used to set the mode for foreground
+        # tests, such as test_download.py.  Here we don't spawn any D-Bus
+        # processes, but we still have to mock make_testable() in curl.py so
+        # that the PyCURL object accepts the self-signed cert.
+        if self.patcher is not None:
+            self.patcher.stop()
+            self.patcher = None
+        if cert_pem is not None:
+            def self_sign(c):
+                c.setopt(pycurl.CAINFO, certificate_path)
+            self.patcher = patch('systemimage.curl.make_testable', self_sign)
+            self.patcher.start()
 
     def set_mode(self, *, cert_pem=None, service_mode=''):
         self.mode = service_mode
-        self.certs = (
-            '' if cert_pem is None
-            else '-self-signed-certs ' + data_path(cert_pem))
+        certificate_path = data_path(cert_pem)
+        if USING_PYCURL:
+            self._set_curl_certs(cert_pem, certificate_path)
+        else:
+            self._set_udm_certs(cert_pem, certificate_path)
+        self._reset_configs()
         self._configure_services()
 
     def _start(self):
@@ -213,7 +263,7 @@ class Controller:
             daemon_exe,
             #'/usr/lib/x86_64-linux-gnu/dbus-1.0/debug-build/bin/dbus-daemon',
             '--fork',
-            '--config-file=' + self.config_path,
+            '--config-file=' + str(self.config_path),
             # Return the address and pid on stdout.
             '--print-address=1',
             '--print-pid=1',

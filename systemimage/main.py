@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -21,18 +21,19 @@ __all__ = [
     ]
 
 
-import os
 import sys
+import json
 import logging
 import argparse
 
 from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
+from systemimage.apply import factory_reset, production_reset
 from systemimage.candidates import delta_filter, full_filter
 from systemimage.config import config
-from systemimage.helpers import last_update_date, makedirs, version_detail
+from systemimage.helpers import (
+    last_update_date, makedirs, phased_percentage, version_detail)
 from systemimage.logging import initialize
-from systemimage.reboot import factory_reset
 from systemimage.settings import Settings
 from systemimage.state import State
 from textwrap import dedent
@@ -41,12 +42,47 @@ from textwrap import dedent
 __version__ = resource_bytes(
     'systemimage', 'version.txt').decode('utf-8').strip()
 
-DEFAULT_CONFIG_FILE = '/etc/system-image/client.ini'
+DEFAULT_CONFIG_D = '/etc/system-image/config.d'
 COLON = ':'
+LINE_LENGTH = 78
+
+
+class _DotsProgress:
+    def __init__(self):
+        self._dot_count = 0
+
+    def callback(self, received, total):
+        received = int(received)
+        total = int(total)
+        sys.stderr.write('.')
+        sys.stderr.flush()
+        self._dot_count += 1
+        show_dots = self._dot_count % LINE_LENGTH == 0
+        if show_dots or received >= total:          # pragma: no cover
+            sys.stderr.write('\n')
+            sys.stderr.flush()
+
+
+class _LogfileProgress:
+    def __init__(self, log):
+        self._log = log
+
+    def callback(self, received, total):
+        self._log.debug('received: {} of {} bytes', received, total)
+
+
+def _json_progress(received, total):
+    # For use with --progress=json output.  LP: #1423622
+    message = json.dumps(dict(
+        type='progress',
+        now=received,
+        total=total))
+    sys.stdout.write(message)
+    sys.stdout.write('\n')
+    sys.stdout.flush()
 
 
 def main():
-    global config
     parser = argparse.ArgumentParser(
         prog='system-image-cli',
         description='Ubuntu System Image Upgrader')
@@ -54,10 +90,10 @@ def main():
                         action='version',
                         version='system-image-cli {}'.format(__version__))
     parser.add_argument('-C', '--config',
-                        default=DEFAULT_CONFIG_FILE, action='store',
-                        metavar='FILE',
-                        help="""Use the given configuration file instead of
-                                the default""")
+                        default=DEFAULT_CONFIG_D, action='store',
+                        metavar='DIRECTORY',
+                        help="""Use the given configuration directory instead 
+                                of the default""")
     parser.add_argument('-b', '--build',
                         default=None, action='store',
                         help="""Override the current build number just
@@ -76,12 +112,16 @@ def main():
                                 full updates or only delta updates.  The
                                 argument to this option must be either `full`
                                 or `delta`""")
-    parser.add_argument('-g', '--no-reboot',
+    parser.add_argument('-g', '--no-apply',
                         default=False, action='store_true',
                         help="""Download (i.e. "get") all the data files and
                                 prepare for updating, but don't actually
                                 reboot the device into recovery to apply the
                                 update""")
+    # Deprecated since si 3.0.
+    parser.add_argument('--no-reboot',
+                        default=False, action='store_true',
+                        help="""Deprecated; use -g/--no-apply""")
     parser.add_argument('-i', '--info',
                         default=False, action='store_true',
                         help="""Show some information about the current
@@ -94,6 +134,15 @@ def main():
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
+    parser.add_argument('--progress',
+                        default=[], action='append',
+                        help="""Add a progress meter.  Available meters are:
+                                dots, logfile, and json.  Multiple --progress
+                                options are allowed.""")
+    parser.add_argument('-p', '--percentage',
+                        default=None, action='store',
+                        help="""Override the device's phased percentage value
+                                during upgrade candidate calculation.""")
     parser.add_argument('--list-channels',
                         default=False, action='store_true',
                         help="""List all available channels, then exit""")
@@ -101,6 +150,12 @@ def main():
                         default=False, action='store_true',
                         help="""Perform a destructive factory reset and
                                 reboot.  WARNING: this will wipe all user data
+                                on the device!""")
+    parser.add_argument('--production-reset',
+                        default=False, action='store_true',
+                        help="""Perform a destructive production reset
+                                (similar to factory reset) and reboot.
+                                WARNING: this will wipe all user data
                                 on the device!""")
     parser.add_argument('--switch',
                         default=None, action='store', metavar='CHANNEL',
@@ -128,24 +183,33 @@ def main():
                         help="""Delete the key and its value.  It is a no-op
                                 if the key does not exist.  Multiple
                                 --del arguments can be given.""")
+    # Hidden system-image-cli only feature for testing purposes.  LP: #1333414
+    parser.add_argument('--skip-gpg-verification',
+                        default=False, action='store_true',
+                        help=argparse.SUPPRESS)
 
     args = parser.parse_args(sys.argv[1:])
     try:
         config.load(args.config)
-    except FileNotFoundError as error:
-        parser.error('\nConfiguration file not found: {}'.format(error))
+    except (TypeError, FileNotFoundError):
+        parser.error('\nConfiguration directory not found: {}'.format(
+            args.config))
         assert 'parser.error() does not return' # pragma: no cover
-    # Load the optional channel.ini file, which must live next to the
-    # configuration file.  It's okay if this file does not exist.
-    channel_ini = os.path.join(os.path.dirname(args.config), 'channel.ini')
-    try:
-        config.load(channel_ini, override=True)
-    except FileNotFoundError:
-        pass
 
-    # Perform a factory reset.
+    if args.skip_gpg_verification:
+        print("""\
+WARNING: All GPG signature verifications have been disabled.
+Your upgrades are INSECURE.""", file=sys.stderr)
+        config.skip_gpg_verification = True
+
+    # Perform factory and production resets.
     if args.factory_reset:
         factory_reset()
+        # We should never get here, except possibly during the testing
+        # process, so just return as normal.
+        return 0
+    if args.production_reset:
+        production_reset()
         # We should never get here, except possibly during the testing
         # process, so just return as normal.
         return 0
@@ -213,6 +277,8 @@ def main():
         config.channel = args.channel
     if args.device is not None:
         config.device = args.device
+    if args.percentage is not None:
+        config.phase_override = args.percentage
 
     if args.info:
         alias = getattr(config.service, 'channel_target', None)
@@ -245,11 +311,16 @@ def main():
             print('version {}: {}'.format(key, details[key]))
         return 0
 
+    DBusGMainLoop(set_as_default=True)
+
     if args.list_channels:
         state = State()
         try:
             state.run_thru('get_channel')
         except Exception:
+            print('Exception occurred during channel search; '
+                  'see log file for details',
+                  file=sys.stderr)
             log.exception('system-image-cli exception')
             return 1
         print('Available channels:')
@@ -261,33 +332,26 @@ def main():
                 print('    {} (alias for: {})'.format(key, alias))
         return 0
 
-    # When verbosity is at 1, logging every progress signal from
-    # ubuntu-download-manager would be way too noisy.  OTOH, not printing
-    # anything leads some folks to think the process is just hung, since it
-    # can take a long time to download all the data files.  As a compromise,
-    # we'll output some dots to stderr at verbosity 1, but we won't log these
-    # dots since they would just be noise.  This doesn't have to be perfect.
-    if args.verbose == 1:                           # pragma: no cover
-        dot_count = 0
-        def callback(received, total):
-            nonlocal dot_count
-            sys.stderr.write('.')
-            sys.stderr.flush()
-            dot_count += 1
-            if dot_count % 78 == 0 or received >= total:
-                sys.stderr.write('\n')
-                sys.stderr.flush()
-    else:
-        def callback(received, total):
-            log.debug('received: {} of {} bytes', received, total)
-
-    DBusGMainLoop(set_as_default=True)
     state = State(candidate_filter=candidate_filter)
-    state.downloader.callback = callback
+
+    for meter in args.progress:
+        if meter == 'dots':
+            state.downloader.callbacks.append(_DotsProgress().callback)
+        elif meter == 'json':
+            state.downloader.callbacks.append(_json_progress)
+        elif meter == 'logfile':
+            state.downloader.callbacks.append(_LogfileProgress(log).callback)
+        else:
+            parser.error('Unknown progress meter: {}'.format(meter))
+            assert 'parser.error() does not return' # pragma: no cover
+
     if args.dry_run:
         try:
             state.run_until('download_files')
         except Exception:
+            print('Exception occurred during dry-run; '
+                  'see log file for details',
+                  file=sys.stderr)
             log.exception('system-image-cli exception')
             return 1
         # Say -c <no-such-channel> was given.  This will fail.
@@ -296,16 +360,20 @@ def main():
         else:
             winning_path = [str(image.version) for image in state.winner]
             kws = dict(path=COLON.join(winning_path))
+            target_build = state.winner[-1].version
             if state.channel_switch is None:
                 # We're not switching channels due to an alias change.
                 template = 'Upgrade path is {path}'
+                percentage = phased_percentage(config.channel, target_build)
             else:
                 # This upgrade changes the channel that our alias is mapped
                 # to, so include that information in the output.
                 template = 'Upgrade path is {path} ({from} -> {to})'
                 kws['from'], kws['to'] = state.channel_switch
+                percentage = phased_percentage(kws['to'], target_build)
             print(template.format(**kws))
-        return
+            print('Target phase: {}%'.format(percentage))
+        return 0
     else:
         # Run the state machine to conclusion.  Suppress all exceptions, but
         # note that the state machine will log them.  If an exception occurs,
@@ -313,13 +381,15 @@ def main():
         log.info('running state machine [{}/{}]',
                  config.channel, config.device)
         try:
-            if args.no_reboot:
-                state.run_until('reboot')
+            if args.no_apply or args.no_reboot:
+                state.run_until('apply')
             else:
                 list(state)
         except KeyboardInterrupt:                   # pragma: no cover
             return 0
         except Exception:
+            print('Exception occurred during update; see log file for details',
+                  file=sys.stderr)
             log.exception('system-image-cli exception')
             return 1
         else:

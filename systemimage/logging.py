@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -80,7 +80,9 @@ def _make_handler(path):
 def initialize(*, verbosity=0):
     """Initialize the loggers."""
     main, dbus = config.system.loglevel
-    for name, loglevel in (('systemimage', main), ('systemimage.dbus', dbus)):
+    for name, loglevel in (('systemimage', main),
+                           ('systemimage.dbus', dbus),
+                           ('dbus.proxies', dbus)):
         level = {
             0: logging.ERROR,
             1: logging.INFO,
