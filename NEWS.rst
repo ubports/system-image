@@ -2,7 +2,7 @@
 NEWS for system-image updater
 =============================
 
-3.0 (2015-04-24)
+3.0 (2015-05-08)
 ================
  * Support a built-in PyCURL-based downloader in addition to the traditional
    ubuntu-download-manager (over D-BUS) downloader.  Auto-detects which
