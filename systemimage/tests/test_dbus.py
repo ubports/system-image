@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,9 @@ __all__ = [
     'TestDBusCheckForUpdateToUnwritablePartition',
     'TestDBusCheckForUpdateWithBrokenIndex',
     'TestDBusDownload',
+    'TestDBusDownloadBigFiles',
     'TestDBusFactoryReset',
+    'TestDBusProductionReset',
     'TestDBusGetSet',
     'TestDBusInfo',
     'TestDBusMiscellaneous',
@@ -38,7 +40,6 @@ __all__ = [
     'TestDBusRegressions',
     'TestDBusUseCache',
     'TestLiveDBusInfo',
-    'TestLiveDBusInfoWithChannelIni',
     ]
 
 
@@ -55,20 +56,39 @@ from datetime import datetime
 from dbus.exceptions import DBusException
 from functools import partial
 from pathlib import Path
+from textwrap import dedent
 from systemimage.config import Configuration
-from systemimage.helpers import MiB, atomic, safe_remove
+from systemimage.helpers import MiB, safe_remove
 from systemimage.reactor import Reactor
 from systemimage.settings import Settings
 from systemimage.testing.helpers import (
-    copy, find_dbus_process, make_http_server, setup_index, setup_keyring_txz,
-    setup_keyrings, sign, write_bytes)
+    copy, data_path, find_dbus_process, make_http_server, setup_index,
+    setup_keyring_txz, setup_keyrings, sign, terminate_service, touch_build,
+    wait_for_service, write_bytes)
 from systemimage.testing.nose import SystemImagePlugin
+
+
+# Precomputed SHA256 hash for 750MiB of b'x'.
+HASH750 = '5fdddb486eeb1aa4dbdada48424418fce5f753844544b6970e4a25879d6d6f52'
 
 
 # Use a namedtuple for more convenient argument unpacking.
 UASRecord = namedtuple('UASRecord',
     'is_available downloading available_version update_size '
     'last_update_date error_reason')
+
+
+def tweak_checksums(checksum):
+    index_path = os.path.join(
+        SystemImagePlugin.controller.serverdir,
+        'stable', 'nexus7', 'index.json')
+    with open(index_path, 'r', encoding='utf-8') as fp:
+        index = json.load(fp)
+    for i in range(3):
+        index['images'][0]['files'][i]['checksum'] = checksum
+    with open(index_path, 'w', encoding='utf-8') as fp:
+        json.dump(index, fp)
+    sign(index_path, 'device-signing.gpg')
 
 
 class SignalCapturingReactor(Reactor):
@@ -179,15 +199,34 @@ class DoubleCheckingReactor(Reactor):
         self.quit()
 
 
+class DoubleFiringReactor(Reactor):
+    def __init__(self, iface, wait_count=2):
+        super().__init__(dbus.SystemBus())
+        self.iface = iface
+        self.wait_count = wait_count
+        self.uas_signals = []
+        self.react_to('UpdateAvailableStatus')
+
+    def _do_UpdateAvailableStatus(self, signal, path, *args):
+        self.uas_signals.append(UASRecord(*args))
+        if len(self.uas_signals) >= self.wait_count:
+            self.quit()
+
+    def run(self):
+        self.schedule(self.iface.CheckForUpdate, milliseconds=50)
+        self.schedule(self.iface.CheckForUpdate, milliseconds=55)
+        super().run()
+
+
 class ManualUpdateReactor(Reactor):
     def __init__(self, iface):
         super().__init__(dbus.SystemBus())
         self.iface = iface
-        self.rebooting = False
+        self.applied = False
         self.react_to('UpdateAvailableStatus')
         self.react_to('UpdateProgress')
         self.react_to('UpdateDownloaded')
-        self.react_to('Rebooting')
+        self.react_to('Applied')
         self.react_to('UpdateFailed')
         self.iface.CheckForUpdate()
 
@@ -207,13 +246,37 @@ class ManualUpdateReactor(Reactor):
 
     def _do_UpdateFailed(self, signal, path, *args, **kws):
         # Before LP: #1287919 was fixed, this signal would have been sent.
-        self.rebooting = False
+        self.applied = False
         self.quit()
 
-    def _do_Rebooting(self, signal, path, *args, **kws):
-        # The system is now rebooting <wink>.
-        self.rebooting = True
+    def _do_Applied(self, signal, path, *args, **kws):
+        # The update was applied.
+        self.applied = True
         self.quit()
+
+
+class AppliedNoRebootingReactor(Reactor):
+    def __init__(self, iface):
+        super().__init__(dbus.SystemBus())
+        self.iface = iface
+        # Values here are (received, flag)
+        self.applied = (False, False)
+        self.rebooting = (False, False)
+        self.react_to('Applied')
+        self.react_to('Rebooting')
+        self.react_to('UpdateDownloaded')
+        self.schedule(self.iface.CheckForUpdate)
+
+    def _do_UpdateDownloaded(self, signal, path, *args, **kws):
+        # The update successfully downloaded, so apply the update now.
+        self.iface.ApplyUpdate()
+
+    def _do_Applied(self, signal, path, *args):
+        self.applied = (True, args[0])
+        self.quit()
+
+    def _do_Rebooting(self, signal, path, *args):
+        self.rebooting = (True, args[0])
 
 
 class _TestBase(unittest.TestCase):
@@ -283,7 +346,7 @@ class _LiveTesting(_TestBase):
                 make_http_server(serverdir, 8943, 'cert.pem', 'key.pem'))
             cls._resources.push(make_http_server(serverdir, 8980))
             # Set up the server files.
-            copy('channels_06.json', serverdir, 'channels.json')
+            copy('dbus.channels_01.json', serverdir, 'channels.json')
             sign(os.path.join(serverdir, 'channels.json'), 'image-signing.gpg')
             # Only the archive-master key is pre-loaded.  All the other keys
             # are downloaded and there will be both a blacklist and device
@@ -319,7 +382,7 @@ class _LiveTesting(_TestBase):
 
     def setUp(self):
         super().setUp()
-        self._prepare_index('index_13.json')
+        self._prepare_index('dbus.index_01.json')
         # We need a configuration file that agrees with the dbus client.
         self.config = Configuration(SystemImagePlugin.controller.ini_path)
         # For testing reboot preparation.
@@ -333,7 +396,7 @@ class _LiveTesting(_TestBase):
         # Consume the UpdateFailed that results from the cancellation.
         reactor = SignalCapturingReactor('TornDown')
         reactor.run(self.iface.TearDown, timeout=15)
-        safe_remove(self.config.system.build_file)
+        # Clear out any previously downloaded data files.
         for updater_dir in (self.config.updater.cache_partition,
                             self.config.updater.data_partition):
             try:
@@ -343,6 +406,11 @@ class _LiveTesting(_TestBase):
                 pass
             for filename in all_files:
                 safe_remove(os.path.join(updater_dir, filename))
+        # Since the controller re-uses the same config_d directory, clear out
+        # any touched config files that aren't the default.
+        for ini_file in os.listdir(self.config.config_d):
+            if ini_file != '00_defaults.ini':
+                safe_remove(os.path.join(self.config.config_d, ini_file))
         safe_remove(self.reboot_log)
         super().tearDown()
 
@@ -354,18 +422,6 @@ class _LiveTesting(_TestBase):
         sign(index_path, 'device-signing.gpg')
         setup_index(index_file, serverdir, 'device-signing.gpg',
                     write_callback)
-
-    def _touch_build(self, version, timestamp=None):
-        # Unlike the touch_build() helper, this one uses our own config object
-        # rather than the global one.   It's not worth messing with
-        # touch_build() to generalize it.
-        assert 0 <= version < (1 << 16), (
-            'old style version number: {}'.format(version))
-        with open(self.config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(version, file=fp)
-        if timestamp is not None:
-            timestamp = int(timestamp.timestamp())
-            os.utime(self.config.system.build_file, (timestamp, timestamp))
 
 
 class TestDBusCheckForUpdate(_LiveTesting):
@@ -383,13 +439,12 @@ class TestDBusCheckForUpdate(_LiveTesting):
         self.assertFalse(signal.downloading)
         self.assertEqual(signal.available_version, '1600')
         self.assertEqual(signal.update_size, 314572800)
-        # This is the first update applied.
-        self.assertEqual(signal.last_update_date, 'Unknown')
-        self.assertEqual(signal.error_reason, '')
 
     def test_update_available_auto_download(self):
         # Automatically download the available update.
         self.download_always()
+        timestamp = int(datetime(2022, 8, 1, 10, 11, 12).timestamp())
+        touch_build(1701, timestamp, self.config)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -400,44 +455,38 @@ class TestDBusCheckForUpdate(_LiveTesting):
         self.assertEqual(signal.available_version, '1600')
         self.assertEqual(signal.update_size, 314572800)
         # This is the first update applied.
-        self.assertEqual(signal.last_update_date, 'Unknown')
+        self.assertEqual(signal.last_update_date, '2022-08-01 10:11:12')
         self.assertEqual(signal.error_reason, '')
 
     def test_no_update_available(self):
         # Our device is newer than the version that's available.
-        self._touch_build(1701, datetime(2013, 8, 1, 10, 11, 12))
+        timestamp = int(datetime(2022, 8, 1, 10, 11, 12).timestamp())
+        touch_build(1701, timestamp, self.config)
+        self.iface.Reset()
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         signal = reactor.signals[0]
         self.assertFalse(signal.is_available)
         # No update has been previously applied.
-        self.assertEqual(signal.last_update_date, '2013-08-01 10:11:12')
+        self.assertEqual(signal.last_update_date, '2022-08-01 10:11:12')
         # All other values are undefined.
 
     def test_last_update_date(self):
         # Pretend the device got a previous update.  Now, there's no update
         # available, but the date of the last update is provided in the
         # signal.
-        timestamp = datetime(2013, 1, 20, 12, 1, 45)
-        self._touch_build(1701, timestamp)
-        timestamp = int(timestamp.timestamp())
+        timestamp = int(datetime(2022, 1, 20, 12, 1, 45).timestamp())
+        touch_build(1701, timestamp, self.config)
+        self.iface.Reset()
         # Fake that there was a previous update.
-        channel_ini = os.path.join(
-            os.path.dirname(SystemImagePlugin.controller.ini_path),
-            'channel.ini')
-        with ExitStack() as resources:
-            resources.callback(safe_remove, channel_ini)
-            with open(channel_ini, 'w', encoding='utf-8'):
-                pass
-            os.utime(channel_ini, (timestamp, timestamp))
-            reactor = SignalCapturingReactor('UpdateAvailableStatus')
-            reactor.run(self.iface.CheckForUpdate)
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         signal = reactor.signals[0]
         self.assertFalse(signal.is_available)
         # No update has been previously applied.
-        self.assertEqual(signal.last_update_date, '2013-01-20 12:01:45')
+        self.assertEqual(signal.last_update_date, '2022-01-20 12:01:45')
         # All other values are undefined.
 
     def test_check_for_update_twice(self):
@@ -492,7 +541,8 @@ unmount system
     def test_nothing_to_auto_download(self):
         # We're auto-downloading, but there's no update available.
         self.download_always()
-        self._touch_build(1701)
+        touch_build(1701, use_config=self.config)
+        self.iface.Reset()
         self.assertFalse(os.path.exists(self.command_file))
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
@@ -546,7 +596,8 @@ unmount system
     def test_nothing_to_manually_download(self):
         # We're manually downloading, but there's no update available.
         self.download_manually()
-        self._touch_build(1701)
+        touch_build(1701, use_config=self.config)
+        self.iface.Reset()
         self.assertFalse(os.path.exists(self.command_file))
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
@@ -587,7 +638,7 @@ unmount system
         # same local destination file.  This is a bug on the server and the
         # client cannot perform an update.
         self.download_manually()
-        self._prepare_index('index_23.json')
+        self._prepare_index('dbus.index_03.json')
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -601,6 +652,38 @@ unmount system
         self.assertEqual(failure_count, 1)
         # Don't count on a specific error message.
         self.assertEqual(last_reason[:25], 'DuplicateDestinationError')
+
+
+class TestDBusDownloadBigFiles(_LiveTesting):
+    # If the update contains several very large files, ensure that they can be
+    # successfully downloaded.   With the PyCURL downloader, this will ensure
+    # that the minimum transfer rate error isn't triggered.
+    def test_download_big_files(self):
+        # Start by creating some big files which will take a while to
+        # download.
+        def write_callback(dst):
+            # Write a 500 MiB sized file.
+            write_bytes(dst, 750)
+        self._prepare_index('dbus.index_04.json', write_callback)
+        tweak_checksums(HASH750)
+        # Do the download.
+        self.download_always()
+        reactor = SignalCapturingReactor('UpdateDownloaded')
+        reactor.run(self.iface.CheckForUpdate, timeout=1200)
+        self.assertEqual(len(reactor.signals), 1)
+        with open(self.command_file, 'r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, """\
+load_keyring image-master.tar.xz image-master.tar.xz.asc
+load_keyring image-signing.tar.xz image-signing.tar.xz.asc
+load_keyring device-signing.tar.xz device-signing.tar.xz.asc
+format system
+mount system
+update 6.txt 6.txt.asc
+update 7.txt 7.txt.asc
+update 5.txt 5.txt.asc
+unmount system
+""")
 
 
 class TestDBusApply(_LiveTesting):
@@ -621,17 +704,42 @@ class TestDBusApply(_LiveTesting):
             reboot = fp.read()
         self.assertEqual(reboot, '/sbin/reboot -f recovery')
 
-    def test_reboot_no_update(self):
-        # There's no update to reboot to.
+    def test_applied(self):
+        # Apply the update, and the Applied signal we'll get.
         self.assertFalse(os.path.exists(self.reboot_log))
-        self._touch_build(1701)
+        reactor = SignalCapturingReactor('UpdateDownloaded')
+        reactor.run(self.iface.CheckForUpdate)
+        reactor = SignalCapturingReactor('Applied')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(reactor.signals[0])
+
+    def test_applied_no_reboot(self):
+        # Apply the update, but do not reboot.
+        ini_path = os.path.join(
+            SystemImagePlugin.controller.ini_path,
+            '12_noreboot.ini')
+        shutil.copy(data_path('state.config_01.ini'), ini_path)
+        self.iface.Reset()
+        reactor = AppliedNoRebootingReactor(self.iface)
+        reactor.run()
+        # We should have gotten only one signal, the Applied.
+        received, flag = reactor.applied
+        self.assertTrue(received)
+        self.assertTrue(flag)
+        received, flag = reactor.rebooting
+        self.assertFalse(received)
+
+    def test_applied_no_update(self):
+        # There's no update to reboot to.
+        touch_build(1701, use_config=self.config)
+        self.iface.Reset()
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
-        reactor = SignalCapturingReactor('Rebooting')
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertFalse(reactor.signals[0][0])
-        self.assertFalse(os.path.exists(self.reboot_log))
 
     def test_reboot_after_update_failed(self):
         # Cause the update to fail by deleting a file from the server.
@@ -646,8 +754,27 @@ class TestDBusApply(_LiveTesting):
         failure_count, reason = reactor.signals[0]
         self.assertEqual(failure_count, 1)
         self.assertNotEqual(reason, '')
-        # The reboot fails, so we get an error message.
-        reactor = SignalCapturingReactor('Rebooting')
+        # The reboot fails.
+        reactor = SignalCapturingReactor('Applied')
+        reactor.run(self.iface.ApplyUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertFalse(reactor.signals[0][0])
+
+    def test_applied_after_update_failed(self):
+        # Cause the update to fail by deleting a file from the server.
+        self.download_manually()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        os.remove(os.path.join(SystemImagePlugin.controller.serverdir,
+                               '4/5/6.txt.asc'))
+        reactor = SignalCapturingReactor('UpdateFailed')
+        reactor.run(self.iface.DownloadUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        failure_count, reason = reactor.signals[0]
+        self.assertEqual(failure_count, 1)
+        self.assertNotEqual(reason, '')
+        # Applying the update fails.
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertFalse(reactor.signals[0][0])
@@ -663,15 +790,16 @@ class TestDBusApply(_LiveTesting):
 
     def test_exit(self):
         # There is a D-Bus method to exit the server immediately.
+        proc = find_dbus_process(SystemImagePlugin.controller.ini_path)
         self.iface.Exit()
-        self.assertRaises(DBusException, self.iface.Info)
+        proc.wait()
+        self.assertRaises(DBusException, self.iface.Information)
         # Re-establish a new connection.
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
-        # There's no update to apply, so we'll get an error string instead of
-        # the empty string for this call.  But it will restart the server.
-        reactor = SignalCapturingReactor('Rebooting')
+        # There's no update to apply.
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertFalse(reactor.signals[0][0])
@@ -801,7 +929,7 @@ class TestDBusMockUpdateAutoSuccess(_TestBase):
             self.assertEqual(percentage, i)
             self.assertEqual(eta, 50 - (i * 0.5))
         self.assertTrue(reactor.downloaded)
-        reactor = SignalCapturingReactor('Rebooting')
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertTrue(reactor.signals[0])
@@ -922,7 +1050,7 @@ class TestDBusMockUpdateManualSuccess(_TestBase):
             self.assertEqual(percentage, i)
             self.assertEqual(eta, 50 - (i * 0.5))
         self.assertTrue(reactor.downloaded)
-        reactor = SignalCapturingReactor('Rebooting')
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertTrue(reactor.signals[0])
@@ -1014,7 +1142,7 @@ class TestDBusMockFailApply(_TestBase):
                          '1983-09-13T12:13:14')
         self.assertEqual(reactor.status.error_reason, '')
         self.assertTrue(reactor.downloaded)
-        reactor = SignalCapturingReactor('Rebooting')
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertFalse(bool(reactor.signals[0][0]))
@@ -1116,9 +1244,9 @@ class TestDBusRegressions(_LiveTesting):
         file_path = os.path.join(serverdir, '5', '6', '7.txt')
         # This index file has a 5/6/7.txt checksum equal to the one we're
         # going to create below.
-        setup_index('index_18.json', serverdir, 'device-signing.gpg')
+        setup_index('dbus.index_02.json', serverdir, 'device-signing.gpg')
         head, tail = os.path.split(index_path)
-        copy('index_18.json', head, tail)
+        copy('dbus.index_02.json', head, tail)
         sign(index_path, 'device-signing.gpg')
         write_bytes(file_path, 50)
         sign(file_path, 'device-signing.gpg')
@@ -1202,7 +1330,7 @@ class TestDBusGetSet(_TestBase):
         # Set a key, restart the dbus server, and the key's value persists.
         self.iface.SetSetting('permanent', 'waves')
         self.assertEqual(self.iface.GetSetting('permanent'), 'waves')
-        self.iface.Exit()
+        terminate_service()
         self.assertRaises(DBusException, self.iface.GetSetting, 'permanent')
         # Re-establish a new connection.
         bus = dbus.SystemBus()
@@ -1300,7 +1428,7 @@ class TestDBusInfo(_TestBase):
     mode = 'more-info'
 
     def test_info(self):
-        # .Info() with a channel.ini containing version details.
+        # .Info() with some version details.
         buildno, device, channel, last_update, details = self.iface.Info()
         self.assertEqual(buildno, 45)
         self.assertEqual(device, 'nexus11')
@@ -1309,7 +1437,7 @@ class TestDBusInfo(_TestBase):
         self.assertEqual(details, dict(ubuntu='123', mako='456', custom='789'))
 
     def test_information(self):
-        # .Information() with a channel.ini containing version details.
+        # .Information() with some version details.
         response = self.iface.Information()
         self.assertEqual(
             sorted(str(key) for key in response), [
@@ -1333,8 +1461,10 @@ class TestDBusInfo(_TestBase):
 
 class TestLiveDBusInfo(_LiveTesting):
     def test_info_no_version_detail(self):
-        # .Info() where there is no channel.ini with version details.
-        self._touch_build(45, datetime(2022, 8, 1, 4, 45, 45))
+        # .Info() where there are no version details.
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        touch_build(45, timestamp, self.config)
+        self.iface.Reset()
         buildno, device, channel, last_update, details = self.iface.Info()
         self.assertEqual(buildno, 45)
         self.assertEqual(device, 'nexus7')
@@ -1343,9 +1473,11 @@ class TestLiveDBusInfo(_LiveTesting):
         self.assertEqual(details, {})
 
     def test_information_before_check_no_details(self):
-        # .Information() where there is no channel.ini with version details,
-        # and no previous CheckForUpdate() call was made.
-        self._touch_build(45, datetime(2022, 8, 1, 4, 45, 45))
+        # .Information() where there are no version details, and no previous
+        # CheckForUpdate() call was made.
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        touch_build(45, timestamp, self.config)
+        self.iface.Reset()
         response = self.iface.Information()
         self.assertEqual(response['current_build_number'], '45')
         self.assertEqual(response['device_name'], 'nexus7')
@@ -1356,9 +1488,11 @@ class TestLiveDBusInfo(_LiveTesting):
         self.assertEqual(response['target_build_number'], '-1')
 
     def test_information_no_details(self):
-        # .Information() where there is no channel.ini with version details,
-        # but a previous CheckForUpdate() call was made.
-        self._touch_build(45, datetime(2022, 8, 1, 4, 45, 45))
+        # .Information() where there are no version details, but a previous
+        # CheckForUpdate() call was made.
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        touch_build(45, timestamp, self.config)
+        self.iface.Reset()
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         # Before we get the information, let's poke a known value into the
@@ -1383,19 +1517,19 @@ class TestLiveDBusInfo(_LiveTesting):
         self.assertEqual(response['target_build_number'], '1600')
 
     def test_information(self):
-        # .Information() where there is a channel.ini with version details,
-        # and a previous CheckForUpdate() call was made.
-        self._touch_build(45)
+        # .Information() where there there are version details, and a previous
+        # CheckForUpdate() call was made.
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        touch_build(45, timestamp, use_config=self.config)
         ini_path = Path(SystemImagePlugin.controller.ini_path)
-        channel_path = ini_path.with_name('channel.ini')
-        with channel_path.open('w', encoding='utf-8') as fp:
+        override_ini = ini_path / '03_override.ini'
+        with override_ini.open('w', encoding='utf-8') as fp:
             print("""\
 [service]
 version_detail: ubuntu=222,mako=333,custom=444
 """, file=fp)
+        self.iface.Reset()
         # Set last_update_date.
-        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
-        os.utime(str(channel_path), (timestamp, timestamp))
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         # Before we get the information, let's poke a known value into the
@@ -1415,7 +1549,8 @@ version_detail: ubuntu=222,mako=333,custom=444
         self.assertEqual(response['device_name'], 'nexus7')
         self.assertEqual(response['channel_name'], 'stable')
         self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
-        self.assertEqual(response['version_detail'], '')
+        self.assertEqual(response['version_detail'],
+                         'ubuntu=222,mako=333,custom=444')
         # We can't really check the returned last check date against anything
         # in a robust way.  E.g. what if we just happen to be at 12:59:59 on
         # December 31st?  Let's at least make sure it has a sane format.
@@ -1425,7 +1560,8 @@ version_detail: ubuntu=222,mako=333,custom=444
     def test_information_no_update_available(self):
         # .Information() where we know that no update is available, gives us a
         # target build number equal to the current build number.
-        self._touch_build(1701)
+        touch_build(1701, use_config=self.config)
+        self.iface.Reset()
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         signal = reactor.signals[0]
@@ -1436,7 +1572,7 @@ version_detail: ubuntu=222,mako=333,custom=444
     def test_information_workflow(self):
         # At first, .Information() won't know whether there is an update
         # available or not.  Then we check, and it tells us there is one.
-        self._touch_build(45)
+        touch_build(45, use_config=self.config)
         response = self.iface.Information()
         self.assertEqual(response['target_build_number'], '-1')
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
@@ -1446,41 +1582,60 @@ version_detail: ubuntu=222,mako=333,custom=444
         response = self.iface.Information()
         self.assertEqual(response['target_build_number'], '1600')
 
+    def test_target_version_detail_before_check(self):
+        # Before we do a CheckForUpdate, there is no target version detail.
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        touch_build(45, timestamp, self.config)
+        self.iface.Reset()
+        response = self.iface.Information()
+        self.assertEqual(response['version_detail'], '')
+        self.assertEqual(response['target_version_detail'], '')
 
-class TestLiveDBusInfoWithChannelIni(_LiveTesting):
-    @classmethod
-    def setUpClass(cls):
-        # This must be done before the D-Bus service is started.
+    def test_target_version_detail_after_check_no_update_available(self):
+        # After a CheckForUpdate, if there is no update available, the target
+        # version detail is the same as the version detail.
         ini_path = Path(SystemImagePlugin.controller.ini_path)
-        channel_path = ini_path.with_name('channel.ini')
-        with channel_path.open('w', encoding='utf-8') as fp:
+        override_ini = ini_path / '03_override.ini'
+        with override_ini.open('w', encoding='utf-8') as fp:
             print("""\
 [service]
-version_detail: ubuntu=222,mako=333,custom=444
-build_number: 42
+version_detail: ubuntu=401,mako=501,custom=601
 """, file=fp)
-        # Set last_update_date.
         timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
-        os.utime(str(channel_path), (timestamp, timestamp))
-        # Set the build number.
-        config = Configuration(SystemImagePlugin.controller.ini_path)
-        # We can't use _touch_build().
-        with open(config.system.build_file, 'w', encoding='utf-8') as fp:
-            print(45, file=fp)
-        super().setUpClass()
-
-    def test_information_before_check(self):
-        self._touch_build(45)
-        # .Information() where there is a channel.ini with version details,
-        # and no previous CheckForUpdate() call was made.
+        touch_build(1700, timestamp, use_config=self.config)
+        self.iface.Reset()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
         response = self.iface.Information()
-        self.assertEqual(response['current_build_number'], '42')
-        self.assertEqual(response['device_name'], 'nexus7')
-        self.assertEqual(response['channel_name'], 'stable')
-        self.assertEqual(response['last_update_date'], '2022-08-01 04:45:45')
         self.assertEqual(response['version_detail'],
-                         'ubuntu=222,mako=333,custom=444')
-        self.assertEqual(response['last_check_date'], '')
+                         'ubuntu=401,mako=501,custom=601')
+        self.assertEqual(response['target_version_detail'],
+                         'ubuntu=401,mako=501,custom=601')
+
+    def test_target_version_detail_after_check_update_available(self):
+        # After a CheckForUpdate, if there is an update available, the target
+        # version detail is the new update.
+        ini_path = Path(SystemImagePlugin.controller.ini_path)
+        override_ini = ini_path / '03_override.ini'
+        with override_ini.open('w', encoding='utf-8') as fp:
+            print("""\
+[service]
+version_detail: ubuntu=401,mako=501,custom=601
+""", file=fp)
+        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
+        touch_build(45, timestamp, use_config=self.config)
+        # This index.json file is exactly like the tests's default
+        # dbus.index_01.json file except that it has version_detail keys in
+        # the image sections.
+        self._prepare_index('dbus.index_06.json')
+        self.iface.Reset()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        response = self.iface.Information()
+        self.assertEqual(response['version_detail'],
+                         'ubuntu=401,mako=501,custom=601')
+        self.assertEqual(response['target_version_detail'],
+                         'ubuntu=402,mako=502,custom=602')
 
 
 class TestDBusFactoryReset(_LiveTesting):
@@ -1502,10 +1657,32 @@ class TestDBusFactoryReset(_LiveTesting):
         self.assertEqual(command, 'format data\n')
 
 
+class TestDBusProductionReset(_LiveTesting):
+    def test_production_reset(self):
+        # A production factory reset is applied.
+        command_file = os.path.join(
+            self.config.updater.cache_partition, 'ubuntu_command')
+        self.assertFalse(os.path.exists(self.reboot_log))
+        self.assertFalse(os.path.exists(command_file))
+        reactor = SignalCapturingReactor('Rebooting')
+        reactor.run(self.iface.ProductionReset)
+        self.assertEqual(len(reactor.signals), 1)
+        self.assertTrue(reactor.signals[0])
+        with open(self.reboot_log, encoding='utf-8') as fp:
+            reboot = fp.read()
+        self.assertEqual(reboot, '/sbin/reboot -f recovery')
+        with open(command_file, encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, dedent("""\
+            format data
+            enable factory_wipe
+            """))
+
+
 class TestDBusProgress(_LiveTesting):
     def test_progress(self):
         self.download_manually()
-        self._touch_build(0)
+        touch_build(0, use_config=self.config)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -1538,25 +1715,16 @@ class TestDBusPauseResume(_LiveTesting):
             full_path = os.path.join(
                 SystemImagePlugin.controller.serverdir, path)
             write_bytes(full_path, 750)
-        # Disable the checksums - they just get in the way of these tests.
-        index_path = os.path.join(SystemImagePlugin.controller.serverdir,
-                                  'stable', 'nexus7', 'index.json')
-        with open(index_path, 'r', encoding='utf-8') as fp:
-            index = json.load(fp)
-        for i in range(3):
-            index['images'][0]['files'][i]['checksum'] = ''
-        with open(index_path, 'w', encoding='utf-8') as fp:
-            json.dump(index, fp)
-        sign(index_path, 'device-signing.gpg')
+        tweak_checksums('')
 
     def test_pause(self):
         self.download_manually()
-        self._touch_build(0)
+        touch_build(0, use_config=self.config)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
         # There must be an update available.
-        self.assertTrue(reactor.signals[0][0])
+        self.assertTrue(reactor.signals[0].is_available)
         # We're ready to start downloading.  We schedule a pause to happen in
         # a little bit and then ensure that we get the proper signal.
         reactor = PausingReactor(self.iface)
@@ -1612,7 +1780,7 @@ class TestDBusUseCache(_LiveTesting):
         # download the ancillary files (i.e. channels.json, index.json,
         # keyrings), but not the data files.
         self.download_always()
-        self._touch_build(0)
+        touch_build(0, use_config=self.config)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)
@@ -1655,19 +1823,16 @@ class TestDBusUseCache(_LiveTesting):
             path = os.path.join(config.updater.cache_partition, filename)
             if filename.endswith('.txt') or filename.endswith('.txt.asc'):
                 mtimes[filename] = os.stat(path).st_mtime_ns
-        # Don't issue the reboot.  Instead, kill the services, which throws
-        # away all state, but does not delete the cached files.
-        # Re-establish a new connection.
-        process = find_dbus_process(SystemImagePlugin.controller.ini_path)
-        if process is not None:
-            self.iface.Exit()
-            process.wait(60)
+        # Don't issue the reboot.  Instead, kill the service, which throws away
+        # all state, but does not delete the cached files.  Re-establish a new
+        # connection.
+        terminate_service()
         bus = dbus.SystemBus()
         service = bus.get_object('com.canonical.SystemImage', '/Service')
         self.iface = dbus.Interface(service, 'com.canonical.SystemImage')
         # Now, if we just apply the update, it will succeed, since it knows
         # that the cached files are valid.
-        reactor = SignalCapturingReactor('Rebooting')
+        reactor = SignalCapturingReactor('Applied')
         reactor.run(self.iface.ApplyUpdate)
         self.assertEqual(len(reactor.signals), 1)
         self.assertTrue(reactor.signals[0])
@@ -1727,7 +1892,9 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         def write_callback(dst):
             # Write a 100 MiB sized file.
             write_bytes(dst, 100)
-        self._prepare_index('index_24.json', write_callback)
+        self._prepare_index('dbus.index_04.json', write_callback)
+        timestamp = int(datetime(2022, 8, 1, 10, 11, 12).timestamp())
+        touch_build(0, timestamp, self.config)
         # Create a reactor that will exit when the UpdateDownloaded signal is
         # received.  We're going to issue a CheckForUpdate with automatic
         # updates enabled.  As soon as we receive the UpdateAvailableStatus
@@ -1748,7 +1915,7 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
             self.assertTrue(signal.downloading)
             self.assertEqual(signal.available_version, '1600')
             self.assertEqual(signal.update_size, 314572800)
-            self.assertEqual(signal.last_update_date, 'Unknown')
+            self.assertEqual(signal.last_update_date, '2022-08-01 10:11:12')
             self.assertEqual(signal.error_reason, '')
 
     def test_multiple_check_for_updates_with_manual_downloading(self):
@@ -1767,8 +1934,8 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         def write_callback(dst):
             # Write a 100 MiB sized file.
             write_bytes(dst, 100)
-        self._prepare_index('index_24.json', write_callback)
-        self._touch_build(0)
+        self._prepare_index('dbus.index_04.json', write_callback)
+        touch_build(0, use_config=self.config)
         # Create a reactor that implements the following test plan:
         # * Set the device to download manually.
         # * Flash to an older revision
@@ -1782,28 +1949,59 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         #   the update, and reboot
         reactor = ManualUpdateReactor(self.iface)
         reactor.run()
-        self.assertTrue(reactor.rebooting)
+        self.assertTrue(reactor.applied)
+
+    def test_schedule_lots_of_checks(self):
+        # There is a checking lock in the D-Bus layer.  If that lock cannot be
+        # acquired *and* the results of a previous check have already been
+        # cached, then the cached results are returned.
+        self.download_manually()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        # At this point, we now have a cached update status.  Although this is
+        # timing dependent, schedule two more CheckForUpdates right after each
+        # other.  The second one should get caught by the checking lock.
+        reactor = DoubleFiringReactor(self.iface)
+        reactor.run()
+        self.assertEqual(reactor.uas_signals[0], reactor.uas_signals[1])
 
 
+from systemimage.testing.controller import USING_PYCURL
+
+@unittest.skipIf(os.getuid() == 0, 'Test cannot succeed when run as root')
+@unittest.skipUnless(USING_PYCURL, 'LP: #1411866')
 class TestDBusCheckForUpdateToUnwritablePartition(_LiveTesting):
     @classmethod
     def setUpClass(cls):
-        ini_path = SystemImagePlugin.controller.ini_path
-        with open(ini_path, 'r', encoding='utf-8') as fp:
-            lines = fp.readlines()
-        with atomic(ini_path) as fp:
-            for line in lines:
-                key, sep, value = line.partition(': ')
-                if key == 'cache_partition':
-                    cls.bad_path = os.path.join(value.strip(), 'unwritable')
-                    print('{}: {}'.format(key, cls.bad_path), file=fp)
-                    os.makedirs(cls.bad_path, mode=0)
-                else:
-                    fp.write(line)
         super().setUpClass()
+        # Put cache_partition in an unwritable directory.
+        config = Configuration(SystemImagePlugin.controller.ini_path)
+        cache_partition = config.updater.cache_partition
+        cls.bad_path = Path(cache_partition) / 'unwritable'
+        cls.bad_path.mkdir(mode=0, parents=True)
+        # Write a .ini file to override the cache partition.
+        cls.override = os.path.join(config.config_d, '10_override.ini')
+        with open(cls.override, 'w', encoding='utf-8') as fp:
+            print("""\
+[updater]
+cache_partition: {}
+""".format(cls.bad_path), file=fp)
+
+    @classmethod
+    def tearDownClass(cls):
+        safe_remove(cls.override)
+        shutil.rmtree(str(cls.bad_path))
+        super().tearDownClass()
+
+    def setUp(self):
+        # wait_for_service() must be called befor the upcall to setUp(),
+        # otherwise self will have an iface attribute pointing to a defunct
+        # proxy.
+        wait_for_service(restart=True)
+        super().setUp()
 
     def tearDown(self):
-        os.chmod(self.bad_path, 0o777)
+        self.bad_path.chmod(0o777)
         super().tearDown()
 
     def test_check_for_update_error(self):
@@ -1821,7 +2019,7 @@ class TestDBusCheckForUpdateWithBrokenIndex(_LiveTesting):
         # LP: #1222910.  A broken index.json file contained an image with type
         # == 'delta' but no base field.  This breaks the hash calculation of
         # that image and causes the check-for-update to fail.
-        self._prepare_index('index_25.json')
+        self._prepare_index('dbus.index_05.json')
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
         reactor.run(self.iface.CheckForUpdate)
         self.assertEqual(len(reactor.signals), 1)

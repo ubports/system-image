@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -45,7 +45,7 @@ class TestChannels(unittest.TestCase):
         # Test that parsing a simple top level channels.json file produces the
         # expected set of channels.  The Nexus 7 daily images have a device
         # specific keyring.
-        channels = get_channels('channels_01.json')
+        channels = get_channels('channel.channels_01.json')
         self.assertEqual(channels.daily.devices.nexus7.index,
                          '/daily/nexus7/index.json')
         self.assertEqual(channels.daily.devices.nexus7.keyring.path,
@@ -61,30 +61,30 @@ class TestChannels(unittest.TestCase):
 
     def test_getattr_failure(self):
         # Test the getattr syntax on an unknown channel or device combination.
-        channels = get_channels('channels_01.json')
+        channels = get_channels('channel.channels_01.json')
         self.assertRaises(AttributeError, getattr, channels, 'bleeding')
         self.assertRaises(AttributeError, getattr, channels.stable, 'nexus3')
 
     def test_daily_proposed(self):
         # The channel name has a dash in it.
-        channels = get_channels('channels_07.json')
+        channels = get_channels('channel.channels_02.json')
         self.assertEqual(channels['daily-proposed'].devices.grouper.index,
                          '/daily-proposed/grouper/index.json')
 
     def test_bad_getitem(self):
         # Trying to get a channel via getitem which doesn't exist.
-        channels = get_channels('channels_07.json')
+        channels = get_channels('channel.channels_02.json')
         self.assertRaises(KeyError, getitem, channels, 'daily-testing')
 
     def test_channel_version(self):
         # The channel name has a dot in it.
-        channels = get_channels('channels_08.json')
+        channels = get_channels('channel.channels_03.json')
         self.assertEqual(channels['13.10'].devices.grouper.index,
                          '/13.10/grouper/index.json')
 
     def test_channel_version_proposed(self):
         # The channel name has both a dot and a dash in it.
-        channels = get_channels('channels_08.json')
+        channels = get_channels('channel.channels_03.json')
         self.assertEqual(channels['14.04-proposed'].devices.grouper.index,
                          '/14.04-proposed/grouper/index.json')
 
@@ -103,7 +103,7 @@ class TestLoadChannel(unittest.TestCase):
             self._serverdir = self._stack.enter_context(temporary_directory())
             self._stack.push(make_http_server(
                 self._serverdir, 8943, 'cert.pem', 'key.pem'))
-            copy('channels_01.json', self._serverdir, 'channels.json')
+            copy('channel.channels_01.json', self._serverdir, 'channels.json')
             self._channels_path = os.path.join(
                 self._serverdir, 'channels.json')
         except:
@@ -124,7 +124,7 @@ class TestLoadChannel(unittest.TestCase):
                          '/daily/nexus7/device-keyring.tar.xz.asc')
 
     @configuration
-    def test_load_channel_bad_signature(self, ini_file):
+    def test_load_channel_bad_signature(self):
         # We get an error if the signature on the channels.json file is bad.
         sign(self._channels_path, 'spare.gpg')
         setup_keyrings()
@@ -148,7 +148,7 @@ class TestLoadChannel(unittest.TestCase):
         self.assertRaises(SignatureError, next, self._state)
 
     @configuration
-    def test_load_channel_bad_signature_gets_fixed(self, ini_file):
+    def test_load_channel_bad_signature_gets_fixed(self, config_d):
         # Like above, but the second download of the image signing key results
         # in a properly signed channels.json file.
         sign(self._channels_path, 'spare.gpg')
@@ -165,7 +165,7 @@ class TestLoadChannel(unittest.TestCase):
                           os.path.join(self._serverdir, 'gpg',
                                        'image-signing.tar.xz'))
         # This will succeed by grabbing a new image-signing key.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         with open(config.gpg.image_signing, 'rb') as fp:
             checksum = hashlib.md5(fp.read()).digest()
         next(self._state)
@@ -180,7 +180,7 @@ class TestLoadChannel(unittest.TestCase):
             '/daily/nexus7/device-keyring.tar.xz.asc')
 
     @configuration
-    def test_load_channel_blacklisted_signature(self, ini_file):
+    def test_load_channel_blacklisted_signature(self, config_d):
         # We get an error if the signature on the channels.json file is good
         # but the key is blacklisted.
         sign(self._channels_path, 'image-signing.gpg')
@@ -193,7 +193,7 @@ class TestLoadChannel(unittest.TestCase):
         # cause the state machine to try to download a new image signing key,
         # so let's put the cached one up on the server.  This will still be
         # backlisted though.
-        config = Configuration(ini_file)
+        config = Configuration(config_d)
         key_path = os.path.join(self._serverdir, 'gpg', 'image-signing.tar.xz')
         shutil.copy(config.gpg.image_signing, key_path)
         shutil.copy(config.gpg.image_signing + '.asc', key_path + '.asc')
@@ -215,7 +215,7 @@ class TestLoadChannelOverHTTPS(unittest.TestCase):
         self._stack = ExitStack()
         try:
             self._serverdir = self._stack.enter_context(temporary_directory())
-            copy('channels_01.json', self._serverdir, 'channels.json')
+            copy('channel.channels_01.json', self._serverdir, 'channels.json')
             sign(os.path.join(self._serverdir, 'channels.json'),
                  'image-signing.gpg')
         except:
@@ -242,7 +242,7 @@ class TestChannelsNewFormat(unittest.TestCase):
     """LP: #1221841 introduces a new format to channels.json."""
     def test_channels(self):
         # We can parse new-style channels.json files.
-        channels = get_channels('channels_09.json')
+        channels = get_channels('channel.channels_04.json')
         self.assertEqual(channels.daily.alias, 'saucy')
         self.assertEqual(channels.daily.devices.grouper.index,
                          '/daily/grouper/index.json')
@@ -262,23 +262,23 @@ class TestChannelsNewFormat(unittest.TestCase):
 
     def test_hidden_defaults_to_false(self):
         # If a channel does not have a hidden field, it defaults to false.
-        channels = get_channels('channels_09.json')
+        channels = get_channels('channel.channels_04.json')
         self.assertFalse(channels.daily.hidden)
 
     def test_getattr_failure(self):
         # Test the getattr syntax on an unknown channel or device combination.
-        channels = get_channels('channels_09.json')
+        channels = get_channels('channel.channels_04.json')
         self.assertRaises(AttributeError, getattr, channels, 'bleeding')
         self.assertRaises(
             AttributeError, getattr, channels.daily.devices, 'nexus3')
 
     def test_daily_proposed(self):
         # The channel name has a dash in it.
-        channels = get_channels('channels_09.json')
+        channels = get_channels('channel.channels_04.json')
         self.assertEqual(channels['saucy-proposed'].devices.grouper.index,
                          '/saucy-proposed/grouper/index.json')
 
     def test_bad_getitem(self):
         # Trying to get a channel via getitem which doesn't exist.
-        channels = get_channels('channels_09.json')
+        channels = get_channels('channel.channels_04.json')
         self.assertRaises(KeyError, getitem, channels, 'daily-testing')

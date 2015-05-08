@@ -1,3 +1,9 @@
+system-image (3.0-0ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Barry Warsaw <barry@ubuntu.com>  Fri, 08 May 2015 17:39:57 -0400
+
 system-image (2.5-0ubuntu1) utopic; urgency=medium
 
   [ Barry Warsaw ]

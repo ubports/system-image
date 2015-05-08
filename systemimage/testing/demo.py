@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -22,12 +22,12 @@ __all__ = [
     ]
 
 
+from systemimage.apply import BaseApply
 from systemimage.device import BaseDevice
-from systemimage.reboot import BaseReboot
 
 
-class DemoReboot(BaseReboot):
-    def reboot(self):
+class DemoReboot(BaseApply):
+    def apply(self):
         print("If I was a phone, I'd be rebooting right about now.")
 
 
