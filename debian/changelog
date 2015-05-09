@@ -64,6 +64,7 @@ system-image (3.0-0ubuntu1) UNRELEASED; urgency=medium
     - Install the archive-master keyring files to /usr/share instead of
       /etc for better FHS compliance.  (LP: #1377184)
   * d/control:
+    - Add python3-pycurl to Build-Depends.
     - Bump Standards-Version to 3.9.6 with no other changes necessary.
     - system-image-common now depends on
       `ubuntu-download-manager | python3-pycurl` so that UDM doesn't need to
