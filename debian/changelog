@@ -62,9 +62,11 @@ system-image (3.0-0ubuntu1) UNRELEASED; urgency=medium
     - Run both the cURL and UDM based tests.
     - Install the archive-master keyring files to /usr/share instead of
       /etc for better FHS compliance.  (LP: #1377184)
-  * d/control: system-image-common now depends on
-    `ubuntu-download-manager | python3-pycurl` so that UDM doesn't need to
-    be pulled in for snappy.  (LP: #1431696)
+  * d/control:
+    - Bump Standards-Version to 3.9.6 with no other changes necessary.
+    - system-image-common now depends on
+      `ubuntu-download-manager | python3-pycurl` so that UDM doesn't need to
+      be pulled in for snappy.  (LP: #1431696)
 
  -- Barry Warsaw <barry@ubuntu.com>  Fri, 08 May 2015 17:39:57 -0400
 
