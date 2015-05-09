@@ -14,13 +14,13 @@ override_dh_auto_test:
 	export SYSTEMIMAGE_REACTOR_TIMEOUT=1200; \
 	export SYSTEMIMAGE_PYCURL=1; \
 	PYBUILD_SYSTEM=custom \
-	PYBUILD_TEST_ARGS="{interpreter} -m nose2 -v" dh_auto_test
+	PYBUILD_TEST_ARGS="{interpreter} -m nose2 -vv" dh_auto_test
 	export http_proxy= ; \
 	export https_proxy= ; \
 	export SYSTEMIMAGE_REACTOR_TIMEOUT=1200; \
 	export SYSTEMIMAGE_PYCURL=0; \
 	PYBUILD_SYSTEM=custom \
-	PYBUILD_TEST_ARGS="{interpreter} -m nose2 -v" dh_auto_test
+	PYBUILD_TEST_ARGS="{interpreter} -m nose2 -vv" dh_auto_test
 
 # pybuild can't yet handle Python 3 packages that don't start with "python3-".
 # See bug #751908 - In the meantime, this override isn't perfect, but it gets

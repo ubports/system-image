@@ -60,6 +60,7 @@ system-image (3.0-0ubuntu1) UNRELEASED; urgency=medium
     - LP: #1448153 - Fix `system-image-cli --list-channels`.
   * d/rules:
     - Run both the cURL and UDM based tests.
+    - Run tests with more verbosity.
     - Install the archive-master keyring files to /usr/share instead of
       /etc for better FHS compliance.  (LP: #1377184)
   * d/control:
