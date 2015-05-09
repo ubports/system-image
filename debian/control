@@ -48,7 +48,7 @@ Depends: python3-dbus,
          python3-gnupg,
          python3-pkg-resources,
          python3-xdg,
-         ubuntu-download-manager,
+         ubuntu-download-manager | python3-pycurl,
          ${misc:Depends},
          ${python3:Depends}
 Description: Ubuntu system image updater
