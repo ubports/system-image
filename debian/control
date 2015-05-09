@@ -16,6 +16,7 @@ Build-Depends: dbus,
                python3-nose2,
                python3-pkg-resources,
                python3-psutil,
+               python3-pycurl,
                python3-setuptools,
                python3-xdg,
                ubuntu-download-manager
