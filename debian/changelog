@@ -1,4 +1,4 @@
-system-image (3.0-0ubuntu1) UNRELEASED; urgency=medium
+system-image (3.0-0ubuntu1) wily; urgency=medium
 
   * New upstream release.
     - LP: #1374459 - Support a built-in PyCURL-based downloader in
@@ -70,7 +70,7 @@ system-image (3.0-0ubuntu1) UNRELEASED; urgency=medium
       `ubuntu-download-manager | python3-pycurl` so that UDM doesn't need to
       be pulled in for snappy.  (LP: #1431696)
 
- -- Barry Warsaw <barry@ubuntu.com>  Fri, 08 May 2015 17:39:57 -0400
+ -- Barry Warsaw <barry@ubuntu.com>  Mon, 11 May 2015 10:14:59 -0400
 
 system-image (2.5-0ubuntu1) utopic; urgency=medium
 
