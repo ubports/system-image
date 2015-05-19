@@ -7,9 +7,9 @@
 #
 # This is like smoketest except that it does a full download.
 #
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 set -e
 python3 debian/tests/prep.py
-system-image-cli -C $ADTTMP/client.ini -d mako -c devel -b 0 --no-reboot -v
+system-image-cli -C $ADTTMP/config.d -d mako -c devel -b 0 --no-reboot -v
