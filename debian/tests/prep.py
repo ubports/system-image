@@ -12,7 +12,7 @@ os.makedirs(os.path.join(tmpdir, 'android'), exist_ok=True)
 os.makedirs(os.path.join(tmpdir, 'ubuntu'), exist_ok=True)
 
 config_d = os.path.join(tmpdir, 'config.d')
-os.makedirs(config_d, exists_ok=True)
+os.makedirs(config_d, exist_ok=True)
 
 substitutions = dict(
     TMPDIR=tmpdir,
