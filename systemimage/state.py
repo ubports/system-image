@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -35,7 +35,7 @@ from itertools import islice
 from systemimage.candidates import get_candidates, iter_path
 from systemimage.channel import Channels
 from systemimage.config import config
-from systemimage.download import DBusDownloadManager, Record
+from systemimage.download import Record, get_download_manager
 from systemimage.gpg import Context, SignatureError
 from systemimage.helpers import (
     atomic, calculate_signature, makedirs, safe_remove, temporary_directory)
@@ -57,6 +57,9 @@ class ChecksumError(Exception):
         self.destination = destination
         self.got = got
         self.expected = checksum
+
+    def __str__(self):                              # pragma: no cover
+        return 'got:{0.got} != exp:{0.expected}: {0.destination}'.format(self)
 
 
 def _copy_if_missing(src, dstdir):
@@ -110,7 +113,7 @@ class State:
         self.files = []
         self.channel_switch = None
         # Other public attributes.
-        self.downloader = DBusDownloadManager()
+        self.downloader = get_download_manager()
         self._next.append(self._cleanup)
 
     def __iter__(self):
@@ -211,7 +214,7 @@ class State:
             # I think it makes no sense to check the blacklist when we're
             # downloading a blacklist file.
             log.info('Looking for blacklist: {}'.format(
-                     urljoin(config.service.https_base, url)))
+                     urljoin(config.https_base, url)))
             get_keyring('blacklist', url, 'image-master')
         except SignatureError:
             log.exception('No signed blacklist found')
@@ -247,7 +250,7 @@ class State:
         url = 'gpg/blacklist.tar.xz'
         try:
             log.info('Looking for blacklist again: {}',
-                     urljoin(config.service.https_base, url))
+                     urljoin(config.https_base, url))
             get_keyring('blacklist', url, 'image-master')
         except FileNotFoundError:
             log.info('No blacklist found on second attempt')
@@ -273,9 +276,9 @@ class State:
             get_keyring(
                 'image-signing', 'gpg/image-signing.tar.xz', 'image-master',
                 self.blacklist)
-        channels_url = urljoin(config.service.https_base, 'channels.json')
+        channels_url = urljoin(config.https_base, 'channels.json')
         channels_path = os.path.join(config.tempdir, 'channels.json')
-        asc_url = urljoin(config.service.https_base, 'channels.json.asc')
+        asc_url = urljoin(config.https_base, 'channels.json.asc')
         asc_path = os.path.join(config.tempdir, 'channels.json.asc')
         log.info('Looking for: {}', channels_url)
         with ExitStack() as stack:
@@ -329,8 +332,8 @@ class State:
         self._next.append(partial(self._get_index, device.index))
 
     def _get_device_keyring(self, keyring):
-        keyring_url = urljoin(config.service.https_base, keyring.path)
-        asc_url = urljoin(config.service.https_base, keyring.signature)
+        keyring_url = urljoin(config.https_base, keyring.path)
+        asc_url = urljoin(config.https_base, keyring.signature)
         log.info('getting device keyring: {}', keyring_url)
         get_keyring(
             'device-signing', (keyring_url, asc_url), 'image-signing',
@@ -378,7 +381,7 @@ class State:
 
     def _get_index(self, index):
         """Get and verify the index.json file."""
-        index_url = urljoin(config.service.https_base, index)
+        index_url = urljoin(config.https_base, index)
         asc_url = index_url + '.asc'
         index_path = os.path.join(config.tempdir, 'index.json')
         asc_path = index_path + '.asc'
@@ -410,7 +413,7 @@ class State:
         # winner.  Otherwise, trust the configured build number.
         channel = self.channels[config.channel]
         # channel_target is the channel we're on based on the alias mapping in
-        # our channel.ini file.  channel_alias is the alias mapping in the
+        # our config files.  channel_alias is the alias mapping in the
         # channel.json file, i.e. the channel an update will put us on.
         channel_target = getattr(config.service, 'channel_target', None)
         channel_alias = getattr(channel, 'alias', None)
@@ -418,17 +421,23 @@ class State:
                 channel_target is None or
                 channel_alias == channel_target):
             build_number = config.build_number
-        elif config.build_number_cli is not None:
-            # An explicit --build on the command line still takes precedence.
-            build_number = config.build_number_cli
         else:
-            # This is a channel switch caused by a new alias.
-            build_number = 0
+            # This is a channel switch caused by a new alias.  Unless the
+            # build number has been explicitly overridden on the command line
+            # via --build/-b, use build number 0 to force a full update.
+            build_number = (config.build_number
+                            if config.build_number_override
+                            else 0)
             self.channel_switch = (channel_target, channel_alias)
         candidates = get_candidates(self.index, build_number)
+        log.debug('Candidates from build# {}: {}'.format(
+            build_number, len(candidates)))
         if self._filter is not None:
             candidates = self._filter(candidates)
-        self.winner = config.hooks.scorer().choose(candidates)
+        self.winner = config.hooks.scorer().choose(
+            candidates, (channel_target
+                         if channel_alias is None
+                         else channel_alias))
         # If there is no winning upgrade candidate, then there's nothing more
         # to do.  We can skip everything between downloading the files and
         # doing the reboot.
@@ -474,11 +483,11 @@ class State:
             else:
                 # Add the data file, which has a checksum.
                 downloads.append(Record(
-                    urljoin(config.service.http_base, filerec.path),
+                    urljoin(config.http_base, filerec.path),
                     dst, checksum))
                 # Add the signature file, which does not have a checksum.
                 downloads.append(Record(
-                    urljoin(config.service.http_base, filerec.signature),
+                    urljoin(config.http_base, filerec.signature),
                     asc))
                 signatures.append((dst, asc))
                 checksums.append((dst, checksum))
@@ -603,9 +612,9 @@ class State:
                     file=fp)
             # The filesystem must be unmounted.
             print('unmount system', file=fp)
-        self._next.append(self._reboot)
+        self._next.append(self._apply)
 
-    def _reboot(self):
-        log.info('rebooting')
-        config.hooks.reboot().reboot()
+    def _apply(self):
+        log.info('applying')
+        config.hooks.apply().apply()
         # Nothing more to do.

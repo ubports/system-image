@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -23,6 +23,11 @@ __all__ = [
 
 import os
 
+try:
+    import pycurl
+except ImportError:
+    pycurl = None
+
 from dbus.service import method, signal
 from gi.repository import GLib
 from systemimage.api import Mediator
@@ -45,7 +50,7 @@ class _ActionLog:
             fp.write(SPACE.join(args[0]).strip())
 
 
-def instrument(config, stack):
+def instrument(config, stack, cert_file):
     """Instrument the system for testing."""
     # Ensure the destination directories exist.
     makedirs(config.updater.data_partition)
@@ -54,9 +59,16 @@ def instrument(config, stack):
     # file which the testing parent process can open and read.
     safe_reboot = _ActionLog('reboot.log')
     stack.enter_context(
-        patch('systemimage.reboot.check_call', safe_reboot.write))
+        patch('systemimage.apply.check_call', safe_reboot.write))
     stack.enter_context(
         patch('systemimage.device.check_output', return_value='nexus7'))
+    # If available, patch the PyCURL downloader to accept self-signed
+    # certificates.
+    if pycurl is not None:
+        def self_sign(c):
+            c.setopt(pycurl.CAINFO, cert_file)
+        stack.enter_context(
+            patch('systemimage.curl.make_testable', self_sign))
 
 
 class _LiveTestableService(Service):
@@ -65,6 +77,7 @@ class _LiveTestableService(Service):
     @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
+        config.reload()
         self._api = Mediator()
         try:
             self._checking.release()
@@ -72,7 +85,6 @@ class _LiveTestableService(Service):
             # Lock is already released.
             pass
         self._update = None
-        self._downloading = False
         self._rebootable = False
         self._failure_count = 0
         del config.build_number
@@ -189,9 +201,9 @@ class _UpdateAutoSuccess(Service):
     @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         # Always succeeds.
-        def _rebooting():
-            self.Rebooting(True)
-        GLib.timeout_add(50, _rebooting)
+        def _applied():
+            self.Applied(True)
+        GLib.timeout_add(50, _applied)
 
 
 class _UpdateManualSuccess(_UpdateAutoSuccess):
@@ -259,9 +271,9 @@ class _FailApply(Service):
     @method('com.canonical.SystemImage')
     def ApplyUpdate(self):
         # The update cannot be applied.
-        def _rebooting():
-            self.Rebooting(False)
-        GLib.timeout_add(50, _rebooting)
+        def _applied():
+            self.Applied(False)
+        GLib.timeout_add(50, _applied)
 
 
 class _FailResume(Service):

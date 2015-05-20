@@ -5,7 +5,7 @@
 # require network access, so it is compatible with less isolated (but also
 # lighter weight) containers such as schroot.
 #
-# Copyright (C) 2014 Canonical Ltd.
+# Copyright (C) 2014-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 python3 -m nose2 -vv -P TestCLIMainDryRun

@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@ import tarfile
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from systemimage.config import config
-from systemimage.download import DBusDownloadManager
+from systemimage.download import get_download_manager
 from systemimage.gpg import Context
 from systemimage.helpers import makedirs, safe_remove
 from urllib.parse import urljoin
@@ -86,8 +86,8 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
     else:
         srcurl = urls
         ascurl = urls + '.asc'
-    tarxz_src = urljoin(config.service.https_base, srcurl)
-    ascxz_src = urljoin(config.service.https_base, ascurl)
+    tarxz_src = urljoin(config.https_base, srcurl)
+    ascxz_src = urljoin(config.https_base, ascurl)
     # Calculate the local paths to the temporary download files.  The
     # blacklist goes to the data partition and all the other files go to the
     # cache partition.
@@ -102,7 +102,7 @@ def get_keyring(keyring_type, urls, sigkr, blacklist=None):
     safe_remove(ascxz_dst)
     with ExitStack() as stack:
         # Let FileNotFoundError percolate up.
-        DBusDownloadManager().get_files([
+        get_download_manager().get_files([
             (tarxz_src, tarxz_dst),
             (ascxz_src, ascxz_dst),
             ])

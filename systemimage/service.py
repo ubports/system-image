@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,6 @@ __all__ = [
     ]
 
 
-import os
 import sys
 import dbus
 import logging
@@ -33,7 +32,8 @@ from systemimage.config import config
 from systemimage.dbus import Loop
 from systemimage.helpers import makedirs
 from systemimage.logging import initialize
-from systemimage.main import DEFAULT_CONFIG_FILE
+from systemimage.main import DEFAULT_CONFIG_D
+
 
 # --testing is only enabled when the systemimage.testing package is
 # available.  This will be the case for the upstream source package, and when
@@ -60,32 +60,28 @@ def main():
                         action='version',
                         version='system-image-dbus {}'.format(__version__))
     parser.add_argument('-C', '--config',
-                        default=DEFAULT_CONFIG_FILE, action='store',
-                        metavar='FILE',
-                        help="""Use the given configuration file instead of
-                                the default""")
+                        default=DEFAULT_CONFIG_D, action='store',
+                        metavar='DIRECTORY',
+                        help="""Use the given configuration directory instead 
+                                of the default""")
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',
                         help='Increase verbosity')
     # Hidden argument for special setup required by test environment.
     if instrument is not None: # pragma: no branch
         parser.add_argument('--testing',
-                            default=False, action='store',
+                            default=None, action='store',
+                            help=argparse.SUPPRESS)
+        parser.add_argument('--self-signed-cert',
+                            default=None, action='store',
                             help=argparse.SUPPRESS)
 
     args = parser.parse_args(sys.argv[1:])
     try:
         config.load(args.config)
-    except FileNotFoundError as error:
-        parser.error('\nConfiguration file not found: {}'.format(error))
+    except TypeError as error:
+        parser.error('\nConfiguration directory not found: {}'.format(error))
         assert 'parser.error() does not return' # pragma: no cover
-    # Load the optional channel.ini file, which must live next to the
-    # configuration file.  It's okay if this file does not exist.
-    channel_ini = os.path.join(os.path.dirname(args.config), 'channel.ini')
-    try:
-        config.load(channel_ini, override=True)
-    except FileNotFoundError:
-        pass
 
     # Create the temporary directory if it doesn't exist.
     makedirs(config.system.tempdir)
@@ -112,12 +108,13 @@ def main():
         loop = Loop()
         testing_mode = getattr(args, 'testing', None)
         if testing_mode:
-            instrument(config, stack)
+            instrument(config, stack, args.self_signed_cert)
             config.dbus_service = get_service(
                 testing_mode, system_bus, '/Service', loop)
         else:
             from systemimage.dbus import Service
             config.dbus_service = Service(system_bus, '/Service', loop)
+
         try:
             loop.run()
         except KeyboardInterrupt:                   # pragma: no cover

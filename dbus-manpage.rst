@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader DBus service
 -----------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2014-07-15
-:Copyright: 2013-2014 Canonical Ltd.
-:Version: 2.3
+:Date: 2015-01-15
+:Copyright: 2013-2015 Canonical Ltd.
+:Version: 3.0
 :Manual section: 8
 
 
@@ -42,10 +42,13 @@ OPTIONS
     enabled.  With two ``-v`` (or ``-vv``), logging both to the console and to
     the log file are output at ``DEBUG`` level.
 
--C FILE, --config FILE
-    Use the given configuration file, otherwise use the default.  The program
-    will optionally also read a ``channel.ini`` file in the same directory as
-    ``FILE``.
+-C DIR, --config DIR
+    Use the given configuration directory, otherwise use the system default.
+    The program will read all the files in this directory that begin with a
+    number, followed by an underscore, and ending in ``.ini``
+    (e.g. ``03_myconfig.ini``).  The files are read in sorted numerical order
+    from lowest prefix number to highest, with later configuration files able
+    to override any variable in any section.
 
 
 D-BUS API
@@ -94,11 +97,12 @@ Methods
 
 ``ApplyUpdate()``
     This is an **asynchronous** call used to apply a previously downloaded
-    update and initiate a reboot to apply the update.  It is a no-op if no new
-    update has been downloaded.  Just before the device reboots, a
-    ``Rebooting`` signal is sent, although the timing of this signal both
-    being sent and received depends on how quickly the device is shut down for
-    reboot.
+    update.  After the update has been applied, an ``Applied`` signal is
+    sent.  Some devices require a reboot in order to apply the update, and
+    such devices may also issue a ``Rebooting`` signal.  However, on devices
+    which require a reboot, the timing and emission of both the ``Applied``
+    and ``Rebooting`` signals are in a race condition with system shutdown,
+    and may not occur.
 
 ``CancelUpdate()``
     This is a **synchronous** call to cancel any update check or download in
@@ -143,12 +147,21 @@ Methods
     * *version_detail* - A string containing a comma-separated list of
       key-value pairs providing additional component version details,
       e.g. "ubuntu=123,mako=456,custom=789".
+    * *target_version_detail* - Like *version_detail* but contains the
+      information from the server.  If an update is known to be available,
+      this will be taken from ``index.json`` file's image specification, for
+      the image that the upgrade will leave the device at.  If no update is
+      available this will be identical to *version_detail*.  If no
+      `CheckForUpdate()` as been previously performed, then the
+      *target_version_detail* will be the empty string.
     * *last_check_date* - The last time a ``CheckForUpdate()`` call was
       performed.
 
     *New in system-image 2.3*
 
-    *New in system-image 2.5: target_build_number*
+    *New in system-image 2.5: target_build_number was added.*
+
+    *New in system-image 3.0: target_version_detail was added.*
 
 ``FactoryReset()``
     This is a **synchronous** call which wipes the data partition and issue a
@@ -156,6 +169,13 @@ Methods
     timing.
 
     *New in system-image 2.3*.
+
+``ProductionReset()``
+    This is a **synchronous** call which wipes the data partition, sets a flag
+    for factory wipe (used in production), and issue a reboot to recovery.
+    A ``Rebooting`` signal may be sent, depending on timing.
+
+    *New in system-image 3.0*.
 
 ``SetSetting(key, value)``
     This is a **synchronous** call to write or update a setting.  ``key`` and
@@ -265,15 +285,20 @@ Signals
     * **last_reason** - A string containing the reason for why this updated
       failed.
 
-``Rebooting(status)``
-    Sent just before the device reboots.  Because the system is in the process
-    of being rebooted, clients may or may not receive this signal.
+``Applied(status)``
+    Sent in response to an ``ApplyUpdate()`` call.  See the timing caveats for
+    that method.  **New in system-image 3.0**
 
-    * **status** - A boolean indicating whether the application of the update
-      is successful or not.  Generally, when status is true you won't ever
-      receive the signal because the device will be rebooting.  When status is
-      false it means the application of the update or reboot failed for some
-      reason.
+    * **status** - A boolean indicating whether an update has been applied or
+      not.
+
+``Rebooting(status)``
+    On devices which require a reboot in order to apply an update, this signal
+    may be sent in response to an ``ApplyUpdate()`` call.  See the timing
+    caveats for that method.
+
+    * **status** - A boolean indicating whether the device has initiated a
+      reboot sequence or not.
 
 ``SettingChanged(key, value)``
     Sent when a setting is changed.  This signal is not sent if the new value
@@ -286,7 +311,7 @@ Signals
 Additional API details
 ----------------------
 
-The ``SetSettings()`` call takes a key string and a value string.  The
+The ``SetSetting()`` call takes a key string and a value string.  The
 following keys are predefined.
 
     * *min_battery* - The minimum battery strength which will allow downloads
@@ -311,12 +336,8 @@ following keys are predefined.
 FILES
 =====
 
-/etc/system-image/client.ini
-    Default configuration file.
-
-/etc/system-image/channel.ini
-    Optional configuration file overrides (for the ``[service]`` section
-    only).
+/etc/system-image/[0-9]+*.ini
+    Default configuration files.
 
 /etc/dbus-1/system.d/com.canonical.SystemImage.conf
     DBus service permissions file.
@@ -328,6 +349,7 @@ FILES
 SEE ALSO
 ========
 
-client.ini(5), system-image-cli(1)
+system-image.ini(5), system-image-cli(1)
+
 
 .. _`ISO 8601`: http://en.wikipedia.org/wiki/ISO_8601
