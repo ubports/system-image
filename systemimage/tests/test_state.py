@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -25,10 +25,10 @@ __all__ = [
     'TestKeyringDoubleChecks',
     'TestMiscellaneous',
     'TestPhasedUpdates',
-    'TestRebooting',
     'TestState',
     'TestStateDuplicateDestinations',
     'TestStateNewChannelsFormat',
+    'TestUpdateApplied',
     ]
 
 
@@ -48,12 +48,10 @@ from systemimage.helpers import calculate_signature
 from systemimage.state import ChecksumError, State
 from systemimage.testing.demo import DemoDevice
 from systemimage.testing.helpers import (
-    ServerTestBase, configuration, copy, data_path, get_index,
+    ServerTestBase, configuration, copy, data_path, descriptions, get_index,
     make_http_server, setup_keyring_txz, setup_keyrings, sign,
     temporary_directory, touch_build)
 from systemimage.testing.nose import SystemImagePlugin
-# FIXME
-from systemimage.tests.test_candidates import _descriptions
 from unittest.mock import call, patch
 
 BAD_SIGNATURE = 'f' * 64
@@ -73,7 +71,7 @@ class TestState(unittest.TestCase):
             self._serverdir = self._stack.enter_context(temporary_directory())
             self._stack.push(make_http_server(
                 self._serverdir, 8943, 'cert.pem', 'key.pem'))
-            copy('channels_01.json', self._serverdir, 'channels.json')
+            copy('state.channels_07.json', self._serverdir, 'channels.json')
             self._channels_path = os.path.join(
                 self._serverdir, 'channels.json')
         except:
@@ -385,11 +383,11 @@ class TestState(unittest.TestCase):
         self.assertRaises(SignatureError, next, state)
 
 
-class TestRebooting(ServerTestBase):
-    """Test various state transitions leading to a reboot."""
+class TestUpdateApplied(ServerTestBase):
+    """Test various state transitions leading to the applying of the update."""
 
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -418,7 +416,7 @@ class TestRebooting(ServerTestBase):
         self.assertFalse(os.path.exists(signing_path + '.asc'))
         self.assertFalse(os.path.exists(device_path + '.asc'))
         # None of the data files are found yet.
-        for image in get_index('index_13.json').images:
+        for image in get_index('state.index_03.json').images:
             for filerec in image.files:
                 path = os.path.join(cache_dir, os.path.basename(filerec.path))
                 asc = os.path.join(
@@ -443,7 +441,7 @@ class TestRebooting(ServerTestBase):
         self.assertTrue(os.path.exists(signing_path + '.asc'))
         self.assertTrue(os.path.exists(device_path + '.asc'))
         # All of the data files are found.
-        for image in get_index('index_13.json').images:
+        for image in get_index('state.index_03.json').images:
             for filerec in image.files:
                 path = os.path.join(cache_dir, os.path.basename(filerec.path))
                 asc = os.path.join(
@@ -452,26 +450,27 @@ class TestRebooting(ServerTestBase):
                 self.assertTrue(os.path.exists(asc))
 
     @configuration
-    def test_reboot_issued(self):
-        # The reboot gets issued.
+    def test_update_applied(self, config):
+        # The update gets applied
         self._setup_server_keyrings()
-        with ExitStack() as resources:
-            mock = resources.enter_context(
-                patch('systemimage.reboot.check_call'))
+        ini_path = os.path.join(config.config_d, '10_state.ini')
+        shutil.copy(data_path('state.config_01.ini'), ini_path)
+        config.reload()
+        with patch('systemimage.apply.Noop.apply') as mock:
             list(State())
-        self.assertEqual(mock.call_args[0][0],
-                         ['/sbin/reboot', '-f', 'recovery'])
+        self.assertEqual(mock.call_count, 1)
 
     @configuration
-    def test_no_update_available_no_reboot(self):
+    def test_no_update_available_no_apply(self, config):
         # LP: #1202915.  If there's no update available, running the state
-        # machine to completion should not result in a reboot.
+        # machine to completion should not make the call to apply it.
         self._setup_server_keyrings()
+        ini_path = os.path.join(config.config_d, '10_state.ini')
+        shutil.copy(data_path('state.config_01.ini'), ini_path)
+        config.reload()
         # Hack the current build number so that no update is available.
         touch_build(5000)
-        with ExitStack() as resources:
-            mock = resources.enter_context(
-                patch('systemimage.reboot.Reboot.reboot'))
+        with patch('systemimage.apply.Noop.apply') as mock:
             list(State())
         self.assertEqual(mock.call_count, 0)
 
@@ -483,10 +482,13 @@ class TestRebooting(ServerTestBase):
         self.assertRaises(CalledProcessError, list, State())
 
     @configuration
-    def test_run_until(self):
+    def test_run_until(self, config):
         # It is possible to run the state machine either until some specific
         # state is completed, or it runs to the end.
         self._setup_server_keyrings()
+        ini_path = os.path.join(config.config_d, '10_state.ini')
+        shutil.copy(data_path('state.config_01.ini'), ini_path)
+        config.reload()
         state = State()
         self.assertIsNone(state.channels)
         state.run_thru('get_channel')
@@ -496,26 +498,19 @@ class TestRebooting(ServerTestBase):
         # Run it some more.
         state.run_thru('get_index')
         self.assertIsNotNone(state.index)
-        # Run until just before the reboot.
-        #
-        # Mock the reboot to make sure a reboot did not get issued.
-        got_reboot = False
-        def reboot_mock(self):
-            nonlocal got_reboot
-            got_reboot = True
-        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
-            state.run_until('reboot')
-        # No reboot got issued.
-        self.assertFalse(got_reboot)
-        # Finish it off.
-        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
+        # Run until just before the apply step.
+        with patch('systemimage.apply.Noop.apply') as mock:
+            state.run_until('apply')
+        self.assertEqual(mock.call_count, 0)
+        # Run to the end of the state machine.
+        with patch('systemimage.apply.Noop.apply', mock):
             list(state)
-        self.assertTrue(got_reboot)
+        self.assertEqual(mock.call_count, 1)
 
 
 class TestRebootingNoDeviceSigning(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_11.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_03.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
     SIGNING_KEY = 'image-signing.gpg'
@@ -546,7 +541,7 @@ class TestRebootingNoDeviceSigning(ServerTestBase):
         self.assertFalse(os.path.exists(signing_path + '.asc'))
         self.assertFalse(os.path.exists(device_path + '.asc'))
         # None of the data files are found yet.
-        for image in get_index('index_13.json').images:
+        for image in get_index('state.index_03.json').images:
             for filerec in image.files:
                 path = os.path.join(cache_dir, os.path.basename(filerec.path))
                 asc = os.path.join(
@@ -572,7 +567,7 @@ class TestRebootingNoDeviceSigning(ServerTestBase):
         self.assertTrue(os.path.exists(signing_path + '.asc'))
         self.assertFalse(os.path.exists(device_path + '.asc'))
         # All of the data files are found.
-        for image in get_index('index_13.json').images:
+        for image in get_index('state.index_03.json').images:
             for filerec in image.files:
                 path = os.path.join(cache_dir, os.path.basename(filerec.path))
                 asc = os.path.join(
@@ -582,8 +577,8 @@ class TestRebootingNoDeviceSigning(ServerTestBase):
 
 
 class TestCommandFileFull(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -591,7 +586,7 @@ class TestCommandFileFull(ServerTestBase):
     def test_full_command_file(self):
         # A full update's command file gets properly filled.
         self._setup_server_keyrings()
-        State().run_until('reboot')
+        State().run_until('apply')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()
@@ -630,8 +625,8 @@ unmount system
 
 
 class TestCommandFileDelta(ServerTestBase):
-    INDEX_FILE = 'index_15.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_04.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -641,7 +636,7 @@ class TestCommandFileDelta(ServerTestBase):
         self._setup_server_keyrings()
         # Set the current build number so a delta update will work.
         touch_build(100)
-        State().run_until('reboot')
+        State().run_until('apply')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()
@@ -658,8 +653,8 @@ unmount system
 
 
 class TestFileOrder(ServerTestBase):
-    INDEX_FILE = 'index_16.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_05.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -670,7 +665,7 @@ class TestFileOrder(ServerTestBase):
         self._setup_server_keyrings()
         # Set the current build number so a delta update will work.
         touch_build(100)
-        State().run_until('reboot')
+        State().run_until('apply')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()
@@ -696,8 +691,8 @@ unmount system
 class TestDailyProposed(ServerTestBase):
     """Test that the daily-proposed channel works as expected."""
 
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_07.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_04.json'
     CHANNEL = 'daily-proposed'
     DEVICE = 'grouper'
 
@@ -731,8 +726,8 @@ class TestDailyProposed(ServerTestBase):
 
 
 class TestVersionedProposed(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_08.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_05.json'
     CHANNEL = '14.04-proposed'
     DEVICE = 'grouper'
 
@@ -753,8 +748,8 @@ class TestVersionedProposed(ServerTestBase):
 
 
 class TestFilters(ServerTestBase):
-    INDEX_FILE = 'index_15.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_04.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -781,16 +776,20 @@ class TestFilters(ServerTestBase):
 
 
 class TestStateNewChannelsFormat(ServerTestBase):
-    CHANNEL_FILE = 'channels_09.json'
+    CHANNEL_FILE = 'state.channels_06.json'
     CHANNEL = 'saucy'
     DEVICE = 'manta'
-    INDEX_FILE = 'index_21.json'
+    INDEX_FILE = 'state.index_06.json'
 
     @configuration
-    def test_full_reboot(self):
+    def test_full_reboot(self, config_d):
         # Test that state transitions through reboot work for the new channel
         # format.  Also check that the right files get moved into place.
-        config.load(data_path('channel_04.ini'), override=True)
+        shutil.copy(data_path('state.config_01.ini'),
+                    os.path.join(config_d, '11_state.ini'))
+        shutil.copy(data_path('state.config_02.ini'),
+                    os.path.join(config_d, '12_state.ini'))
+        config.reload()
         self._setup_server_keyrings()
         state = State()
         # Do not use self._resources to manage the check_output mock.  Because
@@ -798,7 +797,7 @@ class TestStateNewChannelsFormat(ServerTestBase):
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
-            state.run_until('reboot')
+            state.run_until('apply')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()
@@ -812,29 +811,25 @@ update 7.txt 7.txt.asc
 update 5.txt 5.txt.asc
 unmount system
 """)
-        got_reboot = False
-        def reboot_mock(self):
-            nonlocal got_reboot
-            got_reboot = True
-        with patch('systemimage.reboot.Reboot.reboot', reboot_mock):
+        with patch('systemimage.apply.Noop.apply') as mock:
             list(state)
-        self.assertTrue(got_reboot)
+        self.assertEqual(mock.call_count, 1)
 
 
 class TestChannelAlias(ServerTestBase):
-    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL_FILE = 'state.channels_01.json'
     CHANNEL = 'daily'
     DEVICE = 'manta'
-    INDEX_FILE = 'index_20.json'
+    INDEX_FILE = 'state.index_01.json'
 
     @configuration
-    def test_channel_alias_switch(self):
+    def test_channel_alias_switch(self, config_d):
         # Channels in the channel.json files can have an optional "alias" key,
         # which if set, describes the other channel this channel is based on
         # (only in a server-side generated way; the client sees all channels
         # as fully "stocked").
         #
-        # The channel.ini file can have a channel_target key which names the
+        # The [service] section can have a `channel_target` key which names the
         # channel alias this device has been tracking.  If the channel_target
         # does not match the channel alias, then the client considers its
         # internal version number to be 0 and does a full update.
@@ -850,9 +845,8 @@ class TestChannelAlias(ServerTestBase):
         # upgrade from build number 0 to get on the right track.
         #
         # To test this condition, we calculate the upgrade path first in the
-        # absence of a channels.ini file.  The device is tracking the daily
-        # channel, and there isno channel_target attribute, so we get the
-        # latest build on that channel.
+        # absence of a [service]channel_target key.  The device is tracking the
+        # daily channel, so we get the latest build on that channel.
         self._setup_server_keyrings()
         touch_build(300)
         config.channel = 'daily'
@@ -876,12 +870,16 @@ class TestChannelAlias(ServerTestBase):
         # Set the build number back to 300 for the next test.
         del config.build_number
         touch_build(300)
-        # Now we pretend there was a channel.ini file, and load it.  This also
-        # tells us the current build number is 300, but through the
-        # channel_target field it tells us that the previous daily channel
-        # alias was saucy.  Now (via the channels.json file) it's tubular, and
-        # the upgrade path starting at build 0 is different.
-        config.load(data_path('channel_05.ini'), override=True)
+        # Now we drop in a configuration file which sets the
+        # [service]channel_target key.  This also tells us the current build
+        # number is 300, but through the channel_target field it tells us that
+        # the previous daily channel alias was saucy.  Now (via the
+        # channels.json file) it's tubular, and the upgrade path starting at
+        # build 0 is different.
+        override_path = os.path.join(config_d, '02_override.ini')
+        with open(override_path, 'w', encoding='utf-8') as fp:
+            print('[service]\nchannel_target: saucy\n', file=fp)
+        config.reload()
         # All things being equal to the first test above, except that now
         # we're in the middle of an alias switch.  The upgrade path is exactly
         # the same as if we were upgrading from build 0.
@@ -892,7 +890,7 @@ class TestChannelAlias(ServerTestBase):
                          [200, 201, 304])
 
     @configuration
-    def test_channel_alias_switch_with_cli_option(self):
+    def test_channel_alias_switch_with_cli_option(self, config_d):
         # Like the above test, but in similating the use of `system-image-cli
         # --build 300`, we set the build number explicitly.  This prevent the
         # channel alias squashing of the build number to 0.
@@ -909,11 +907,19 @@ class TestChannelAlias(ServerTestBase):
             state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
                          [301, 304])
-        # Now we pretend there was a channel.ini file, and load it.  This also
-        # tells us the current build number is 300, but through the
-        # channel_target field it tells us that the previous daily channel
-        # alias was saucy.  Now (via the channels.json file) it's tubular.
-        config.load(data_path('channel_05.ini'), override=True)
+        # Now we have an override file.  This also tells us the current build
+        # number is 300, but through the channel_target field it tells us that
+        # the previous daily channel alias was saucy.  Now (via the
+        # channels.json file) it's tubular.
+        override_path = os.path.join(config_d, '02_override.ini')
+        with open(override_path, 'w', encoding='utf-8') as fp:
+            print("""\
+[service]
+channel_target: saucy
+channeL: daily
+build_number: 300
+""", file=fp)
+        config.reload()
         # All things being equal to the first test above, except that now
         # we're in the middle of an alias switch.  The upgrade path is exactly
         # the same as if we were upgrading from build 0.
@@ -923,7 +929,7 @@ class TestChannelAlias(ServerTestBase):
         state.run_thru('calculate_winner')
         self.assertEqual([image.version for image in state.winner],
                          [200, 201, 304])
-        # Finally, this mimic the effect of --build 300, thus giving us back
+        # Finally, this mimics the effect of --build 300, thus giving us back
         # the original upgrade path.
         config.build_number = 300
         state = State()
@@ -933,29 +939,63 @@ class TestChannelAlias(ServerTestBase):
 
 
 class TestPhasedUpdates(ServerTestBase):
-    CHANNEL_FILE = 'channels_10.json'
+    CHANNEL_FILE = 'state.channels_01.json'
     CHANNEL = 'daily'
     DEVICE = 'manta'
-    INDEX_FILE = 'index_22.json'
+    INDEX_FILE = 'state.index_07.json'
 
     @configuration
-    def test_phased_updates(self):
-        # With our threshold at 66, the "Full B" image is suppressed, thus the
-        # upgrade path is different than it normally would be.  In this case,
-        # the 'A' path is taken (in fact, the B path isn't even considered).
+    def test_inside_phased_updates_0(self):
+        # With our threshold at 22, the normal upgrade to "Full B" image is ok.
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
         self._resources.enter_context(
-            patch('systemimage.index.phased_percentage', return_value=66))
+            patch('systemimage.scores.phased_percentage', return_value=22))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(_descriptions(state.winner),
+        self.assertEqual(descriptions(state.winner),
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
+
+    @configuration
+    def test_outside_phased_updates(self):
+        # With our threshold at 66, the normal upgrade to "Full B" image is
+        # discarded, and the previous Full A update is chosen instead.
+        self._setup_server_keyrings()
+        config.channel = 'daily'
+        state = State()
+        self._resources.enter_context(
+            patch('systemimage.scores.phased_percentage', return_value=66))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
+        self.assertEqual(descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])
+
+    @configuration
+    def test_equal_phased_updates_0(self):
+        # With our threshold at 50, i.e. exactly equal to the image's
+        # percentage, the normal upgrade to "Full B" image is ok.
+        self._setup_server_keyrings()
+        config.channel = 'daily'
+        state = State()
+        self._resources.enter_context(
+            patch('systemimage.scores.phased_percentage', return_value=50))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
+        self.assertEqual(descriptions(state.winner),
+                         ['Full B', 'Delta B.1', 'Delta B.2'])
 
     @configuration
     def test_phased_updates_0(self):
@@ -965,40 +1005,102 @@ class TestPhasedUpdates(ServerTestBase):
         config.channel = 'daily'
         state = State()
         self._resources.enter_context(
-            patch('systemimage.index.phased_percentage', return_value=0))
+            patch('systemimage.scores.phased_percentage', return_value=0))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(_descriptions(state.winner),
+        self.assertEqual(descriptions(state.winner),
                          ['Full B', 'Delta B.1', 'Delta B.2'])
 
     @configuration
     def test_phased_updates_100(self):
-        # With our threshold at 100, only the image without a specific
-        # phased-percentage key is allowed.  That's the 'A' path again.
+        # With our threshold at 100, the "Full B" image is discarded and the
+        # backup "Full A" image is chosen.
         self._setup_server_keyrings()
         config.channel = 'daily'
         state = State()
         self._resources.enter_context(
-            patch('systemimage.index.phased_percentage', return_value=77))
+            patch('systemimage.scores.phased_percentage', return_value=77))
         # Do not use self._resources to manage the check_output mock.  Because
         # of the nesting order of the @configuration decorator and the base
         # class's tearDown(), using self._resources causes the mocks to be
         # unwound in the wrong order, affecting future tests.
         with patch('systemimage.device.check_output', return_value='manta'):
             state.run_thru('calculate_winner')
-        self.assertEqual(_descriptions(state.winner),
+        self.assertEqual(descriptions(state.winner),
                          ['Full A', 'Delta A.1', 'Delta A.2'])
 
 
+class TestPhasedUpdatesPulled(ServerTestBase):
+    CHANNEL_FILE = 'state.channels_01.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+    INDEX_FILE = 'state.index_02.json'
+
+    @configuration
+    def test_pulled_update(self):
+        # Regardless of the device's phase percentage, when the image has a
+        # percentage of 0, it will never be considered.  In this case Full B
+        # has a phased percentage of 0, so the fallback Full A is chosen.
+        self._setup_server_keyrings()
+        config.channel = 'daily'
+        state = State()
+        self._resources.enter_context(
+            patch('systemimage.scores.phased_percentage', return_value=0))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
+        self.assertEqual(descriptions(state.winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
+
+    @configuration
+    def test_pulled_update_insanely_negative_randint(self):
+        # Regardless of the device's phase percentage, when the image has a
+        # percentage of 0, it will never be considered.  In this case Full B
+        # has a phased percentage of 0, so the fallback Full A is chosen.
+        self._setup_server_keyrings()
+        config.channel = 'daily'
+        state = State()
+        self._resources.enter_context(
+            patch('systemimage.scores.phased_percentage', return_value=-100))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
+        self.assertEqual(descriptions(state.winner),
+                         ['Full A', 'Delta A.1', 'Delta A.2'])
+
+    @configuration
+    def test_pulled_update_insanely_positive_randint(self):
+        # Regardless of the device's phase percentage, when the image has a
+        # percentage of 0, it will never be considered.
+        self._setup_server_keyrings()
+        config.channel = 'daily'
+        state = State()
+        self._resources.enter_context(
+            patch('systemimage.scores.phased_percentage', return_value=1000))
+        # Do not use self._resources to manage the check_output mock.  Because
+        # of the nesting order of the @configuration decorator and the base
+        # class's tearDown(), using self._resources causes the mocks to be
+        # unwound in the wrong order, affecting future tests.
+        with patch('systemimage.device.check_output', return_value='manta'):
+            state.run_thru('calculate_winner')
+        self.assertEqual(len(state.winner), 0)
+
+
 class TestCachedFiles(ServerTestBase):
-    CHANNEL_FILE = 'channels_11.json'
+    CHANNEL_FILE = 'state.channels_03.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
-    INDEX_FILE = 'index_13.json'
+    INDEX_FILE = 'state.index_03.json'
     SIGNING_KEY = 'image-signing.gpg'
 
     @configuration
@@ -1278,7 +1380,7 @@ class TestCachedFiles(ServerTestBase):
         # Otherwise we clean those files out and start from scratch.
         self._setup_server_keyrings()
         state = State()
-        state.run_until('reboot')
+        state.run_until('apply')
         self.assertTrue(os.path.exists(
             os.path.join(config.updater.cache_partition, 'ubuntu_command')))
         # Now, to prove that the data files are not re-downloaded with a new
@@ -1294,11 +1396,11 @@ class TestCachedFiles(ServerTestBase):
                 path = os.path.join(config.updater.cache_partition, filename)
                 mtimes[filename] = os.stat(path).st_mtime_ns
         self.assertGreater(len(mtimes), 0)
-        # Now create a new state machine, and run until reboot again.  Even
-        # though there are no data files on the server, this still completes
-        # successfully.
+        # Now create a new state machine, and run until the update gets applied
+        # again.  Even though there are no data files on the server, this still
+        # completes successfully.
         state = State()
-        state.run_until('reboot')
+        state.run_until('apply')
         # Check all the mtimes.
         for filename in os.listdir(config.updater.cache_partition):
             if filename.endswith('.txt') or filename.endswith('.txt.asc'):
@@ -1348,17 +1450,17 @@ class TestCachedFiles(ServerTestBase):
         with open(asc_path, 'rb') as fp:
             checksum = hashlib.md5(fp.read()).digest()
         mtime = os.stat(txt_path).st_mtime_ns
-        state.run_until('reboot')
+        state.run_until('apply')
         with open(asc_path, 'rb') as fp:
             self.assertNotEqual(checksum, hashlib.md5(fp.read()).digest)
         self.assertNotEqual(mtime, os.stat(txt_path).st_mtime_ns)
 
 
 class TestKeyringDoubleChecks(ServerTestBase):
-    CHANNEL_FILE = 'channels_11.json'
+    CHANNEL_FILE = 'state.channels_03.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
-    INDEX_FILE = 'index_13.json'
+    INDEX_FILE = 'state.index_03.json'
     SIGNING_KEY = 'image-signing.gpg'
 
     @configuration
@@ -1523,14 +1625,14 @@ class TestKeyringDoubleChecks(ServerTestBase):
 class TestStateDuplicateDestinations(ServerTestBase):
     """An index.json with duplicate destination files is broken."""
 
-    INDEX_FILE = 'index_23.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_08.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
     @configuration
     def test_duplicate_destinations(self):
-        # index_23.json has the bug we saw in the wild in LP: #1250181.
+        # state.index_08.json has the bug we saw in the wild in LP: #1250181.
         # There, the server erroneously included a data file twice in two
         # different images.  This can't happen and indicates a server
         # problem.  The client must refuse to upgrade in this case, by raising
@@ -1558,8 +1660,8 @@ class TestStateDuplicateDestinations(ServerTestBase):
 class TestMiscellaneous(ServerTestBase):
     """Test a few additional things for full code coverage."""
 
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'state.index_03.json'
+    CHANNEL_FILE = 'state.channels_02.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -1614,7 +1716,7 @@ class TestMiscellaneous(ServerTestBase):
                          call('No blacklist found on second attempt'))
         # Even though there's no blacklist file, everything still gets
         # downloaded correctly.
-        state.run_until('reboot')
+        state.run_until('apply')
         path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
         with open(path, 'r', encoding='utf-8') as fp:
             command = fp.read()

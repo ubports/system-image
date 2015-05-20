@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -24,7 +24,6 @@ import json
 
 from datetime import datetime, timezone
 from systemimage.bag import Bag
-from systemimage.helpers import phased_percentage
 from systemimage.image import Image
 
 
@@ -49,7 +48,6 @@ class Index(Bag):
         global_ = Bag(generated_at=generated_at)
         # Parse the images.
         images = []
-        percentage = phased_percentage()
         for image_data in mapping['images']:
             # Descriptions can be any of:
             #
@@ -70,6 +68,5 @@ class Index(Bag):
             image = Image(files=bundles,
                           descriptions=descriptions,
                           **image_data)
-            if percentage <= image.phased_percentage:
-                images.append(image)
+            images.append(image)
         return cls(global_=global_, images=images)

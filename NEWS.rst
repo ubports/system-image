@@ -2,7 +2,78 @@
 NEWS for system-image updater
 =============================
 
-2.5 (2014-XX-XX)
+3.0 (2015-05-08)
+================
+ * Support a built-in PyCURL-based downloader in addition to the traditional
+   ubuntu-download-manager (over D-BUS) downloader.  Auto-detects which
+   downloader to use based on whether udm is available on the system bus,
+   pycurl is importable, and the setting of the SYSTEMIMAGE_PYCURL environment
+   variable.  Initial contribution by Michael Vogt.  (LP: #1374459)
+ * Support alternative machine-id files as fall backs if the D-Bus file does
+   not exist.  Specifically, add systemd's /etc/machine-id to the list.
+   Initial contribution by Michael Vogt.  (LP: #1384859)
+ * Support multiple configuration files, as in a `config.d` directory.  Now,
+   configuration files are named `NN_whatever.ini` where "NN" must be a
+   numeric prefix.  Files are loaded in sorted numeric order, with later files
+   overriding newer files.  Support for both the `client.ini` and
+   `channel.ini` files has been removed. (LP: #1373467)
+ * The `[system]build_file` variable has been removed.  Build number
+   information now must come from the `.ini` files, and last update date
+   comes from the newest `.ini` file loaded.
+ * The `-C` command line option now takes a path to the configuration
+   directory.
+ * Reworked the checking and downloading locks/flags to so that they will work
+   better with configuration reloading.  (LP: #1412698)
+ * Support for the `/etc/ubuntu-build` file has been removed.  The build
+   number now comes from the configuration files.  (LP: #1377312)
+ * Move the `archive-master.tar.xz` file to `/usr/share/system-image` for
+   better FHS compliance.  (LP: #1377184)
+ * Since devices do not always reboot to apply changes, the `[hooks]update`
+   variable has been renamed to `[hooks]apply`.  (LP: #1381538)
+ * For testing purposes only, `system-image-cli` now supports an
+   undocumented command line switch `--skip-gpg-verification`.  Originally
+   given by Jani Monoses.  (LP: #1333414)
+ * A new D-Bus signal `Applied(bool)` is added, which is returned in
+   response to the `ApplyUpdate()` asynchronous method call.  For devices
+   which do not need to reboot in order to apply the update, this is the only
+   signal you will get.  If your device needs to reboot you will also receive
+   the `Rebooting(bool)` command as with earlier versions.  The semantics of
+   the flag argument are the same in both cases, as are the race timing issues
+   inherent in these signals.  See the `system-image-dbus(8)` manpage for
+   details.  (LP: #1417176)
+ * As part of LP: #1417176, the `--no-reboot` switch for
+   `system-image-cli(1)` has been deprecated.  Use `--no-apply` instead
+   (`-g` is still the shortcut).
+ * Support production factory resets.  `system-image-cli --production-reset`
+   and a new D-Bus API method `ProductionReset()` are added.  Given by Ricardo
+   Salveti.  (LP: #1419027)
+ * A new key, `target_version_detail` has been added to the dictionary
+   returned by the `.Information()` D-Bus method.  (LP: #1399687)
+ * The `User-Agent` HTTP header now also includes device and channel names.
+   (LP: #1387719)
+ * Added `--progress` flag to `system-image-cli` for specifying methods for
+   reporting progress.  Current available values are: `dots` (compatible with
+   system-image 2.5), `logfile` (compatible with system-image 2.5's
+   `--verbose` flag), and `json` for JSON records on stdout.  (LP: #1423622)
+ * Support for the `SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS` environment
+   variable has been removed.
+ * Fix `system-image-cli --list-channels`.  (LP: #1448153)
+
+2.5.1 (2014-10-21)
+==================
+ * Make phased upgrade percentage calculation idempotent for each tuple of
+   (channel, target-build-number, machine-id).  Also, modify the candidate
+   upgrade path selection process such that if the lowest scored candidate
+   path has a phased percentage greater than the device's percentage, the
+   candidate will be ignored, and the next lowest scored candidate will be
+   checked until either a winner is found or no candidates are left, in which
+   case the device is deemed to be up-to-date. (LP: #1383539)
+ * `system-image-cli -p/--percentage` is added to allow command line override
+   of the device's phased percentage.
+ * `system-image-cli --dry-run` now also displays the phase percentage of the
+   winning candidate upgrade path.
+
+2.5 (2014-09-29)
 ================
  * Remove the previously deprecated `system-image-cli --dbus` command line
    switch.  (LP: #1369717)

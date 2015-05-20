@@ -16,10 +16,11 @@ Build-Depends: dbus,
                python3-nose2,
                python3-pkg-resources,
                python3-psutil,
+               python3-pycurl,
                python3-setuptools,
                python3-xdg,
                ubuntu-download-manager
-Standards-Version: 3.9.5
+Standards-Version: 3.9.6
 XS-Testsuite: autopkgtest
 Vcs-Bzr: https://code.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image
 Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image/files
@@ -48,7 +49,7 @@ Depends: python3-dbus,
          python3-gnupg,
          python3-pkg-resources,
          python3-xdg,
-         ubuntu-download-manager,
+         ubuntu-download-manager | python3-pycurl,
          ${misc:Depends},
          ${python3:Depends}
 Description: Ubuntu system image updater

@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -18,21 +18,17 @@
 
 __all__ = [
     'TestAPI',
+    'TestAPIVersionDetail',
     ]
 
 
 import os
-import json
+import unittest
 
-from contextlib import ExitStack
-from datetime import datetime, timedelta
-from gi.repository import GLib
-from hashlib import sha256
+from pathlib import Path
 from systemimage.api import Mediator
-from systemimage.config import Configuration, config
+from systemimage.config import config
 from systemimage.download import Canceled
-from systemimage.gpg import SignatureError
-from systemimage.helpers import MiB
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, setup_index, sign,
     touch_build)
@@ -41,8 +37,8 @@ from unittest.mock import patch
 
 
 class TestAPI(ServerTestBase):
-    INDEX_FILE = 'index_13.json'
-    CHANNEL_FILE = 'channels_06.json'
+    INDEX_FILE = 'api.index_01.json'
+    CHANNEL_FILE = 'api.channels_01.json'
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
@@ -106,11 +102,11 @@ class TestAPI(ServerTestBase):
         self._setup_server_keyrings()
         # Index 14 has a more interesting upgrade path, and will yield a
         # richer description set.
-        index_dir = os.path.join(self._serverdir, self.CHANNEL, self.DEVICE)
-        index_path = os.path.join(index_dir, 'index.json')
-        copy('index_14.json', index_dir, 'index.json')
+        index_dir = Path(self._serverdir) / self.CHANNEL / self.DEVICE
+        index_path = index_dir / 'index.json'
+        copy('api.index_02.json', index_dir, 'index.json')
         sign(index_path, 'device-signing.gpg')
-        setup_index('index_14.json', self._serverdir, 'device-signing.gpg')
+        setup_index('api.index_02.json', self._serverdir, 'device-signing.gpg')
         # Get the descriptions.
         update = Mediator().check_for_update()
         self.assertTrue(update.is_available)
@@ -144,13 +140,13 @@ class TestAPI(ServerTestBase):
         mediator = Mediator()
         self.assertTrue(mediator.check_for_update())
         # Make sure a reboot did not get issued.
-        with patch('systemimage.reboot.Reboot.reboot') as reboot:
+        with patch('systemimage.apply.Reboot.apply') as mock:
             mediator.download()
-        # No reboot got issued.
-        self.assertFalse(reboot.called)
+        # The update was not applied.
+        self.assertFalse(mock.called)
         # But the command file did get written, and all the files are present.
-        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
-        with open(path, 'r', encoding='utf-8') as fp:
+        path = Path(config.updater.cache_partition) / 'ubuntu_command'
+        with path.open('r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, """\
 load_keyring image-master.tar.xz image-master.tar.xz.asc
@@ -185,29 +181,43 @@ unmount system
             ]))
 
     @configuration
-    def test_reboot(self):
-        # Run the intermediate steps, and finish with a reboot.
+    def test_apply(self):
+        # Run the intermediate steps, applying the update at the end.
         self._setup_server_keyrings()
         mediator = Mediator()
         # Mock to check the state of reboot.
-        with patch('systemimage.reboot.Reboot.reboot') as reboot:
+        with patch('systemimage.apply.Reboot.apply') as mock:
             mediator.check_for_update()
             mediator.download()
-            self.assertFalse(reboot.called)
-            mediator.reboot()
-            self.assertTrue(reboot.called)
+            self.assertFalse(mock.called)
+            mediator.apply()
+            self.assertTrue(mock.called)
 
     @configuration
     def test_factory_reset(self):
         mediator = Mediator()
-        with patch('systemimage.reboot.Reboot.reboot') as reboot:
+        with patch('systemimage.apply.Reboot.apply') as mock:
             mediator.factory_reset()
-        self.assertTrue(reboot.called)
-        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
-        with open(path, 'r', encoding='utf-8') as fp:
+        self.assertTrue(mock.called)
+        path = Path(config.updater.cache_partition) / 'ubuntu_command'
+        with path.open('r', encoding='utf-8') as fp:
             command = fp.read()
         self.assertMultiLineEqual(command, dedent("""\
             format data
+            """))
+
+    @configuration
+    def test_production_reset(self):
+        mediator = Mediator()
+        with patch('systemimage.apply.Reboot.apply') as mock:
+            mediator.production_reset()
+        self.assertTrue(mock.called)
+        path = Path(config.updater.cache_partition) / 'ubuntu_command'
+        with path.open('r', encoding='utf-8') as fp:
+            command = fp.read()
+        self.assertMultiLineEqual(command, dedent("""\
+            format data
+            enable factory_wipe
             """))
 
     @configuration
@@ -240,73 +250,41 @@ unmount system
         self.assertNotEqual(received_bytes, 0)
         self.assertNotEqual(total_bytes, 0)
 
-    @configuration
-    def test_pause_resume(self):
-        # Pause and resume the download.
-        self._setup_server_keyrings()
-        for path in ('3/4/5.txt', '4/5/6.txt', '5/6/7.txt'):
-            full_path = os.path.join(self._serverdir, path)
-            with open(full_path, 'wb') as fp:
-                fp.write(b'x' * 100 * MiB)
-        # We must update the file checksums in the index.json file, then we
-        # have to resign it.
-        index_path = os.path.join(
-            self._serverdir, 'stable', 'nexus7', 'index.json')
-        with open(index_path, 'r', encoding='utf-8') as fp:
-            index = json.load(fp)
-        checksum = sha256(b'x' * 100 * MiB).hexdigest()
-        for i in range(3):
-            index['images'][0]['files'][i]['checksum'] = checksum
-        with open(index_path, 'w', encoding='utf-8') as fp:
-            json.dump(index, fp)
-        sign(index_path, 'device-signing.gpg')
-        # Now the test is all set up.
-        mediator = Mediator()
-        pauses = []
-        def do_paused(self, signal, path, paused):
-            if paused:
-                pauses.append(datetime.now())
-        resumes = []
-        def do_resumed(self, signal, path, resumed):
-            if resumed:
-                resumes.append(datetime.now())
-        def pause_on_start(self, signal, path, started):
-            if started and self._pausable:
-                mediator.pause()
-                GLib.timeout_add_seconds(3, mediator.resume)
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.download.DownloadReactor._do_paused',
-                      do_paused))
-            resources.enter_context(
-                patch('systemimage.download.DownloadReactor._do_resumed',
-                      do_resumed))
-            resources.enter_context(
-                patch('systemimage.download.DownloadReactor._do_started',
-                      pause_on_start))
-            mediator.check_for_update()
-            # We'll get a signature error because we messed with the file
-            # contents.  Since this check happens after all files are
-            # downloaded, this exception is inconsequential to the thing we're
-            # testing.
-            try:
-                mediator.download()
-            except SignatureError:
-                pass
-        # There should be at one pause and one resume event, separated by
-        # about 3 seconds.
-        self.assertEqual(len(pauses), 1)
-        self.assertEqual(len(resumes), 1)
-        self.assertGreaterEqual(resumes[0] - pauses[0], timedelta(seconds=2.5))
+    from systemimage.testing.controller import USING_PYCURL
 
+    @unittest.skipIf(os.getuid() == 0, 'Test cannot succeed when run as root')
+    @unittest.skipUnless(USING_PYCURL, 'LP: #1411866')
     @configuration
-    def test_state_machine_exceptions(self, ini_file):
+    def test_state_machine_exceptions(self, config):
         # An exception in the state machine captures the exception and returns
         # an error string in the Update instance.
         self._setup_server_keyrings()
-        config = Configuration(ini_file)
         with chmod(config.updater.cache_partition, 0):
             update = Mediator().check_for_update()
         # There's no winning path, but there is an error.
         self.assertFalse(update.is_available)
         self.assertIn('Permission denied', update.error)
+
+
+class TestAPIVersionDetail(ServerTestBase):
+    INDEX_FILE = 'api.index_03.json'
+    CHANNEL_FILE = 'api.channels_01.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    @configuration
+    def test_update_available_version(self):
+        # An update is available.  What's the target version number?
+        self._setup_server_keyrings()
+        update = Mediator().check_for_update()
+        self.assertEqual(update.version_detail,
+                         'ubuntu=101,raw-device=201,version=301')
+
+    @configuration
+    def test_no_update_available_version(self):
+        # No update is available, so the target version number is zero.
+        self._setup_server_keyrings()
+        touch_build(1600)
+        update = Mediator().check_for_update()
+        self.assertFalse(update.is_available)
+        self.assertEqual(update.version_detail, '')

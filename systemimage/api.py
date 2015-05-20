@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -24,10 +24,9 @@ __all__ = [
 
 import logging
 
-from systemimage.helpers import last_update_date
-from systemimage.reboot import factory_reset
+from systemimage.apply import factory_reset, production_reset
 from systemimage.state import State
-from unittest.mock import patch
+
 
 log = logging.getLogger('systemimage')
 
@@ -63,8 +62,12 @@ class Update:
             return ''
 
     @property
-    def last_update_date(self):
-        return last_update_date()
+    def version_detail(self):
+        try:
+            return self._winners[-1].version_detail
+        except IndexError:
+            # No winners.
+            return ''
 
 
 class Mediator:
@@ -115,13 +118,20 @@ class Mediator:
     def download(self):
         """Download the available update."""
         # We only want callback progress during the actual download.
-        with patch.object(self._state.downloader, 'callback', self._callback):
-            self._state.run_until('reboot')
+        old_callbacks = self._state.downloader.callbacks[:]
+        try:
+            self._state.downloader.callbacks = [self._callback]
+            self._state.run_until('apply')
+        finally:
+            self._state.downloader.callbacks = old_callbacks
 
-    def reboot(self):
-        """Issue the reboot."""
+    def apply(self):
+        """Apply the update."""
         # Transition through all remaining states.
         list(self._state)
 
     def factory_reset(self):
         factory_reset()
+
+    def production_reset(self):
+        production_reset()

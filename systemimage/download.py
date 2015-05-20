@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -17,9 +17,9 @@
 
 __all__ = [
     'Canceled',
-    'DBusDownloadManager',
     'DuplicateDestinationError',
     'Record',
+    'get_download_manager',
     ]
 
 
@@ -28,37 +28,16 @@ import dbus
 import logging
 
 from collections import namedtuple
-from contextlib import suppress
 from io import StringIO
 from pprint import pformat
-from systemimage.config import config
-from systemimage.reactor import Reactor
-from systemimage.settings import Settings
 
-# The systemimage.testing module will not be available on installed systems
-# unless the system-image-dev binary package is installed, which is not usually
-# the case.  Disable _print() debugging in that case.
-def _print(*args, **kws):
-    with suppress(ImportError):
-        # We must import this here to avoid circular imports.
-        from systemimage.testing.helpers import debug
-        with debug(check_flag=True) as ddlog:
-            ddlog(*args, **kws)
-
-
-# Parameterized for testing purposes.
-DOWNLOADER_INTERFACE = 'com.canonical.applications.Downloader'
-MANAGER_INTERFACE = 'com.canonical.applications.DownloadManager'
-OBJECT_NAME = 'com.canonical.applications.Downloader'
-OBJECT_INTERFACE = 'com.canonical.applications.GroupDownload'
-USER_AGENT = 'Ubuntu System Image Upgrade Client; Build {}'
+try:
+    import pycurl
+except ImportError:                                 # pragma: no cover
+    pycurl = None
 
 
 log = logging.getLogger('systemimage')
-
-
-def _headers():
-    return {'User-Agent': USER_AGENT.format(config.build_number)}
 
 
 class Canceled(Exception):
@@ -89,78 +68,10 @@ def Record(url, destination, checksum=''):
         url=url, destination=destination, checksum=checksum)
 
 
-class DownloadReactor(Reactor):
-    def __init__(self, bus, callback=None, pausable=False):
-        super().__init__(bus)
-        self._callback = callback
-        self._pausable = pausable
-        self.error = None
-        self.canceled = False
-        self.received = 0
-        self.total = 0
-        self.react_to('canceled')
-        self.react_to('error')
-        self.react_to('finished')
-        self.react_to('paused')
-        self.react_to('progress')
-        self.react_to('resumed')
-        self.react_to('started')
+class DownloadManagerBase:
+    """Base class for all download managers."""
 
-    def _do_started(self, signal, path, started):
-        _print('STARTED:', started)
-
-    def _do_finished(self, signal, path, local_paths):
-        _print('FINISHED:', local_paths)
-        self.quit()
-
-    def _do_error(self, signal, path, error_message):
-        _print('ERROR:', error_message)
-        log.error(error_message)
-        self.error = error_message
-        self.quit()
-
-    def _do_progress(self, signal, path, received, total):
-        self.received = received
-        self.total = total
-        _print('PROGRESS:', received, total)
-        if self._callback is not None:
-            # Be defensive, so yes, use a bare except.  If an exception occurs
-            # in the callback, log it, but continue onward.
-            try:
-                self._callback(received, total)
-            except:
-                log.exception('Exception in progress callback')
-
-    def _do_canceled(self, signal, path, canceled):
-        # Why would we get this signal if it *wasn't* canceled?  Anyway,
-        # this'll be a D-Bus data type so converted it to a vanilla Python
-        # boolean.
-        _print('CANCELED:', canceled)
-        self.canceled = bool(canceled)
-        self.quit()
-
-    def _do_paused(self, signal, path, paused):
-        _print('PAUSE:', paused, self._pausable)
-        send_paused = self._pausable and config.dbus_service is not None
-        if send_paused:                             # pragma: no branch
-            # We could plumb through the `service` object from service.py (the
-            # main entry point for system-image-dbus, but that's actually a
-            # bit of a pain, so do the expedient thing and grab the interface
-            # here.
-            percentage = (int(self.received / self.total * 100.0)
-                          if self.total > 0 else 0)
-            config.dbus_service.UpdatePaused(percentage)
-
-    def _do_resumed(self, signal, path, resumed):
-        _print('RESUME:', resumed)
-        # There currently is no UpdateResumed() signal.
-
-    def _default(self, *args, **kws):
-        _print('SIGNAL:', args, kws)                # pragma: no cover
-
-
-class DBusDownloadManager:
-    def __init__(self, callback=None):
+    def __init__(self):
         """
         :param callback: If given, a function that is called every so often
             during downloading.
@@ -168,12 +79,79 @@ class DBusDownloadManager:
             of bytes received so far, and the total amount of bytes to be
             downloaded.
         """
-        self._iface = None
+        # This is a list of functions that are called every so often during
+        # downloading.  Functions in this list take two arguments, the number
+        # of bytes received so far, and the total amount of bytes to be
+        # downloaded.
+        self.callbacks = []
+        self.total = 0
+        self.received = 0
         self._queued_cancel = False
-        self.callback = callback
 
     def __repr__(self): # pragma: no cover
-        return '<DBusDownloadManager at 0x{:x}>'.format(id(self))
+        return '<{} at 0x{:x}>'.format(self.__class__.__name__, id(self))
+
+    def _get_download_records(self, downloads):
+        """Convert the downloads items to download records."""
+        records = [item if isinstance(item, _RecordType) else Record(*item)
+                   for item in downloads]
+        destinations = set(record.destination for record in records)
+        # Check for duplicate destinations, specifically for a local file path
+        # coming from two different sources.  It's okay if there are duplicate
+        # destination records in the download request, but each of those must
+        # be specified by the same source url and have the same checksum.
+        #
+        # An easy quick check just asks if the set of destinations is smaller
+        # than the total number of requested downloads.  It can't be larger.
+        # If it *is* smaller, then there are some duplicates, however the
+        # duplicates may be legitimate, so look at the details.
+        #
+        # Note though that we cannot pass duplicates destinations to udm, so we
+        # have to filter out legitimate duplicates.  That's fine since they
+        # really are pointing to the same file, and will end up in the
+        # destination location.
+        if len(destinations) < len(downloads):
+            by_destination = dict()
+            unique_downloads = set()
+            for record in records:
+                by_destination.setdefault(record.destination, set()).add(
+                    record)
+                unique_downloads.add(record)
+            duplicates = []
+            for dst, seen in by_destination.items():
+                if len(seen) > 1:
+                    # Tuples will look better in the pretty-printed output.
+                    duplicates.append(
+                        (dst, sorted(tuple(dup) for dup in seen)))
+            if len(duplicates) > 0:
+                raise DuplicateDestinationError(sorted(duplicates))
+            # Uniquify the downloads.
+            records = list(unique_downloads)
+        return records
+
+    def _do_callback(self):
+        # Be defensive, so yes, use a bare except.  If an exception occurs in
+        # the callback, log it, but continue onward.
+        for callback in self.callbacks:
+            try:
+                callback(self.received, self.total)
+            except:
+                log.exception('Exception in progress callback')
+
+    def cancel(self):
+        """Cancel any current downloads."""
+        self._queued_cancel = True
+
+    def pause(self):
+        """Pause the download, but only if one is in progress."""
+        pass                                        # pragma: no cover
+
+    def resume(self):
+        """Resume the download, but only if one is in progress."""
+        pass                                        # pragma: no cover
+
+    def _get_files(self, records, pausable):
+        raise NotImplementedError                   # pragma: no cover
 
     def get_files(self, downloads, *, pausable=False):
         """Download a bunch of files concurrently.
@@ -204,52 +182,16 @@ class DBusDownloadManager:
         :raises: DuplicateDestinationError if more than one source url is
             downloaded to the same destination file.
         """
-        assert self._iface is None
         if self._queued_cancel:
             # A cancel is queued, so don't actually download anything.
             raise Canceled
         if len(downloads) == 0:
             # Nothing to download.  See LP: #1245597.
             return
-        # Convert the downloads items to download records.
-        records = [item if isinstance(item, _RecordType) else Record(*item)
-                   for item in downloads]
-        destinations = set(record.destination for record in records)
-        # Check for duplicate destinations, specifically for a local file path
-        # coming from two different sources.  It's okay if there are duplicate
-        # destination records in the download request, but each of those must
-        # be specified by the same source url and have the same checksum.
-        #
-        # An easy quick check just asks if the set of destinations is smaller
-        # than the total number of requested downloads.  It can't be larger.
-        # If it *is* smaller, then there are some duplicates, however the
-        # duplicates may be legitimate, so look at the details.
-        #
-        # Note though that we cannot pass duplicates destinations to udm,
-        # so we have to filter out legitimate duplicates.  That's fine since
-        # they really are pointing to the same file, and will end up in the
-        # destination location.
-        if len(destinations) < len(downloads):
-            by_destination = dict()
-            unique_downloads = set()
-            for record in records:
-                by_destination.setdefault(record.destination, set()).add(
-                    record)
-                unique_downloads.add(record)
-            duplicates = []
-            for dst, seen in by_destination.items():
-                if len(seen) > 1:
-                    # Tuples will look better in the pretty-printed output.
-                    duplicates.append(
-                        (dst, sorted(tuple(dup) for dup in seen)))
-            if len(duplicates) > 0:
-                raise DuplicateDestinationError(sorted(duplicates))
-            # Uniquify the downloads.
-            records = list(unique_downloads)
-        bus = dbus.SystemBus()
-        service = bus.get_object(DOWNLOADER_INTERFACE, '/')
-        iface = dbus.Interface(service, MANAGER_INTERFACE)
-        # Better logging of the requested downloads.
+        records = self._get_download_records(downloads)
+        # Better logging of the requested downloads.  However, we want the
+        # entire block of multiline log output to appear under a single
+        # timestamp.
         fp = StringIO()
         print('[0x{:x}] Requesting group download:'.format(id(self)), file=fp)
         for record in records:
@@ -258,69 +200,38 @@ class DBusDownloadManager:
             else:
                 print('\t{} [{}] -> {}'.format(*record), file=fp)
         log.info('{}'.format(fp.getvalue()))
-        object_path = iface.createDownloadGroup(
-            records,
-            'sha256',
-            False,        # Don't allow GSM yet.
-            # https://bugs.freedesktop.org/show_bug.cgi?id=55594
-            dbus.Dictionary(signature='sv'),
-            _headers())
-        download = bus.get_object(OBJECT_NAME, object_path)
-        self._iface = dbus.Interface(download, OBJECT_INTERFACE)
-        # Are GSM downloads allowed?  Yes, except if auto_download is set to 1
-        # (i.e. wifi-only).
-        allow_gsm = Settings().get('auto_download') != '1'
-        DBusDownloadManager._set_gsm(self._iface, allow_gsm=allow_gsm)
-        # Start the download.
-        reactor = DownloadReactor(bus, self.callback, pausable)
-        reactor.schedule(self._iface.start)
-        log.info('[0x{:x}] Running group download reactor', id(self))
-        reactor.run()
-        # This download is complete so the object path is no longer
-        # applicable.  Setting this to None will cause subsequent cancels to
-        # be queued.
-        self._iface = None
-        log.info('[0x{:x}] Group download reactor done', id(self))
-        if reactor.error is not None:
-            log.error('Reactor error: {}'.format(reactor.error))
-        if reactor.canceled:
-            log.info('Reactor canceled')
-        # Report any other problems.
-        if reactor.error is not None:
-            raise FileNotFoundError(reactor.error)
-        if reactor.canceled:
-            raise Canceled
-        if reactor.timed_out:
-            raise TimeoutError
-        # For sanity.
-        for record in records:
-            assert os.path.exists(record.destination), (
-                'Missing destination: {}'.format(record))
+        self._get_files(records, pausable)
 
-    @staticmethod
-    def _set_gsm(iface, *, allow_gsm):
-        # This is a separate method for easier testing via mocks.
-        iface.allowGSMDownload(allow_gsm)
 
-    def cancel(self):
-        """Cancel any current downloads."""
-        if self._iface is None:
-            # Since there's no download in progress right now, there's nothing
-            # to cancel.  Setting this flag queues the cancel signal once the
-            # reactor starts running again.  Yes, this is a bit weird, but if
-            # we don't do it this way, the caller will immediately get a
-            # Canceled exception, which isn't helpful because it's expecting
-            # one when the next download begins.
-            self._queued_cancel = True
+def get_download_manager(*args):
+    # We have to avoid circular imports since both download managers import
+    # various things from this module.
+    from systemimage.curl import CurlDownloadManager
+    from systemimage.udm import DOWNLOADER_INTERFACE, UDMDownloadManager
+    # Detect if we have ubuntu-download-manager.
+    #
+    # Use PyCURL based downloader if no udm is found, or if the environment
+    # variable is set.  However, if we're told to use PyCURL and it's
+    # unavailable, throw an exception.
+    cls = None
+    use_pycurl = os.environ.get('SYSTEMIMAGE_PYCURL')
+    if use_pycurl is None:
+        # Auto-detect.  For backward compatibility, use udm if it's available,
+        # otherwise use PyCURL.
+        try:
+            bus = dbus.SystemBus()
+            bus.get_object(DOWNLOADER_INTERFACE, '/')
+            udm_available = True
+        except dbus.exceptions.DBusException:
+            udm_available = False
+        if udm_available:
+            cls = UDMDownloadManager
+        elif pycurl is None:
+            raise ImportError('No module named {}'.format('pycurl'))
         else:
-            self._iface.cancel()
-
-    def pause(self):
-        """Pause the download, but only if one is in progress."""
-        if self._iface is not None:                 # pragma: no branch
-            self._iface.pause()
-
-    def resume(self):
-        """Resume the download, but only if one is in progress."""
-        if self._iface is not None:                 # pragma: no branch
-            self._iface.resume()
+            cls = CurlDownloadManager
+    else:
+        cls = (CurlDownloadManager
+               if use_pycurl.lower() in ('1', 'yes', 'true')
+               else UDMDownloadManager)
+    return cls(*args)

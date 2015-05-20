@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -76,11 +76,14 @@ class Reactor:
             self._quitter = GLib.timeout_add_seconds(
                 self._active_timeout, self._quit_with_error)
 
-    def react_to(self, signal):
+    def react_to(self, signal, object_path=None):
         signal_match = self._bus.add_signal_receiver(
-            self._handle_signal, signal_name=signal,
+            self._handle_signal,
+            signal_name=signal,
+            path=object_path,
             member_keyword='member',
-            path_keyword='path')
+            path_keyword='path',
+            )
         self._signal_matches.append(signal_match)
 
     def schedule(self, method, milliseconds=50):

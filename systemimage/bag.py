@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -42,6 +42,12 @@ def make_converter(original):
 
 
 class Bag:
+    # NOTE: This class's methods share a namespace with the possible
+    # configuration variable names in the various sections.  Thus no variable
+    # in any section can be named `update`, `keys`, or `get`.  They also can't
+    # be named like any of the non-public methods, but that's usually not a
+    # problem.  Ideally, we'd name the methods part of the reserved namespace,
+    # but it seems like a low tech debt for now.
     def __init__(self, *, converters=None, **kws):
         self._converters = make_converter(converters)
         self.__original__ = {}

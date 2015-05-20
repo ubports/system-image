@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2015 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -34,11 +34,13 @@ import unittest
 
 from contextlib import ExitStack
 from datetime import datetime, timedelta
+from pathlib import Path
 from systemimage.bag import Bag
-from systemimage.config import Configuration, config
+from systemimage.config import Configuration
 from systemimage.helpers import (
-    MiB, as_loglevel, as_object, as_timedelta, calculate_signature,
-    last_update_date, phased_percentage, temporary_directory, version_detail)
+    MiB, NO_PORT, as_loglevel, as_object, as_port, as_stripped, as_timedelta,
+    calculate_signature, last_update_date, phased_percentage,
+    temporary_directory, version_detail)
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
 
@@ -109,6 +111,21 @@ class TestConverters(unittest.TestCase):
     def test_as_bad_dbus_loglevel(self):
         self.assertRaises(ValueError, as_loglevel, 'error:basicConfig')
 
+    def test_as_port(self):
+        self.assertEqual(as_port('801'), 801)
+
+    def test_as_non_int_port(self):
+        self.assertRaises(ValueError, as_port, 'not-a-port')
+
+    def test_as_port_disabled(self):
+        self.assertIs(as_port('disabled'), NO_PORT)
+        self.assertIs(as_port('disable'), NO_PORT)
+        self.assertIs(as_port('DISABLED'), NO_PORT)
+        self.assertIs(as_port('DISABLE'), NO_PORT)
+
+    def test_stripped(self):
+        self.assertEqual(as_stripped('   field   '), 'field')
+
 
 class TestLastUpdateDate(unittest.TestCase):
     @configuration
@@ -116,93 +133,95 @@ class TestLastUpdateDate(unittest.TestCase):
         # The last upgrade data can come from /userdata/.last_update.
         with ExitStack() as stack:
             tmpdir = stack.enter_context(temporary_directory())
-            userdata_path = os.path.join(tmpdir, '.last_update')
+            userdata_path = Path(tmpdir) / '.last_update'
             stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
-                                      userdata_path))
+                                      str(userdata_path)))
             timestamp = int(datetime(2012, 11, 10, 9, 8, 7).timestamp())
-            with open(userdata_path, 'w'):
-                # i.e. touch(1)
-                pass
-            os.utime(userdata_path, (timestamp, timestamp))
+            userdata_path.touch()
+            os.utime(str(userdata_path), (timestamp, timestamp))
             self.assertEqual(last_update_date(), '2012-11-10 09:08:07')
 
     @configuration
-    def test_date_from_channel_ini(self, ini_file):
-        # The last update date can come from the mtime of the channel.ini
-        # file, which lives next to the configuration file.
-        channel_ini = os.path.join(
-            os.path.dirname(ini_file), 'channel.ini')
-        with open(channel_ini, 'w'):
-            pass
-        timestamp = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
-        os.utime(channel_ini, (timestamp, timestamp))
-        self.assertEqual(last_update_date(), '2022-01-02 03:04:05')
+    def test_date_from_config_d(self, config):
+        # The latest mtime from all the config.d files is taken as the last
+        # update date.  Add a bunch of ini files where the higher numbered
+        # ones have higher numbered year mtimes.
+        for year in range(18, 22):
+            ini_file = Path(config.config_d) / '{:02d}_config.ini'.format(year)
+            ini_file.touch()
+            timestamp = int(datetime(2000 + year, 1, 2, 3, 4, 5).timestamp())
+            os.utime(str(ini_file), (timestamp, timestamp))
+        config.reload()
+        self.assertEqual(last_update_date(), '2021-01-02 03:04:05')
 
     @configuration
-    def test_date_from_channel_ini_instead_of_ubuntu_build(self, ini_file):
-        # The last update date can come from the mtime of the channel.ini
-        # file, which lives next to the configuration file, even when there is
-        # an /etc/ubuntu-build file.
-        channel_ini = os.path.join(
-            os.path.dirname(ini_file), 'channel.ini')
-        with open(channel_ini, 'w', encoding='utf-8'):
-            pass
-        # This creates the ubuntu-build file, but not the channel.ini file.
-        timestamp_1 = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
-        touch_build(2, timestamp_1)
-        timestamp_2 = int(datetime(2022, 3, 4, 5, 6, 7).timestamp())
-        os.utime(channel_ini, (timestamp_2, timestamp_2))
-        self.assertEqual(last_update_date(), '2022-03-04 05:06:07')
+    def test_date_from_config_d_reversed(self, config):
+        # As above, but the higher numbered ini files have earlier mtimes.
+        for year in range(22, 18, -1):
+            ini_file = Path(config.config_d) / '{:02d}_config.ini'.format(year)
+            ini_file.touch()
+            timestamp = int(datetime(2040-year, 1, 2, 3, 4, 5).timestamp())
+            os.utime(str(ini_file), (timestamp, timestamp))
+        config.reload()
+        self.assertEqual(last_update_date(), '2021-01-02 03:04:05')
 
     @configuration
-    def test_date_fallback(self, ini_file):
-        # If the channel.ini file doesn't exist, use the ubuntu-build file.
-        channel_ini = os.path.join(
-            os.path.dirname(ini_file), 'channel.ini')
-        with open(channel_ini, 'w', encoding='utf-8'):
-            pass
-        # This creates the ubuntu-build file, but not the channel.ini file.
-        timestamp_1 = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
-        touch_build(2, timestamp_1)
-        timestamp_2 = int(datetime(2022, 3, 4, 5, 6, 7).timestamp())
-        os.utime(channel_ini, (timestamp_2, timestamp_2))
-        # Like the above test, but with this file removed.
-        os.remove(channel_ini)
-        self.assertEqual(last_update_date(), '2022-01-02 03:04:05')
+    def test_date_from_userdata_takes_precedence(self, config_d):
+        # The last upgrade data will come from /userdata/.last_update, even if
+        # there are .ini files with later mtimes in them.
+        for year in range(18, 22):
+            ini_file = Path(config_d) / '{:02d}_config.ini'.format(year)
+            ini_file.touch()
+            timestamp = int(datetime(2000 + year, 1, 2, 3, 4, 5).timestamp())
+            os.utime(str(ini_file), (timestamp, timestamp))
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            userdata_path = Path(tmpdir) / '.last_update'
+            stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
+                                      str(userdata_path)))
+            timestamp = int(datetime(2012, 11, 10, 9, 8, 7).timestamp())
+            userdata_path.touch()
+            os.utime(str(userdata_path), (timestamp, timestamp))
+            self.assertEqual(last_update_date(), '2012-11-10 09:08:07')
+
+    def test_date_unknown(self):
+        # If there is no /userdata/.last_update file and no ini files, then
+        # the last update date is unknown.
+        with ExitStack() as stack:
+            config_d = stack.enter_context(temporary_directory())
+            tempdir = stack.enter_context(temporary_directory())
+            userdata_path = os.path.join(tempdir, '.last_update')
+            stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
+                                      userdata_path))
+            config = Configuration(config_d)
+            stack.enter_context(patch('systemimage.config._config', config))
+            self.assertEqual(last_update_date(), 'Unknown')
 
     @configuration
-    def test_date_unknown(self, ini_file):
-        # No fallbacks.
-        config = Configuration(ini_file)
-        channel_ini = os.path.join(os.path.dirname(ini_file), 'channel.ini')
-        self.assertFalse(os.path.exists(channel_ini))
-        self.assertFalse(os.path.exists(config.system.build_file))
-        self.assertEqual(last_update_date(), 'Unknown')
-
-    @configuration
-    def test_date_no_microseconds(self, ini_file):
+    def test_date_no_microseconds(self, config):
         # Resolution is seconds.
-        channel_ini = os.path.join(
-            os.path.dirname(ini_file), 'channel.ini')
-        with open(channel_ini, 'w', encoding='utf-8'):
-            pass
-        timestamp = datetime(2013, 12, 11, 10, 9, 8, 7).timestamp()
+        ini_file = Path(config.config_d) / '01_config.ini'
+        ini_file.touch()
+        timestamp = datetime(2022, 12, 11, 10, 9, 8, 7).timestamp()
         # We need nanoseconds.
         timestamp *= 1000000000
-        os.utime(channel_ini, ns=(timestamp, timestamp))
-        self.assertEqual(last_update_date(), '2013-12-11 10:09:08')
+        os.utime(str(ini_file), ns=(timestamp, timestamp))
+        config.reload()
+        self.assertEqual(last_update_date(), '2022-12-11 10:09:08')
 
     @configuration
-    def test_version_detail(self, ini_file):
-        channel_ini = data_path('channel_03.ini')
-        config.load(channel_ini, override=True)
+    def test_version_detail(self, config):
+        shutil.copy(data_path('helpers.config_01.ini'),
+                    os.path.join(config.config_d, '00_config.ini'))
+        config.reload()
         self.assertEqual(version_detail(),
                          dict(ubuntu='123', mako='456', custom='789'))
 
     @configuration
-    def test_no_version_detail(self, ini_file):
-        channel_ini = data_path('channel_01.ini')
-        config.load(channel_ini, override=True)
+    def test_no_version_detail(self, config):
+        shutil.copy(data_path('helpers.config_02.ini'),
+                    os.path.join(config.config_d, '00_config.ini'))
+        config.reload()
         self.assertEqual(version_detail(), {})
 
     def test_version_detail_from_argument(self):
@@ -212,115 +231,108 @@ class TestLastUpdateDate(unittest.TestCase):
     def test_no_version_in_version_detail(self):
         self.assertEqual(version_detail('ubuntu,mako,custom'), {})
 
+    @unittest.skipIf(os.getuid() == 0, 'Test cannot succeed when run as root')
     @configuration
-    def test_date_from_userdata_ignoring_fallbacks(self, ini_file):
-        # Even when /etc/system-image/channel.ini and /etc/ubuntu-build exist,
-        # if there's a /userdata/.last_update file, that takes precedence.
-        with ExitStack() as stack:
-            # /userdata/.last_update
-            tmpdir = stack.enter_context(temporary_directory())
-            userdata_path = os.path.join(tmpdir, '.last_update')
-            stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
-                                      userdata_path))
-            with open(userdata_path, 'w'):
-                # i.e. touch(1)
-                pass
-            timestamp = int(datetime(2010, 9, 8, 7, 6, 5).timestamp())
-            os.utime(userdata_path, (timestamp, timestamp))
-            # /etc/channel.ini
-            channel_ini = os.path.join(
-                os.path.dirname(ini_file), 'channel.ini')
-            with open(channel_ini, 'w'):
-                pass
-            timestamp = int(datetime(2011, 10, 9, 8, 7, 6).timestamp())
-            os.utime(channel_ini, (timestamp, timestamp))
-            # /etc/ubuntu-build.
-            timestamp = int(datetime(2012, 11, 10, 9, 8, 7).timestamp())
-            touch_build(2, timestamp)
-            # Run the test.
-            self.assertEqual(last_update_date(), '2010-09-08 07:06:05')
-
-    @configuration
-    def test_last_date_no_permission(self, ini_file):
+    def test_last_date_no_permission(self, config):
         # LP: #1365761 reports a problem where stat'ing /userdata/.last_update
-        # results in a PermissionError.  In that case it should just use a
-        # fall back, in this case the channel.ini file.
-        channel_ini = os.path.join(
-            os.path.dirname(ini_file), 'channel.ini')
-        with open(channel_ini, 'w', encoding='utf-8'):
-            pass
-        # This creates the ubuntu-build file, but not the channel.ini file.
+        # results in a PermissionError.  In that case it should fall back to
+        # using the mtimes of the config.d ini files.
         timestamp_1 = int(datetime(2022, 1, 2, 3, 4, 5).timestamp())
         touch_build(2, timestamp_1)
-        # Now, the channel.ini file.
-        timestamp_2 = int(datetime(2022, 3, 4, 5, 6, 7).timestamp())
-        os.utime(channel_ini, (timestamp_2, timestamp_2))
-        # Now create an stat'able /userdata/.last_update file.
+        # Now create an unstat'able /userdata/.last_update file.
         with ExitStack() as stack:
             tmpdir = stack.enter_context(temporary_directory())
-            userdata_path = os.path.join(tmpdir, '.last_update')
+            userdata_path = Path(tmpdir) / '.last_update'
             stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
-                                      userdata_path))
+                                      str(userdata_path)))
             timestamp = int(datetime(2012, 11, 10, 9, 8, 7).timestamp())
-            with open(userdata_path, 'w'):
-                # i.e. touch(1)
-                pass
-            os.utime(userdata_path, (timestamp, timestamp))
             # Make the file unreadable.
+            userdata_path.touch()
+            os.utime(str(userdata_path), (timestamp, timestamp))
             stack.callback(os.chmod, tmpdir, 0o777)
             os.chmod(tmpdir, 0o000)
-            # The last update date will be the date of the channel.ini file.
-            self.assertEqual(last_update_date(), '2022-03-04 05:06:07')
+            config.reload()
+            # The last update date will be the date of the 99_build.ini file.
+            self.assertEqual(last_update_date(), '2022-01-02 03:04:05')
 
 
 class TestPhasedPercentage(unittest.TestCase):
     def setUp(self):
-        phased_percentage(reset=True)
+        self._resources = ExitStack()
+        tmpdir = self._resources.enter_context(temporary_directory())
+        self._mid_path = os.path.join(tmpdir, 'machine-id')
+        self._resources.enter_context(patch(
+            'systemimage.helpers.UNIQUE_MACHINE_ID_FILES', [self._mid_path]))
 
     def tearDown(self):
-        phased_percentage(reset=True)
+        self._resources.close()
+
+    def _set_machine_id(self, machine_id):
+        with open(self._mid_path, 'w', encoding='utf-8') as fp:
+            fp.write(machine_id)
 
     def test_phased_percentage(self):
-        # This function returns a percentage between 0 and 100.  If this value
-        # is greater than a similar value in the index.json's 'image' section,
-        # that image is completely ignored.
-        with ExitStack() as stack:
-            tmpdir = stack.enter_context(temporary_directory())
-            path = os.path.join(tmpdir, 'machine-id')
-            stack.enter_context(patch(
-                'systemimage.helpers.UNIQUE_MACHINE_ID_FILE',
-                path))
-            stack.enter_context(patch(
-                'systemimage.helpers.time.time',
-                return_value=1380659512.983512))
-            with open(path, 'wb') as fp:
-                fp.write(b'0123456789abcdef\n')
-            self.assertEqual(phased_percentage(), 81)
-            # The value is cached, so it's always the same for the life of the
-            # process, at least until we reset it.
-            self.assertEqual(phased_percentage(), 81)
+        # The phased percentage is used to determine whether a calculated
+        # winning path is to be applied or not.  It returns a number between 0
+        # and 100 based on the machine's unique machine id (as kept in a
+        # file), the update channel, and the target build number.
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+        # The phased percentage is always the same, given the same
+        # machine-id, channel, and target.
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
 
-    def test_phased_percentage_reset(self):
-        # Test the reset API.
-        with ExitStack() as stack:
-            tmpdir = stack.enter_context(temporary_directory())
-            path = os.path.join(tmpdir, 'machine-id')
-            stack.enter_context(patch(
-                'systemimage.helpers.UNIQUE_MACHINE_ID_FILE',
-                path))
-            stack.enter_context(patch(
-                'systemimage.helpers.time.time',
-                return_value=1380659512.983512))
-            with open(path, 'wb') as fp:
-                fp.write(b'0123456789abcdef\n')
-            self.assertEqual(phased_percentage(), 81)
-            # The value is cached, so it's always the same for the life of the
-            # process, at least until we reset it.
-            with open(path, 'wb') as fp:
-                fp.write(b'x0123456789abcde\n')
-            self.assertEqual(phased_percentage(reset=True), 81)
-            # The next one will have a different value.
-            self.assertEqual(phased_percentage(), 17)
+    def test_phased_percentage_different_machine_id(self):
+        # All else being equal, a different machine_id gives different %.
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+        self._set_machine_id('fedcba9876543210')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 25)
+
+    def test_phased_percentage_different_channel(self):
+        # All else being equal, a different channel gives different %.
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='devel', target=11), 96)
+
+    def test_phased_percentage_different_target(self):
+        # All else being equal, a different target gives different %.
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=12), 1)
+
+    @configuration
+    def test_phased_percentage_override(self, config):
+        # The phased percentage can be overridden.
+        self._set_machine_id('0123456789abcdef')
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+        config.phase_override = 33
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 33)
+        # And reset.
+        del config.phase_override
+        self.assertEqual(phased_percentage(channel='ubuntu', target=11), 51)
+
+    def test_phased_percentage_machine_id_file_fallback(self):
+        # Ensure that the fallbacks for the machine-id file.
+        with ExitStack() as resources:
+            resources.enter_context(patch(
+                'systemimage.helpers.UNIQUE_MACHINE_ID_FILES',
+                ['/does/not/exist', self._mid_path]))
+            self._set_machine_id('0123456789abcdef')
+            self.assertEqual(
+                phased_percentage(channel='ubuntu', target=11), 51)
+
+    def test_phased_percentage_machine_id_file_fallbacks_exhausted(self):
+        # Not much we can do if there are no machine-id files.
+        with ExitStack() as resources:
+            resources.enter_context(patch(
+                'systemimage.helpers.UNIQUE_MACHINE_ID_FILES',
+                ['/does/not/exist', '/is/not/present']))
+            self._set_machine_id('0123456789abcdef')
+            self.assertRaises(RuntimeError, phased_percentage,
+                              channel='ubuntu', target=11)
 
 
 class TestSignature(unittest.TestCase):

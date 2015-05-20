@@ -9,11 +9,18 @@ PYTHON3=$(shell py3versions -dvr)
 	dh $@ --with python3 --buildsystem=pybuild
 
 override_dh_auto_test:
-	unset http_proxy; unset https_proxy; \
+	export http_proxy= ; \
+	export https_proxy= ; \
 	export SYSTEMIMAGE_REACTOR_TIMEOUT=1200; \
-	export SYSTEMIMAGE_DBUS_DAEMON_HUP_SLEEP_SECONDS=2; \
+	export SYSTEMIMAGE_PYCURL=1; \
 	PYBUILD_SYSTEM=custom \
-	PYBUILD_TEST_ARGS="{interpreter} -m nose2 -v" dh_auto_test
+	PYBUILD_TEST_ARGS="{interpreter} -m nose2 -vv" dh_auto_test
+	export http_proxy= ; \
+	export https_proxy= ; \
+	export SYSTEMIMAGE_REACTOR_TIMEOUT=1200; \
+	export SYSTEMIMAGE_PYCURL=0; \
+	PYBUILD_SYSTEM=custom \
+	PYBUILD_TEST_ARGS="{interpreter} -m nose2 -vv" dh_auto_test
 
 # pybuild can't yet handle Python 3 packages that don't start with "python3-".
 # See bug #751908 - In the meantime, this override isn't perfect, but it gets
@@ -30,11 +37,9 @@ override_dh_install:
 		   usr/lib/python3.?/dist-packages/systemimage/testing
 	dh_install -p system-image-cli usr/bin/system-image-cli
 	dh_install -p system-image-common \
-		    debian/archive-master.tar.xz etc/system-image
+		    debian/archive-master.tar.xz usr/share/system-image
 	dh_install -p system-image-common \
-		   debian/archive-master.tar.xz.asc etc/system-image
-	dh_install -p system-image-common \
-		   systemimage/data/client.ini etc/system-image
+		   debian/archive-master.tar.xz.asc usr/share/system-image
 	dh_install -p system-image-dbus usr/bin/system-image-dbus usr/sbin
 	dh_install -p system-image-dbus \
 		   systemimage/data/com.canonical.SystemImage.service \
