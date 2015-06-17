@@ -16,7 +16,7 @@ loglevel: debug
 settings_db: {TMPDIR}/settings.db
 
 [gpg]
-archive_master: /etc/system-image/archive-master.tar.xz
+archive_master: /usr/share/system-image/archive-master.tar.xz
 image_master: {TMPDIR}/image-master.tar.xz
 image_signing: {TMPDIR}/image-signing.tar.xz
 device_signing: {TMPDIR}/device-signing.tar.xz

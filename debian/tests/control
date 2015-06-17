@@ -1,10 +1,10 @@
-#Tests: smoketest
-#Restrictions: isolation-container
-#Depends: system-image-common, system-image-cli, system-image-dbus, ubuntu-download-manager, dbus, dbus-x11, python3-psutil, python3-xdg, python3-pycurl
+Tests: smoketest
+Restrictions: isolation-container
+Depends: system-image-common, system-image-cli, system-image-dbus, ubuntu-download-manager, dbus, dbus-x11, python3-psutil, python3-xdg, python3-pycurl
 
-#Tests: smoketest-noreboot
-#Restrictions: isolation-container allow-stderr
-#Depends: system-image-common, system-image-cli, system-image-dbus, ubuntu-download-manager, dbus, dbus-x11, python3-psutil, python3-xdg, python3-pycurl
+Tests: smoketest-noreboot
+Restrictions: isolation-container allow-stderr
+Depends: system-image-common, system-image-cli, system-image-dbus, ubuntu-download-manager, dbus, dbus-x11, python3-psutil, python3-xdg, python3-pycurl
 
 Tests: dryrun
 Restrictions: allow-stderr
