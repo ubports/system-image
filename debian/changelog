@@ -1,4 +1,4 @@
-system-image (3.0.1-0ubuntu2) wily; urgency=medium
+system-image (3.0.1-0ubuntu1) wily; urgency=medium
 
   * New upstream release.
     - LP: #1463061 - When `--progress=json` is used, print an error record
