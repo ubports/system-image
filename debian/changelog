@@ -1,6 +1,8 @@
 system-image (3.0.1-0ubuntu1) wily; urgency=medium
 
   * New upstream release.
+    - LP: #1463061 - When `--progress=json` is used, print an error record
+      to stdout if the state machine fails.
   * d/control: XS-Testsuite -> Testsuite
   * d/tests
     - control: Re-enable smoketests.
