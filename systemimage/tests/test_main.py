@@ -122,10 +122,7 @@ class TestCLIMain(unittest.TestCase):
         except:
             self._resources.close()
             raise
-
-    def tearDown(self):
-        self._resources.close()
-        super().tearDown()
+        self.addCleanup(self._resources.close)
 
     def test_config_directory_good_path(self):
         # The default configuration directory exists.
@@ -1062,10 +1059,7 @@ class TestCLISettings(unittest.TestCase):
         except:
             self._resources.close()
             raise
-
-    def tearDown(self):
-        self._resources.close()
-        super().tearDown()
+        self.addCleanup(self._resources.close)
 
     @configuration
     def test_show_settings(self, config_d):
@@ -1218,12 +1212,12 @@ class TestCLISettings(unittest.TestCase):
 class TestDBusMain(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        self._stack = ExitStack()
+        self._resources = ExitStack()
         try:
             SystemImagePlugin.controller.set_mode()
             config_d = SystemImagePlugin.controller.ini_path
             override = os.path.join(config_d, '06_override.ini')
-            self._stack.callback(safe_remove, override)
+            self._resources.callback(safe_remove, override)
             with open(override, 'w', encoding='utf-8') as fp:
                 print('[dbus]\nlifetime: 3s\n', file=fp)
             # The testing framework will have caused system-image-dbus to be
@@ -1231,14 +1225,10 @@ class TestDBusMain(unittest.TestCase):
             # let's be sure to stop it.
             terminate_service()
         except:
-            self._stack.close()
+            self._resources.close()
             raise
-
-    def tearDown(self):
-        try:
-            terminate_service()
-        finally:
-            self._stack.close()
+        self.addCleanup(terminate_service)
+        self.addCleanup(self._resources.close)
 
     def _activate(self):
         # Re-start and reload the D-Bus service.
@@ -1485,39 +1475,50 @@ class TestCLIProgress(ServerTestBase):
     CHANNEL = 'stable'
     DEVICE = 'nexus7'
 
+    def setUp(self):
+        super().setUp()
+        # Use a private name to avoid conflicts with the superclass attribute.
+        self.__resources = ExitStack()
+        try:
+            self._stdout = StringIO()
+            self._stderr = StringIO()
+            # Some output uses print() and others use sys.stdout.write().  Be
+            # sure to capture them both to the same object.
+            self.__resources.enter_context(capture_print(self._stdout))
+            self.__resources.enter_context(
+                patch('systemimage.main.sys.stdout', self._stdout))
+            self.__resources.enter_context(
+                patch('systemimage.main.sys.stderr', self._stderr))
+        except:
+            self.__resources.close()
+            raise
+        self.addCleanup(self.__resources.close)
+
     @configuration
     def test_dots_progress(self, config_d):
         # --progress=dots prints a bunch of dots to stderr.
         self._setup_server_keyrings()
-        stderr = StringIO()
         with ExitStack() as resources:
             resources.enter_context(
                 patch('systemimage.main.LINE_LENGTH', 10))
-            resources.enter_context(
-                patch('systemimage.main.sys.stderr', stderr))
             resources.enter_context(
                 argv('-C', config_d, '-b', '0', '--no-reboot',
                      '--progress', 'dots'))
             cli_main()
         # There should be some dots in the stderr.
-        self.assertGreater(stderr.getvalue().count('.'), 2)
+        self.assertGreater(self._stderr.getvalue().count('.'), 2)
 
     @configuration
     def test_json_progress(self, config_d):
         # --progress=json prints some JSON to stdout.
         self._setup_server_keyrings()
-        stdout = StringIO()
-        with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.main.sys.stdout', stdout))
-            resources.enter_context(
-                argv('-C', config_d, '-b', '0', '--no-reboot',
-                     '--progress', 'json'))
+        with argv('-C', config_d, '-b', '0', '--no-reboot',
+                  '--progress', 'json'):
             cli_main()
         # stdout is now filled with JSON goodness.  We can't assert too much
         # about the contents though.
         line_count = 0
-        for line in stdout.getvalue().splitlines():
+        for line in self._stdout.getvalue().splitlines():
             line_count += 1
             record = json.loads(line)
             self.assertEqual(record['type'], 'progress')
@@ -1550,8 +1551,6 @@ class TestCLIProgress(ServerTestBase):
     def test_all_progress(self, config_d):
         # We can have more than one --progress flag.
         self._setup_server_keyrings()
-        stdout = StringIO()
-        stderr = StringIO()
         log_mock = MagicMock()
         from systemimage.main import _LogfileProgress
         class Testable(_LogfileProgress):
@@ -1562,10 +1561,6 @@ class TestCLIProgress(ServerTestBase):
             resources.enter_context(
                 patch('systemimage.main.LINE_LENGTH', 10))
             resources.enter_context(
-                patch('systemimage.main.sys.stderr', stderr))
-            resources.enter_context(
-                patch('systemimage.main.sys.stdout', stdout))
-            resources.enter_context(
                 patch('systemimage.main._LogfileProgress', Testable))
             resources.enter_context(
                 argv('-C', config_d, '-b', '0', '--no-reboot',
@@ -1573,9 +1568,9 @@ class TestCLIProgress(ServerTestBase):
                      '--progress', 'json',
                      '--progress', 'logfile'))
             cli_main()
-        self.assertGreater(stderr.getvalue().count('.'), 2)
+        self.assertGreater(self._stderr.getvalue().count('.'), 2)
         line_count = 0
-        for line in stdout.getvalue().splitlines():
+        for line in self._stdout.getvalue().splitlines():
             line_count += 1
             record = json.loads(line)
             self.assertEqual(record['type'], 'progress')
@@ -1589,17 +1584,57 @@ class TestCLIProgress(ServerTestBase):
     @configuration
     def test_bad_progress(self, config_d):
         # An unknown progress type results in an error.
-        stderr = StringIO()
         with ExitStack() as resources:
-            resources.enter_context(
-                patch('systemimage.main.sys.stderr', stderr))
             resources.enter_context(
                 argv('-C', config_d, '-b', '0', '--no-reboot',
                      '--progress', 'not-a-meter'))
-            with self.assertRaises(SystemExit) as cm:
-                cli_main()
-            exit_code = cm.exception.code
-        self.assertEqual(exit_code, 2)
+            cm = resources.enter_context(self.assertRaises(SystemExit))
+            cli_main()
+        self.assertEqual(cm.exception.code, 2)
         self.assertEqual(
-            stderr.getvalue().splitlines()[-1],
+            self._stderr.getvalue().splitlines()[-1],
             'system-image-cli: error: Unknown progress meter: not-a-meter')
+
+    @configuration
+    def test_json_progress_errors(self, config):
+        # When an error occurs in the state machine, --progress=json should
+        # produce some client-consumable output.  LP: #1463061
+        self._setup_server_keyrings()
+        with ExitStack() as resources:
+            resources.enter_context(
+                argv('-C', config.config_d, '-b', '0', '--no-reboot',
+                     '--progress', 'json'))
+            # It's maybe not the best thing to hook into a private
+            # implementation function in order to cause the state machine to
+            # fail, but it's expedient and works with both downloaders.
+            resources.enter_context(
+                patch('systemimage.state._copy_if_missing',
+                      side_effect=RuntimeError('Bad things!')))
+            exit_code = cli_main()
+        self.assertEqual(exit_code, 1)
+        # stdout is now filled with JSON progress.  The last line should be
+        # the error record.
+        lines = self._stdout.getvalue().splitlines()
+        record = json.loads(lines[-1])
+        self.assertEqual(record['type'], 'error', lines)
+        self.assertEqual(record['msg'], 'Bad things!')
+
+    @configuration
+    def test_no_json_progress_errors(self, config):
+        # Like above, but without --progress=json.
+        self._setup_server_keyrings()
+        with ExitStack() as resources:
+            resources.enter_context(
+                argv('-C', config.config_d, '-b', '0', '--no-reboot'))
+            # It's maybe not the best thing to hook into a private
+            # implementation function in order to cause the state machine to
+            # fail, but it's expedient and works with both downloaders.
+            resources.enter_context(
+                patch('systemimage.state._copy_if_missing',
+                      side_effect=RuntimeError))
+            exit_code = cli_main()
+        self.assertEqual(exit_code, 1)
+        # stdout is now filled with JSON progress.  The last line should be
+        # the error record.
+        lines = self._stdout.getvalue().splitlines()
+        self.assertEqual(len(lines), 0)

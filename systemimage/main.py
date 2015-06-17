@@ -92,7 +92,7 @@ def main():
     parser.add_argument('-C', '--config',
                         default=DEFAULT_CONFIG_D, action='store',
                         metavar='DIRECTORY',
-                        help="""Use the given configuration directory instead 
+                        help="""Use the given configuration directory instead
                                 of the default""")
     parser.add_argument('-b', '--build',
                         default=None, action='store',
@@ -387,10 +387,17 @@ Your upgrades are INSECURE.""", file=sys.stderr)
                 list(state)
         except KeyboardInterrupt:                   # pragma: no cover
             return 0
-        except Exception:
+        except Exception as error:
             print('Exception occurred during update; see log file for details',
                   file=sys.stderr)
             log.exception('system-image-cli exception')
+            # This is a little bit of a hack because it's not generalized to
+            # all values of --progress.  But OTOH, we always want to log the
+            # error, so --progress=logfile is redundant, and --progress=dots
+            # doesn't make much sense either.  Just just include some JSON
+            # output if --progress=json was specified.
+            if 'json' in args.progress:
+                print(json.dumps(dict(type='error', msg=str(error))))
             return 1
         else:
             return 0

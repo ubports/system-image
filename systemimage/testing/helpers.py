@@ -587,9 +587,7 @@ class ServerTestBase(unittest.TestCase):
         except:
             self._resources.close()
             raise
-
-    def tearDown(self):
-        self._resources.close()
+        self.addCleanup(self._resources.close)
 
     def _setup_server_keyrings(self, *, device_signing=True):
         # Only the archive-master key is pre-loaded.  All the other keys
