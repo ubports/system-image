@@ -2,6 +2,11 @@
 NEWS for system-image updater
 =============================
 
+3.0.1 (2015-06-16)
+==================
+ * When `--progress=json` is used, print an error record to stdout if the
+   state machine fails.  (LP: #1463061)
+
 3.0 (2015-05-08)
 ================
  * Support a built-in PyCURL-based downloader in addition to the traditional
