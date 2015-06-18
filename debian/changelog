@@ -1,5 +1,11 @@
 system-image (3.0.1-0ubuntu1) wily; urgency=medium
 
+  * New rebuild forced.
+
+ -- CI Train Bot <ci-train-bot@canonical.com>  Thu, 18 Jun 2015 16:23:37 +0000
+
+system-image (3.0.1-0ubuntu1) wily; urgency=medium
+
   * New upstream release.
     - LP: #1463061 - When `--progress=json` is used, print an error record
       to stdout if the state machine fails.
