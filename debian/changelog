@@ -11,7 +11,6 @@ system-image (3.0.1-0ubuntu1) wily; urgency=medium
   * d/tests
     - control: Re-enable smoketests.
     - 00_default.ini.in: Fix path to archive-master keyring.
-  * .bzr-builddeb/default.conf: Split packaging.
 
  -- Barry Warsaw <barry@ubuntu.com>  Wed, 17 Jun 2015 11:16:10 -0400
 
