@@ -6,7 +6,7 @@ X-Python3-Version: >= 3.4
 Priority: optional
 Build-Depends: dbus,
                dbus-x11,
-               debhelper (>= 8),
+               debhelper (>= 9),
                dh-python,
                python-docutils,
                python3-all (>= 3.3),
@@ -19,7 +19,7 @@ Build-Depends: dbus,
                python3-pycurl,
                python3-setuptools,
                python3-xdg,
-               ubuntu-download-manager
+               ubuntu-download-manager,
 Standards-Version: 3.9.6
 Testsuite: autopkgtest
 Vcs-Bzr: https://code.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image
@@ -30,7 +30,7 @@ Package: system-image-cli
 Architecture: all
 Depends: system-image-common (= ${binary:Version}),
          ${misc:Depends},
-         ${python3:Depends}
+         ${python3:Depends},
 Description: Ubuntu system image updater command line client
  This is the command line client for the Ubuntu system image updater.
 
@@ -38,7 +38,7 @@ Package: system-image-dbus
 Architecture: all
 Depends: system-image-common (= ${binary:Version}),
          ${misc:Depends},
-         ${python3:Depends}
+         ${python3:Depends},
 Description: Ubuntu system image updater command line client
  This is the command line client for the Ubuntu system image updater.
 
@@ -51,13 +51,16 @@ Depends: python3-dbus,
          python3-xdg,
          ubuntu-download-manager | python3-pycurl,
          ${misc:Depends},
-         ${python3:Depends}
+         ${python3:Depends},
 Description: Ubuntu system image updater
  This is the common bits for the Ubuntu system image updater.
 
 Package: system-image-dev
 Architecture: all
-Depends: python3-gnupg, python3-psutil, ${misc:Depends}, ${python3:Depends}
+Depends: python3-gnupg,
+         python3-psutil,
+         ${misc:Depends},
+         ${python3:Depends},
 Description: Ubuntu system image updater development
  This is the development bits for the Ubuntu system image updater.
  Install this package if you want to run the tests.
