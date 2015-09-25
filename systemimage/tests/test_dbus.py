@@ -44,10 +44,12 @@ __all__ = [
 
 
 import os
+import sys
 import dbus
 import json
 import time
 import shutil
+import tempfile
 import unittest
 
 from contextlib import ExitStack, suppress
@@ -61,6 +63,7 @@ from systemimage.config import Configuration
 from systemimage.helpers import MiB, safe_remove
 from systemimage.reactor import Reactor
 from systemimage.settings import Settings
+from systemimage.testing.controller import USING_PYCURL
 from systemimage.testing.helpers import (
     copy, data_path, find_dbus_process, make_http_server, setup_index,
     setup_keyring_txz, setup_keyrings, sign, terminate_service, touch_build,
@@ -76,6 +79,27 @@ HASH750 = '5fdddb486eeb1aa4dbdada48424418fce5f753844544b6970e4a25879d6d6f52'
 UASRecord = namedtuple('UASRecord',
     'is_available downloading available_version update_size '
     'last_update_date error_reason')
+
+
+def capture_dbus_calls(function):
+    def inner(self, *args, **kws):
+        with ExitStack() as resources:
+            fd, filename = tempfile.mkstemp('.log')
+            os.close(fd)
+            resources.callback(os.remove, filename)
+            old_filename, old_level = self.iface.DebugDBusTo(filename, 'debug')
+            try:
+                result = function(self, *args, **kws)
+            finally:
+                self.iface.DebugDBusTo('', old_level)
+                with open(filename, 'r', encoding='utf-8') as fp:
+                    print('\nvvvvv', function.__name__,
+                          'dbus calls vvvvv', file=sys.stderr)
+                    sys.stderr.write(fp.read())
+                    print('^^^^^', function.__name__,
+                          'dbus calls ^^^^^', file=sys.stderr)
+            return result
+    return inner
 
 
 def tweak_checksums(checksum):
@@ -1717,7 +1741,9 @@ class TestDBusPauseResume(_LiveTesting):
             write_bytes(full_path, 750)
         tweak_checksums('')
 
+    @capture_dbus_calls
     def test_pause(self):
+        # Set up some extra D-Bus debugging.
         self.download_manually()
         touch_build(0, use_config=self.config)
         reactor = SignalCapturingReactor('UpdateAvailableStatus')
@@ -1965,8 +1991,6 @@ class TestDBusMultipleChecksInFlight(_LiveTesting):
         reactor.run()
         self.assertEqual(reactor.uas_signals[0], reactor.uas_signals[1])
 
-
-from systemimage.testing.controller import USING_PYCURL
 
 @unittest.skipIf(os.getuid() == 0, 'Test cannot succeed when run as root')
 @unittest.skipUnless(USING_PYCURL, 'LP: #1411866')

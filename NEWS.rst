@@ -2,6 +2,11 @@
 NEWS for system-image updater
 =============================
 
+3.0.2 (2015-09-22)
+==================
+ * Don't crash when one of the .ini files is a dangling symlink.
+   (LP: #1495688)
+
 3.0.1 (2015-06-16)
 ==================
  * When `--progress=json` is used, print an error record to stdout if the

@@ -14,6 +14,7 @@ system_image.egg-info/PKG-INFO
 system_image.egg-info/SOURCES.txt
 system_image.egg-info/dependency_links.txt
 system_image.egg-info/entry_points.txt
+system_image.egg-info/pbr.json
 system_image.egg-info/requires.txt
 system_image.egg-info/top_level.txt
 systemimage/__init__.py
