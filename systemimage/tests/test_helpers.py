@@ -255,6 +255,52 @@ class TestLastUpdateDate(unittest.TestCase):
             # The last update date will be the date of the 99_build.ini file.
             self.assertEqual(last_update_date(), '2022-01-02 03:04:05')
 
+    @configuration
+    def test_dangling_symlink(self, config):
+        # LP: #1495688 reports a problem where /userdata/.last_update doesn't
+        # exist, and the files in the config.d directory are dangling
+        # symlinks.  In this case, there's really little that can be done to
+        # find a reliable last update date, but at least we don't crash.
+        #
+        # Start by deleting any existing .ini files in config.d.
+        for path in Path(config.config_d).iterdir():
+            if path.suffix == '.ini':
+                path.unlink()
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            userdata_path = Path(tmpdir) / '.last_update'
+            stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
+                                      str(userdata_path)))
+            # Do not create the .last_update file.
+            missing_ini = Path(tmpdir) / 'missing.ini'
+            config.ini_files = [missing_ini]
+            # Do not create the missing.ini file, but do create a symlink from
+            # a config.d file to this missing file.
+            default_ini = Path(config.config_d) / '00_default.ini'
+            default_ini.symlink_to(missing_ini)
+            last_update_date()
+            self.assertEqual(last_update_date(), 'Unknown')
+
+    @configuration
+    def test_post_startup_delete(self, config):
+        # Like test_dangling_symlink() except that an existing ini file gets
+        # deleted after system startup, so some of the files that
+        # last_update_date() looks at will throw an exception.
+        #
+        # Start by deleting any existing .ini files in config.d.  This time
+        # however we don't update config.ini_files.
+        for path in Path(config.config_d).iterdir():
+            if path.suffix == '.ini':
+                path.unlink()
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            userdata_path = Path(tmpdir) / '.last_update'
+            stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
+                                      str(userdata_path)))
+            # Do not create the .last_update file.
+            last_update_date()
+            self.assertEqual(last_update_date(), 'Unknown')
+
 
 class TestPhasedPercentage(unittest.TestCase):
     def setUp(self):

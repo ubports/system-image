@@ -1,3 +1,11 @@
+system-image (3.0.2-0ubuntu1) wily; urgency=medium
+
+  * New upstream release.
+    - LP: #1495688 - Don't crash when one of the .ini files is a dangling
+      symlink.
+
+ -- Barry Warsaw <barry@ubuntu.com>  Fri, 25 Sep 2015 15:28:37 -0400
+
 system-image (3.0.1-0ubuntu1) wily; urgency=medium
 
   * New rebuild forced.
