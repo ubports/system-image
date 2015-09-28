@@ -3,6 +3,9 @@ system-image (3.0.2-0ubuntu1) wily; urgency=medium
   * New upstream release.
     - LP: #1495688 - Don't crash when one of the .ini files is a dangling
       symlink.
+    - d/rules: override_dh_auto_clean because otherwise, pybuild will
+      remove the .egg-info files and that causes the Jenkins job in the CI
+      train to fail.
 
  -- Barry Warsaw <barry@ubuntu.com>  Fri, 25 Sep 2015 15:28:37 -0400
 

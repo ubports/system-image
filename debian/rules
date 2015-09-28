@@ -56,3 +56,6 @@ override_dh_installman:
 	rst2man dbus-manpage.rst > debian/tmp/system-image-dbus.man
 	rst2man ini-manpage.rst > debian/tmp/client-ini.man
 	dh_installman
+
+# We don't want the buildds to remove the .egg-info files.
+override_dh_auto_clean:
