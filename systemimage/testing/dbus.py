@@ -22,6 +22,7 @@ __all__ = [
 
 
 import os
+import logging
 
 try:
     import pycurl
@@ -30,10 +31,12 @@ except ImportError:
 
 from dbus.service import method, signal
 from gi.repository import GLib
+from pathlib import Path
 from systemimage.api import Mediator
 from systemimage.config import config
 from systemimage.dbus import Service, log_and_exit
 from systemimage.helpers import MiB, makedirs, safe_remove, version_detail
+from systemimage.logging import make_handler
 from unittest.mock import patch
 
 
@@ -74,6 +77,10 @@ def instrument(config, stack, cert_file):
 class _LiveTestableService(Service):
     """For testing purposes only."""
 
+    def __init__(self, bus, object_path, loop):
+        super().__init__(bus, object_path, loop)
+        self._debug_handler = None
+
     @log_and_exit
     @method('com.canonical.SystemImage')
     def Reset(self):
@@ -102,6 +109,27 @@ class _LiveTestableService(Service):
     @signal('com.canonical.SystemImage')
     def TornDown(self):
         pass
+
+    @log_and_exit
+    @method('com.canonical.SystemImage',
+            in_signature='ss',
+            out_signature='ss')
+    def DebugDBusTo(self, filename, level_name):
+        # Get the existing logging level and logging file name.
+        dbus_log = logging.getLogger('systemimage.dbus')
+        old_level = logging.getLevelName(dbus_log.getEffectiveLevel())
+        old_filename = config.system.logfile
+        # Remove any previous D-Bus debugging handler.
+        if self._debug_handler is not None:
+            dbus_log.removeHandler(self._debug_handler)
+            self._debug_handler = None
+        new_level = getattr(logging, level_name.upper())
+        dbus_log.setLevel(new_level)
+        if filename != '':
+            self._debug_handler = make_handler(Path(filename))
+            self._debug_handler.setLevel(new_level)
+            dbus_log.addHandler(self._debug_handler)
+        return old_filename, old_level
 
 
 class _UpdateAutoSuccess(Service):

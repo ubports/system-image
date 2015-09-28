@@ -41,7 +41,7 @@ import shutil
 import logging
 import tempfile
 
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 from datetime import datetime, timedelta
 from hashlib import sha256
 from importlib import import_module
@@ -252,13 +252,19 @@ def last_update_date():
     try:
         timestamp = datetime.fromtimestamp(os.stat(LAST_UPDATE_FILE).st_mtime)
     except (FileNotFoundError, PermissionError):
-        # We fall back to the latest mtime of the config.d/*.ini files.
-        timestamps = sorted(
-            datetime.fromtimestamp(path.stat().st_mtime)
-            for path in config.ini_files)
+        # We fall back to the latest mtime of the config.d/*.ini files.  For
+        # robustness, watch out for two possibilities: the config file could
+        # have been deleted after the system started up (thus making
+        # config.ini_files include nonexistent files), and the ini file could
+        # be a dangling symlink.  For the latter, use lstat().
+        timestamps = []
+        for path in config.ini_files:
+            with suppress(FileNotFoundError):
+                timestamps.append(
+                    datetime.fromtimestamp(path.lstat().st_mtime))
         if len(timestamps) == 0:
             return 'Unknown'
-        timestamp = timestamps[-1]
+        timestamp = sorted(timestamps)[-1]
     return str(timestamp.replace(microsecond=0))
 
 

@@ -18,6 +18,7 @@
 __all__ = [
     'debug_logging',
     'initialize',
+    'make_handler',
     ]
 
 
@@ -68,13 +69,16 @@ class FormattingLogRecord(logging.LogRecord):
             return super().getMessage()
 
 
-def _make_handler(path):
+def make_handler(path):
     # issue21539 - mkdir(..., exist_ok=True)
     with suppress(FileExistsError):
         path.parent.mkdir(DEFAULT_DIRMODE, parents=True)
     path.touch(LOGFILE_PERMISSIONS)
     # Our handler will output in UTF-8 using {} style logging.
-    return logging.FileHandler(bytes(path), encoding='utf-8')
+    formatter = logging.Formatter(style='{', fmt=MSG_FMT, datefmt=DATE_FMT)
+    handler = logging.FileHandler(bytes(path), encoding='utf-8')
+    handler.setFormatter(formatter)
+    return handler
 
 
 def initialize(*, verbosity=0):
@@ -95,13 +99,11 @@ def initialize(*, verbosity=0):
         # Now configure the application level logger based on the ini file.
         log = logging.getLogger(name)
         try:
-            handler = _make_handler(Path(config.system.logfile))
+            handler = make_handler(Path(config.system.logfile))
         except PermissionError:
-            handler = _make_handler(
+            handler = make_handler(
                 Path(xdg_cache_home) / 'system-image' / 'client.log')
         handler.setLevel(level)
-        formatter = logging.Formatter(style='{', fmt=MSG_FMT, datefmt=DATE_FMT)
-        handler.setFormatter(formatter)
         log.addHandler(handler)
         log.propagate = False
         # If we want more verbosity, add a stream handler.
@@ -111,6 +113,8 @@ def initialize(*, verbosity=0):
         else:                                       # pragma: no cover
             handler = logging.StreamHandler(stream=sys.stderr)
             handler.setLevel(level)
+            formatter = logging.Formatter(
+                style='{', fmt=MSG_FMT, datefmt=DATE_FMT)
             handler.setFormatter(formatter)
             log.addHandler(handler)
             # Set the overall level on the log object to the minimum level.
