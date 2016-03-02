@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader command line script
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2015-01-15
-:Copyright: 2013-2015 Canonical Ltd.
-:Version: 3.0
+:Date: 2016-02-25
+:Copyright: 2013-2016 Canonical Ltd.
+:Version: 3.1
 :Manual section: 1
 
 
@@ -58,9 +58,16 @@ OPTIONS
 -d DEVICE, --device DEVICE
     Override the device name just this once.
 
---f FILTER, --filter FILTER
+-f FILTER, --filter FILTER
     Filter the candidate upgrade paths to only contain full or delta updates.
     ``FILTER`` must be either ``full`` or ``delta``.
+
+-m IMAGENO, --maximage IMAGENO
+    Cap a winning upgrade path to image number ``IMAGENO``.  All images with a
+    version number greater than ``IMAGENO`` will be ignored.  For example, if
+    the winning upgrade path is ``200:204:304`` and you give ``-m 205``, the
+    upgrade will not include image number 304.  Note that this capping happens
+    *after* the winning upgrade path is selected.
 
 -i, --info
     Show some information about the current device, including the current
@@ -77,8 +84,7 @@ OPTIONS
 -g, --no-apply
     Downloads all files and prepares for, but does not actually apply the
     update.  On devices which require a reboot to apply the update, no reboot
-    is performed.  *New in system-image 3.0: --no-reboot is renamed to
-    --no-apply*
+    is performed.
 
 -v, --verbose
     Increase the logging verbosity.  With one ``-v``, logging goes to the
@@ -119,6 +125,12 @@ OPTIONS
 --del KEY
     Deletes the given key from the settings database.  If the key does not
     exist, this is a no-op.  May be given multiple times.
+
+--override-gsm
+    Allows an update to proceed while the device is on GSM and currently set
+    to only use wifi.  This is only effective when using
+    ``ubuntu-download-manager``.
+    **New in system-image 3.1.**
 
 
 FILES

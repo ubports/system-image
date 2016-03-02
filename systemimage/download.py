@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -150,10 +150,10 @@ class DownloadManagerBase:
         """Resume the download, but only if one is in progress."""
         pass                                        # pragma: no cover
 
-    def _get_files(self, records, pausable):
+    def _get_files(self, records, pausable, signal_started):
         raise NotImplementedError                   # pragma: no cover
 
-    def get_files(self, downloads, *, pausable=False):
+    def get_files(self, downloads, *, pausable=False, signal_started=False):
         """Download a bunch of files concurrently.
 
         Occasionally, the callback is called to report on progress.
@@ -177,6 +177,12 @@ class DownloadManagerBase:
             or not.  In general, data file downloads are pausable, but
             preliminary downloads are not.
         :type pausable: bool
+        :param signal_started: A flag indicating whether the D-Bus
+            DownloadStarted signal should be sent once the download has
+            started.  Normally this is False, but it should be set to True
+            when the update files are being downloaded (i.e. not for the
+            metadata files).
+        :type signal_started: bool
         :raises: FileNotFoundError if any download error occurred.  In
             this case, all download files are deleted.
         :raises: DuplicateDestinationError if more than one source url is
@@ -200,7 +206,19 @@ class DownloadManagerBase:
             else:
                 print('\t{} [{}] -> {}'.format(*record), file=fp)
         log.info('{}'.format(fp.getvalue()))
-        self._get_files(records, pausable)
+        self._get_files(records, pausable, signal_started)
+
+    @staticmethod
+    def allow_gsm():
+        """Allow downloads on GSM.
+
+        This is a temporary override for the `auto_download` setting.
+        If a download was attempted on wifi-only and not started because
+        the device is on GSM, calling this issues a temporary override
+        to allow downloads while on GSM, for download managers that
+        support this (currently only UDM).
+        """
+        pass                                        # pragma: no cover
 
 
 def get_download_manager(*args):

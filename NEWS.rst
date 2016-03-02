@@ -2,6 +2,19 @@
 NEWS for system-image updater
 =============================
 
+3.1 (2016-03-02)
+================
+ * In ``system-image-cli``, add a ``-m``/``--maximage`` flag which can be used
+   to cap a winning upgrade path to a maximum image number.  (LP: #1386302)
+ * Remove the previously deprecated ``Info()`` D-Bus method.  (LP: #1380678)
+ * Remove the previously deprecated ``--no-reboot`` command line option.
+ * Add support for temporarily overriding the wifi-only setting when using
+   ubuntu-download-manager.  (LP: #1508081)
+   - Added ``ForceAllowGSMDownload()`` method to the D-Bus API.
+   - Added ``DownloadStarted`` D-Bus signal, which gets sent when the download
+     for an update has begun.
+   - Added ``--override-gsm`` flag to ``system-image-cli``.
+
 3.0.2 (2015-09-22)
 ==================
  * Don't crash when one of the .ini files is a dangling symlink.
