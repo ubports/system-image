@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -69,9 +69,10 @@ class Configuration:
         # plumbing to work otherwise.  This seems like the least horrible place
         # to stash this global.
         self.dbus_service = None
-        # This is used to plumb command line arguments from the main() to
+        # These are used to plumb command line arguments from the main() to
         # other parts of the system.
         self.skip_gpg_verification = False
+        self.override_gsm = False
         # Cache.
         self._device = None
         self._build_number = None

@@ -7,9 +7,9 @@ Ubuntu System Image Upgrader DBus service
 -----------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2015-01-15
-:Copyright: 2013-2015 Canonical Ltd.
-:Version: 3.0
+:Date: 2016-02-25
+:Copyright: 2013-2016 Canonical Ltd.
+:Version: 3.1
 :Manual section: 8
 
 
@@ -114,20 +114,6 @@ Methods
     string is returned unless an error occurred, in which case the error
     message is returned.
 
-``Info()``
-    **Deprecated** (see ``Information()``).  This is a **synchronous** call
-    which returns some information about the current state of the device.  The
-    following pieces of information are returned, as a tuple:
-
-    * *current build number* - the current build number as an integer.
-    * *device name* - the name of the device type.
-    * *channel name* - the channel the device is currently on.
-    * *last update date* - the last time this device was updated as a
-      datetime, e.g. "YYYY-MM-DDTHH:MM:SS"
-    * *version detail* - a mapping of strings to strings, where the keys are
-      component names and the values are the version numbers for that
-      component.
-
 ``Information()``
     This is a **synchronous** call which returns an extensible mapping of
     UTF-8 keys to UTF-8 values.  The following keys are currently defined:
@@ -195,6 +181,12 @@ Methods
     has not been previously set, the empty string is returned.  Note that
     some of the pre-defined keys have default settings.
 
+``ForceAllowGSMDownload()``
+    This is a **synchronous** call to force the use of the GSM network for an
+    in-progress wifi-only update stalled while the device is on GSM.  This is
+    only effective when using ``ubuntu-download-manager``.
+    **New in system-image 3.1.**
+
 ``Exit()``
     This is a **synchronous** call which causes the D-Bus service process to
     exit immediately.  There is no return value.  If ``Exit()`` is never
@@ -249,6 +241,10 @@ Signals
     * ``UpdateAvailableStatus(false, ?, ?, ?, "YYYY-MM-DDTHH:MM:SS", ?, ?)`` -
       There is no update available. The ISO 8601 date of the last applied
       update is given, but all other arguments should be ignored.
+
+``DownloadStarted()``
+    Sent when the download of the update files has started.
+    **New in system-image 3.1.**
 
 ``UpdateProgress(percentage, eta)``
     Sent periodically, while a download is in progress.  This signal is not

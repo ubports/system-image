@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2015 Canonical Ltd.
+# Copyright (C) 2014-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -51,10 +51,12 @@ def _print(*args, **kws):
 
 
 class DownloadReactor(Reactor):
-    def __init__(self, bus, object_path, callback=None, pausable=False):
+    def __init__(self, bus, object_path, callback=None,
+                 pausable=False, signal_started=False):
         super().__init__(bus)
         self._callback = callback
         self._pausable = pausable
+        self._signal_started = signal_started
         # For _do_pause() percentage calculation.
         self._received = 0
         self._total = 0
@@ -71,6 +73,8 @@ class DownloadReactor(Reactor):
 
     def _do_started(self, signal, path, started):
         _print('STARTED:', started)
+        if self._signal_started and config.dbus_service is not None:
+            config.dbus_service.DownloadStarted()
 
     def _do_finished(self, signal, path, local_paths):
         _print('FINISHED:', local_paths)
@@ -127,7 +131,7 @@ class UDMDownloadManager(DownloadManagerBase):
             self.callbacks.append(callback)
         self._iface = None
 
-    def _get_files(self, records, pausable):
+    def _get_files(self, records, pausable, signal_started):
         assert self._iface is None
         bus = dbus.SystemBus()
         service = bus.get_object(DOWNLOADER_INTERFACE, '/')
@@ -144,12 +148,18 @@ class UDMDownloadManager(DownloadManagerBase):
         # Are GSM downloads allowed?  Yes, except if auto_download is set to 1
         # (i.e. wifi-only).
         allow_gsm = Settings().get('auto_download') != '1'
+        # See if the CLI was called with --override-gsm.
+        if not allow_gsm and config.override_gsm:
+            log.info('GSM-only overridden')
+            allow_gsm = True
+        log.info('Allow GSM? {}', ('Yes' if allow_gsm else 'No'))
         UDMDownloadManager._set_gsm(self._iface, allow_gsm=allow_gsm)
         # Start the download.
         reactor = DownloadReactor(
-            bus, object_path, self._reactor_callback, pausable)
+            bus, object_path, self._reactor_callback, pausable, signal_started)
         reactor.schedule(self._iface.start)
         log.info('[{}] Running group download reactor', object_path)
+        log.info('self: {}, self._iface: {}', self, self._iface)
         reactor.run()
         # This download is complete so the object path is no longer
         # applicable.  Setting this to None will cause subsequent cancels to
@@ -187,6 +197,27 @@ class UDMDownloadManager(DownloadManagerBase):
     def _set_gsm(iface, *, allow_gsm):
         # This is a separate method for easier testing via mocks.
         iface.allowGSMDownload(allow_gsm)
+
+    @staticmethod
+    def allow_gsm():
+        """See `DownloadManagerBase`."""
+        # We can't rely on self._iface being the interface of the group
+        # download object.  Use getAllDownloads() on UDM to get the group
+        # download object path, assert that there is only one group download
+        # in progress, then call allowGSMDownload() on that.
+        bus = dbus.SystemBus()
+        service = bus.get_object(DOWNLOADER_INTERFACE, '/')
+        iface = dbus.Interface(service, MANAGER_INTERFACE)
+        try:
+            object_paths = iface.getAllDownloads()
+        except TypeError:
+            # If there is no download in progress, udm will cause this
+            # exception to occur.  Allow this to no-op.
+            log.info('Ignoring GSM force when no download is in progress.')
+            return
+        assert len(object_paths) == 1, object_paths
+        download = bus.get_object(OBJECT_NAME, object_paths[0])
+        dbus.Interface(download, OBJECT_INTERFACE).allowGSMDownload(True)
 
     def cancel(self):
         """Cancel any current downloads."""

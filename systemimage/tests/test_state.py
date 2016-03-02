@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -23,6 +23,7 @@ __all__ = [
     'TestDailyProposed',
     'TestFileOrder',
     'TestKeyringDoubleChecks',
+    'TestMaximumImage',
     'TestMiscellaneous',
     'TestPhasedUpdates',
     'TestState',
@@ -41,6 +42,7 @@ from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from subprocess import CalledProcessError
+from systemimage.candidates import version_filter
 from systemimage.config import config
 from systemimage.download import DuplicateDestinationError
 from systemimage.gpg import Context, SignatureError
@@ -770,9 +772,35 @@ class TestFilters(ServerTestBase):
         touch_build(100)
         def filter_out_everything(candidates):
             return []
-        state = State(candidate_filter=filter_out_everything)
+        state = State()
+        state.candidate_filter=filter_out_everything
         state.run_thru('calculate_winner')
-        self.assertEqual(len(state.winner), 0)
+        self.assertEqual(state.winner, [])
+
+
+class TestMaximumImage(ServerTestBase):
+    INDEX_FILE = 'state.index_01.json'
+    CHANNEL_FILE = 'state.channels_02.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    @configuration
+    def test_maximum_image(self, config):
+        # Given a winning upgrade path, we can ceiling the maximum image
+        # number from that path to be applied.  This is useful for image
+        # testing purposes.
+        self._setup_server_keyrings()
+        touch_build(100)
+        state = State()
+        state.run_thru('calculate_winner')
+        self.assertEqual([image.version for image in state.winner],
+                         [200, 201, 304])
+        # Now we'll try again, but this time, put a cap on the upper
+        # bound of the images.
+        state = State()
+        state.winner_filter = version_filter(200)
+        state.run_thru('calculate_winner')
+        self.assertEqual([image.version for image in state.winner], [200])
 
 
 class TestStateNewChannelsFormat(ServerTestBase):

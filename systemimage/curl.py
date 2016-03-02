@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2015 Canonical Ltd.
+# Copyright (C) 2014-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -50,7 +50,7 @@ def _curl_debug(debug_type, debug_msg):             # pragma: no cover
 def make_testable(c):
     # The test suite needs to make the PyCURL object accept the testing
     # server's self signed certificate.  It will mock this function.
-    pass
+    pass                                            # pragma: no cover
 
 
 class SingleDownload:
@@ -136,7 +136,7 @@ class CurlDownloadManager(DownloadManagerBase):
         self._pausables = []
         self._paused = False
 
-    def _get_files(self, records, pausable):
+    def _get_files(self, records, pausable, signal_started):
         # Start by doing a HEAD on all the URLs so that we can get the total
         # target download size in bytes, at least as best as is possible.
         with ExitStack() as resources:
@@ -160,6 +160,8 @@ class CurlDownloadManager(DownloadManagerBase):
                 for handle in handles)
         # Now do a GET on all the URLs.  This will write the data to the
         # destination file and collect the checksums.
+        if signal_started and config.dbus_service is not None:
+            config.dbus_service.DownloadStarted()
         with ExitStack() as resources:
             resources.callback(setattr, self, '_handles', None)
             downloads = []

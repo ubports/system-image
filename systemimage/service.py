@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -50,7 +50,6 @@ __version__ = resource_bytes(
 
 
 def main():
-    global config
     # If enabled, start code coverage collection as early as possible.
     # Parse arguments.
     parser = argparse.ArgumentParser(
@@ -62,7 +61,7 @@ def main():
     parser.add_argument('-C', '--config',
                         default=DEFAULT_CONFIG_D, action='store',
                         metavar='DIRECTORY',
-                        help="""Use the given configuration directory instead 
+                        help="""Use the given configuration directory instead
                                 of the default""")
     parser.add_argument('-v', '--verbose',
                         default=0, action='count',

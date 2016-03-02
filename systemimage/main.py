@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ import argparse
 from dbus.mainloop.glib import DBusGMainLoop
 from pkg_resources import resource_string as resource_bytes
 from systemimage.apply import factory_reset, production_reset
-from systemimage.candidates import delta_filter, full_filter
+from systemimage.candidates import delta_filter, full_filter, version_filter
 from systemimage.config import config
 from systemimage.helpers import (
     last_update_date, makedirs, phased_percentage, version_detail)
@@ -112,16 +112,19 @@ def main():
                                 full updates or only delta updates.  The
                                 argument to this option must be either `full`
                                 or `delta`""")
+    parser.add_argument('-m', '--maximage',
+                        default=None, type=int,
+                        help="""After the winning upgrade path is selected,
+                                remove all images with version numbers greater
+                                than the given one.  If no images remain in
+                                the winning path, the device is considered
+                                up-to-date.""")
     parser.add_argument('-g', '--no-apply',
                         default=False, action='store_true',
                         help="""Download (i.e. "get") all the data files and
                                 prepare for updating, but don't actually
                                 reboot the device into recovery to apply the
                                 update""")
-    # Deprecated since si 3.0.
-    parser.add_argument('--no-reboot',
-                        default=False, action='store_true',
-                        help="""Deprecated; use -g/--no-apply""")
     parser.add_argument('-i', '--info',
                         default=False, action='store_true',
                         help="""Show some information about the current
@@ -183,6 +186,13 @@ def main():
                         help="""Delete the key and its value.  It is a no-op
                                 if the key does not exist.  Multiple
                                 --del arguments can be given.""")
+    parser.add_argument('--override-gsm',
+                        default=False, action='store_true',
+                        help="""When the device is set to only download over
+                                WiFi, but is currently on GSM, use this switch
+                                to temporarily override the update restriction.
+                                This switch has no effect when using the cURL
+                                based downloader.""")
     # Hidden system-image-cli only feature for testing purposes.  LP: #1333414
     parser.add_argument('--skip-gpg-verification',
                         default=False, action='store_true',
@@ -201,6 +211,8 @@ def main():
 WARNING: All GPG signature verifications have been disabled.
 Your upgrades are INSECURE.""", file=sys.stderr)
         config.skip_gpg_verification = True
+
+    config.override_gsm = args.override_gsm
 
     # Perform factory and production resets.
     if args.factory_reset:
@@ -332,7 +344,10 @@ Your upgrades are INSECURE.""", file=sys.stderr)
                 print('    {} (alias for: {})'.format(key, alias))
         return 0
 
-    state = State(candidate_filter=candidate_filter)
+    state = State()
+    state.candidate_filter = candidate_filter
+    if args.maximage is not None:
+        state.winner_filter = version_filter(args.maximage)
 
     for meter in args.progress:
         if meter == 'dots':
@@ -381,7 +396,7 @@ Your upgrades are INSECURE.""", file=sys.stderr)
         log.info('running state machine [{}/{}]',
                  config.channel, config.device)
         try:
-            if args.no_apply or args.no_reboot:
+            if args.no_apply:
                 state.run_until('apply')
             else:
                 list(state)

@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -100,11 +100,12 @@ def _use_cached_keyring(txz, asc, signing_key):
 
 
 class State:
-    def __init__(self, candidate_filter=None):
+    def __init__(self):
         # Variables which manage state transitions.
         self._next = deque()
         self._debug_step = 1
-        self._filter = candidate_filter
+        self.candidate_filter = None
+        self.winner_filter = None
         # Variables which represent things we've learned.
         self.blacklist = None
         self.channels = None
@@ -432,21 +433,27 @@ class State:
         candidates = get_candidates(self.index, build_number)
         log.debug('Candidates from build# {}: {}'.format(
             build_number, len(candidates)))
-        if self._filter is not None:
-            candidates = self._filter(candidates)
+        if self.candidate_filter is not None:
+            candidates = self.candidate_filter(candidates)
         self.winner = config.hooks.scorer().choose(
             candidates, (channel_target
                          if channel_alias is None
                          else channel_alias))
-        # If there is no winning upgrade candidate, then there's nothing more
-        # to do.  We can skip everything between downloading the files and
-        # doing the reboot.
-        if len(self.winner) > 0:
-            winning_path = [str(image.version) for image in self.winner]
-            log.info('Upgrade path is {}'.format(COLON.join(winning_path)))
-            self._next.append(self._download_files)
-        else:
+        if len(self.winner) == 0:
             log.info('Already up-to-date')
+            return
+        winning_path = [str(image.version) for image in self.winner]
+        log.info('Upgrade path is {}'.format(COLON.join(winning_path)))
+        # Now filter the winning path to cap the maximum version number.
+        if (self.winner_filter is not None and
+                self.winner_filter.maximum_version is not None):
+            log.info('Upgrade path capped at version {}'.format(
+                self.winner_filter.maximum_version))
+            self.winner = self.winner_filter(self.winner)
+            if len(self.winner) == 0:
+                log.info('Capped upgrade leaves device up-to-date')
+                return
+        self._next.append(self._download_files)
 
     def _download_files(self):
         """Download and verify all the winning upgrade path's files."""
@@ -502,8 +509,10 @@ class State:
             if path not in preserve:
                 safe_remove(os.path.join(cache_dir, filename))
         # Now, download all missing or ill-signed files, providing logging
-        # feedback on progress.  This download can be paused.
-        self.downloader.get_files(downloads, pausable=True)
+        # feedback on progress.  This download can be paused.  The downloader
+        # should also signal when the file downloads have started.
+        self.downloader.get_files(
+            downloads, pausable=True, signal_started=True)
         with ExitStack() as stack:
             # Set things up to remove the files if a SignatureError gets
             # raised or if the checksums don't match.  If everything's okay,

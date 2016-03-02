@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -23,6 +23,7 @@ __all__ = [
     'TestCLIMain',
     'TestCLIMainDryRun',
     'TestCLIMainDryRunAliases',
+    'TestCLIMaximumImage',
     'TestCLINoReboot',
     'TestCLIProductionReset',
     'TestCLIProgress',
@@ -52,6 +53,7 @@ from systemimage.config import Configuration, config
 from systemimage.helpers import safe_remove
 from systemimage.main import main as cli_main
 from systemimage.settings import Settings
+from systemimage.testing.controller import USING_PYCURL
 from systemimage.testing.helpers import (
     ServerTestBase, chmod, configuration, copy, data_path, find_dbus_process,
     sign, temporary_directory, terminate_service, touch_build,
@@ -379,7 +381,7 @@ class TestCLIMain(unittest.TestCase):
         # Test that the system log file gets created and written.
         self.assertFalse(os.path.exists(config.system.logfile))
         class FakeState:
-            def __init__(self, candidate_filter):
+            def __init__(self):
                 self.downloader = MagicMock()
             def __iter__(self):
                 return self
@@ -763,6 +765,177 @@ Target phase: 80%
 """)
 
 
+class TestCLIMaximumImage(ServerTestBase):
+    INDEX_FILE = 'main.index_02.json'
+    CHANNEL_FILE = 'main.channels_03.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    maxDiff = None
+
+    @configuration
+    def test_no_maximage(self, config_d):
+        # With no --maximage we get the full upgrade path.
+        self._setup_server_keyrings()
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        # Set up the build number.
+        touch_build(100)
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.enter_context(argv('-C', config_d, '--dry-run'))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), """\
+Upgrade path is 200:201:304
+Target phase: 44%
+""")
+
+    @configuration
+    def test_maximage_inexact(self, config_d):
+        # With --maximage the winning path is capped.
+        self._setup_server_keyrings()
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        # Set up the build number.
+        touch_build(100)
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.enter_context(
+                argv('-C', config_d, '--dry-run', '--maximage', '205'))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), """\
+Upgrade path is 200:201
+Target phase: 18%
+""")
+
+    @configuration
+    def test_maximage_exact(self, config_d):
+        # With --maximage the winning path is capped.
+        self._setup_server_keyrings()
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        # Set up the build number.
+        touch_build(100)
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.enter_context(
+                argv('-C', config_d, '--dry-run', '--maximage', '201'))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), """\
+Upgrade path is 200:201
+Target phase: 18%
+""")
+
+    @configuration
+    def test_maximage_too_high(self, config_d):
+        # With --maximage set above the highest winning image, there is no
+        # effective cap.
+        self._setup_server_keyrings()
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        # Set up the build number.
+        touch_build(100)
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.enter_context(
+                argv('-C', config_d, '--dry-run', '--maximage', '500'))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), """\
+Upgrade path is 200:201:304
+Target phase: 44%
+""")
+
+    @configuration
+    def test_maximage_lower_bound(self, config_d):
+        # With --maximage set at the lower bound, we still get an upgrade.
+        self._setup_server_keyrings()
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        # Set up the build number.
+        touch_build(100)
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.enter_context(
+                argv('-C', config_d, '--dry-run', '--maximage', '200'))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), """\
+Upgrade path is 200
+Target phase: 1%
+""")
+
+    @configuration
+    def test_maximage_0(self, config_d):
+        # With --maximage set at zero, we get no upgrade path.
+        self._setup_server_keyrings()
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        # Set up the build number.
+        touch_build(100)
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.enter_context(
+                argv('-C', config_d, '--dry-run', '--maximage', '0'))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), 'Already up-to-date\n')
+
+    @configuration
+    def test_maximage_negative(self, config_d):
+        # With --maximage negative, we also get no upgrade path.
+        self._setup_server_keyrings()
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        # Set up the build number.
+        touch_build(100)
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.enter_context(
+                argv('-C', config_d, '--dry-run', '--maximage', '-100'))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), 'Already up-to-date\n')
+
+    @configuration
+    def test_maximage_m(self, config_d):
+        # With -m is a shortcut for --maximage.
+        self._setup_server_keyrings()
+        # We patch builtin print() rather than sys.stdout because the
+        # latter can mess with pdb output should we need to trace through
+        # the code.
+        capture = StringIO()
+        # Set up the build number.
+        touch_build(100)
+        with ExitStack() as resources:
+            resources.enter_context(capture_print(capture))
+            resources.enter_context(
+                argv('-C', config_d, '--dry-run', '-m', '204'))
+            resources.push(machine_id('0000000000000000aaaaaaaaaaaaaaaa'))
+            cli_main()
+        self.assertMultiLineEqual(capture.getvalue(), """\
+Upgrade path is 200:201
+Target phase: 18%
+""")
+
+
 class TestCLIDuplicateDestinations(ServerTestBase):
     INDEX_FILE = 'main.index_04.json'
     CHANNEL_FILE = 'main.channels_03.json'
@@ -806,60 +979,6 @@ class TestCLINoReboot(ServerTestBase):
         self._resources.enter_context(capture_print(capture))
         self._resources.enter_context(
             argv('-C', config_d, '--no-apply', '-b', 0, '-c', 'daily'))
-        mock = self._resources.enter_context(
-            patch('systemimage.apply.Reboot.apply'))
-        # Do not use self._resources to manage the check_output mock.  Because
-        # of the nesting order of the @configuration decorator and the base
-        # class's tearDown(), using self._resources causes the mocks to be
-        # unwound in the wrong order, affecting future tests.
-        with patch('systemimage.device.check_output', return_value='manta'):
-            cli_main()
-        # The reboot method was never called.
-        self.assertFalse(mock.called)
-        # All the expected files should be downloaded.
-        self.assertEqual(set(os.listdir(config.updater.data_partition)), set([
-            'blacklist.tar.xz',
-            'blacklist.tar.xz.asc',
-            ]))
-        self.assertEqual(set(os.listdir(config.updater.cache_partition)), set([
-            '5.txt',
-            '5.txt.asc',
-            '6.txt',
-            '6.txt.asc',
-            '7.txt',
-            '7.txt.asc',
-            'device-signing.tar.xz',
-            'device-signing.tar.xz.asc',
-            'image-master.tar.xz',
-            'image-master.tar.xz.asc',
-            'image-signing.tar.xz',
-            'image-signing.tar.xz.asc',
-            'ubuntu_command',
-            ]))
-        path = os.path.join(config.updater.cache_partition, 'ubuntu_command')
-        with open(path, 'r', encoding='utf-8') as fp:
-            command = fp.read()
-        self.assertMultiLineEqual(command, """\
-load_keyring image-master.tar.xz image-master.tar.xz.asc
-load_keyring image-signing.tar.xz image-signing.tar.xz.asc
-load_keyring device-signing.tar.xz device-signing.tar.xz.asc
-format system
-mount system
-update 6.txt 6.txt.asc
-update 7.txt 7.txt.asc
-update 5.txt 5.txt.asc
-unmount system
-""")
-
-    @configuration
-    def test_no_reboot(self, config_d):
-        # `system-image-cli --no-reboot` downloads everything but does not
-        # apply the update.  THIS IS DEPRECATED IN SI 3.0.
-        self._setup_server_keyrings()
-        capture = StringIO()
-        self._resources.enter_context(capture_print(capture))
-        self._resources.enter_context(
-            argv('-C', config_d, '--no-reboot', '-b', 0, '-c', 'daily'))
         mock = self._resources.enter_context(
             patch('systemimage.apply.Reboot.apply'))
         # Do not use self._resources to manage the check_output mock.  Because
@@ -1287,8 +1406,7 @@ class TestDBusMain(unittest.TestCase):
         # before calling .Exit().  However, due to timing issues, it's
         # possible we get here before the process was ever started, and thus
         # the daemon won't be killed.  Conditionally deleting it now will
-        # allow the .Info() call below to re-active the process and thus
-        # re-create the directory.
+        # allow re-activation to re-create the directory.
         try:
             shutil.rmtree(config.system.tempdir)
         except FileNotFoundError:
@@ -1502,7 +1620,7 @@ class TestCLIProgress(ServerTestBase):
             resources.enter_context(
                 patch('systemimage.main.LINE_LENGTH', 10))
             resources.enter_context(
-                argv('-C', config_d, '-b', '0', '--no-reboot',
+                argv('-C', config_d, '-b', '0', '--no-apply',
                      '--progress', 'dots'))
             cli_main()
         # There should be some dots in the stderr.
@@ -1512,7 +1630,7 @@ class TestCLIProgress(ServerTestBase):
     def test_json_progress(self, config_d):
         # --progress=json prints some JSON to stdout.
         self._setup_server_keyrings()
-        with argv('-C', config_d, '-b', '0', '--no-reboot',
+        with argv('-C', config_d, '-b', '0', '--no-apply',
                   '--progress', 'json'):
             cli_main()
         # stdout is now filled with JSON goodness.  We can't assert too much
@@ -1540,7 +1658,7 @@ class TestCLIProgress(ServerTestBase):
             resources.enter_context(
                 patch('systemimage.main._LogfileProgress', Testable))
             resources.enter_context(
-                argv('-C', config_d, '-b', '0', '--no-reboot',
+                argv('-C', config_d, '-b', '0', '--no-apply',
                      '--progress', 'logfile'))
             cli_main()
         self.assertGreater(log_mock.debug.call_count, 4)
@@ -1563,7 +1681,7 @@ class TestCLIProgress(ServerTestBase):
             resources.enter_context(
                 patch('systemimage.main._LogfileProgress', Testable))
             resources.enter_context(
-                argv('-C', config_d, '-b', '0', '--no-reboot',
+                argv('-C', config_d, '-b', '0', '--no-apply',
                      '--progress', 'dots',
                      '--progress', 'json',
                      '--progress', 'logfile'))
@@ -1586,7 +1704,7 @@ class TestCLIProgress(ServerTestBase):
         # An unknown progress type results in an error.
         with ExitStack() as resources:
             resources.enter_context(
-                argv('-C', config_d, '-b', '0', '--no-reboot',
+                argv('-C', config_d, '-b', '0', '--no-apply',
                      '--progress', 'not-a-meter'))
             cm = resources.enter_context(self.assertRaises(SystemExit))
             cli_main()
@@ -1602,7 +1720,7 @@ class TestCLIProgress(ServerTestBase):
         self._setup_server_keyrings()
         with ExitStack() as resources:
             resources.enter_context(
-                argv('-C', config.config_d, '-b', '0', '--no-reboot',
+                argv('-C', config.config_d, '-b', '0', '--no-apply',
                      '--progress', 'json'))
             # It's maybe not the best thing to hook into a private
             # implementation function in order to cause the state machine to
@@ -1625,7 +1743,7 @@ class TestCLIProgress(ServerTestBase):
         self._setup_server_keyrings()
         with ExitStack() as resources:
             resources.enter_context(
-                argv('-C', config.config_d, '-b', '0', '--no-reboot'))
+                argv('-C', config.config_d, '-b', '0', '--no-apply'))
             # It's maybe not the best thing to hook into a private
             # implementation function in order to cause the state machine to
             # fail, but it's expedient and works with both downloaders.
@@ -1638,3 +1756,50 @@ class TestCLIProgress(ServerTestBase):
         # the error record.
         lines = self._stdout.getvalue().splitlines()
         self.assertEqual(len(lines), 0)
+
+
+@unittest.skipIf(USING_PYCURL, 'UDM-only tests')
+class TestCLIGSMOverride(ServerTestBase):
+    INDEX_FILE = 'main.index_05.json'
+    CHANNEL_FILE = 'main.channels_02.json'
+    CHANNEL = 'daily'
+    DEVICE = 'manta'
+
+    @configuration
+    def test_no_gsm_override(self, config_d):
+        # Without --override-gsm, the normal auto_download setting rules.
+        self._setup_server_keyrings()
+        Settings().set('auto_download', '1')
+        with ExitStack() as resources:
+            resources.enter_context(argv('-C', config_d, '-b', '0'))
+            mock = resources.enter_context(
+                patch('systemimage.udm.UDMDownloadManager._set_gsm'))
+            exit_code = cli_main()
+        self.assertEqual(exit_code, 0)
+        # The last time the mock was called, was for the downloads of the data
+        # files.  Here, the first argument that the method was called with is
+        # the interface, but the second argument is the flag we care about.
+        # It's called as a keyword argument, so dig this out of the mock's
+        # call args.
+        args, kws = mock.call_args
+        self.assertFalse(kws['allow_gsm'])
+
+    @configuration
+    def test_gsm_override(self, config_d):
+        # --override-gsm overrides any local setting for auto_download.
+        self._setup_server_keyrings()
+        Settings().set('auto_download', '1')
+        with ExitStack() as resources:
+            resources.enter_context(
+                argv('-C', config_d, '-b', '0', '--override-gsm'))
+            mock = resources.enter_context(
+                patch('systemimage.udm.UDMDownloadManager._set_gsm'))
+            exit_code = cli_main()
+        self.assertEqual(exit_code, 0)
+        # The last time the mock was called, was for the downloads of the data
+        # files.  Here, the first argument that the method was called with is
+        # the interface, but the second argument is the flag we care about.
+        # It's called as a keyword argument, so dig this out of the mock's
+        # call args.
+        args, kws = mock.call_args
+        self.assertTrue(kws['allow_gsm'])

@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -92,7 +92,7 @@ class SystemImagePlugin(Plugin):
         def set_dbus_loglevel(level):
             self.log_level = level[0]
         self.addOption(set_dbus_loglevel, 'M', 'loglevel',
-                       'Set the systemimage.dbus log level',
+                       'Set the systemimage[:systemimage.dbus] log level',
                        nargs=1)
 
     @configuration

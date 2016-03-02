@@ -8,4 +8,4 @@ Depends: system-image-common, system-image-cli, system-image-dbus, ubuntu-downlo
 
 Tests: dryrun
 Restrictions: allow-stderr
-Depends: @, ubuntu-download-manager, dbus, dbus-x11, python3-psutil, python3-xdg, python3-setuptools, python3-nose2, python3-pycurl
+Depends: @, ubuntu-download-manager, dbus, dbus-x11, python3-psutil, python3-xdg, python3-setuptools, python3-nose2, python3-pycurl, python3-dbusmock

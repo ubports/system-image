@@ -8,8 +8,8 @@ Ubuntu System Image Upgrader configuration files
 ------------------------------------------------
 
 :Author: Barry Warsaw <barry@ubuntu.com>
-:Date: 2015-01-15
-:Copyright: 2013-2015 Canonical Ltd.
+:Date: 2016-01-15
+:Copyright: 2013-2016 Canonical Ltd.
 :Version: 3.0
 :Manual section: 5
 
