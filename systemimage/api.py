@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -84,8 +84,12 @@ class Mediator:
         self._callback = callback
 
     def __repr__(self): # pragma: no cover
-        return '<Mediator at 0x{:x} | State at 0x{:x}>'.format(
-            id(self), id(self._state))
+        fmt = '<Mediator at 0x{:x} | State at 0x{:x} | Downloader at {}>'
+        args = [id(self), id(self._state),
+                'None' if self._state.downloader is None
+                else '0x{:x}'.format(id(self._state.downloader))
+               ]
+        return fmt.format(*args)
 
     def cancel(self):
         self._state.downloader.cancel()
@@ -135,3 +139,6 @@ class Mediator:
 
     def production_reset(self):
         production_reset()
+
+    def allow_gsm(self):
+        self._state.downloader.allow_gsm()          # pragma: no curl

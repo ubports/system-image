@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -32,7 +32,7 @@ from functools import wraps
 from gi.repository import GLib
 from systemimage.api import Mediator
 from systemimage.config import config
-from systemimage.helpers import last_update_date, version_detail
+from systemimage.helpers import last_update_date
 from systemimage.settings import Settings
 from threading import Lock
 
@@ -113,7 +113,7 @@ class Service(Object):
         log.info('_check_for_update(): checking lock releasing')
         try:
             self._checking.release()
-        except RuntimeError:
+        except RuntimeError:                        # pragma: no udm
             log.info('_check_for_update(): checking lock already released')
         else:
             log.info('_check_for_update(): checking lock released')
@@ -312,14 +312,12 @@ class Service(Object):
         return ''
 
     @log_and_exit
-    @method('com.canonical.SystemImage', out_signature='isssa{ss}')
-    def Info(self):
-        self.loop.keepalive()
-        return (config.build_number,
-                config.device,
-                config.channel,
-                last_update_date(),
-                version_detail())
+    @method('com.canonical.SystemImage')
+    def ForceAllowGSMDownload(self):                # pragma: no curl
+        """Force an existing group download to proceed over GSM."""
+        log.info('Mediator {}', self._api)
+        self._api.allow_gsm()
+        return ''
 
     @log_and_exit
     @method('com.canonical.SystemImage', out_signature='a{ss}')
@@ -414,6 +412,13 @@ class Service(Object):
         log.debug('EMIT UpdateAvailableStatus({}, {}, {}, {}, {}, {})',
                   is_available, downloading, available_version, update_size,
                   last_update_date, repr(error_reason))
+        self.loop.keepalive()
+
+    @log_and_exit
+    @signal('com.canonical.SystemImage')
+    def DownloadStarted(self):
+        """The download has started."""
+        log.debug('EMIT DownloadStarted()')
         self.loop.keepalive()
 
     #@log_and_exit

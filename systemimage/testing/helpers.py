@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -506,10 +506,9 @@ def debug(*, check_flag=False, end='\n'):
     else:
         path = Path(os.devnull)
     with path.open('a', encoding='utf-8') as fp:
-        function = partial(print, file=fp, end=end)
+        function = partial(print, file=fp, end=end, flush=True)
         function.fp = fp
         yield function
-        fp.flush()
 
 
 def find_dbus_process(ini_path):

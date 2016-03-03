@@ -11,6 +11,7 @@ Build-Depends: dbus,
                python-docutils,
                python3-all (>= 3.3),
                python3-dbus,
+               python3-dbusmock,
                python3-gi,
                python3-gnupg,
                python3-nose2,
@@ -24,7 +25,6 @@ Standards-Version: 3.9.6
 Testsuite: autopkgtest
 Vcs-Bzr: https://code.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image
 Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-managed-branches/ubuntu-system-image/system-image/files
-X-Auto-Uploader: no-rewrite-version
 
 Package: system-image-cli
 Architecture: all

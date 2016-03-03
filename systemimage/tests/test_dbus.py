@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -23,7 +23,8 @@ __all__ = [
     'TestDBusDownload',
     'TestDBusDownloadBigFiles',
     'TestDBusFactoryReset',
-    'TestDBusProductionReset',
+    'TestDBusGSMDownloads',
+    'TestDBusGSMNoDownloads',
     'TestDBusGetSet',
     'TestDBusInfo',
     'TestDBusMiscellaneous',
@@ -36,6 +37,7 @@ __all__ = [
     'TestDBusMockUpdateManualSuccess',
     'TestDBusMultipleChecksInFlight',
     'TestDBusPauseResume',
+    'TestDBusProductionReset',
     'TestDBusProgress',
     'TestDBusRegressions',
     'TestDBusUseCache',
@@ -49,12 +51,14 @@ import dbus
 import json
 import time
 import shutil
+import dbusmock
 import tempfile
 import unittest
+import subprocess
 
 from contextlib import ExitStack, suppress
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, timedelta
 from dbus.exceptions import DBusException
 from functools import partial
 from pathlib import Path
@@ -63,7 +67,7 @@ from systemimage.config import Configuration
 from systemimage.helpers import MiB, safe_remove
 from systemimage.reactor import Reactor
 from systemimage.settings import Settings
-from systemimage.testing.controller import USING_PYCURL
+from systemimage.testing.controller import USING_PYCURL, stop_downloader
 from systemimage.testing.helpers import (
     copy, data_path, find_dbus_process, make_http_server, setup_index,
     setup_keyring_txz, setup_keyrings, sign, terminate_service, touch_build,
@@ -301,6 +305,20 @@ class AppliedNoRebootingReactor(Reactor):
 
     def _do_Rebooting(self, signal, path, *args):
         self.rebooting = (True, args[0])
+
+
+class StartedReactor(Reactor):
+    def __init__(self):
+        super().__init__(dbus.SystemBus())
+        self.got_started = 0
+        self.react_to('DownloadStarted')
+        self.react_to('UpdateDownloaded')
+
+    def _do_DownloadStarted(self, *args, **kws):
+        self.got_started += 1
+
+    def _do_UpdateDownloaded(self, *args, **kws):
+        self.quit()
 
 
 class _TestBase(unittest.TestCase):
@@ -676,6 +694,17 @@ unmount system
         self.assertEqual(failure_count, 1)
         # Don't count on a specific error message.
         self.assertEqual(last_reason[:25], 'DuplicateDestinationError')
+
+    def test_started(self):
+        # A DownloadStarted signal is sent when the download has started.
+        # This either comes proxied through UDM or gets sent by the built-in
+        # cURL downloader.
+        self.download_always()
+        reactor = StartedReactor()
+        reactor.schedule(self.iface.CheckForUpdate)
+        reactor.run(timeout=60)
+        # Exactly one DownloadStarted signal was received.
+        self.assertEqual(reactor.got_started, 1)
 
 
 class TestDBusDownloadBigFiles(_LiveTesting):
@@ -1451,15 +1480,6 @@ class TestDBusGetSet(_TestBase):
 class TestDBusInfo(_TestBase):
     mode = 'more-info'
 
-    def test_info(self):
-        # .Info() with some version details.
-        buildno, device, channel, last_update, details = self.iface.Info()
-        self.assertEqual(buildno, 45)
-        self.assertEqual(device, 'nexus11')
-        self.assertEqual(channel, 'daily-proposed')
-        self.assertEqual(last_update, '2099-08-01 04:45:45')
-        self.assertEqual(details, dict(ubuntu='123', mako='456', custom='789'))
-
     def test_information(self):
         # .Information() with some version details.
         response = self.iface.Information()
@@ -1484,18 +1504,6 @@ class TestDBusInfo(_TestBase):
 
 
 class TestLiveDBusInfo(_LiveTesting):
-    def test_info_no_version_detail(self):
-        # .Info() where there are no version details.
-        timestamp = int(datetime(2022, 8, 1, 4, 45, 45).timestamp())
-        touch_build(45, timestamp, self.config)
-        self.iface.Reset()
-        buildno, device, channel, last_update, details = self.iface.Info()
-        self.assertEqual(buildno, 45)
-        self.assertEqual(device, 'nexus7')
-        self.assertEqual(channel, 'stable')
-        self.assertEqual(last_update, '2022-08-01 04:45:45')
-        self.assertEqual(details, {})
-
     def test_information_before_check_no_details(self):
         # .Information() where there are no version details, and no previous
         # CheckForUpdate() call was made.
@@ -1741,7 +1749,7 @@ class TestDBusPauseResume(_LiveTesting):
             write_bytes(full_path, 750)
         tweak_checksums('')
 
-    @capture_dbus_calls
+    #@capture_dbus_calls
     def test_pause(self):
         # Set up some extra D-Bus debugging.
         self.download_manually()
@@ -1765,13 +1773,13 @@ class TestDBusPauseResume(_LiveTesting):
         # size to be big enough to trigger the expected behavior.  There's no
         # other way to control the live u-d-m process.
         self.assertGreater(reactor.percentage, 0)
-        self.assertLess(reactor.percentage, 100)
+        self.assertLessEqual(reactor.percentage, 100)
         self.assertGreaterEqual(reactor.percentage, reactor.pause_progress)
         # Now let's resume the download.  Because we intentionally corrupted
         # the downloaded files, we'll get an UpdateFailed signal instead of
         # the successful UpdateDownloaded signal.
         reactor = SignalCapturingReactor('UpdateFailed')
-        reactor.run(self.iface.DownloadUpdate, timeout=60)
+        reactor.run(self.iface.DownloadUpdate, timeout=300)
         self.assertEqual(len(reactor.signals), 1)
         # The error message will include lots of details on the SignatureError
         # that results.  The key thing is that it's 5.txt that is the first
@@ -2131,3 +2139,146 @@ class TestDBusMiscellaneous(_LiveTesting):
         # Failure count.
         self.assertEqual(failure[0], 1)
         self.assertEqual(failure[1], 'Canceled')
+
+
+@unittest.skipIf(USING_PYCURL, 'UDM-only tests')
+class TestDBusGSMDownloads(_LiveTesting):
+    def _mock_udm(self):
+        # Stop the actual UDM downloader, create our mock, and let it
+        # "perform" the download of the update.
+        stop_downloader(SystemImagePlugin.controller)
+        # Remove UDM's .service file from the temporary directory so that it
+        # won't get D-Bus activated.  This should let the mock service win.
+        os.remove(os.path.join(
+            SystemImagePlugin.controller.tmpdir,
+            'com.canonical.applications.Downloader.service'))
+        # And restart dbus-daemon.
+        wait_for_service()
+        # Create the mock UDM.
+        argv = [sys.executable, '-m', 'dbusmock', '--system',
+                'com.canonical.applications.Downloader',
+                '/',
+                'com.canonical.applications.DownloadManager']
+        self.server = subprocess.Popen(
+            argv, stdout=subprocess.PIPE, env=os.environ)
+        bus = dbus.SystemBus()
+        until = datetime.now() + timedelta(seconds=60)
+        while datetime.now() < until:
+            try:
+                p = dbus.Interface(
+                    bus.get_object(
+                        'com.canonical.applications.Downloader', '/'),
+                    dbus_interface=dbus.INTROSPECTABLE_IFACE)
+                p.Introspect()
+                break
+            except dbus.exceptions.DBusException as e:
+                if '.UnknownInterface' in str(e):
+                    break
+            time.sleep(0.1)
+        # Shut down the mock UDM when this test completes.
+        def terminate():
+            self.server.terminate()
+            self.server.wait()
+        self.addCleanup(terminate)
+        # Start filling out the UDM mock, but only enough to complete the
+        # test.  Remember, all we care about is that we can flip the GSM flag
+        # while a download is paused.  We have to assume that the real UDM
+        # does the right thing in this case, so we're just ensuring that
+        # system-image handles the situation correctly.
+        #
+        # See https://wiki.ubuntu.com/DownloadService
+        self.udm = dbus.Interface(
+            bus.get_object('com.canonical.applications.Downloader', '/'),
+            dbusmock.MOCK_IFACE)
+        # On the primary entry point, we only care about being able to create
+        # a group download.  This is the object that UDM's
+        # createDownloadGroup() method will return.  We hard code its object
+        # path because we really don't care about the details.
+        self.group = self.udm.AddObject(
+            '/group1', 'com.canonical.applications.GroupDownload',
+            # No properties.
+            {}, [
+            # We only care about a few methods on the group download object.
+            # First up is the method that si calls to flip the GSM flag in
+            # UDM.  We'll simulate the resuming of a paused (due to being on
+            # wifi-only) UDM by emitting the `started` and `finished` signals
+            # that si expects.  This will actually cause si to fail an
+            # internal assertion because the files it requested to be
+            # downloaded won't be present.  But we don't really care about
+            # that since we're only making sure that the resumption of the
+            # paused download works.
+            ('allowGSMDownload', 'b', '',
+             'self.EmitSignal("", "started", "b", (False,)); '
+             'self.EmitSignal("", "finished", "ao", ([objects["/group1"]],))'
+              ),
+            # UDM's start() gets called by si's DownloadUpdate(), but it
+            # doesn't take any arguments, return any values, or have any
+            # side-effects.
+            ('start', '', '', ''),
+            # Similarly, UDM's cancel() gets called by the si test framework
+            # when the test completes.
+            ('cancel', '', '', ''),
+            ])
+        # Here's the mock of UDM's createDownloadGroup() method.  The only
+        # thing we care about is that the object created above is returned.
+        self.udm.AddMethod(
+            '', 'createDownloadGroup',
+            # https://wiki.ubuntu.com/DownloadService/DownloadManager
+            'a(sss)sba{sv}a{ss}', 'o',
+            'ret = objects["/group1"]')
+        # Because of the way the UDMDownloadManager works, we have to mock
+        # UDM's getAllDownloads() method to also return the object created
+        # above.  See UDMDownloadManager.allow_gsm() for details.
+        self.udm.AddMethod(
+            '', 'getAllDownloads',
+            '', 'ao',
+            'ret = [objects["/group1"]]')
+
+    def test_allow_gsm_download(self):
+        self.download_manually()
+        # Check for update available.  Use the real UDM so that we get all the
+        # keyrings and JSON files that define the update.  Because we're
+        # downloading manually, the data files won't be downloaded yet.
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available, msg=signal.error_reason)
+        # Set up the mock and attempt to start the download.  This will fail
+        # to get a 'started' signal because we're not on wifi.
+        self.download_on_wifi()
+        self._mock_udm()
+        reactor = StartedReactor()
+        reactor.schedule(self.iface.DownloadUpdate)
+        reactor.run(timeout=10)
+        self.assertEqual(reactor.got_started, 0)
+        # Now tell UDM that GSM downloads are okay and watch again for the
+        # simulated started signal.  We do however need a new reactor since
+        # the old one won't respond to the subsequent signals.
+        reactor = StartedReactor()
+        reactor.schedule(self.iface.ForceAllowGSMDownload)
+        reactor.run(timeout=10)
+        self.assertEqual(reactor.got_started, 1)
+
+
+@unittest.skipIf(USING_PYCURL, 'UDM-only tests')
+class TestDBusGSMNoDownloads(_LiveTesting):
+    def test_force_gsm_noops_when_no_download_is_in_progress(self):
+        self.download_on_wifi()
+        reactor = StartedReactor()
+        reactor.schedule(self.iface.ForceAllowGSMDownload)
+        reactor.run(timeout=10)
+        self.assertEqual(reactor.got_started, 0)
+
+    def test_force_gsm_noops_when_download_is_manual(self):
+        self.download_manually()
+        reactor = SignalCapturingReactor('UpdateAvailableStatus')
+        reactor.run(self.iface.CheckForUpdate)
+        self.assertEqual(len(reactor.signals), 1)
+        signal = reactor.signals[0]
+        self.assertTrue(signal.is_available, msg=signal.error_reason)
+        # Don't start the download.
+        reactor = StartedReactor()
+        reactor.schedule(self.iface.ForceAllowGSMDownload)
+        reactor.run(timeout=10)
+        self.assertEqual(reactor.got_started, 0)

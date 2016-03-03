@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015 Canonical Ltd.
+# Copyright (C) 2013-2016 Canonical Ltd.
 # Author: Barry Warsaw <barry@ubuntu.com>
 
 # This program is free software: you can redistribute it and/or modify
@@ -20,6 +20,7 @@ __all__ = [
     'full_filter',
     'get_candidates',
     'iter_path',
+    'version_filter',
     ]
 
 
@@ -166,3 +167,12 @@ def delta_filter(candidates):
         if len(new_path) != 0:
             filtered.append(new_path)
     return filtered
+
+
+class version_filter:
+    def __init__(self, maximum_version):
+        self.maximum_version = maximum_version
+
+    def __call__(self, winner):
+        return [image for image in winner
+                if image.version <= self.maximum_version]
