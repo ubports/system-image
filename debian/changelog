@@ -17,6 +17,8 @@ system-image (3.1-0ubuntu1) xenial; urgency=medium
     - Remove the X-Auto-Uploader header; let the train mangle the version
       numbers so that we can do dual landings.
   * d/tests/control: ADd python3-dbusmock as a dependency for dryrun.
+  * .bzr-builddeb/default.conf: Added for split building.
+  * d/watch: Dropped.
 
  -- Barry Warsaw <barry@ubuntu.com>  Wed, 02 Mar 2016 15:33:13 -0500
 
