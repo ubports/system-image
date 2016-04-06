@@ -4,5 +4,5 @@
         rotate 3
         compress
         notifempty
-	nocreate
+        nocreate
 }
