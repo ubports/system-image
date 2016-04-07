@@ -1,3 +1,11 @@
+system-image (3.1+16.04.20160407-0ubuntu1) xenial; urgency=medium
+
+  * d/system-image.logrotate: Rotate the log file monthly.  (LP:
+    #1518955) d/control: Bump Standards-Version with no other changes
+    necessary. (LP: #1518955)
+
+ -- Barry Warsaw <ci-train-bot@canonical.com>  Thu, 07 Apr 2016 15:49:08 +0000
+
 system-image (3.1+16.04.20160303-0ubuntu1) xenial; urgency=medium
 
   [ CI Train Bot ]
