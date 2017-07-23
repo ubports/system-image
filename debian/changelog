@@ -1,3 +1,9 @@
+system-image (3.2+ubports) vivid; urgency=medium
+
+  * Imported to UBports
+
+ -- UBports auto importer <infra@ubports.com>  Mon, 24 Jul 2017 00:14:15 +0200
+
 system-image (3.1+16.04.20160407-0ubuntu1) xenial; urgency=medium
 
   * d/system-image.logrotate: Rotate the log file monthly.  (LP:
