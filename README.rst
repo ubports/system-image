@@ -41,13 +41,13 @@ get full help::
 Project Information
 ===================
 
-Launchpad project page: https://launchpad.net/ubuntu-system-image
+(Old) Launchpad project page: https://launchpad.net/ubuntu-system-image
 
 
 Filing Bugs
 ===========
 
-File bugs at https://bugs.launchpad.net/ubuntu-system-image
+File bugs at https://github.com/ubports/ubports-touch
 
 This is preferred rather than using the Ubuntu source package, but if you do
 file it against the source package, please also add the project as a bugtask.
@@ -61,10 +61,7 @@ Author
 
 You can contact the primary author/maintainer at
 
-Barry Warsaw
-barry@ubuntu.com
-barry@canonical.com
-IRC: barry on freenode (#ubuntu-phone)
+TODO
 
 
 .. _[1]: Sometimes you need to update the environment, if for example you make
