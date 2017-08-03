@@ -56,9 +56,9 @@ class TestConfiguration(unittest.TestCase):
     def test_defaults(self):
         config = Configuration()
         # [service]
-        self.assertEqual(config.service.base, 'system-image.ubuntu.com')
-        self.assertEqual(config.http_base, 'http://system-image.ubuntu.com')
-        self.assertEqual(config.https_base, 'https://system-image.ubuntu.com')
+        self.assertEqual(config.service.base, 'system-image.ubports.com')
+        self.assertEqual(config.http_base, 'http://system-image.ubports.com')
+        self.assertEqual(config.https_base, 'https://system-image.ubports.com')
         self.assertEqual(config.service.channel, 'daily')
         self.assertEqual(config.service.build_number, 0)
         # [system]
