@@ -12,4 +12,4 @@
 
 set -e
 python3 debian/tests/prep.py
-system-image-cli -C $ADTTMP/config.d -d mako -c devel -b 0 --no-reboot -v
+system-image-cli -C $ADTTMP/config.d -d bacon -c 15.04/devel -b 0 --no-reboot -v
