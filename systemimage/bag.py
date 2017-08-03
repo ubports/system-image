@@ -91,7 +91,7 @@ class Bag:
         return self.__untranslated__[key]
 
     def keys(self):
-        for key in self.__dict__:
+        for key in self.__untranslated__:
             if not key.startswith('_'):
                 yield key
 
