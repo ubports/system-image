@@ -26,6 +26,7 @@ import logging
 
 from systemimage.apply import factory_reset, production_reset
 from systemimage.state import State
+from systemimage.config import config
 
 
 log = logging.getLogger('systemimage')
@@ -80,7 +81,9 @@ class Mediator:
 
     def __init__(self, callback=None):
         self._state = State()
+        self._config = config
         self._update = None
+        self._channels = None
         self._callback = callback
 
     def __repr__(self): # pragma: no cover
@@ -117,6 +120,14 @@ class Mediator:
                 self._update = Update(error=str(error))
             else:
                 self._update = Update(self._state.winner)
+                self._channels = list()
+                for key in sorted(self._state.channels):
+                    self._channels.append(dict(
+                        hidden=self._state.channels[key].get('hidden'),
+                        alias=self._state.channels[key].get('alias'),
+                        redirect=self._state.channels[key].get('redirect'),
+                        name=key
+                    ))
         return self._update
 
     def download(self):
@@ -142,3 +153,26 @@ class Mediator:
 
     def allow_gsm(self):
         self._state.downloader.allow_gsm()          # pragma: no curl
+
+    def get_channels(self):
+        """List channels. This returns output created by check_for_update."""
+        return self._channels
+
+    def set_channel(self, channel):
+        found = False
+        if self._channels:
+            for key in self._channels:
+                if key["name"] == channel:
+                    found = True
+                    self._config.channel = channel
+                    break
+        return found
+
+    def set_build(self, build):
+        self._config.build_number = build
+
+    def get_channel(self):
+        return self._config.channel
+
+    def get_build(self):
+        return self._config.build_number

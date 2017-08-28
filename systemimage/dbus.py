@@ -399,6 +399,45 @@ class Service(Object):
         self.loop.quit()
 
     @log_and_exit
+    @method('com.canonical.SystemImage', out_signature='as')
+    def GetChannels(self):
+        """Get channels from system server."""
+        ret = list()
+        channels = self._api.get_channels()
+        if channels:
+            for key in channels:
+                if not key["hidden"] and not key["alias"] and not key["redirect"]:
+                    ret.append(key["name"])
+        log.info('Channels {}', ret)
+        return ret
+
+    @log_and_exit
+    @method('com.canonical.SystemImage', in_signature='s', out_signature='b')
+    def SetChannel(self, channel):
+        """Set channel to get updates from"""
+        return self._api.set_channel(channel)
+
+    @log_and_exit
+    @method('com.canonical.SystemImage', in_signature='i')
+    def SetBuild(self, build):
+        """Set build to get updates from"""
+        self._api.set_build(build)
+
+
+    @log_and_exit
+    @method('com.canonical.SystemImage', out_signature='s')
+    def GetChannel(self):
+        """Get channel to get updates from"""
+        return self._api.get_channel()
+
+    @log_and_exit
+    @method('com.canonical.SystemImage', out_signature='i')
+    def GetBuild(self):
+        """Get build to get updates from"""
+        return self._api.get_build()
+
+
+    @log_and_exit
     @signal('com.canonical.SystemImage', signature='bbsiss')
     def UpdateAvailableStatus(self,
                               is_available, downloading,

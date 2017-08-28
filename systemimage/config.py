@@ -94,7 +94,7 @@ class Configuration:
 
     def _set_defaults(self):
         self.service = Bag(
-            base='system-image.ubuntu.com',
+            base='system-image.ubports.com',
             http_port=80,
             https_port=443,
             channel='daily',

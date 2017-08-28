@@ -1,7 +1,7 @@
 # DEP-8 smoketest configuration file.
 
 [service]
-base: system-image.ubuntu.com
+base: system-image.ubports.com
 http_port: 80
 https_port: 443
 channel: daily
