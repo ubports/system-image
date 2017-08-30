@@ -28,14 +28,15 @@ from configparser import ConfigParser
 from contextlib import ExitStack
 from pathlib import Path
 from systemimage.bag import Bag
+from systemimage.deviceStats import DeviceStats
 from systemimage.helpers import (
     NO_PORT, as_loglevel, as_object, as_port, as_stripped, as_timedelta,
     makedirs, temporary_directory)
 
-
 SECTIONS = ('service', 'system', 'gpg', 'updater', 'hooks', 'dbus')
 USER_AGENT = ('Ubuntu System Image Upgrade Client: '
-              'device={0.device};channel={0.channel};build={0.build_number}')
+              'device={0.device};channel={0.channel};build={0.build_number}'
+              'session={0.session};instance={0.instance}')
 
 
 def expand_path(path):
@@ -90,6 +91,7 @@ class Configuration:
             self.load(directory)
         self._calculate_http_bases()
         self._resources = ExitStack()
+        self._stats = DeviceStats()
         atexit.register(self._resources.close)
 
     def _set_defaults(self):
@@ -285,6 +287,14 @@ class Configuration:
                 temporary_directory(prefix='system-image-',
                                     dir=self.system.tempdir))
         return self._tempdir
+
+    @property
+    def session(self):
+        return self._stats.getSessionId()
+
+    @property
+    def instance(self):
+        return self._stats.getInstanceId()
 
     @property
     def user_agent(self):
