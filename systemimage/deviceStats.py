@@ -4,7 +4,10 @@ import hashlib, os, subprocess, random, string
 
 # Get the device serial number
 def getSerial():
-    return subprocess.check_output(["getprop", "ro.serialno"])
+    try:
+        return subprocess.check_output(["getprop", "ro.serialno"])
+    except:
+        return "NO_SERIAL".encode('utf-8')
 
 # Hash the serial number
 def hashSerial(serial):
