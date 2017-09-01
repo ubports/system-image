@@ -2,6 +2,13 @@
 
 import hashlib, os, subprocess, random, string
 
+config_dir = '/home/phablet/.config/ubuntu-system-settings'
+no_device_stats_file = config_dir + '/no-device-stats'
+no_device_stats = "NO_DEVICE_STATS"
+
+def noDeviceStats():
+    return os.path.exists(no_device_stats_file)
+
 # Get the device serial number
 def getSerial():
     try:
@@ -47,10 +54,14 @@ class DeviceStats(object):
 
     # Session id is generated on each boot
     def getSessionId(self):
+        if noDeviceStats():
+            return no_device_stats
         self.createSessionIdIfNull()
         return self.sessionId
 
     # instance id is generated on first boot
     def getInstanceId(self):
+        if noDeviceStats():
+            return no_device_stats
         self.createInstanceIdIfNull()
         return self.instanceId
