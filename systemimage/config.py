@@ -35,7 +35,7 @@ from systemimage.helpers import (
 
 SECTIONS = ('service', 'system', 'gpg', 'updater', 'hooks', 'dbus')
 USER_AGENT = ('Ubuntu System Image Upgrade Client: '
-              'device={0.device};channel={0.channel};build={0.build_number}'
+              'device={0.device};channel={0.channel};build={0.build_number};'
               'session={0.session};instance={0.instance}')
 
 
