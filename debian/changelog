@@ -1,4 +1,4 @@
-system-image (3.2+ubports) vivid; urgency=medium
+system-image (3.2+ubports) xenial; urgency=medium
 
   * Imported to UBports
 
