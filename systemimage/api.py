@@ -22,7 +22,7 @@ __all__ = [
     ]
 
 
-import logging
+import logging, json, subprocess
 
 from systemimage.apply import factory_reset, production_reset
 from systemimage.state import State
@@ -176,3 +176,26 @@ class Mediator:
 
     def get_build(self):
         return self._config.build_number
+
+    def supports_firmware_update(self):
+        p = subprocess.check_output(['afirmflasher', '-jd']).rstrip()
+        try:
+        	return True if p.decode('utf8') == "OK" else False
+        except Exception as e:
+            return False
+
+    def check_for_firmware_update(self):
+        p = subprocess.check_output(['afirmflasher', '-jc']).rstrip()
+        try:
+            json.loads(p.decode('utf8'))
+            return p
+        except Exception as e:
+            return "ERR"
+
+    def update_firmware(self):
+        p = subprocess.check_output(['afirmflasher', '-jf']).rstrip()
+        try:
+            json.loads(p.decode('utf8'))
+            return p
+        except Exception as e:
+            return "ERR"

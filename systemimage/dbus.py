@@ -436,6 +436,23 @@ class Service(Object):
         """Get build to get updates from"""
         return self._api.get_build()
 
+    @log_and_exit
+    @method('com.canonical.SystemImage', out_signature='b')
+    def SupportsFirmwareUpdate(self):
+        """Check if device supports firmware update"""
+        return self._api.supports_firmware_update()
+
+    @log_and_exit
+    @method('com.canonical.SystemImage', out_signature='s')
+    def CheckForFirmwareUpdate(self):
+        """Check for firmware update"""
+        return self._api.check_for_firmware_update()
+
+    @log_and_exit
+    @method('com.canonical.SystemImage', out_signature='s')
+    def UpdateFirmware(self):
+        """Update firmware"""
+        return self._api.update_firmware()
 
     @log_and_exit
     @signal('com.canonical.SystemImage', signature='bbsiss')
