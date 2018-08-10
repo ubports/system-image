@@ -440,7 +440,7 @@ class Service(Object):
     @method('com.canonical.SystemImage', out_signature='b')
     def SupportsFirmwareUpdate(self):
         """Check if device supports firmware update"""
-        return self._api.supports_firmware_update()
+        return self._api.supports_firmware_update
 
     @log_and_exit
     @method('com.canonical.SystemImage', out_signature='s')
