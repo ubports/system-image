@@ -199,3 +199,6 @@ class Mediator:
             return p
         except Exception as e:
             return "ERR"
+
+    def reboot(self):
+        subprocess.check_output(['/sbin/reboot']).rstrip()

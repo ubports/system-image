@@ -455,6 +455,12 @@ class Service(Object):
         return self._api.update_firmware()
 
     @log_and_exit
+    @method('com.canonical.SystemImage')
+    def Reboot(self):
+        """Reboot"""
+        self._api.reboot()
+
+    @log_and_exit
     @signal('com.canonical.SystemImage', signature='bbsiss')
     def UpdateAvailableStatus(self,
                               is_available, downloading,
