@@ -22,7 +22,8 @@ __all__ = [
     ]
 
 
-import logging
+import logging, json
+from subprocess import check_output, CalledProcessError
 
 from systemimage.apply import factory_reset, production_reset
 from systemimage.state import State
@@ -176,3 +177,91 @@ class Mediator:
 
     def get_build(self):
         return self._config.build_number
+
+    @property
+    def supports_firmware_update(self):
+        """Determines whether the system firmware can be updated using system-image
+
+        :returns: ``True`` if firmware can be updated, ``False`` if it cannot.
+
+        :rtype: bool
+        """
+        try:
+            p = check_output(['afirmflasher', '-jd']).rstrip()
+        except CalledProcessError as e:
+            log.warning("afirmflasher returned non-zero exit status {}", e.returncode)
+            return False
+        except OSError as e:
+            # afirmflasher isn't installed so this device obviously doesn't support it
+            return False
+
+        try:
+        	return p.decode('utf8') == "OK"
+        except Exception as e:
+            log.warning(("Exception occurred while checking whether this device",
+                         " supports firmware update."))
+            log.exception(e)
+            return False
+
+    def check_for_firmware_update(self):
+        """Get information about available firmware updates
+
+        :returns: JSON from afirmflasher with available update status
+        """
+
+        if not self.supports_firmware_update:
+            log.error(("check_for_firmware_update called but device does not ",
+                       "support firmware update."))
+            return "ERR"
+
+        try:
+            p = check_output(['afirmflasher', '-jc']).rstrip()
+        except CalledProcessError as e:
+            log.warning("afirmflasher returned non-zero exit status {}", e.returncode)
+            return "ERR"
+        except OSError as e:
+            log.exception(e)
+            return "ERR"
+
+        try:
+            json.loads(p.decode('utf8'))
+            return p
+        except Exception as e:
+            log.warning(("Exception occurred while checking whether this device",
+                         " has a firmware update."))
+            log.exception(e)
+            return "ERR"
+
+    def update_firmware(self):
+        """Attempt to update system firmware
+
+        :returns: JSON from afirmflasher with update results
+        """
+
+        if not self.supports_firmware_update:
+            log.error(("check_for_firmware_update called but device does not ",
+                       "support firmware update."))
+            return "ERR"
+
+        try:
+            p = check_output(['afirmflasher', '-jf']).rstrip()
+        except CalledProcessError as e:
+            log.warning("afirmflasher returned non-zero exit status {}", e.returncode)
+            return "ERR"
+        except OSError as e:
+            log.exception(e)
+            return "ERR"
+
+        try:
+            json.loads(p.decode('utf8'))
+            return p
+        except Exception as e:
+            log.warning("Exception occurred while attempting to update firmware")
+            log.exception(e)
+            return "ERR"
+
+    def reboot(self):
+        try:
+            check_output(['/sbin/reboot']).rstrip()
+        except CalledProcessError:
+            log.error("Failed to reboot")
