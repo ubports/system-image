@@ -39,7 +39,7 @@ from systemimage.bag import Bag
 from systemimage.config import Configuration
 from systemimage.helpers import (
     MiB, NO_PORT, as_loglevel, as_object, as_port, as_stripped, as_timedelta,
-    calculate_signature, last_update_date, phased_percentage,
+    calculate_signature, get_android_offset, last_update_date, phased_percentage,
     temporary_directory, version_detail)
 from systemimage.testing.helpers import configuration, data_path, touch_build
 from unittest.mock import patch
@@ -127,6 +127,43 @@ class TestConverters(unittest.TestCase):
         self.assertEqual(as_stripped('   field   '), 'field')
 
 
+class TestGetAndroidOffset(unittest.TestCase):
+    @configuration
+    def test_offset(self):
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            timekeep_file = Path(tmpdir) / 'timekeep'
+            stack.enter_context(patch('systemimage.helpers.TIMEKEEPER_OFFSET_FILE',
+                                      str(timekeep_file)))
+            timestamp = int(datetime(2012, 11, 10, 9, 8, 7).timestamp())
+            timekeep_file.touch()
+            with open(str(timekeep_file), 'w') as f:
+                f.write(str(timestamp))
+            self.assertEqual(get_android_offset(), 1352560087)
+
+    @configuration
+    def test_offset_garbage_file(self):
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            timekeep_file = Path(tmpdir) / 'timekeep'
+            stack.enter_context(patch('systemimage.helpers.TIMEKEEPER_OFFSET_FILE',
+                                      str(timekeep_file)))
+            timekeep_file.touch()
+            with open(str(timekeep_file), 'w') as f:
+                f.write("This is definitely not a timestamp")
+            self.assertEqual(get_android_offset(), 0)
+
+    @configuration
+    def test_offset_no_file(self):
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            timekeep_file = Path(tmpdir) / 'timekeep'
+            stack.enter_context(patch('systemimage.helpers.TIMEKEEPER_OFFSET_FILE',
+                                      str(timekeep_file)))
+            # Don't create the file
+            self.assertEqual(get_android_offset(), 0)
+
+
 class TestLastUpdateDate(unittest.TestCase):
     @configuration
     def test_date_from_userdata(self):
@@ -140,6 +177,24 @@ class TestLastUpdateDate(unittest.TestCase):
             userdata_path.touch()
             os.utime(str(userdata_path), (timestamp, timestamp))
             self.assertEqual(last_update_date(), '2012-11-10 09:08:07')
+
+    @configuration
+    def test_date_from_userdata_with_offset(self):
+        def dummy_offset():
+            """Returns a set time offset of one day (86400 seconds)"""
+            return 86400
+        # The last upgrade data can come from /userdata/.last_update.
+        with ExitStack() as stack:
+            tmpdir = stack.enter_context(temporary_directory())
+            userdata_path = Path(tmpdir) / '.last_update'
+            stack.enter_context(patch('systemimage.helpers.LAST_UPDATE_FILE',
+                                      str(userdata_path)))
+            stack.enter_context(patch('systemimage.helpers.get_android_offset',
+                                      dummy_offset))
+            timestamp = int(datetime(2012, 11, 10, 9, 8, 7).timestamp())
+            userdata_path.touch()
+            os.utime(str(userdata_path), (timestamp, timestamp))
+            self.assertEqual(last_update_date(), '2012-11-11 09:08:07')
 
     @configuration
     def test_date_from_config_d(self, config):
