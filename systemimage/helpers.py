@@ -49,6 +49,7 @@ from importlib import import_module
 
 UNIQUE_MACHINE_ID_FILES = ['/var/lib/dbus/machine-id', '/etc/machine-id']
 LAST_UPDATE_FILE = '/userdata/.last_update'
+TIMEKEEPER_OFFSET_FILE = '/data/time/timekeep'
 DEFAULT_DIRMODE = 0o02700
 MiB = 1 << 20
 EMPTYSTRING = ''
@@ -239,18 +240,50 @@ def makedirs(dir, mode=DEFAULT_DIRMODE):
     os.makedirs(dir, mode=mode, exist_ok=True)
 
 
+def get_android_offset():
+    """Return the number of seconds delta between the hardware clock and now.
+
+    Some Android devices have a read-only hardware clock, so we store the number
+    of seconds between the read-only clock and the current time in a file, then
+    read that file at boot time to determine what the current time actually is.
+    In our Android recoveries, we don't really care what the current time is
+    and don't take this step, so the mtime of our "last-update" file is
+    incorrect.  This method reads and returns the number of seconds stored in
+    the offset file.
+
+    If the time offset file doesn't open or contains non-int data, this method
+    returns 0.
+    """
+    log = logging.getLogger('systemimage')
+    try:
+        with open(TIMEKEEPER_OFFSET_FILE, 'rt') as f:
+            time_offset = int(f.readline())
+            log.info("Hardware clock offset is {}".format(time_offset))
+            return time_offset
+    except (OSError, IOError):
+        # We couldn't open the offset file, so there's no offset on this platform
+        log.info("Couldn't open time offset file, assuming zero offset.")
+        return 0
+    except (ValueError):
+        # The value in the file doesn't cast to an int
+        log.info("Found garbage in time offset file, assuming zero offset.")
+        return 0
+
+
 def last_update_date():
     """Return the last update date.
 
     If /userdata/.last_update exists, we use this file's mtime.  If it doesn't
     exist, then we use the latest mtime of any of the files in
     /etc/system-image/config.d/*.ini (or whatever directory was given with the
-    -C/--config option).
+    -C/--config option).  We also use the Android offset, if it is available,
+    to get a more correct date.
     """
     # Avoid circular imports.
     from systemimage.config import config
     try:
-        timestamp = datetime.fromtimestamp(os.stat(LAST_UPDATE_FILE).st_mtime)
+        timestamp_raw = os.stat(LAST_UPDATE_FILE).st_mtime
+        timestamp = datetime.fromtimestamp(timestamp_raw)
     except (FileNotFoundError, PermissionError):
         # We fall back to the latest mtime of the config.d/*.ini files.  For
         # robustness, watch out for two possibilities: the config file could
@@ -265,7 +298,8 @@ def last_update_date():
         if len(timestamps) == 0:
             return 'Unknown'
         timestamp = sorted(timestamps)[-1]
-    return str(timestamp.replace(microsecond=0))
+    delta = timedelta(seconds=get_android_offset())
+    return str(timestamp.replace(microsecond=0) + delta)
 
 
 def version_detail(details_string=None):
