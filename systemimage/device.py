@@ -41,10 +41,9 @@ class SystemProperty(BaseDevice):
         try:
             stdout = check_output(
                 'getprop ro.product.device'.split(), universal_newlines=True)
-        except CalledProcessError as error:
-            log.exception('getprop exit status: {}'.format(error.returncode))
-            return '?'
-        except FileNotFoundError as error:
+        except:
+            pass
+        if (stdout == "")
             # Try to use device-info instead
             log.exception('getprop command not found, trying fallback to deviceinfo')
             try:
