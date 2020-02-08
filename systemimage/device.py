@@ -45,6 +45,11 @@ class SystemProperty(BaseDevice):
             log.exception('getprop exit status: {}'.format(error.returncode))
             return '?'
         except FileNotFoundError as error:
-            log.exception('getprop command not found')
-            return '?'
+            # Try to use device-info instead
+            log.exception('getprop command not found, trying fallback to deviceinfo')
+            try:
+                stdout = check_output(
+                    'device-info get Name'.split(), universal_newlines=True)
+            except:
+                return '?'
         return stdout.strip()
