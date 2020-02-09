@@ -43,7 +43,7 @@ class SystemProperty(BaseDevice):
                 'getprop ro.product.device'.split(), universal_newlines=True)
         except:
             pass
-        if stdout == '':
+        if stdout and stdout == '':
             # Try to use device-info instead
             try:
                 stdout = check_output(
