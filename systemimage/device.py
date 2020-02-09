@@ -43,12 +43,12 @@ class SystemProperty(BaseDevice):
                 'getprop ro.product.device'.split(), universal_newlines=True)
         except:
             pass
-        if (stdout == "")
+        if stdout == '':
             # Try to use device-info instead
-            log.exception('getprop command not found, trying fallback to deviceinfo')
             try:
                 stdout = check_output(
                     'device-info get Name'.split(), universal_newlines=True)
             except:
+                log.exception('Could not determine device name from either getprop or device-info!')
                 return '?'
         return stdout.strip()
