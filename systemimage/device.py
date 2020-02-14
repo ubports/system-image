@@ -47,7 +47,7 @@ class SystemProperty(BaseDevice):
             # Try to use device-info instead
             try:
                 stdout = check_output(
-                    'device-info get Name'.split(), universal_newlines=True)
+                    'device-info get Name', universal_newlines=True)
             except:
                 log.exception('Could not determine device name from either getprop or device-info!')
                 return '?'
