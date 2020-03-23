@@ -40,16 +40,15 @@ class SystemProperty(BaseDevice):
         log = logging.getLogger('systemimage')
         stdout = ''
         try:
-            stdout = check_output(
-                'getprop ro.product.device'.split(), universal_newlines=True)
+            stdout = check_output('getprop ro.product.device'.split(), universal_newlines=True).strip()
         except:
             pass
         if stdout == '':
             # Try to use device-info instead
             try:
-                stdout = check_output(
-                    'device-info get Name', universal_newlines=True)
+                stdout = check_output('device-info get name'.split(), universal_newlines=True).strip()
+                log.info(stdout)
             except:
                 log.exception('Could not determine device name from either getprop or device-info!')
-                return 'unknown'
-        return stdout.strip()
+                return 'yumi'
+        return stdout
