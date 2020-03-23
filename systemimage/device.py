@@ -38,17 +38,18 @@ class SystemProperty(BaseDevice):
 
     def get_device(self):
         log = logging.getLogger('systemimage')
+        stdout = ''
         try:
             stdout = check_output(
                 'getprop ro.product.device'.split(), universal_newlines=True)
         except:
             pass
-        if stdout and stdout == '':
+        if stdout == '':
             # Try to use device-info instead
             try:
                 stdout = check_output(
                     'device-info get Name', universal_newlines=True)
             except:
                 log.exception('Could not determine device name from either getprop or device-info!')
-                return '?'
+                return 'unknown'
         return stdout.strip()
