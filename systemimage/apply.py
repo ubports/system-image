@@ -47,6 +47,13 @@ class Reboot(BaseApply):
 
     def apply(self):
         try:
+            check_call('touch /persist/reboot-recovery'.split(),
+                       universal_newlines=True)
+        except CalledProcessError as error:
+            log.exception('Unable to create /persist/reboot-recovery: {}'.format(error.returncode))
+            # Even if this fails, we should continue to reboot.
+            #raise
+        try:
             check_call('/sbin/reboot -f recovery'.split(),
                        universal_newlines=True)
         except CalledProcessError as error:
