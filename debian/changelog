@@ -1,3 +1,12 @@
+system-image (3.3+0ubports0) xenial; urgency=medium
+
+  * Drop Python 3.4 support
+  * Bump X-Python3-Version to >= 3.5
+  * Return only channels which can be installed on the current device for
+    com.canonical.SystemImage GetChannels
+
+ -- Dalton Durst <dalton@ubports.com>  Mon, 06 Jul 2020 14:57:52 -0500
+
 system-image (3.2+ubports) xenial; urgency=medium
 
   * Imported to UBports
