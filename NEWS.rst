@@ -2,6 +2,12 @@
 NEWS for system-image updater
 =============================
 
+3.3 (2020-07-06)
+================
+  * Return only channels which can be installed on the current device for
+    com.canonical.SystemImage GetChannels
+  * No longer test for Python 3.4
+
 3.1 (2016-03-02)
 ================
  * In ``system-image-cli``, add a ``-m``/``--maximage`` flag which can be used
