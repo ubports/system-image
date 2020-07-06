@@ -288,3 +288,32 @@ class TestAPIVersionDetail(ServerTestBase):
         update = Mediator().check_for_update()
         self.assertFalse(update.is_available)
         self.assertEqual(update.version_detail, '')
+
+class TestGetChannels(ServerTestBase):
+    INDEX_FILE = 'api.index_03.json'
+    CHANNEL_FILE = 'api.channels_01.json'
+    CHANNEL = 'stable'
+    DEVICE = 'nexus7'
+
+    @configuration
+    def test_get_channels_nexus7(self):
+        DEVICE = 'nexus7'
+        self._setup_server_keyrings()
+        mediator = Mediator()
+        mediator.check_for_update()
+        channels = mediator.get_channels()
+        self.assertEqual(channels, [
+            {'alias': None, 'hidden': False, 'name': 'daily', 'redirect': None},
+            {'alias': None, 'hidden': False, 'name': 'stable', 'redirect': None},
+        ])
+
+    @configuration('00.ini', device='nexus4')
+    def test_get_channels_nexus4(self):
+        DEVICE = 'nexus4'
+        self._setup_server_keyrings()
+        mediator = Mediator()
+        mediator.check_for_update()
+        channels = mediator.get_channels()
+        self.assertEqual(channels, [
+            {'alias': None, 'hidden': False, 'name': 'daily', 'redirect': None},
+        ])

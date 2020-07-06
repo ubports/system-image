@@ -236,6 +236,13 @@ def make_http_server(directory, port, certpem=None, keypem=None):
 # @configuration('some-config.ini')
 # def test_something(self):
 #
+# This function also accepts a single keyword argument, 'device=', which
+# changes the device that the client under test detects. The default is
+# 'nexus7', which is used when the kwarg is not provided. For example:
+#
+# @configuration('00.ini', device='nexus4')
+# def test_that_needs_nexus4(self):
+#
 # There's actually another level of interior function, because the outer
 # decorator itself is getting called.  Here, any named configuration file is
 # additionally copied to the config.d directory, renaming it sequentionally to
@@ -245,6 +252,9 @@ def make_http_server(directory, port, certpem=None, keypem=None):
 # The implementation is tricky because we want the call sites to be simple.
 def _wrapper(self, function, ini_files, *args, **kws):
     start = 0
+    # It would be preferable to simply add a device='nexus7' argument, but that
+    # causes 'decorator() takes 1 positional argument but 2 were given'
+    device = kws.get('device', 'nexus7')
     with ExitStack() as resources:
         # Create the config.d directory and copy all the source ini files to
         # this directory in sequential order, interpolating in the temporary
@@ -268,7 +278,7 @@ def _wrapper(self, function, ini_files, *args, **kws):
             patch('systemimage.config._config', config))
         resources.enter_context(
             patch('systemimage.device.check_output',
-                  return_value='nexus7'))
+                  return_value=device))
         # Make sure the cache_partition and data_partition exist.
         makedirs(config.updater.cache_partition)
         makedirs(config.updater.data_partition)
@@ -281,26 +291,29 @@ def _wrapper(self, function, ini_files, *args, **kws):
         if 'config' in signature.parameters:
             kws['config'] = config
         # Call the function with the given arguments and return the result.
-        return function(self, *args, **kws)
+        return function(self, *args)
 
 
-def configuration(*args):
+def configuration(*args, **kwargs):
     """Outer decorator which can be called or not at function definition time.
 
-    If called, the arguments are positional only, and name the test data .ini
-    files which are to be copied to config.d directory.  If none are given,
-    then 00.ini is used.
+    If called, the positional arguments name the test data .ini files which are
+    to be copied to config.d directory.  If none are given, then 00.ini is used.
+
+    The keyword arguments are used to configure the wrapper function. Currently
+    only the 'device=' keyword argument is used, and sets the device name that
+    the client service will detect. The default is 'nexus7.
     """
     if len(args) == 1 and callable(args[0]):
         # We assume this was the bare @configuration decorator flavor.
         function = args[0]
-        inner = partialmethod(_wrapper, function, ('00.ini',))
+        inner = partialmethod(_wrapper, function, ('00.ini',), **kwargs)
         return wraps(function)(inner)
     else:
         # We assume this was the called @configuration(...) decorator flavor,
         # so create the actual decorator that wraps the _wrapper function.
         def decorator(function):
-            inner = partialmethod(_wrapper, function, args)
+            inner = partialmethod(_wrapper, function, args, **kwargs)
             return wraps(function)(inner)
         return decorator
 

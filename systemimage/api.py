@@ -123,10 +123,16 @@ class Mediator:
                 self._update = Update(self._state.winner)
                 self._channels = list()
                 for key in sorted(self._state.channels):
+                    channel = self._state.channels[key]
+
+                    # Ignore channels that are not installable on this device
+                    if self._config.device not in channel["devices"]:
+                        continue
+
                     self._channels.append(dict(
-                        hidden=self._state.channels[key].get('hidden'),
-                        alias=self._state.channels[key].get('alias'),
-                        redirect=self._state.channels[key].get('redirect'),
+                        hidden=channel.get('hidden'),
+                        alias=channel.get('alias'),
+                        redirect=channel.get('redirect'),
                         name=key
                     ))
         return self._update
@@ -156,7 +162,12 @@ class Mediator:
         self._state.downloader.allow_gsm()          # pragma: no curl
 
     def get_channels(self):
-        """List channels. This returns output created by check_for_update."""
+        """List channels which are installable on this device.
+
+        This is not valid until check_for_update has succeeded.
+        """
+        if self._channels is None:
+            log.warn("get_channels called before check_for_update succeeded!")
         return self._channels
 
     def set_channel(self, channel):
