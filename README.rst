@@ -24,18 +24,18 @@ environment without running the test suite::
 
 Once the environment is set up, you can run individual tests like so::
 
-    $ .tox/py34/bin/python -m nose2 -P <pattern>
+    $ .tox/py35-curl/bin/python -m nose2 -P <pattern>
 
 Multiple `-P` options can be given.  The pattern matches the full test "name",
 so you can use a file name (without the `.py` extension), a test class, a test
 method, or various other combinations here.  E.g.::
 
-    $ .tox/py34/bin/python -m nose2 -P test_add_existing_key
+    $ .tox/py35-curl/bin/python -m nose2 -P test_add_existing_key
 
 Other options are available to help with debugging and verbosity.  Try this to
 get full help::
 
-    $ .tox/py34/bin/python -m nose2 --help
+    $ .tox/py35-curl/bin/python -m nose2 --help
 
 
 Project Information
