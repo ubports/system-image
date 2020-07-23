@@ -38,13 +38,17 @@ class SystemProperty(BaseDevice):
 
     def get_device(self):
         log = logging.getLogger('systemimage')
+        stdout = ''
         try:
-            stdout = check_output(
-                'getprop ro.product.device'.split(), universal_newlines=True)
-        except CalledProcessError as error:
-            log.exception('getprop exit status: {}'.format(error.returncode))
-            return '?'
-        except FileNotFoundError as error:
-            log.exception('getprop command not found')
-            return '?'
-        return stdout.strip()
+            stdout = check_output('getprop ro.product.device'.split(), universal_newlines=True).strip()
+        except:
+            pass
+        if stdout == '':
+            # Try to use device-info instead
+            try:
+                stdout = check_output('device-info get name'.split(), universal_newlines=True).strip()
+                log.info(stdout)
+            except:
+                log.exception('Could not determine device name from either getprop or device-info!')
+                return 'yumi'
+        return stdout
